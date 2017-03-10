@@ -1,0 +1,22 @@
+This project contains code for the ETMIP work started by Benu Atri and Dr. Angela Wilkins.  Daniel Konecki is joining this project in a support role for programming purposes.
+
+Below is information on code ussage, inputs, and outputs.
+
+A new file is being created called etmipCollab.py which will have updated code.
+
+Usage: python etmip10ForOptimization.py <fastafile> <pdbfilename> <cutoff> <proteinid>
+
+E.g. 
+python etmip10ForOptimization.py 1c17A.fa query_1c17A.pdb 8 1c17A
+python etmip10ForOptimization.py 1h1vA.fa query_1h1vA.pdb 8 1h1vA
+
+Inputs: fastafile in .fa, pdbfile, a cutoff and the name of the protein. 8 is a cutoff I use to define contacts in the PDB to be used as the criteria to generate AUCs. If the nearest ATOM distance between 2 residues is >8.0, I consider it as a non-contact. 
+
+The zipped folders have the following output files:
+
+1. ETMIP predictions text files for clusters 2, 3, 5, 7, 10 and 25
+2. ROC curves for the above
+3. A text results file with AUCs for each cluster and Run times in seconds
+
+Nomenclature:
+The output files are named by date, cutoff, cluster number and filetype.
