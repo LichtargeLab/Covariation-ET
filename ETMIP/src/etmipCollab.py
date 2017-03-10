@@ -16,20 +16,6 @@ import math
 import sys
 import os
 
-today = datetime.date.today()
-neighbor_list = []
-gap_list = ["-", ".", "_"]
-aa_list = []
-aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-           'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']  # comment out for actual dataset
-aa_gap_list = aa_list + gap_list
-i_j_list = []
-alignment_dict = {}  # this will be our alignment
-seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
-key = ''
-temp_aa = ''
-cutoff = float(sys.argv[3])
-
 
 def remove_gaps(alignment_dict):
     # Getting gapped columns for query
@@ -276,176 +262,192 @@ def find_distance(filename):  # takes PDB
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
-files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
-for line in files:
-    if line.startswith(">"):
-        if "query" in line.lower():
-            query_desc = line
-        key = line.rstrip()
-        alignment_dict[key] = ''
-    else:
-        alignment_dict[key] = alignment_dict[key] + line.rstrip()
-createFolder = ("/cedar/atri/projects/coupling/OutputsforETMIP_BA/" +
-                str(today) + "/" + str(sys.argv[4]))
+if __name__ == '__main__':
+    today = datetime.date.today()
+    neighbor_list = []
+    gap_list = ["-", ".", "_"]
+    aa_list = []
+    aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+               'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']  # comment out for actual dataset
+    aa_gap_list = aa_list + gap_list
+    i_j_list = []
+    alignment_dict = {}  # this will be our alignment
+    seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
+    key = ''
+    temp_aa = ''
+    cutoff = float(sys.argv[3])
 
-if not os.path.exists(createFolder):
-    os.makedirs(createFolder)
-    print "creating new folder"
+    files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
+    for line in files:
+        if line.startswith(">"):
+            if "query" in line.lower():
+                query_desc = line
+            key = line.rstrip()
+            alignment_dict[key] = ''
+        else:
+            alignment_dict[key] = alignment_dict[key] + line.rstrip()
+    createFolder = ("/cedar/atri/projects/coupling/OutputsforETMIP_BA/" +
+                    str(today) + "/" + str(sys.argv[4]))
 
+    if not os.path.exists(createFolder):
+        os.makedirs(createFolder)
+        print "creating new folder"
 
-query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
-# I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-X, sequence_order = distance_matrix(fixed_alignment_dict)
-wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
-seq_length = len(fixed_alignment_dict.itervalues().next())
-summed_Matrix = np.zeros([seq_length, seq_length])
-summed_Matrix = wholeMIP_Matrix
-pdbfilename = sys.argv[2].strip()
+    query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
+    # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
+    X, sequence_order = distance_matrix(fixed_alignment_dict)
+    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
+    seq_length = len(fixed_alignment_dict.itervalues().next())
+    summed_Matrix = np.zeros([seq_length, seq_length])
+    summed_Matrix = wholeMIP_Matrix
+    pdbfilename = sys.argv[2].strip()
 
-time_start = time.clock()
+    time_start = time.clock()
 
-o = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
-    sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
-outfile = open(o, 'w+')
-proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(
-    len(sequence_order)) + " Length of protein: " + str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
-outfile.write(proteininfo)
-outfile.write("#OfClusters\tAUC\tRunTime\n")
-distdict, PDBresidueList, residues_dict = find_distance(
-    pdbfilename)  # e.g. 206_192 6.82
-PDBdist_Classifylist = []
-sorted_PDB_dist = []
-sorted_res_list = []
-
-for i in PDBresidueList:
-    sorted_res_list.append(int(i))
-# list of sorted residues - necessary for those where res1 is not 1
-sorted(list(set(sorted_res_list)))
-# this is where we can do i, j by running a second loop
-for i in sorted_res_list:
-    for j in sorted_res_list:
-        if i >= j:
-            continue
-        newkey1 = str(i) + "_" + str(j)
-        sorted_PDB_dist.append(distdict[newkey1])
-
-# NAME, ALIGNMENT SIZE, PROTEIN LENGTH
-print str(sys.argv[4]), len(sequence_order), str(seq_length)
-
-ls = [2, 3, 5, 7, 10, 25]
-for clus in ls:
-    # print "starting clustering"
-    e = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
-        sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
-    etmipoutfile = open("{0}".format(e), "w+")
-    setoffiles.append(e)
-    cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
-    for c in clusterset:
-        new_alignment = {}
-        cluster_list = cluster_dict[c]
-        for key in fixed_alignment_dict:
-            if key in cluster_list:
-                new_alignment[key] = fixed_alignment_dict[key]
-        clusteredMIP_matrix = wholeAnalysis(new_alignment)
-        summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
-
-    etmiplist = []
-    etmip_dict = {}
+    o = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+        sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
+    outfile = open(o, 'w+')
+    proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(
+        len(sequence_order)) + " Length of protein: " + str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
+    outfile.write(proteininfo)
+    outfile.write("#OfClusters\tAUC\tRunTime\n")
+    distdict, PDBresidueList, residues_dict = find_distance(
+        pdbfilename)  # e.g. 206_192 6.82
     PDBdist_Classifylist = []
-    y_score1 = []
-    y_true1 = []
+    sorted_PDB_dist = []
+    sorted_res_list = []
 
+    for i in PDBresidueList:
+        sorted_res_list.append(int(i))
+    # list of sorted residues - necessary for those where res1 is not 1
+    sorted(list(set(sorted_res_list)))
     # this is where we can do i, j by running a second loop
-    for i in range(0, len(sorted_res_list)):
-        for j in range(0, len(sorted_res_list)):
+    for i in sorted_res_list:
+        for j in sorted_res_list:
             if i >= j:
                 continue
-            key = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
-            etmip_dict[key] = summed_Matrix[i][j]
-    etmipResScoreList = []
-    forOutputCoverageList = []
-    etmiplistCoverage = []
+            newkey1 = str(i) + "_" + str(j)
+            sorted_PDB_dist.append(distdict[newkey1])
 
-    for i in range(0, len(sorted_res_list)):
-        for j in range(0, len(sorted_res_list)):
-            if i >= j:
-                continue
-            newkey1 = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
-            etmipResScoreList.append(newkey1)
-            etmipResScoreList.append(etmip_dict[newkey1])
+    # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
+    print str(sys.argv[4]), len(sequence_order), str(seq_length)
 
-    # Converting to coverage
+    ls = [2, 3, 5, 7, 10, 25]
+    for clus in ls:
+        # print "starting clustering"
+        e = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+            sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
+        etmipoutfile = open("{0}".format(e), "w+")
+        setoffiles.append(e)
+        cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
+        for c in clusterset:
+            new_alignment = {}
+            cluster_list = cluster_dict[c]
+            for key in fixed_alignment_dict:
+                if key in cluster_list:
+                    new_alignment[key] = fixed_alignment_dict[key]
+            clusteredMIP_matrix = wholeAnalysis(new_alignment)
+            summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
 
-    for i in range(1, len(etmipResScoreList), 2):
-        etmipRank = 0
-        for j in range(1, len(etmipResScoreList), 2):
-            if i != j:
-                if float(etmipResScoreList[i]) >= float(etmipResScoreList[j]):
-                    etmipRank += 1
-        computeCoverage = (etmipRank * 100) / \
-            (float(len(etmipResScoreList)) / 2)
-        etmiplistCoverage.append(computeCoverage)
+        etmiplist = []
+        etmip_dict = {}
+        PDBdist_Classifylist = []
+        y_score1 = []
+        y_true1 = []
 
-        forOutputCoverageList.append(etmipResScoreList[i - 1])
-        forOutputCoverageList.append(computeCoverage)
-        # print computeCoverage
-    # print  "Coverage computation finished"
-    # AUC computation
-    if len(etmiplistCoverage) == len(sorted_PDB_dist):
-        for i in range(0, len(etmiplistCoverage)):
-            y_score1.append(etmiplistCoverage[i])
-
-            if (float(sorted_PDB_dist[i]) <= cutoff):
-                PDBdist_Classifylist.append(1)
-                y_true1.append(1)
-            else:
-                PDBdist_Classifylist.append(0)
-                y_true1.append(0)
-    else:
-        print "lengths do not match"
-        sys.exit()
-    # print  "AUC computation finished"
-
-    # this is where we can do i, j by running a second loop
-    for i in range(0, len(sorted_res_list)):
         # this is where we can do i, j by running a second loop
-        for j in range(0, len(sorted_res_list)):
-            if i >= j:
-                continue
-            else:
+        for i in range(0, len(sorted_res_list)):
+            for j in range(0, len(sorted_res_list)):
+                if i >= j:
+                    continue
                 key = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
-                if distdict[key] <= cutoff:
-                    r = 1
-                else:
-                    r = 0
-                res1 = str(sorted_res_list[i])
-                res2 = str(sorted_res_list[j])
-                ind = forOutputCoverageList.index(key)
-                etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
-                    round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
-                etmipoutfile.write(etmipoutputline)
-                etmipoutfile.write("\n")
-    fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
-    roc_auc1 = auc(fpr1, tpr1)
-    # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-    time_elapsed = (time.clock() - time_start)
-    output = "\t{0}\t{1}\t{2}\n".format(
-        str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
-    outfile.write(output)
+                etmip_dict[key] = summed_Matrix[i][j]
+        etmipResScoreList = []
+        forOutputCoverageList = []
+        etmiplistCoverage = []
 
-    pl.clf()
-    pl.plot(fpr1, tpr1, label='(AUC = %0.2f)' % roc_auc1)  # change here
-    pl.plot([0, 1], [0, 1], 'k--')
-    pl.xlim([0.0, 1.0])
-    pl.ylim([0.0, 1.0])
-    pl.xlabel('False Positive Rate')
-    pl.ylabel('True Positive Rate')
-    title = 'Ability to predict positive contacts in ' + \
-        str(sys.argv[4]) + ", Cluster = " + str(clus)
-    pl.title(title)
-    pl.legend(loc="lower right")
-    # pl.show()
-    imagename = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
-        sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
-    pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
-print "Generated results in", createFolder
+        for i in range(0, len(sorted_res_list)):
+            for j in range(0, len(sorted_res_list)):
+                if i >= j:
+                    continue
+                newkey1 = str(
+                    sorted_res_list[i]) + "_" + str(sorted_res_list[j])
+                etmipResScoreList.append(newkey1)
+                etmipResScoreList.append(etmip_dict[newkey1])
+
+        # Converting to coverage
+
+        for i in range(1, len(etmipResScoreList), 2):
+            etmipRank = 0
+            for j in range(1, len(etmipResScoreList), 2):
+                if i != j:
+                    if float(etmipResScoreList[i]) >= float(etmipResScoreList[j]):
+                        etmipRank += 1
+            computeCoverage = (etmipRank * 100) / \
+                (float(len(etmipResScoreList)) / 2)
+            etmiplistCoverage.append(computeCoverage)
+
+            forOutputCoverageList.append(etmipResScoreList[i - 1])
+            forOutputCoverageList.append(computeCoverage)
+            # print computeCoverage
+        # print  "Coverage computation finished"
+        # AUC computation
+        if len(etmiplistCoverage) == len(sorted_PDB_dist):
+            for i in range(0, len(etmiplistCoverage)):
+                y_score1.append(etmiplistCoverage[i])
+
+                if (float(sorted_PDB_dist[i]) <= cutoff):
+                    PDBdist_Classifylist.append(1)
+                    y_true1.append(1)
+                else:
+                    PDBdist_Classifylist.append(0)
+                    y_true1.append(0)
+        else:
+            print "lengths do not match"
+            sys.exit()
+        # print  "AUC computation finished"
+
+        # this is where we can do i, j by running a second loop
+        for i in range(0, len(sorted_res_list)):
+            # this is where we can do i, j by running a second loop
+            for j in range(0, len(sorted_res_list)):
+                if i >= j:
+                    continue
+                else:
+                    key = str(sorted_res_list[i]) + \
+                        "_" + str(sorted_res_list[j])
+                    if distdict[key] <= cutoff:
+                        r = 1
+                    else:
+                        r = 0
+                    res1 = str(sorted_res_list[i])
+                    res2 = str(sorted_res_list[j])
+                    ind = forOutputCoverageList.index(key)
+                    etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
+                        round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
+                    etmipoutfile.write(etmipoutputline)
+                    etmipoutfile.write("\n")
+        fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
+        roc_auc1 = auc(fpr1, tpr1)
+        # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
+        time_elapsed = (time.clock() - time_start)
+        output = "\t{0}\t{1}\t{2}\n".format(
+            str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
+        outfile.write(output)
+
+        pl.clf()
+        pl.plot(fpr1, tpr1, label='(AUC = %0.2f)' % roc_auc1)  # change here
+        pl.plot([0, 1], [0, 1], 'k--')
+        pl.xlim([0.0, 1.0])
+        pl.ylim([0.0, 1.0])
+        pl.xlabel('False Positive Rate')
+        pl.ylabel('True Positive Rate')
+        title = 'Ability to predict positive contacts in ' + \
+            str(sys.argv[4]) + ", Cluster = " + str(clus)
+        pl.title(title)
+        pl.legend(loc="lower right")
+        # pl.show()
+        imagename = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
+            sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
+        pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
+    print "Generated results in", createFolder
