@@ -276,6 +276,10 @@ if __name__ == '__main__':
     key = ''
     temp_aa = ''
     cutoff = float(sys.argv[3])
+    try:
+        outDir = sys.argv[5]
+    except:
+        outDir = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/"
 
     files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
     for line in files:
@@ -286,7 +290,7 @@ if __name__ == '__main__':
             alignment_dict[key] = ''
         else:
             alignment_dict[key] = alignment_dict[key] + line.rstrip()
-    createFolder = ("/cedar/atri/projects/coupling/OutputsforETMIP_BA/" +
+    createFolder = (outDir +
                     str(today) + "/" + str(sys.argv[4]))
 
     if not os.path.exists(createFolder):
@@ -304,7 +308,7 @@ if __name__ == '__main__':
 
     time_start = time.clock()
 
-    o = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+    o = outDir + str(today) + "/" + str(
         sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
     outfile = open(o, 'w+')
     proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(
@@ -335,7 +339,7 @@ if __name__ == '__main__':
     ls = [2, 3, 5, 7, 10, 25]
     for clus in ls:
         # print "starting clustering"
-        e = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+        e = outDir + str(today) + "/" + str(
             sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
         etmipoutfile = open("{0}".format(e), "w+")
         setoffiles.append(e)
@@ -447,7 +451,7 @@ if __name__ == '__main__':
         pl.title(title)
         pl.legend(loc="lower right")
         # pl.show()
-        imagename = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
+        imagename = outDir + str(today) + "/" + str(sys.argv[4]) + "/" + str(
             sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
         pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     print "Generated results in", createFolder
