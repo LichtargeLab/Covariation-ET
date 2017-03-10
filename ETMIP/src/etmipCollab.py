@@ -263,6 +263,9 @@ def find_distance(filename):  # takes PDB
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
+    ###########################################################################
+    # Set up global variables
+    ###########################################################################
     today = datetime.date.today()
     neighbor_list = []
     gap_list = ["-", ".", "_"]
@@ -275,13 +278,18 @@ if __name__ == '__main__':
     seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
     key = ''
     temp_aa = ''
+
+    ###########################################################################
+    # Set up input variables
+    ###########################################################################
+    files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
+    pdbfilename = sys.argv[2].strip()
     cutoff = float(sys.argv[3])
+    qName = str(sys.argv[4])
     try:
         outDir = sys.argv[5]
     except:
         outDir = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/"
-
-    files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
     for line in files:
         if line.startswith(">"):
             if "query" in line.lower():
@@ -291,7 +299,7 @@ if __name__ == '__main__':
         else:
             alignment_dict[key] = alignment_dict[key] + line.rstrip()
     createFolder = (outDir +
-                    str(today) + "/" + str(sys.argv[4]))
+                    str(today) + "/" + qName)
 
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
@@ -304,14 +312,13 @@ if __name__ == '__main__':
     seq_length = len(fixed_alignment_dict.itervalues().next())
     summed_Matrix = np.zeros([seq_length, seq_length])
     summed_Matrix = wholeMIP_Matrix
-    pdbfilename = sys.argv[2].strip()
 
     time_start = time.clock()
 
     o = outDir + str(today) + "/" + str(
-        sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
+        qName) + "/" + qName + "_" + str(today) + "etmipAUC_results.txt"
     outfile = open(o, 'w+')
-    proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(
+    proteininfo = ("Protein/id: " + qName + " Alignment Size: " + str(
         len(sequence_order)) + " Length of protein: " + str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
@@ -334,15 +341,15 @@ if __name__ == '__main__':
             sorted_PDB_dist.append(distdict[newkey1])
 
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
-    print str(sys.argv[4]), len(sequence_order), str(seq_length)
+    print qName, len(sequence_order), str(seq_length)
 
     ls = [2, 3, 5, 7, 10, 25]
     for clus in ls:
         # print "starting clustering"
         e = outDir + str(today) + "/" + str(
-            sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
+            qName) + "/" + qName + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
         etmipoutfile = open("{0}".format(e), "w+")
-        setoffiles.append(e)
+        # setoffiles.append(e)
         cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
         for c in clusterset:
             new_alignment = {}
@@ -447,11 +454,11 @@ if __name__ == '__main__':
         pl.xlabel('False Positive Rate')
         pl.ylabel('True Positive Rate')
         title = 'Ability to predict positive contacts in ' + \
-            str(sys.argv[4]) + ", Cluster = " + str(clus)
+            qName + ", Cluster = " + str(clus)
         pl.title(title)
         pl.legend(loc="lower right")
         # pl.show()
-        imagename = outDir + str(today) + "/" + str(sys.argv[4]) + "/" + str(
+        imagename = outDir + str(today) + "/" + qName + "/" + str(
             sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
         pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     print "Generated results in", createFolder
