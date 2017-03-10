@@ -259,6 +259,18 @@ def find_distance(filename):  # takes PDB
     # print distancedict
     return distancedict, PDBresidueList, ResidueDict
 
+
+def importAlignment(files, alignment_dict):
+    for line in files:
+        if line.startswith(">"):
+            if "query" in line.lower():
+                query_desc = line
+            key = line.rstrip()
+            alignment_dict[key] = ''
+        else:
+            alignment_dict[key] = alignment_dict[key] + line.rstrip()
+
+
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
@@ -270,12 +282,15 @@ if __name__ == '__main__':
     neighbor_list = []
     gap_list = ["-", ".", "_"]
     aa_list = []
+    # comment out for actual dataset
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-               'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']  # comment out for actual dataset
+               'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_gap_list = aa_list + gap_list
     i_j_list = []
-    alignment_dict = {}  # this will be our alignment
-    seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
+    # this will be our alignment
+    alignment_dict = {}
+    # {seq1_seq2} = distancescore
+    seq12_distscore_dict = {}
     key = ''
     temp_aa = ''
 
@@ -290,6 +305,15 @@ if __name__ == '__main__':
         outDir = sys.argv[5]
     except:
         outDir = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/"
+
+    ###########################################################################
+    # Set up output location
+    ###########################################################################
+    createFolder = (outDir + str(today) + "/" + qName)
+    if not os.path.exists(createFolder):
+        os.makedirs(createFolder)
+        print "creating new folder"
+
     for line in files:
         if line.startswith(">"):
             if "query" in line.lower():
@@ -298,12 +322,6 @@ if __name__ == '__main__':
             alignment_dict[key] = ''
         else:
             alignment_dict[key] = alignment_dict[key] + line.rstrip()
-    createFolder = (outDir +
-                    str(today) + "/" + qName)
-
-    if not os.path.exists(createFolder):
-        os.makedirs(createFolder)
-        print "creating new folder"
 
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
