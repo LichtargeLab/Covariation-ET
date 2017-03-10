@@ -17,7 +17,47 @@ import sys
 import os
 
 
+def importAlignment(files, alignment_dict):
+    '''
+    Import alignments:
+
+    This method imports alignments into an existing dictionary.
+
+    Parameters:
+    -----------
+    files: File
+        File object holding a handle to an alignment file.
+    alignment_dict: dict    
+        Dictionary which will be used to store alignments from the file.
+    '''
+    for line in files:
+        if line.startswith(">"):
+            if "query" in line.lower():
+                query_desc = line
+            key = line.rstrip()
+            alignment_dict[key] = ''
+        else:
+            alignment_dict[key] += line.rstrip()
+
+
 def remove_gaps(alignment_dict):
+    '''
+    Remove Gaps
+
+    Desc
+
+    Parameters:
+    -----------
+    alignment_dict: dict
+        Dictionary mapping query name to sequence.
+
+    Returns:
+    --------
+    str
+        A new query name.
+    dict
+        A transform of the input dictionary without gaps.
+    '''
     # Getting gapped columns for query
     gap = ['-', '.', '_']
     query_gap_index = []
@@ -30,12 +70,17 @@ def remove_gaps(alignment_dict):
 
     new_alignment_dict = {}
     for key, value in alignment_dict.iteritems():
-        new_alignment_dict[key] = ''
-        for idc, char in enumerate(alignment_dict[key]):
-            if idc in query_gap_index:
-                continue
-            else:
-                new_alignment_dict[key] = new_alignment_dict[key] + char
+        #new_alignment_dict[key] = ''
+        new_alignment_dict[key] = alignment_dict[0:query_gap_index[[0]]]
+        for i in range(1, len(query_gap_index) - 1):
+            new_alignment_dict[key] += alignment_dict[key][query_gap_index[i]:
+                                                           query_gap_index[i + 1]]
+        new_alignment_dict[key] += alignment_dict[key][query_gap_index[-1]:]
+        # for idc, char in enumerate(alignment_dict[key]):
+        #    if idc in query_gap_index:
+        #        continue
+        #    else:
+        #        new_alignment_dict[key] = new_alignment_dict[key] + char
 
     return query_name, new_alignment_dict
 
@@ -260,17 +305,6 @@ def find_distance(filename):  # takes PDB
     return distancedict, PDBresidueList, ResidueDict
 
 
-def importAlignment(files, alignment_dict):
-    for line in files:
-        if line.startswith(">"):
-            if "query" in line.lower():
-                query_desc = line
-            key = line.rstrip()
-            alignment_dict[key] = ''
-        else:
-            alignment_dict[key] = alignment_dict[key] + line.rstrip()
-
-
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
@@ -314,14 +348,8 @@ if __name__ == '__main__':
         os.makedirs(createFolder)
         print "creating new folder"
 
-    for line in files:
-        if line.startswith(">"):
-            if "query" in line.lower():
-                query_desc = line
-            key = line.rstrip()
-            alignment_dict[key] = ''
-        else:
-            alignment_dict[key] = alignment_dict[key] + line.rstrip()
+    # Import alignment information
+    importAlignment(files, alignment_dict)
 
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
