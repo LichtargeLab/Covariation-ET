@@ -64,34 +64,17 @@ def remove_gaps(alignment_dict):
     for key, value in alignment_dict.iteritems():
         if "query" in key.lower():
             query_name = key
-            for idc, char in enumerate(alignment_dict[key]):
+            for idc, char in enumerate(value):
                 if char in gap:
                     query_gap_index.append(idc)
-    print query_gap_index
+    query_gap_index.sort()
     new_alignment_dict = {}
     for key, value in alignment_dict.iteritems():
-        new_alignment_dict[key] = ''
-        ##new_alignment_dict[key] = alignment_dict[0:query_gap_index[[0]]]
-        test = alignment_dict[key][0:query_gap_index[0]]
+        new_alignment_dict[key] = value[0:query_gap_index[[0]]]
         for i in range(1, len(query_gap_index) - 1):
-            # new_alignment_dict[key] += alignment_dict[key][query_gap_index[i]:
-            # query_gap_index[i + 1]]
-            test += alignment_dict[key][query_gap_index[i] +
-                                        1:query_gap_index[i + 1]]
-        ##new_alignment_dict[key] += alignment_dict[key][query_gap_index[-1]:]
-        test += alignment_dict[key][query_gap_index[-1] + 1:]
-        for idc, char in enumerate(alignment_dict[key]):
-            if idc in query_gap_index:
-                continue
-            else:
-                new_alignment_dict[key] = new_alignment_dict[key] + char
-        print 'Dict'
-        print new_alignment_dict[key]
-        print 'New'
-        print test
-        print test == new_alignment_dict[key]
-        exit()
-
+            new_alignment_dict[key] += value[query_gap_index[i]:
+                                             query_gap_index[i + 1]]
+        new_alignment_dict[key] += value[query_gap_index[-1]:]
     return query_name, new_alignment_dict
 
 
