@@ -7,6 +7,7 @@ Created on Mar 10, 2017
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 import matplotlib
+from matplotlib.sphinxext.plot_directive import align
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
@@ -44,7 +45,8 @@ def remove_gaps(alignment_dict):
     '''
     Remove Gaps
 
-    Desc
+    Removes all gaps from the query sequence and removes characters at the
+    corresponding positions in all other sequences.
 
     Parameters:
     -----------
@@ -67,54 +69,53 @@ def remove_gaps(alignment_dict):
             for idc, char in enumerate(value):
                 if char in gap:
                     query_gap_index.append(idc)
-    query_gap_index.sort()
-    new_alignment_dict = {}
-    for key, value in alignment_dict.iteritems():
-        new_alignment_dict[key] = value[0:query_gap_index[[0]]]
-        for i in range(1, len(query_gap_index) - 1):
-            new_alignment_dict[key] += value[query_gap_index[i]:
-                                             query_gap_index[i + 1]]
-        new_alignment_dict[key] += value[query_gap_index[-1]:]
-    return query_name, new_alignment_dict
+    if(len(query_gap_index) > 0):
+        query_gap_index.sort()
+        new_alignment_dict = {}
+        for key, value in alignment_dict.iteritems():
+            new_alignment_dict[key] = value[0:query_gap_index[0]]
+            for i in range(1, len(query_gap_index) - 1):
+                new_alignment_dict[key] += value[query_gap_index[i]:
+                                                 query_gap_index[i + 1]]
+            new_alignment_dict[key] += value[query_gap_index[-1]:]
+        return query_name, new_alignment_dict
+    else:
+        return query_name, alignment_dict
 
 
 def distance_matrix(alignment_dict):
-    #    Generate distance_matrix: Calculating Sequence Identity
-    key_list = []
-    pairwise_dist_score = {}
-    seq_length = len(alignment_dict.itervalues().next())
+    '''
+    Distance matrix
 
-    for key in alignment_dict:  # {seqid} = sequence
-        for key2 in alignment_dict:
-            sum = 0.0
-            if key > key2:
-                for idc, char in enumerate(alignment_dict[key]):
+    Computes the sequence identity distance between a set of sequences and
+    returns a matrix of the pairwise distances.
 
-                    if (alignment_dict[key][idc] == alignment_dict[key2][idc]):
-                        # print alignment_dict[key][idc],
-                        # alignment_dict[key2][idc]
-                        sum += 1.0
-                newkey = key + "_" + key2
-                # (# of identical positions) / (aligned positions)
-                seq_identity = (sum / seq_length)
-                # {seq1_seq2} = distancescore
-                pairwise_dist_score[newkey] = seq_identity
-
+    Parameters:
+    -----------
+    alignment_dict: dict
+        Dictionary of aligned sequences. This is meant to be a corrected
+        dictionary where all gaps have been removed from the query sequence,
+        and the same positions have been removed from other sequences.
+    Returns:
+    --------
+    matrix
+        A symmetric matrix of pairwise distance computed between two sequences
+        using the sequence identity metric.
+    list
+        List of the sequence identifiers in the order in which they appear in
+        the matrix.
+    '''
+    # Generate distance_matrix: Calculating Sequence Identity
+    key_list = alignment_dict.keys()
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
-
-    for key in alignment_dict:
-        key_list.append(key)
-
-    for key in key_list:
-        for key2 in key_list:
-            if key == key2:
-                continue
-            pair = key + "_" + key2
-            if pair in pairwise_dist_score:
-                valuematrix[
-                    key_list.index(key), key_list.index(key2)] = pairwise_dist_score[pair]
-                valuematrix[
-                    key_list.index(key2), key_list.index(key)] = pairwise_dist_score[pair]
+    for i in range(len(alignment_dict)):
+        for j in range(i + 1, len(alignment_dict)):
+            for idc, char in enumerate(alignment_dict[key_list[i]]):
+                if (alignment_dict[key_list[i]][idc] ==
+                        alignment_dict[key_list[j]][idc]):
+                    valuematrix[i, j] += 1.0
+                    valuematrix[j, i] += 1.0
+    valuematrix /= len(alignment_dict[key_list[0]])
     return valuematrix, key_list
 
 
@@ -342,12 +343,20 @@ if __name__ == '__main__':
         print "creating new folder"
 
     # Import alignment information
+    print 'Starting ETMIP'
     importAlignment(files, alignment_dict)
-
+    print 'Imported alignment'
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
+    print 'Removed gaps'
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distance_matrix(fixed_alignment_dict)
+    print 'Computed Distance Matrix'
     wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
+    print wholeMIP_Matrix
+    exit()
+    #
+    #
+    #
     seq_length = len(fixed_alignment_dict.itervalues().next())
     summed_Matrix = np.zeros([seq_length, seq_length])
     summed_Matrix = wholeMIP_Matrix
