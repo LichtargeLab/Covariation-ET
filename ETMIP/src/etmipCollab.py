@@ -119,61 +119,64 @@ def distance_matrix(alignment_dict):
     return valuematrix, key_list
 
 
-def wholeAnalysis(alignment):
+def wholeAnalysis(alignment, aa_list):
+    '''
+    Whole Analysis
+
+    Generates the MIP matrix.
+
+    Parameters:
+    -----------
+    alignment_dict: dict
+        Dictionary of aligned sequences. This is meant to be a corrected
+        dictionary where all gaps have been removed from the query sequence,
+        and the same positions have been removed from other sequences.
+    aa_list: list
+        List of amino acids in a fixed order.
+    Returns:
+    --------
+    matrix
+        Matrix of MIP scores which has dimensions seq_length by seq_length.
+    '''
     overallMMI = 0.0
-    seq_length = len(alignment.itervalues().next())
-    # generate a MI matrix for each cluster
-    MI_matrix = np.zeros([seq_length, seq_length])
-    MMI = np.zeros([seq_length, 1])  # Vector of 1 column
-    APC_matrix = np.zeros([seq_length, seq_length])
-    MIP_matrix = np.zeros([seq_length, seq_length])
-
-    alignment2Num = []
-
-    for key in alignment:
-        seq2Num = []
-        for idc, c in enumerate(alignment[key]):
-            seq2Num.append(aa_list.index(c))
-        alignment2Num.append(seq2Num)
-
-    for i in range(0, seq_length):
-        MMI[i][0] = 0.0
-        column_i = []
-        column_j = []
-        for j in range(0, seq_length):
-            if i >= j:
-                continue
-            column_i = [int(item[i]) for item in alignment2Num]
-            column_j = [int(item[j]) for item in alignment2Num]
-            MI_matrix[i][j] = mutual_info_score(
-                column_i, column_j, contingency=None)
+    key_list = alignment.keys()
+    seq_length = len(alignment[alignment.keys()[0]])
+    # generate an MI matrix for each cluster
+    MI_matrix = np.zeros((seq_length, seq_length))
+    # Vector of 1 column
+    MMI = np.zeros(seq_length)
+    APC_matrix = np.zeros((seq_length, seq_length))
+    MIP_matrix = np.zeros((seq_length, seq_length))
+    # Create matrix converting sequences of amino acids to sequences of integers
+    # representing sequences of amino acids.
+    alignment2Num = np.zeros((len(alignment), seq_length))
+    for i in range(len(key_list)):
+        for j in range(seq_length):
+            alignment2Num[i, j] = aa_list.index(alignment[key_list[i]][j])
+    # Generate MI matrix from alignment2Num matrix, the MMI matrix,
+    # and overallMMI
+    for i in range(seq_length):
+        for j in range(i):
+            column_i = alignment2Num[:, i]
+            column_j = alignment2Num[:, j]
+            currMIS = mutual_info_score(column_i, column_j, contingency=None)
+            MI_matrix[i][j] = currMIS
             # AW: divides by individual entropies to normalize.
-            MI_matrix[j][i] = MI_matrix[i][j]
-
-    # this is where we can do i, j by running a second loop
-    for i in range(0, seq_length):
-        for j in range(0, seq_length):
-            if i != j:
-                MMI[i][0] += MI_matrix[i][j]
-                if i > j:
-                    overallMMI += MI_matrix[i][j]
-        MMI[i][0] = MMI[i][0] / (seq_length - 1)
-
+            MI_matrix[j][i] = currMIS
+            overallMMI += currMIS
+    MMI += np.sum(MI_matrix, axis=1)
+    MMI -= MI_matrix[np.arange(seq_length), np.arange(seq_length)]
+    MMI /= (seq_length - 1)
     overallMMI = 2.0 * (overallMMI / (seq_length - 1)) / seq_length
     ####--------------------------------------------#####
     # Calculating APC
     ####--------------------------------------------#####
-    for i in range(0, seq_length):
-        for j in range(0, seq_length):
-            if i == j:
-                continue
-            APC_matrix[i][j] = (MMI[i][0] * MMI[j][0]) / overallMMI
-
-    for i in range(0, seq_length):
-        for j in range(0, seq_length):
-            if i == j:
-                continue
-            MIP_matrix[i][j] = MI_matrix[i][j] - APC_matrix[i][j]
+    APC_matrix += np.outer(MMI, MMI)
+    APC_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
+    APC_matrix /= overallMMI
+    # Defining MIP matrix
+    MIP_matrix += MI_matrix - APC_matrix
+    MIP_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
     return MIP_matrix
 
 
@@ -342,32 +345,37 @@ if __name__ == '__main__':
         os.makedirs(createFolder)
         print "creating new folder"
 
-    # Import alignment information
     print 'Starting ETMIP'
+    # Import alignment information
     importAlignment(files, alignment_dict)
     print 'Imported alignment'
+    # Remove gaps from aligned query sequences
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
     print 'Removed gaps'
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distance_matrix(fixed_alignment_dict)
     print 'Computed Distance Matrix'
-    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
-    print wholeMIP_Matrix
+    # Generate MIP Matrix
+    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_list)
+    print 'Computed MIP Matrix'
+    ###########################################################################
+    # Set up for remaining analysis
+    ###########################################################################
+    seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
+    summed_Matrix = np.zeros((seq_length, seq_length))
+    summed_Matrix = wholeMIP_Matrix
+    time_start = time.clock()
+    o = '{}{}/{}/{}_{}etmipAUC_results.txt'.format(outDir, today, qName, qName,
+                                                   today)
+    outfile = open(o, 'w+')
     exit()
     #
     #
     #
-    seq_length = len(fixed_alignment_dict.itervalues().next())
-    summed_Matrix = np.zeros([seq_length, seq_length])
-    summed_Matrix = wholeMIP_Matrix
 
-    time_start = time.clock()
-
-    o = outDir + str(today) + "/" + str(
-        qName) + "/" + qName + "_" + str(today) + "etmipAUC_results.txt"
-    outfile = open(o, 'w+')
-    proteininfo = ("Protein/id: " + qName + " Alignment Size: " + str(
-        len(sequence_order)) + " Length of protein: " + str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
+    proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
+                   str(len(sequence_order)) + " Length of protein: " +
+                   str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
     distdict, PDBresidueList, residues_dict = find_distance(
