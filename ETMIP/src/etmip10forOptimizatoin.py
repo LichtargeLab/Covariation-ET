@@ -291,6 +291,7 @@ def find_distance(filename):  # takes PDB
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
+currS = time.time()
 files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
 for line in files:
     if line.startswith(">"):
@@ -300,18 +301,28 @@ for line in files:
         alignment_dict[key] = ''
     else:
         alignment_dict[key] = alignment_dict[key] + line.rstrip()
-createFolder = ("/cedar/atri/projects/coupling/OutputsforETMIP_BA/" +
+currE = time.time()
+print 'Imported alignment: {}'.format((currE - currS) / 60.0)
+createFolder = ("../Output/" +
                 str(today) + "/" + str(sys.argv[4]))
 
 if not os.path.exists(createFolder):
     os.makedirs(createFolder)
     print "creating new folder"
 
-
+currS = time.time()
 query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
+currE = time.time()
+print 'Removed gaps: {}'.format((currE - currS) / 60.0)
 # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
+currS = time.time()
 X, sequence_order = distance_matrix(fixed_alignment_dict)
+currE = time.time()
+print 'Computed Distance Matrix: {}'.format((currE - currS) / 60.0)
+currS = time.time()
 wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
+currE = time.time()
+print 'Computed MIP Matrix: {}'.format((currE - currS) / 60.0)
 seq_length = len(fixed_alignment_dict.itervalues().next())
 summed_Matrix = np.zeros([seq_length, seq_length])
 summed_Matrix = wholeMIP_Matrix
@@ -319,15 +330,18 @@ pdbfilename = sys.argv[2].strip()
 
 time_start = time.clock()
 
-o = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+o = "../Output/" + str(today) + "/" + str(
     sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
 outfile = open(o, 'w+')
 proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(
     len(sequence_order)) + " Length of protein: " + str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
 outfile.write(proteininfo)
 outfile.write("#OfClusters\tAUC\tRunTime\n")
+currS = time.time()
 distdict, PDBresidueList, residues_dict = find_distance(
     pdbfilename)  # e.g. 206_192 6.82
+currE = time.time()
+print 'Atomic distances computed: {}'.format((currE - currS) / 60.0)
 PDBdist_Classifylist = []
 sorted_PDB_dist = []
 sorted_res_list = []
@@ -350,10 +364,9 @@ print str(sys.argv[4]), len(sequence_order), str(seq_length)
 ls = [2, 3, 5, 7, 10, 25]
 for clus in ls:
     # print "starting clustering"
-    e = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+    e = "../Output/" + str(today) + "/" + str(
         sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
     etmipoutfile = open("{0}".format(e), "w+")
-    setoffiles.append(e)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
     for c in clusterset:
         new_alignment = {}
@@ -460,7 +473,7 @@ for clus in ls:
     pl.title(title)
     pl.legend(loc="lower right")
     # pl.show()
-    imagename = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
+    imagename = "../Output/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
         sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
     pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
 print "Generated results in", createFolder
