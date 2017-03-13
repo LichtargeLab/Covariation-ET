@@ -8,6 +8,7 @@ from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 import matplotlib
 from matplotlib.sphinxext.plot_directive import align
+from numpy import float64
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
@@ -15,6 +16,7 @@ import datetime
 import time
 import math
 import sys
+import re
 import os
 
 
@@ -180,6 +182,110 @@ def wholeAnalysis(alignment, aa_list):
     return MIP_matrix
 
 
+def find_distance(filename):  # takes PDB
+    '''
+    Find distance
+
+    Desc
+
+    Parameters:
+    -----------
+    filename: string
+        The file path to the pdb file.
+    Returns:
+    dict
+        Dictionary of distances
+    list
+        List of residues from the PDB file.
+    dict
+        Dictionary of residue.
+    --------
+    '''
+    # This code takes in an input of a pdb file and outputs a dictionary with
+    # the nearest atom distance between two residues
+    ##########################################################################
+    ##########################################################################
+    minvalue = 10000000000
+    FileValue = 0
+    originlist = []
+    file = open(filename)
+    rows = []
+    loopcounter = 0
+    Resnumarraynew = []
+    loopcounter1 = 0
+    for line in file:  # for a line in the pdb
+        if line.startswith('ATOM '):
+            try:
+                rows.append(line)
+            except Exception:
+                rows = line
+    file.close()
+    pdbPattern = r'(ATOM)\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(\d+\.\d+)\s*(-\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
+    # number of residues
+    loop1var = re.match(pdbPattern, rows[-1]).group(6)
+    residuedictionary = {}
+
+    # create dictionary of every atom in each individual residue. 3
+    # Dimensional coordinates of each residue position
+    resatomlist = []
+    PDBresidueList = []
+    ResidueDict = {}
+    for i, selectline in enumerate(rows):
+        items = re.match(pdbPattern, selectline)
+        if(not items):
+            continue
+        resname = items.group(4)
+        resnumdict = items.group(6)
+        resatomlisttemp = np.asarray(items.group(7), items.group(8),
+                                     items.group(9))
+        try:
+            residuedictionary[resnumdict].append(resatomlisttemp)
+        except KeyError:
+            residuedictionary[resnumdict] = [resatomlisttemp]
+            PDBresidueList.append(resnumdict)
+            ResidueDict[resnumdict] = resname
+    '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
+    '''print(residuedictionary)'''
+    arrminval = []
+
+    distancedict = {}
+    for i in PDBresidueList:  # Loop over all residues in the pdb
+        Dmatrixsumarr = []
+        resnumnew = PDBresidueList[int(i):]
+        # Loop over residues to calculate distance between all residues i and j
+        for j in PDBresidueList:
+            matvalue = []
+            tempvalue = ()
+            minvaluetemp = []
+            loopcount1 = 0
+
+            for k in range(0, len(residuedictionary[i])):
+                # Getting the 3d coordinates for every atom in each residue.
+                # iterating over all pairs to find all distances
+                for m in range(0, len(residuedictionary[j])):
+                    '''print("k equals", k)
+                    print("m equals", m)'''
+                    tempvalue = np.linalg.norm(
+                        residuedictionary[i][k] - residuedictionary[j][m],
+                        dtype=float64)
+                    '''print("tempvalue equals", tempvalue)'''
+                    try:  # Saving all distances to an array
+                        matvalue.append(float(tempvalue))
+                    except Exception:
+                        matvalue = [float(tempvalue), ]
+                    '''print("matvalue equals", matvalue)'''
+                loopcount1 += 1
+                '''print("loopcount1 equals", loopcount1)'''
+            # finding the minimum value from the distance array
+            minvalue = float(min(matvalue))
+            '''print("size of ETvalues is equal to", len(ETvalues))'''
+            key = str(i) + '_' + str(j)
+            # Making dictionary of all min values indexed by the two residue
+            # names
+            distancedict[key] = minvalue
+    return distancedict, PDBresidueList, ResidueDict
+
+
 def AggClustering(n_cluster, X, alignment_dict):
     key_list = []
     cluster_dict = {}
@@ -205,102 +311,6 @@ def AggClustering(n_cluster, X, alignment_dict):
         # cluster_dict[0 or 1] = [list of keys]
         cluster_dict[i1] = clusteredkeylist
     return cluster_dict, g
-
-
-def find_distance(filename):  # takes PDB
-
-    # This code takes in an input of a pdb file and outputs a dictionary with the nearest atom distance between two residues
-    ##########################################################################
-    ##########################################################################
-    minvalue = 10000000000
-    FileValue = 0
-    originlist = []
-    file = open(filename)
-    rows = []
-    loopcounter = 0
-    Resnumarraynew = []
-    loopcounter1 = 0
-    for line in file:  # for a line in the pdb
-        if line[0:5] == 'ATOM ':
-            try:
-                rows.append(line)
-            except Exception:
-                rows = line
-    file.close()
-    loop1var = rows[-1][23:26].strip()  # number of residues
-    # print("loop1var",loop1var)
-    # raw_input()
-    residuedictionary = {}
-
-    # create dictionary of every atom in each individual residue. 3
-    # Dimensional coordinates of each residue position
-    resatomlist = []
-    PDBresidueList = []
-    ResidueDict = {}
-    for i, selectline in enumerate(rows):
-
-        resnumdict = (selectline[22:26].strip())
-        resname = (selectline[17:20].strip())
-        xvaluedict = float(selectline[32:38].strip())
-        yvaluedict = float(selectline[39:46].strip())
-        zvaluedict = float(selectline[47:55].strip())
-        resatomlisttemp = (xvaluedict, yvaluedict, zvaluedict)
-        try:
-            residuedictionary[resnumdict].append(resatomlisttemp)
-        except KeyError:
-            residuedictionary[resnumdict] = [resatomlisttemp]
-            PDBresidueList.append(resnumdict)
-            ResidueDict[resnumdict] = resname
-    # print PDBresidueList
-    # print("residuedictionary",ResidueDict)
-    # raw_input()
-    '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
-    '''print(residuedictionary)'''
-    arrminval = []
-
-    distancedict = {}
-    for i in PDBresidueList:  # Loop over all residues in the pdb
-        Dmatrixsumarr = []
-        resnumnew = PDBresidueList[int(i):]
-        # Loop over residues to calculate distance between all residues i and j
-        for j in PDBresidueList:
-            matvalue = []
-            tempvalue = ()
-            minvaluetemp = []
-            loopcount1 = 0
-
-            for k in range(0, len(residuedictionary[i])):
-                # Getting the 3d coordinates for every atom in each residue.
-                # iterating over all pairs to find all distances
-                for m in range(0, len(residuedictionary[j])):
-                    '''print("k equals", k)
-                    print("m equals", m)'''
-                    rix = residuedictionary[i][k][0]
-                    riy = residuedictionary[i][k][1]
-                    riz = residuedictionary[i][k][2]
-                    rjx = residuedictionary[j][m][0]
-                    rjy = residuedictionary[j][m][1]
-                    rjz = residuedictionary[j][m][2]
-                    tempvalue = float(
-                        math.sqrt((rix - rjx)**2 + (riy - rjy)**2 + (riz - rjz)**2))
-                    '''print("tempvalue equals", tempvalue)'''
-                    try:  # Saving all distances to an array
-                        matvalue.append(float(tempvalue))
-                    except Exception:
-                        matvalue = [float(tempvalue), ]
-                    '''print("matvalue equals", matvalue)'''
-                loopcount1 = loopcount1 + 1
-                '''print("loopcount1 equals", loopcount1)'''
-            minvalue = float(
-                min(matvalue))  # finding the minimum value from the distance array
-            '''print("size of ETvalues is equal to", len(ETvalues))'''
-            key = str(i) + '_' + str(j)
-            # Making dictionary of all min values indexed by the two residue
-            # names
-            distancedict[key] = minvalue
-    # print distancedict
-    return distancedict, PDBresidueList, ResidueDict
-
 
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
@@ -368,18 +378,20 @@ if __name__ == '__main__':
     o = '{}{}/{}/{}_{}etmipAUC_results.txt'.format(outDir, today, qName, qName,
                                                    today)
     outfile = open(o, 'w+')
-    exit()
-    #
-    #
-    #
-
     proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
                    str(len(sequence_order)) + " Length of protein: " +
                    str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
-    distdict, PDBresidueList, residues_dict = find_distance(
-        pdbfilename)  # e.g. 206_192 6.82
+    # e.g. 206_192 6.82
+    distdict, PDBresidueList, residues_dict = find_distance(pdbfilename)
+    time_stop = time.clock()
+    print(time_stop - time_start)
+    exit()
+    #
+    #
+    #
+
     PDBdist_Classifylist = []
     sorted_PDB_dist = []
     sorted_res_list = []
