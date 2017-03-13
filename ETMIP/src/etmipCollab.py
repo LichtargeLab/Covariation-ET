@@ -7,14 +7,12 @@ Created on Mar 10, 2017
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 import matplotlib
-from matplotlib.sphinxext.plot_directive import align
 from numpy import float64
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
 import datetime
 import time
-import math
 import sys
 import re
 import os
@@ -35,8 +33,6 @@ def importAlignment(files, alignment_dict):
     '''
     for line in files:
         if line.startswith(">"):
-            if "query" in line.lower():
-                query_desc = line
             key = line.rstrip()
             alignment_dict[key] = ''
         else:
@@ -112,7 +108,7 @@ def distance_matrix(alignment_dict):
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
     for i in range(len(alignment_dict)):
         for j in range(i + 1, len(alignment_dict)):
-            for idc, char in enumerate(alignment_dict[key_list[i]]):
+            for idc in range(alignment_dict[key_list[i]]):
                 if (alignment_dict[key_list[i]][idc] ==
                         alignment_dict[key_list[j]][idc]):
                     valuematrix[i, j] += 1.0
@@ -206,14 +202,9 @@ def find_distance(filename):  # takes PDB
     ##########################################################################
     ##########################################################################
     minvalue = 10000000000
-    FileValue = 0
-    originlist = []
-    file = open(filename)
+    pdbFile = open(filename)
     rows = []
-    loopcounter = 0
-    Resnumarraynew = []
-    loopcounter1 = 0
-    for line in file:  # for a line in the pdb
+    for line in pdbFile:  # for a line in the pdb
         if line.startswith('ATOM '):
             try:
                 rows.append(line)
@@ -221,13 +212,10 @@ def find_distance(filename):  # takes PDB
                 rows = line
     file.close()
     pdbPattern = r'(ATOM)\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(\d+\.\d+)\s*(-\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-    # number of residues
-    loop1var = re.match(pdbPattern, rows[-1]).group(6)
     residuedictionary = {}
 
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
-    resatomlist = []
     PDBresidueList = []
     ResidueDict = {}
     for i, selectline in enumerate(rows):
@@ -246,17 +234,13 @@ def find_distance(filename):  # takes PDB
             ResidueDict[resnumdict] = resname
     '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
     '''print(residuedictionary)'''
-    arrminval = []
 
     distancedict = {}
     for i in PDBresidueList:  # Loop over all residues in the pdb
-        Dmatrixsumarr = []
-        resnumnew = PDBresidueList[int(i):]
         # Loop over residues to calculate distance between all residues i and j
         for j in PDBresidueList:
             matvalue = []
             tempvalue = ()
-            minvaluetemp = []
             loopcount1 = 0
 
             for k in range(0, len(residuedictionary[i])):
