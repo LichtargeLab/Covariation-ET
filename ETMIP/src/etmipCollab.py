@@ -6,8 +6,8 @@ Created on Mar 10, 2017
 
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
-import matplotlib
 from numpy import float64
+import matplotlib
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
@@ -18,7 +18,7 @@ import re
 import os
 
 
-def importAlignment(files, alignment_dict):
+def importAlignment(files):
     '''
     Import alignments:
 
@@ -28,15 +28,19 @@ def importAlignment(files, alignment_dict):
     -----------
     files: File
         File object holding a handle to an alignment file.
+    Returns:
+    --------
     alignment_dict: dict    
         Dictionary which will be used to store alignments from the file.
     '''
+    alignment_dict = {}
     for line in files:
         if line.startswith(">"):
             key = line.rstrip()
             alignment_dict[key] = ''
         else:
             alignment_dict[key] += line.rstrip()
+    return alignment_dict
 
 
 def remove_gaps(alignment_dict):
@@ -166,9 +170,7 @@ def wholeAnalysis(alignment, aa_list):
     MMI -= MI_matrix[np.arange(seq_length), np.arange(seq_length)]
     MMI /= (seq_length - 1)
     overallMMI = 2.0 * (overallMMI / (seq_length - 1)) / seq_length
-    ####--------------------------------------------#####
     # Calculating APC
-    ####--------------------------------------------#####
     APC_matrix += np.outer(MMI, MMI)
     APC_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
     APC_matrix /= overallMMI
@@ -218,7 +220,7 @@ def find_distance(filename):  # takes PDB
     # Dimensional coordinates of each residue position
     PDBresidueList = []
     ResidueDict = {}
-    for i, selectline in enumerate(rows):
+    for selectline in rows:
         items = re.match(pdbPattern, selectline)
         if(not items):
             continue
@@ -312,8 +314,6 @@ if __name__ == '__main__':
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_gap_list = aa_list + gap_list
     i_j_list = []
-    # this will be our alignment
-    alignment_dict = {}
     # {seq1_seq2} = distancescore
     seq12_distscore_dict = {}
     key = ''
@@ -340,8 +340,8 @@ if __name__ == '__main__':
         print "creating new folder"
 
     print 'Starting ETMIP'
-    # Import alignment information
-    importAlignment(files, alignment_dict)
+    # Import alignment information: this will be our alignment
+    alignment_dict = importAlignment(files)
     print 'Imported alignment'
     # Remove gaps from aligned query sequences
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
