@@ -6,7 +6,6 @@ Created on Mar 10, 2017
 
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
-from numpy import float64
 import matplotlib
 matplotlib.use('Agg')
 import numpy as np
@@ -199,11 +198,11 @@ def importPDB(filename):
     '''
     pdbFile = open(filename)
     rows = []
-    pdbPattern = r'(ATOM)\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(\d+\.\d+)\s*(-\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
+    pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
     for line in pdbFile:  # for a line in the pdb
         res = re.match(pdbPattern, line)
         if res:
-            terms = [res.group(i) for i in [4, 6, 7, 8, 9]]
+            terms = [res.group(i) for i in [3, 5, 6, 7, 8]]
             rows.append(terms)
     pdbFile.close()
     return rows
@@ -237,9 +236,12 @@ def find_distance(pdbData):  # takes PDB
     prevRes = None
     for selectline in pdbData:
         resname = selectline[0]
+        # print resname
         resnumdict = int(selectline[1])
+        # print resnumdict
         resatomlisttemp = np.asarray([float(selectline[2]), float(selectline[3]),
                                       float(selectline[4])])
+        # print resatomlisttemp
         try:
             residuedictionary[resnumdict].append(resatomlisttemp)
         except KeyError:
@@ -251,9 +253,6 @@ def find_distance(pdbData):  # takes PDB
             PDBresidueList.append(resnumdict)
             ResidueDict[resnumdict] = resname
     residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
-    '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
-    '''print(residuedictionary)'''
-
     distancedict = {}
     for i in PDBresidueList:  # Loop over all residues in the pdb
         # Loop over residues to calculate distance between all residues i and j
