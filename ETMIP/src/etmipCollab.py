@@ -112,7 +112,7 @@ def distance_matrix(alignment_dict):
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
     for i in range(len(alignment_dict)):
         for j in range(i + 1, len(alignment_dict)):
-            for idc in range(alignment_dict[key_list[i]]):
+            for idc in range(len(alignment_dict[key_list[i]])):
                 if (alignment_dict[key_list[i]][idc] ==
                         alignment_dict[key_list[j]][idc]):
                     valuematrix[i, j] += 1.0
@@ -180,11 +180,41 @@ def wholeAnalysis(alignment, aa_list):
     return MIP_matrix
 
 
-def find_distance(filename):  # takes PDB
+def importPDB(filename):
+    '''
+    importPDB
+
+    This method imports a PDB files information generating a list of lists. Each
+    list contains the Amino Acid 3-letter abbreviation, residue number, x, y,
+    and z coordinate.
+
+    Parameters:
+    -----------
+    filename: string
+        The file path to the pdb file.
+    Returns:
+    --------
+    list:
+        A list of lists containing the relevant information from the PDB file.
+    '''
+    pdbFile = open(filename)
+    rows = []
+    pdbPattern = r'(ATOM)\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(\d+\.\d+)\s*(-\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
+    for line in pdbFile:  # for a line in the pdb
+        res = re.match(pdbPattern, line)
+        if res:
+            terms = [res.group(i) for i in [4, 6, 7, 8, 9]]
+            rows.append(terms)
+    pdbFile.close()
+    return rows
+
+
+def find_distance(pdbData):  # takes PDB
     '''
     Find distance
 
-    Desc
+    This code takes in an input of a pdb file and outputs a dictionary with the
+    nearest atom distance between two residues.
 
     Parameters:
     -----------
@@ -199,41 +229,28 @@ def find_distance(filename):  # takes PDB
         Dictionary of residue.
     --------
     '''
-    # This code takes in an input of a pdb file and outputs a dictionary with
-    # the nearest atom distance between two residues
-    ##########################################################################
-    ##########################################################################
-    minvalue = 10000000000
-    pdbFile = open(filename)
-    rows = []
-    for line in pdbFile:  # for a line in the pdb
-        if line.startswith('ATOM '):
-            try:
-                rows.append(line)
-            except Exception:
-                rows = line
-    file.close()
-    pdbPattern = r'(ATOM)\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(\d+\.\d+)\s*(-\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-    residuedictionary = {}
-
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
+    residuedictionary = {}
     PDBresidueList = []
     ResidueDict = {}
-    for selectline in rows:
-        items = re.match(pdbPattern, selectline)
-        if(not items):
-            continue
-        resname = items.group(4)
-        resnumdict = items.group(6)
-        resatomlisttemp = np.asarray(items.group(7), items.group(8),
-                                     items.group(9))
+    prevRes = None
+    for selectline in pdbData:
+        resname = selectline[0]
+        resnumdict = int(selectline[1])
+        resatomlisttemp = np.asarray([float(selectline[2]), float(selectline[3]),
+                                      float(selectline[4])])
         try:
             residuedictionary[resnumdict].append(resatomlisttemp)
         except KeyError:
+            if(prevRes):
+                residuedictionary[prevRes] = np.vstack(
+                    residuedictionary[prevRes])
+            prevRes = resnumdict
             residuedictionary[resnumdict] = [resatomlisttemp]
             PDBresidueList.append(resnumdict)
             ResidueDict[resnumdict] = resname
+    residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
     '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
     '''print(residuedictionary)'''
 
@@ -241,31 +258,20 @@ def find_distance(filename):  # takes PDB
     for i in PDBresidueList:  # Loop over all residues in the pdb
         # Loop over residues to calculate distance between all residues i and j
         for j in PDBresidueList:
-            matvalue = []
-            tempvalue = ()
-            loopcount1 = 0
-
-            for k in range(0, len(residuedictionary[i])):
-                # Getting the 3d coordinates for every atom in each residue.
-                # iterating over all pairs to find all distances
-                for m in range(0, len(residuedictionary[j])):
-                    '''print("k equals", k)
-                    print("m equals", m)'''
-                    tempvalue = np.linalg.norm(
-                        residuedictionary[i][k] - residuedictionary[j][m],
-                        dtype=float64)
-                    '''print("tempvalue equals", tempvalue)'''
-                    try:  # Saving all distances to an array
-                        matvalue.append(float(tempvalue))
-                    except Exception:
-                        matvalue = [float(tempvalue), ]
-                    '''print("matvalue equals", matvalue)'''
-                loopcount1 += 1
-                '''print("loopcount1 equals", loopcount1)'''
-            # finding the minimum value from the distance array
-            minvalue = float(min(matvalue))
             '''print("size of ETvalues is equal to", len(ETvalues))'''
             key = str(i) + '_' + str(j)
+            if i == j:
+                distancedict[key] = 0.0
+                continue
+            matvalue = []
+            # Getting the 3d coordinates for every atom in each residue.
+            # iterating over all pairs to find all distances
+            for k in range(residuedictionary[i].shape[0]):
+                matvalue.append(np.min(np.linalg.norm(residuedictionary[j] -
+                                                      residuedictionary[i][k],
+                                                      axis=1)))
+            # finding the minimum value from the distance array
+            minvalue = np.min(matvalue)
             # Making dictionary of all min values indexed by the two residue
             # names
             distancedict[key] = minvalue
@@ -302,6 +308,7 @@ def AggClustering(n_cluster, X, alignment_dict):
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
+    start = time.time()
     ###########################################################################
     # Set up global variables
     ###########################################################################
@@ -341,24 +348,31 @@ if __name__ == '__main__':
 
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
+    currS = time.time()
     alignment_dict = importAlignment(files)
-    print 'Imported alignment'
+    currE = time.time()
+    print 'Imported alignment: {}'.format((currE - currS) / 60.0)
     # Remove gaps from aligned query sequences
+    currS = time.time()
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
-    print 'Removed gaps'
+    currE = time.time()
+    print 'Removed gaps: {}'.format((currE - currS) / 60.0)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
+    currS = time.time()
     X, sequence_order = distance_matrix(fixed_alignment_dict)
-    print 'Computed Distance Matrix'
+    currE = time.time()
+    print 'Computed Distance Matrix: {}'.format((currE - currS) / 60.0)
     # Generate MIP Matrix
+    currS = time.time()
     wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_list)
-    print 'Computed MIP Matrix'
+    currE = time.time()
+    print 'Computed MIP Matrix: {}'.format((currE - currS) / 60.0)
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
     summed_Matrix = np.zeros((seq_length, seq_length))
     summed_Matrix = wholeMIP_Matrix
-    time_start = time.clock()
     o = '{}{}/{}/{}_{}etmipAUC_results.txt'.format(outDir, today, qName, qName,
                                                    today)
     outfile = open(o, 'w+')
@@ -367,10 +381,15 @@ if __name__ == '__main__':
                    str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
+    currS = time.time()
+    pdbData = importPDB(pdbfilename)
+    currE = time.time()
+    print 'Imported PDB information: {}'.format((currE - currS) / 60.0)
     # e.g. 206_192 6.82
-    distdict, PDBresidueList, residues_dict = find_distance(pdbfilename)
-    time_stop = time.clock()
-    print(time_stop - time_start)
+    currS = time.time()
+    distdict, PDBresidueList, residues_dict = find_distance(pdbData)
+    currE = time.time()
+    print 'Atomic distances computed: {}'.format((currE - currS) / 60.0)
     exit()
     #
     #
@@ -397,6 +416,7 @@ if __name__ == '__main__':
 
     ls = [2, 3, 5, 7, 10, 25]
     for clus in ls:
+        time_start = time.time()
         # print "starting clustering"
         e = outDir + str(today) + "/" + str(
             qName) + "/" + qName + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
@@ -493,7 +513,7 @@ if __name__ == '__main__':
         fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
         roc_auc1 = auc(fpr1, tpr1)
         # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-        time_elapsed = (time.clock() - time_start)
+        time_elapsed = (time.time() - time_start)
         output = "\t{0}\t{1}\t{2}\n".format(
             str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
         outfile.write(output)
@@ -514,3 +534,5 @@ if __name__ == '__main__':
             sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
         pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     print "Generated results in", createFolder
+    end = time.time()
+    print('ET MIP took {} minutes to run!'.format((end - start) / 60.0))
