@@ -6,6 +6,7 @@ Created on Mar 10, 2017
 
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
+from itertools import izip
 import matplotlib
 matplotlib.use('Agg')
 import numpy as np
@@ -111,11 +112,10 @@ def distance_matrix(alignment_dict):
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
     for i in range(len(alignment_dict)):
         for j in range(i + 1, len(alignment_dict)):
-            for idc in range(len(alignment_dict[key_list[i]])):
-                if (alignment_dict[key_list[i]][idc] ==
-                        alignment_dict[key_list[j]][idc]):
-                    valuematrix[i, j] += 1.0
-                    valuematrix[j, i] += 1.0
+            simm = sum(ch1 == ch2 for ch1, ch2 in izip(alignment_dict[key_list[i]],
+                                                       alignment_dict[key_list[j]]))
+            valuematrix[i, j] += simm
+            valuematrix[j, i] += simm
     valuematrix /= len(alignment_dict[key_list[0]])
     return valuematrix, key_list
 
