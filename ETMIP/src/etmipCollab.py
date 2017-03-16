@@ -302,6 +302,130 @@ def AggClustering(n_cluster, X, alignment_dict):
         cluster_dict[i1] = clusteredkeylist
     return cluster_dict, g
 
+
+def plotAUC(fpr, trp, roc_auc, qName, clus, today, cutoff):
+    pl.plot(fpr1, tpr1, label='(AUC = {0:.2f})'.format(roc_auc1))
+    pl.plot([0, 1], [0, 1], 'k--')
+    pl.xlim([0.0, 1.0])
+    pl.ylim([0.0, 1.0])
+    pl.xlabel('False Positive Rate')
+    pl.ylabel('True Positive Rate')
+    title = 'Ability to predict positive contacts in ' + \
+        qName + ", Cluster = " + str(clus)
+    pl.title(title)
+    pl.legend(loc="lower right")
+    # pl.show()
+    imagename = str(today) + "/" + qName + "/" + qName + cutoff + \
+        "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
+    pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
+    pl.close()
+
+
+def etMIPWorker(today, qName, clus, X, fixed_alignment_dict):
+    time_start = time.time()
+    # print "starting clustering"
+    e = str(today) + "/" + str(qName) + "/" + qName + "_" + \
+        str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
+    etmipoutfile = open("{0}".format(e), "w+")
+    # setoffiles.append(e)
+    cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
+    for c in clusterset:
+        new_alignment = {}
+        cluster_list = cluster_dict[c]
+        for key in fixed_alignment_dict:
+            if key in cluster_list:
+                new_alignment[key] = fixed_alignment_dict[key]
+        clusteredMIP_matrix = wholeAnalysis(new_alignment)
+        summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
+
+    etmiplist = []
+    etmip_dict = {}
+    PDBdist_Classifylist = []
+    y_score1 = []
+    y_true1 = []
+
+    # this is where we can do i, j by running a second loop
+    for i in range(0, len(sorted_res_list)):
+        for j in range(0, len(sorted_res_list)):
+            if i >= j:
+                continue
+            key = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
+            etmip_dict[key] = summed_Matrix[i][j]
+    etmipResScoreList = []
+    forOutputCoverageList = []
+    etmiplistCoverage = []
+
+    for i in range(0, len(sorted_res_list)):
+        for j in range(0, len(sorted_res_list)):
+            if i >= j:
+                continue
+            newkey1 = str(
+                sorted_res_list[i]) + "_" + str(sorted_res_list[j])
+            etmipResScoreList.append(newkey1)
+            etmipResScoreList.append(etmip_dict[newkey1])
+
+    # Converting to coverage
+
+    for i in range(1, len(etmipResScoreList), 2):
+        etmipRank = 0
+        for j in range(1, len(etmipResScoreList), 2):
+            if i != j:
+                if float(etmipResScoreList[i]) >= float(etmipResScoreList[j]):
+                    etmipRank += 1
+        computeCoverage = (etmipRank * 100) / \
+            (float(len(etmipResScoreList)) / 2)
+        etmiplistCoverage.append(computeCoverage)
+
+        forOutputCoverageList.append(etmipResScoreList[i - 1])
+        forOutputCoverageList.append(computeCoverage)
+        # print computeCoverage
+    # print  "Coverage computation finished"
+    # AUC computation
+    if len(etmiplistCoverage) == len(sorted_PDB_dist):
+        for i in range(0, len(etmiplistCoverage)):
+            y_score1.append(etmiplistCoverage[i])
+
+            if (float(sorted_PDB_dist[i]) <= cutoff):
+                PDBdist_Classifylist.append(1)
+                y_true1.append(1)
+            else:
+                PDBdist_Classifylist.append(0)
+                y_true1.append(0)
+    else:
+        print "lengths do not match"
+        sys.exit()
+    # print  "AUC computation finished"
+
+    # this is where we can do i, j by running a second loop
+    for i in range(0, len(sorted_res_list)):
+        # this is where we can do i, j by running a second loop
+        for j in range(0, len(sorted_res_list)):
+            if i >= j:
+                continue
+            else:
+                key = str(sorted_res_list[i]) + \
+                    "_" + str(sorted_res_list[j])
+                if distdict[key] <= cutoff:
+                    r = 1
+                else:
+                    r = 0
+                res1 = str(sorted_res_list[i])
+                res2 = str(sorted_res_list[j])
+                ind = forOutputCoverageList.index(key)
+                etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
+                    round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
+                etmipoutfile.write(etmipoutputline)
+                etmipoutfile.write("\n")
+    fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
+    roc_auc1 = auc(fpr1, tpr1)
+    # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
+    time_elapsed = (time.time() - time_start)
+    output = "\t{0}\t{1}\t{2}\n".format(
+        str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
+    outfile.write(output)
+
+    plotAUC(fpr1, trp1, roc_auc1, qName, clus, today, cutoff)
+
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
@@ -424,149 +548,23 @@ if __name__ == '__main__':
                     open('PDBdist.pkl', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Atomic distances computed: {}'.format((currE - currS) / 60.0)
+    # this is where we can do i, j by running a second loop
+    sorted_PDB_dist = []
+    for i in range(len(PDBresidueList)):
+        for j in range(i + 1, len(PDBresidueList)):
+            sorted_PDB_dist2.append(distdict['{}_{}'.format(
+                PDBresidueList[i], PDBresidueList[j])])
+    # list of sorted residues - necessary for those where res1 is not 1
+    sorted_res_list = sorted(list(set(PDBresidueList)))
+    # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
+    print qName, len(sequence_order), str(seq_length)
     exit()
     #
     #
     #
-
-    PDBdist_Classifylist = []
-    sorted_PDB_dist = []
-    sorted_res_list = []
-
-    for i in PDBresidueList:
-        sorted_res_list.append(int(i))
-    # list of sorted residues - necessary for those where res1 is not 1
-    sorted(list(set(sorted_res_list)))
-    # this is where we can do i, j by running a second loop
-    for i in sorted_res_list:
-        for j in sorted_res_list:
-            if i >= j:
-                continue
-            newkey1 = str(i) + "_" + str(j)
-            sorted_PDB_dist.append(distdict[newkey1])
-
-    # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
-    print qName, len(sequence_order), str(seq_length)
-
     ls = [2, 3, 5, 7, 10, 25]
     for clus in ls:
-        time_start = time.time()
-        # print "starting clustering"
-        e = str(today) + "/" + str(qName) + "/" + qName + "_" + \
-            str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
-        etmipoutfile = open("{0}".format(e), "w+")
-        # setoffiles.append(e)
-        cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
-        for c in clusterset:
-            new_alignment = {}
-            cluster_list = cluster_dict[c]
-            for key in fixed_alignment_dict:
-                if key in cluster_list:
-                    new_alignment[key] = fixed_alignment_dict[key]
-            clusteredMIP_matrix = wholeAnalysis(new_alignment)
-            summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
-
-        etmiplist = []
-        etmip_dict = {}
-        PDBdist_Classifylist = []
-        y_score1 = []
-        y_true1 = []
-
-        # this is where we can do i, j by running a second loop
-        for i in range(0, len(sorted_res_list)):
-            for j in range(0, len(sorted_res_list)):
-                if i >= j:
-                    continue
-                key = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
-                etmip_dict[key] = summed_Matrix[i][j]
-        etmipResScoreList = []
-        forOutputCoverageList = []
-        etmiplistCoverage = []
-
-        for i in range(0, len(sorted_res_list)):
-            for j in range(0, len(sorted_res_list)):
-                if i >= j:
-                    continue
-                newkey1 = str(
-                    sorted_res_list[i]) + "_" + str(sorted_res_list[j])
-                etmipResScoreList.append(newkey1)
-                etmipResScoreList.append(etmip_dict[newkey1])
-
-        # Converting to coverage
-
-        for i in range(1, len(etmipResScoreList), 2):
-            etmipRank = 0
-            for j in range(1, len(etmipResScoreList), 2):
-                if i != j:
-                    if float(etmipResScoreList[i]) >= float(etmipResScoreList[j]):
-                        etmipRank += 1
-            computeCoverage = (etmipRank * 100) / \
-                (float(len(etmipResScoreList)) / 2)
-            etmiplistCoverage.append(computeCoverage)
-
-            forOutputCoverageList.append(etmipResScoreList[i - 1])
-            forOutputCoverageList.append(computeCoverage)
-            # print computeCoverage
-        # print  "Coverage computation finished"
-        # AUC computation
-        if len(etmiplistCoverage) == len(sorted_PDB_dist):
-            for i in range(0, len(etmiplistCoverage)):
-                y_score1.append(etmiplistCoverage[i])
-
-                if (float(sorted_PDB_dist[i]) <= cutoff):
-                    PDBdist_Classifylist.append(1)
-                    y_true1.append(1)
-                else:
-                    PDBdist_Classifylist.append(0)
-                    y_true1.append(0)
-        else:
-            print "lengths do not match"
-            sys.exit()
-        # print  "AUC computation finished"
-
-        # this is where we can do i, j by running a second loop
-        for i in range(0, len(sorted_res_list)):
-            # this is where we can do i, j by running a second loop
-            for j in range(0, len(sorted_res_list)):
-                if i >= j:
-                    continue
-                else:
-                    key = str(sorted_res_list[i]) + \
-                        "_" + str(sorted_res_list[j])
-                    if distdict[key] <= cutoff:
-                        r = 1
-                    else:
-                        r = 0
-                    res1 = str(sorted_res_list[i])
-                    res2 = str(sorted_res_list[j])
-                    ind = forOutputCoverageList.index(key)
-                    etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
-                        round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
-                    etmipoutfile.write(etmipoutputline)
-                    etmipoutfile.write("\n")
-        fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
-        roc_auc1 = auc(fpr1, tpr1)
-        # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-        time_elapsed = (time.time() - time_start)
-        output = "\t{0}\t{1}\t{2}\n".format(
-            str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
-        outfile.write(output)
-
-        pl.clf()
-        pl.plot(fpr1, tpr1, label='(AUC = %0.2f)' % roc_auc1)  # change here
-        pl.plot([0, 1], [0, 1], 'k--')
-        pl.xlim([0.0, 1.0])
-        pl.ylim([0.0, 1.0])
-        pl.xlabel('False Positive Rate')
-        pl.ylabel('True Positive Rate')
-        title = 'Ability to predict positive contacts in ' + \
-            qName + ", Cluster = " + str(clus)
-        pl.title(title)
-        pl.legend(loc="lower right")
-        # pl.show()
-        imagename = str(today) + "/" + qName + "/" + str(sys.argv[4]) + str(
-            int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
-        pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
+        etMIPWorker()
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
