@@ -7,6 +7,7 @@ Created on Mar 10, 2017
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 from itertools import izip
+import cPickle as pickle
 import matplotlib
 matplotlib.use('Agg')
 import numpy as np
@@ -120,7 +121,7 @@ def distance_matrix(alignment_dict):
     return valuematrix, key_list
 
 
-def wholeAnalysis(alignment, aa_list):
+def wholeAnalysis(alignment, aa_dict):
     '''
     Whole Analysis
 
@@ -153,17 +154,16 @@ def wholeAnalysis(alignment, aa_list):
     alignment2Num = np.zeros((len(alignment), seq_length))
     for i in range(len(key_list)):
         for j in range(seq_length):
-            alignment2Num[i, j] = aa_list.index(alignment[key_list[i]][j])
+            alignment2Num[i, j] = aa_dict[alignment[key_list[i]][j]]
     # Generate MI matrix from alignment2Num matrix, the MMI matrix,
     # and overallMMI
     for i in range(seq_length):
-        for j in range(i):
+        for j in range(i + 1, seq_length):
             column_i = alignment2Num[:, i]
             column_j = alignment2Num[:, j]
             currMIS = mutual_info_score(column_i, column_j, contingency=None)
-            MI_matrix[i][j] = currMIS
             # AW: divides by individual entropies to normalize.
-            MI_matrix[j][i] = currMIS
+            MI_matrix[i, j] = MI_matrix[j, i] = currMIS
             overallMMI += currMIS
     MMI += np.sum(MI_matrix, axis=1)
     MMI -= MI_matrix[np.arange(seq_length), np.arange(seq_length)]
@@ -270,11 +270,10 @@ def find_distance(pdbData):  # takes PDB
                                                       residuedictionary[i][k],
                                                       axis=1)))
             # finding the minimum value from the distance array
-            minvalue = np.min(matvalue)
             # Making dictionary of all min values indexed by the two residue
             # names
-            distancedict[key] = minvalue
-    return distancedict, PDBresidueList, ResidueDict
+            distancedict[key] = np.min(matvalue)
+    return distancedict, PDBresidueList, ResidueDict, residuedictionary
 
 
 def AggClustering(n_cluster, X, alignment_dict):
@@ -318,6 +317,7 @@ if __name__ == '__main__':
     # comment out for actual dataset
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+    aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
     aa_gap_list = aa_list + gap_list
     i_j_list = []
     # {seq1_seq2} = distancescore
@@ -340,30 +340,55 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up output location
     ###########################################################################
+    startDir = os.getcwd()
     createFolder = (outDir + str(today) + "/" + qName)
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
+    os.chdir(createFolder)
 
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
     currS = time.time()
-    alignment_dict = importAlignment(files)
+    if(os.path.exists('alignment_dict.pkl')):
+        alignment_dict = pickle.load(open('alignment_dict.pkl', 'rb'))
+    else:
+        alignment_dict = importAlignment(files)
+        pickle.dump(alignment_dict, open('alignment_dict.pkl', 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Imported alignment: {}'.format((currE - currS) / 60.0)
     # Remove gaps from aligned query sequences
     currS = time.time()
-    query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
+    if(os.path.exists('ungapped_alignment.pkl')):
+        query_name, fixed_alignment_dict = pickle.load(
+            open('ungapped_alignment.pkl', 'rb'))
+    else:
+        query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
+        pickle.dump((query_name, fixed_alignment_dict),
+                    open('ungapped_alignment.pkl', 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Removed gaps: {}'.format((currE - currS) / 60.0)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     currS = time.time()
-    X, sequence_order = distance_matrix(fixed_alignment_dict)
+    if(os.path.exists('seq_order.pkl') and os.path.exists('X.npz')):
+        X = np.load('X.npz')['X']
+        sequence_order = pickle.load(open('seq_order.pkl', 'rb'))
+    else:
+        X, sequence_order = distance_matrix(fixed_alignment_dict)
+        np.savez('X', X=X)
+        pickle.dump(sequence_order, open('seq_order.pkl', 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Computed Distance Matrix: {}'.format((currE - currS) / 60.0)
     # Generate MIP Matrix
     currS = time.time()
-    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_list)
+    if(os.path.exists('wholeMIP.npz')):
+        wholeMIP_Matrix = np.load('wholeMIP.npz')['wholeMIP']
+    else:
+        wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_dict)
+        np.savez('wholeMIP', wholeMIP=wholeMIP_Matrix)
     currE = time.time()
     print 'Computed MIP Matrix: {}'.format((currE - currS) / 60.0)
     ###########################################################################
@@ -372,8 +397,7 @@ if __name__ == '__main__':
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
     summed_Matrix = np.zeros((seq_length, seq_length))
     summed_Matrix = wholeMIP_Matrix
-    o = '{}{}/{}/{}_{}etmipAUC_results.txt'.format(outDir, today, qName, qName,
-                                                   today)
+    o = '{}_{}etmipAUC_results.txt'.format(qName, today)
     outfile = open(o, 'w+')
     proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
                    str(len(sequence_order)) + " Length of protein: " +
@@ -381,12 +405,23 @@ if __name__ == '__main__':
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
     currS = time.time()
-    pdbData = importPDB(pdbfilename)
+    if(os.path.exists('pdbData.pkl')):
+        pdbData = pickle.load(open('pdbData.pkl', 'rb'))
+    else:
+        pdbData = importPDB(startDir + '/' + pdbfilename)
+        pickle.dump(pdbData, open('pdbData.pkl', 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Imported PDB information: {}'.format((currE - currS) / 60.0)
     # e.g. 206_192 6.82
-    currS = time.time()
-    distdict, PDBresidueList, residues_dict = find_distance(pdbData)
+    if(os.path.exists('PDBdist.pkl')):
+        distdict, PDBresidueList, residues_dict = pickle.load(
+            open('PDBdist.pkl', 'rb'))
+    else:
+        distdict, PDBresidueList, residues_dict, resdict = find_distance(
+            pdbData)
+        pickle.dump((distdict, PDBresidueList, residues_dict),
+                    open('PDBdist.pkl', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     currE = time.time()
     print 'Atomic distances computed: {}'.format((currE - currS) / 60.0)
     exit()
@@ -417,8 +452,8 @@ if __name__ == '__main__':
     for clus in ls:
         time_start = time.time()
         # print "starting clustering"
-        e = outDir + str(today) + "/" + str(
-            qName) + "/" + qName + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
+        e = str(today) + "/" + str(qName) + "/" + qName + "_" + \
+            str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
         etmipoutfile = open("{0}".format(e), "w+")
         # setoffiles.append(e)
         cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
@@ -529,9 +564,10 @@ if __name__ == '__main__':
         pl.title(title)
         pl.legend(loc="lower right")
         # pl.show()
-        imagename = outDir + str(today) + "/" + qName + "/" + str(
-            sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
+        imagename = str(today) + "/" + qName + "/" + str(sys.argv[4]) + str(
+            int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
         pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     print "Generated results in", createFolder
+    os.chdir(startDir)
     end = time.time()
     print('ET MIP took {} minutes to run!'.format((end - start) / 60.0))
