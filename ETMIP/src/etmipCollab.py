@@ -277,34 +277,25 @@ def find_distance(pdbData):  # takes PDB
 
 
 def AggClustering(n_cluster, X, alignment_dict):
-    key_list = []
-    cluster_dict = {}
     linkage = 'ward'
     model = AgglomerativeClustering(linkage=linkage, n_clusters=n_cluster)
     model.fit(X)
     clusterlist = model.labels_.tolist()  # ordered list of cluster ids
     # unique and sorted cluster ids for e.g. for n_cluster = 2, g = [0,1]
-    g = set(clusterlist)
-
-    for key in alignment_dict:
-        key_list.append(key)
-
+    key_list = sorted(alignment_dict.keys())
+    cluster_dict = {}
     ####---------------------------------------#####
     #       Mapping Clusters to Sequences
     ####---------------------------------------#####
-    for i1 in g:
-        clusteredkeylist = []
-        for i in range(0, len(clusterlist)):
-            if clusterlist[i] == i1:
-                # list of keys in a given cluster
-                clusteredkeylist.append(key_list[i])
-        # cluster_dict[0 or 1] = [list of keys]
-        cluster_dict[i1] = clusteredkeylist
-    return cluster_dict, g
+    for i in range(len(clusterlist)):
+        if(clusterlist[i] not in cluster_dict):
+            cluster_dict[clusterlist[i]] = []
+        cluster_dict[clusterlist[i]].append(key_list[i])
+    return cluster_dict, set(clusterlist)
 
 
-def plotAUC(fpr, trp, roc_auc, qName, clus, today, cutoff):
-    pl.plot(fpr1, tpr1, label='(AUC = {0:.2f})'.format(roc_auc1))
+def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
+    pl.plot(fpr, tpr, label='(AUC = {0:.2f})'.format(roc_auc))
     pl.plot([0, 1], [0, 1], 'k--')
     pl.xlim([0.0, 1.0])
     pl.ylim([0.0, 1.0])
@@ -321,24 +312,18 @@ def plotAUC(fpr, trp, roc_auc, qName, clus, today, cutoff):
     pl.close()
 
 
-def etMIPWorker(today, qName, clus, X, fixed_alignment_dict):
+def etMIPWorker(today, qName, clus, X, fixed_alignment_dict, summed_Matrix,
+                outputfile):
     time_start = time.time()
-    # print "starting clustering"
-    e = str(today) + "/" + str(qName) + "/" + qName + "_" + \
-        str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
-    etmipoutfile = open("{0}".format(e), "w+")
-    # setoffiles.append(e)
+    print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
     for c in clusterset:
         new_alignment = {}
-        cluster_list = cluster_dict[c]
-        for key in fixed_alignment_dict:
-            if key in cluster_list:
-                new_alignment[key] = fixed_alignment_dict[key]
+        for key in cluster_dict[c]:
+            new_alignment[key] = fixed_alignment_dict[key]
         clusteredMIP_matrix = wholeAnalysis(new_alignment)
-        summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
+        summed_Matrix += clusteredMIP_matrix
 
-    etmiplist = []
     etmip_dict = {}
     PDBdist_Classifylist = []
     y_score1 = []
@@ -349,7 +334,7 @@ def etMIPWorker(today, qName, clus, X, fixed_alignment_dict):
         for j in range(0, len(sorted_res_list)):
             if i >= j:
                 continue
-            key = str(sorted_res_list[i]) + "_" + str(sorted_res_list[j])
+            key = "{}_{}".format(sorted_res_list[i], sorted_res_list[j])
             etmip_dict[key] = summed_Matrix[i][j]
     etmipResScoreList = []
     forOutputCoverageList = []
@@ -396,6 +381,9 @@ def etMIPWorker(today, qName, clus, X, fixed_alignment_dict):
         sys.exit()
     # print  "AUC computation finished"
 
+    e = str(today) + "/" + qName + "/" + qName + "_" + str(clus) + "_" + \
+        str(today) + ".etmipCVG.clustered.txt"
+    etmipoutfile = open("{0}".format(e), "w+")
     # this is where we can do i, j by running a second loop
     for i in range(0, len(sorted_res_list)):
         # this is where we can do i, j by running a second loop
@@ -416,15 +404,16 @@ def etMIPWorker(today, qName, clus, X, fixed_alignment_dict):
                     round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
                 etmipoutfile.write(etmipoutputline)
                 etmipoutfile.write("\n")
-    fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
+    fpr1, tpr1, _thresholds = roc_curve(y_true1, y_score1, pos_label=1)
     roc_auc1 = auc(fpr1, tpr1)
     # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
     time_elapsed = (time.time() - time_start)
     output = "\t{0}\t{1}\t{2}\n".format(
         str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
     outfile.write(output)
-
-    plotAUC(fpr1, trp1, roc_auc1, qName, clus, today, cutoff)
+    plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
+    print('ETMIP worker took {} min'.format(
+        (time_elapsed - time_start) / 60.0))
 
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
@@ -520,7 +509,7 @@ if __name__ == '__main__':
     ###########################################################################
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
     summed_Matrix = np.zeros((seq_length, seq_length))
-    summed_Matrix = wholeMIP_Matrix
+    summed_Matrix += wholeMIP_Matrix
     o = '{}_{}etmipAUC_results.txt'.format(qName, today)
     outfile = open(o, 'w+')
     proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
@@ -552,7 +541,7 @@ if __name__ == '__main__':
     sorted_PDB_dist = []
     for i in range(len(PDBresidueList)):
         for j in range(i + 1, len(PDBresidueList)):
-            sorted_PDB_dist2.append(distdict['{}_{}'.format(
+            sorted_PDB_dist.append(distdict['{}_{}'.format(
                 PDBresidueList[i], PDBresidueList[j])])
     # list of sorted residues - necessary for those where res1 is not 1
     sorted_res_list = sorted(list(set(PDBresidueList)))
