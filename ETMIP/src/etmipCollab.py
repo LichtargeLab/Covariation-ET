@@ -312,8 +312,8 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
     pl.close()
 
 
-def etMIPWorker(today, qName, clus, X, fixed_alignment_dict, summed_Matrix,
-                outputfile):
+def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
+                summed_Matrix, outputfile):
     time_start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
@@ -321,36 +321,20 @@ def etMIPWorker(today, qName, clus, X, fixed_alignment_dict, summed_Matrix,
         new_alignment = {}
         for key in cluster_dict[c]:
             new_alignment[key] = fixed_alignment_dict[key]
-        clusteredMIP_matrix = wholeAnalysis(new_alignment)
+        clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
         summed_Matrix += clusteredMIP_matrix
 
-    etmip_dict = {}
-    PDBdist_Classifylist = []
-    y_score1 = []
-    y_true1 = []
-
     # this is where we can do i, j by running a second loop
-    for i in range(0, len(sorted_res_list)):
-        for j in range(0, len(sorted_res_list)):
-            if i >= j:
-                continue
-            key = "{}_{}".format(sorted_res_list[i], sorted_res_list[j])
-            etmip_dict[key] = summed_Matrix[i][j]
     etmipResScoreList = []
-    forOutputCoverageList = []
-    etmiplistCoverage = []
-
     for i in range(0, len(sorted_res_list)):
-        for j in range(0, len(sorted_res_list)):
-            if i >= j:
-                continue
-            newkey1 = str(
-                sorted_res_list[i]) + "_" + str(sorted_res_list[j])
+        for j in range(i + 1, len(sorted_res_list)):
+            newkey1 = "{}_{}".format(sorted_res_list[i], sorted_res_list[j])
             etmipResScoreList.append(newkey1)
-            etmipResScoreList.append(etmip_dict[newkey1])
+            etmipResScoreList.append(summed_Matrix[i][j])
 
     # Converting to coverage
-
+    forOutputCoverageList = []
+    etmiplistCoverage = []
     for i in range(1, len(etmipResScoreList), 2):
         etmipRank = 0
         for j in range(1, len(etmipResScoreList), 2):
@@ -366,6 +350,9 @@ def etMIPWorker(today, qName, clus, X, fixed_alignment_dict, summed_Matrix,
         # print computeCoverage
     # print  "Coverage computation finished"
     # AUC computation
+    PDBdist_Classifylist = []
+    y_score1 = []
+    y_true1 = []
     if len(etmiplistCoverage) == len(sorted_PDB_dist):
         for i in range(0, len(etmiplistCoverage)):
             y_score1.append(etmiplistCoverage[i])
@@ -547,13 +534,14 @@ if __name__ == '__main__':
     sorted_res_list = sorted(list(set(PDBresidueList)))
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
     print qName, len(sequence_order), str(seq_length)
-    exit()
+    # exit()
     #
     #
     #
     ls = [2, 3, 5, 7, 10, 25]
     for clus in ls:
-        etMIPWorker()
+        etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
+                    summed_Matrix, outfile)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
