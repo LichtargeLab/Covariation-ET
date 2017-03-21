@@ -314,7 +314,7 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
 
 
 def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
-                summed_Matrix, outputfile):
+                summed_Matrix, sorted_PDB_dist, outputfile):
     time_start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
@@ -347,19 +347,20 @@ def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
     PDBdist_Classifylist = []
     y_score1 = []
     y_true1 = []
-    if len(etmiplistCoverage) == len(sorted_PDB_dist):
-        for i in range(0, len(etmiplistCoverage)):
-            y_score1.append(etmiplistCoverage[i])
-
-            if (float(sorted_PDB_dist[i]) <= cutoff):
-                PDBdist_Classifylist.append(1)
-                y_true1.append(1)
-            else:
-                PDBdist_Classifylist.append(0)
-                y_true1.append(0)
-    else:
+    if len(etmiplistCoverage) != len(sorted_PDB_dist):
         print "lengths do not match"
         sys.exit()
+    print sorted_PDB_dist
+    exit()
+    for i in range(0, len(etmiplistCoverage)):
+        y_score1.append(etmiplistCoverage[i])
+
+        if (float(sorted_PDB_dist[i]) <= cutoff):
+            PDBdist_Classifylist.append(1)
+            y_true1.append(1)
+        else:
+            PDBdist_Classifylist.append(0)
+            y_true1.append(0)
     # print  "AUC computation finished"
 
     e = str(today) + "/" + qName + "/" + qName + "_" + str(clus) + "_" + \
@@ -524,18 +525,14 @@ if __name__ == '__main__':
         for j in range(i + 1, len(PDBresidueList)):
             sorted_PDB_dist.append(distdict['{}_{}'.format(
                 PDBresidueList[i], PDBresidueList[j])])
+    sorted_PDB_dist = np.asarray(sorted_PDB_dist)
     # list of sorted residues - necessary for those where res1 is not 1
     sorted_res_list = sorted(list(set(PDBresidueList)))
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
     print qName, len(sequence_order), str(seq_length)
-    # exit()
-    #
-    #
-    #
-    ls = [2, 3, 5, 7, 10, 25]
-    for clus in ls:
+    for clus in [2, 3, 5, 7, 10, 25]:
         etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
-                    summed_Matrix, outfile)
+                    summed_Matrix, sorted_PDB_dist, outfile)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
