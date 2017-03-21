@@ -9,6 +9,7 @@ from sklearn.cluster import AgglomerativeClustering
 from itertools import izip
 import cPickle as pickle
 import matplotlib
+from etmip10forOptimizatoin import computeCoverage
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
@@ -325,30 +326,23 @@ def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
         summed_Matrix += clusteredMIP_matrix
 
     # this is where we can do i, j by running a second loop
+    scorePositions = []
     etmipResScoreList = []
     for i in range(0, len(sorted_res_list)):
         for j in range(i + 1, len(sorted_res_list)):
             newkey1 = "{}_{}".format(sorted_res_list[i], sorted_res_list[j])
-            etmipResScoreList.append(newkey1)
+            scorePositions.append(newkey1)
             etmipResScoreList.append(summed_Matrix[i][j])
+    etmipResScoreList = np.asarray(etmipResScoreList)
 
     # Converting to coverage
-    forOutputCoverageList = []
     etmiplistCoverage = []
-    for i in range(1, len(etmipResScoreList), 2):
-        etmipRank = 0
-        for j in range(1, len(etmipResScoreList), 2):
-            if i != j:
-                if float(etmipResScoreList[i]) >= float(etmipResScoreList[j]):
-                    etmipRank += 1
-        computeCoverage = (etmipRank * 100) / \
-            (float(len(etmipResScoreList)) / 2)
+    numPos = float(len(etmipResScoreList))
+    for i in range(len(etmipResScoreList)):
+        computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
+                                    * 1.0) - 1) * 100) / numPos)
         etmiplistCoverage.append(computeCoverage)
 
-        forOutputCoverageList.append(etmipResScoreList[i - 1])
-        forOutputCoverageList.append(computeCoverage)
-        # print computeCoverage
-    # print  "Coverage computation finished"
     # AUC computation
     PDBdist_Classifylist = []
     y_score1 = []
@@ -386,9 +380,9 @@ def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
                     r = 0
                 res1 = str(sorted_res_list[i])
                 res2 = str(sorted_res_list[j])
-                ind = forOutputCoverageList.index(key)
+                ind = scorePositions.index(key)
                 etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
-                    round(forOutputCoverageList[ind + 1], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
+                    round(etmiplistCoverage[ind], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
                 etmipoutfile.write(etmipoutputline)
                 etmipoutfile.write("\n")
     fpr1, tpr1, _thresholds = roc_curve(y_true1, y_score1, pos_label=1)
