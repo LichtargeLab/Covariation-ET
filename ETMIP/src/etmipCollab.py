@@ -277,6 +277,29 @@ def find_distance(pdbData):  # takes PDB
 
 
 def AggClustering(n_cluster, X, alignment_dict):
+    '''
+    Agglomerative clustering
+
+    Performs agglomerative clustering on a matrix of pairwise distances between
+    sequences in the alignment being analyzed.
+
+    Parameters:
+    -----------
+    n_cluster: int
+        The number of clusters to separate sequences into.
+    X: numpy nd_array
+        The distance matrix computed between the sequences.
+    alignment_dict: dict
+        The corrected alignment dictionary containing sequences with all gaps
+        removed for the query sequence.
+    Returns:
+    --------
+    dict
+        A dictionary with cluster number as the key and a list of sequences in
+        the specified cluster as a value.
+    set
+        A unique sorted set of the cluster values.
+    '''
     linkage = 'ward'
     model = AgglomerativeClustering(linkage=linkage, n_clusters=n_cluster)
     model.fit(X)
@@ -295,25 +318,68 @@ def AggClustering(n_cluster, X, alignment_dict):
 
 
 def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
+    '''
+    Plot AUC
+
+    This function plots and saves the AUCROC.  The image will be stored in the
+    eps format with dpi=1000 using a name specified by the query name, cutoff,
+    clustering constant, and date.
+
+    Parameters:
+    fpr: list
+        List of false positive rate values.
+    tpr: list
+        List of true positive rate values.
+    roc_auc: float
+        Float specifying the calculated AUC for the curve.
+    qName: str
+        Name of the query protein
+    clus: int
+        Number of clusters created
+    today: date
+        The days date
+    cutoff: int
+        The distance used for proximity cutoff in the PDB structure.
+    '''
     pl.plot(fpr, tpr, label='(AUC = {0:.2f})'.format(roc_auc))
     pl.plot([0, 1], [0, 1], 'k--')
     pl.xlim([0.0, 1.0])
     pl.ylim([0.0, 1.0])
     pl.xlabel('False Positive Rate')
     pl.ylabel('True Positive Rate')
-    title = 'Ability to predict positive contacts in ' + \
-        qName + ", Cluster = " + str(clus)
+    title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(
+        qName, clus)
     pl.title(title)
     pl.legend(loc="lower right")
-    # pl.show()
-    imagename = str(today) + "/" + qName + "/" + qName + cutoff + \
-        "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
+    imagename = '{0}/{1}/{1}{2}A_C{3}_{0}roc.eps'.format(
+        today, qName, cutoff, clus)
     pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     pl.close()
 
 
 def writeOutClusteringResults(today, qName, clus, scorePositions,
                               etmiplistCoverage, distDict):
+    '''
+    Write out clustering results
+
+    This method writes the results of the clustering to file.
+
+    Parameters:
+    today: date
+        Todays date.
+    qName: str
+        The name of the query protein
+    clus: int
+        The number of clusters created
+    scorePositions: list
+        A list of the order in which the sequence distances are presented.
+        The element format is {}_{} where each {} is the number of a sequence
+        in the alignment.
+    etmiplistCoverage: list
+        The coverage of a specific sequence comparison
+    distDict: dict
+        Dictionary of distances between sequences
+    '''
     e = "{0}/{1}/{1}_{2}_{0}.etmipCVG.clustered.txt".format(today, qName, clus)
     etmipoutfile = open(e, "w+")
     for i in range(0, len(sorted_res_list)):
@@ -337,6 +403,38 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
 
 def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
                 summed_Matrix, sorted_PDB_dist, distDict, outputfile):
+    '''
+    ETMIP Worker
+
+    Performs the repeated portion of analysis in this workflow.
+
+    Parameters:
+    today: date
+        Todays date, used for filenames
+    qName: str
+        The name of the query protein
+    cutoff: int
+        The distance for cut off in a PDB structure to consider two atoms as
+        interacting.
+    aa_dict: dict
+        Dictionary mapping amino acid single letter code to a numerical value
+    clus: int
+        Number of clusters to create
+    X: numpy nd_array
+        The pairwise distance between a set of sequences in an alignment
+    fixed_alignment_dict: dict
+        Dictionary of sequences in the alignment with all gaps removed from the
+        query sequences.
+    summed_Matrix: numpy nd_array
+        Tracks the ETMIP score over iterations of clustering
+    sorted_PDB_dist: dict
+        Dictionary of sorted pairwise atom interactions
+    distDict: dict
+        Dictionary of distances between pairs of sequences in the alignment
+    outputfile: File object
+        Handle for a file to which the results of this workflow are being
+        written.
+    '''
     time_start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
