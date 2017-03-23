@@ -9,7 +9,6 @@ from sklearn.cluster import AgglomerativeClustering
 from itertools import izip
 import cPickle as pickle
 import matplotlib
-from etmip10forOptimizatoin import computeCoverage
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
@@ -313,8 +312,31 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
     pl.close()
 
 
-def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
-                summed_Matrix, sorted_PDB_dist, outputfile):
+def writeOutClusteringResults(today, qName, clus, scorePositions,
+                              etmiplistCoverage, distDict):
+    e = "{0}/{1}/{1}_{2}_{0}.etmipCVG.clustered.txt".format(today, qName, clus)
+    etmipoutfile = open(e, "w+")
+    for i in range(0, len(sorted_res_list)):
+        for j in range(i + 1, len(sorted_res_list)):
+            key = '{}_{}'.format(sorted_res_list[i], sorted_res_list[j])
+            if distdict[key] <= cutoff:
+                r = 1
+            else:
+                r = 0
+            res1 = str(sorted_res_list[i])
+            res2 = str(sorted_res_list[j])
+            ind = scorePositions.index(key)
+            etmipoutputline = '{} ({}) {} ({}) {} {} {} {}'.format(
+                res1, residues_dict[res1], res2, residues_dict[res2],
+                round(etmiplistCoverage[ind], 2), round(distdict[key], 2), r,
+                clus)
+            etmipoutfile.write(etmipoutputline)
+            etmipoutfile.write("\n")
+    etmipoutfile.close()
+
+
+def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
+                summed_Matrix, sorted_PDB_dist, distDict, outputfile):
     time_start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
@@ -344,58 +366,23 @@ def etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
         etmiplistCoverage.append(computeCoverage)
 
     # AUC computation
-    PDBdist_Classifylist = []
-    y_score1 = []
-    y_true1 = []
     if len(etmiplistCoverage) != len(sorted_PDB_dist):
         print "lengths do not match"
         sys.exit()
-    print sorted_PDB_dist
-    exit()
-    for i in range(0, len(etmiplistCoverage)):
-        y_score1.append(etmiplistCoverage[i])
+    y_true1 = ((sorted_PDB_dist <= cutoff) * 1)
 
-        if (float(sorted_PDB_dist[i]) <= cutoff):
-            PDBdist_Classifylist.append(1)
-            y_true1.append(1)
-        else:
-            PDBdist_Classifylist.append(0)
-            y_true1.append(0)
-    # print  "AUC computation finished"
-
-    e = str(today) + "/" + qName + "/" + qName + "_" + str(clus) + "_" + \
-        str(today) + ".etmipCVG.clustered.txt"
-    etmipoutfile = open("{0}".format(e), "w+")
-    # this is where we can do i, j by running a second loop
-    for i in range(0, len(sorted_res_list)):
-        # this is where we can do i, j by running a second loop
-        for j in range(0, len(sorted_res_list)):
-            if i >= j:
-                continue
-            else:
-                key = str(sorted_res_list[i]) + \
-                    "_" + str(sorted_res_list[j])
-                if distdict[key] <= cutoff:
-                    r = 1
-                else:
-                    r = 0
-                res1 = str(sorted_res_list[i])
-                res2 = str(sorted_res_list[j])
-                ind = scorePositions.index(key)
-                etmipoutputline = res1 + " (" + residues_dict[res1] + ") " + res2 + " (" + residues_dict[res2] + ") " + str(
-                    round(etmiplistCoverage[ind], 2)) + " " + str(round(distdict[key], 2)) + " " + str(r) + " " + str(clus)
-                etmipoutfile.write(etmipoutputline)
-                etmipoutfile.write("\n")
-    fpr1, tpr1, _thresholds = roc_curve(y_true1, y_score1, pos_label=1)
+    writeOutClusteringResults(today, qName, clus, scorePositions,
+                              etmiplistCoverage, distdict)
+    fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
+                                        pos_label=1)
     roc_auc1 = auc(fpr1, tpr1)
+    plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
     # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
     time_elapsed = (time.time() - time_start)
     output = "\t{0}\t{1}\t{2}\n".format(
-        str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
+        clus, round(roc_auc1, 2), round(time_elapsed, 2))
     outfile.write(output)
-    plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
-    print('ETMIP worker took {} min'.format(
-        (time_elapsed - time_start) / 60.0))
+    print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
 
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
@@ -531,8 +518,9 @@ if __name__ == '__main__':
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
     print qName, len(sequence_order), str(seq_length)
     for clus in [2, 3, 5, 7, 10, 25]:
-        etMIPWorker(today, qName, aa_dict, clus, X, fixed_alignment_dict,
-                    summed_Matrix, sorted_PDB_dist, outfile)
+        etMIPWorker(today, qName, cutoff, aa_dict, clus, X,
+                    fixed_alignment_dict, summed_Matrix, sorted_PDB_dist,
+                    distdict, outfile)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
