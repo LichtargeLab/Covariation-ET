@@ -19,7 +19,7 @@ import re
 import os
 
 
-def importAlignment(files):
+def importAlignment(files, saveFile=None):
     '''
     Import alignments:
 
@@ -29,25 +29,32 @@ def importAlignment(files):
     -----------
     files: File
         File object holding a handle to an alignment file.
+    saveFile: str
+        Path to file in which the desired alignment was stored previously.
     Returns:
     --------
     alignment_dict: dict    
         Dictionary which will be used to store alignments from the file.
     '''
     start = time.time()
-    alignment_dict = {}
-    for line in files:
-        if line.startswith(">"):
-            key = line.rstrip()
-            alignment_dict[key] = ''
-        else:
-            alignment_dict[key] += line.rstrip()
+    if((saveFile is not None) and (os.path.exists(saveFile))):
+        alignment_dict = pickle.load(open(saveFile, 'rb'))
+    else:
+        alignment_dict = {}
+        for line in files:
+            if line.startswith(">"):
+                key = line.rstrip()
+                alignment_dict[key] = ''
+            else:
+                alignment_dict[key] += line.rstrip()
+        pickle.dump(alignment_dict, open(saveFile, 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing alignment took {} min'.format((end - start) / 60.0))
     return alignment_dict
 
 
-def remove_gaps(alignment_dict):
+def remove_gaps(alignment_dict, saveFile=None):
     '''
     Remove Gaps
 
@@ -58,6 +65,9 @@ def remove_gaps(alignment_dict):
     -----------
     alignment_dict: dict
         Dictionary mapping query name to sequence.
+    saveFile: str
+        Path to a file where the alignment with gaps in the query sequence
+        removed was stored previously.
 
     Returns:
     --------
@@ -68,31 +78,37 @@ def remove_gaps(alignment_dict):
     '''
     # Getting gapped columns for query
     start = time.time()
-    gap = ['-', '.', '_']
-    query_gap_index = []
-    for key, value in alignment_dict.iteritems():
-        if "query" in key.lower():
-            query_name = key
-            for idc, char in enumerate(value):
-                if char in gap:
-                    query_gap_index.append(idc)
-    if(len(query_gap_index) > 0):
-        query_gap_index.sort()
-        new_alignment_dict = {}
-        for key, value in alignment_dict.iteritems():
-            new_alignment_dict[key] = value[0:query_gap_index[0]]
-            for i in range(1, len(query_gap_index) - 1):
-                new_alignment_dict[key] += value[query_gap_index[i]:
-                                                 query_gap_index[i + 1]]
-            new_alignment_dict[key] += value[query_gap_index[-1]:]
+    if((saveFile is not None) and os.path.exists(saveFile)):
+        query_name, new_alignment_dict = pickle.load(
+            open(saveFile, 'rb'))
     else:
-        new_alignment_dict = alignment_dict
+        gap = ['-', '.', '_']
+        query_gap_index = []
+        for key, value in alignment_dict.iteritems():
+            if "query" in key.lower():
+                query_name = key
+                for idc, char in enumerate(value):
+                    if char in gap:
+                        query_gap_index.append(idc)
+        if(len(query_gap_index) > 0):
+            query_gap_index.sort()
+            new_alignment_dict = {}
+            for key, value in alignment_dict.iteritems():
+                new_alignment_dict[key] = value[0:query_gap_index[0]]
+                for i in range(1, len(query_gap_index) - 1):
+                    new_alignment_dict[key] += value[query_gap_index[i]:
+                                                     query_gap_index[i + 1]]
+                new_alignment_dict[key] += value[query_gap_index[-1]:]
+        else:
+            new_alignment_dict = alignment_dict
+        pickle.dump((query_name, new_alignment_dict),
+                    open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Removing gaps took {} min'.format((end - start) / 60.0))
     return query_name, new_alignment_dict
 
 
-def distance_matrix(alignment_dict):
+def distance_matrix(alignment_dict, saveFiles=None):
     '''
     Distance matrix
 
@@ -105,6 +121,12 @@ def distance_matrix(alignment_dict):
         Dictionary of aligned sequences. This is meant to be a corrected
         dictionary where all gaps have been removed from the query sequence,
         and the same positions have been removed from other sequences.
+    saveFiles: tuple
+        A tuple or list containing two file paths the first should be the path
+        for a .npz file containing distances between sequences in the alignment
+        (leave out the .npz as it will be added automatically) and the file
+        path for a .pkl file containing the the sequence order for the distance
+        matrix.
     Returns:
     --------
     matrix
@@ -116,22 +138,30 @@ def distance_matrix(alignment_dict):
     '''
     # Generate distance_matrix: Calculating Sequence Identity
     start = time.time()
-    key_list = alignment_dict.keys()
-    valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
-    for i in range(len(alignment_dict)):
-        for j in range(i + 1, len(alignment_dict)):
-            simm = sum(ch1 == ch2 for ch1, ch2 in izip(alignment_dict[key_list[i]],
-                                                       alignment_dict[key_list[j]]))
-            valuematrix[i, j] += simm
-            valuematrix[j, i] += simm
-    valuematrix /= len(alignment_dict[key_list[0]])
+    if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
+       os.path.exists(saveFiles[1])):
+        X = np.load(saveFile[0] + '.npz')['X']
+        sequence_order = pickle.load(open(saveFile[1], 'rb'))
+    else:
+        key_list = alignment_dict.keys()
+        valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
+        for i in range(len(alignment_dict)):
+            for j in range(i + 1, len(alignment_dict)):
+                simm = sum(ch1 == ch2 for ch1, ch2 in izip(alignment_dict[key_list[i]],
+                                                           alignment_dict[key_list[j]]))
+                valuematrix[i, j] += simm
+                valuematrix[j, i] += simm
+        valuematrix /= len(alignment_dict[key_list[0]])
+        np.savez(saveFiles[0], X=X)
+        pickle.dump(sequence_order, open(saveFiles[1], 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Computing the distance matrix took {} min'.format(
         (end - start) / 60.0))
     return valuematrix, key_list
 
 
-def wholeAnalysis(alignment, aa_dict):
+def wholeAnalysis(alignment, aa_dict, saveFile=None):
     '''
     Whole Analysis
 
@@ -145,54 +175,62 @@ def wholeAnalysis(alignment, aa_dict):
         and the same positions have been removed from other sequences.
     aa_list: list
         List of amino acids in a fixed order.
+    saveFile: str
+        File path to a previously stored MIP matrix (.npz should be excluded as
+        it will be added automatically).
     Returns:
     --------
     matrix
         Matrix of MIP scores which has dimensions seq_length by seq_length.
     '''
     start = time.time()
-    overallMMI = 0.0
-    key_list = alignment.keys()
-    seq_length = len(alignment[alignment.keys()[0]])
-    # generate an MI matrix for each cluster
-    MI_matrix = np.zeros((seq_length, seq_length))
-    # Vector of 1 column
-    MMI = np.zeros(seq_length)
-    APC_matrix = np.zeros((seq_length, seq_length))
-    MIP_matrix = np.zeros((seq_length, seq_length))
-    # Create matrix converting sequences of amino acids to sequences of integers
-    # representing sequences of amino acids.
-    alignment2Num = np.zeros((len(alignment), seq_length))
-    for i in range(len(key_list)):
-        for j in range(seq_length):
-            alignment2Num[i, j] = aa_dict[alignment[key_list[i]][j]]
-    # Generate MI matrix from alignment2Num matrix, the MMI matrix,
-    # and overallMMI
-    for i in range(seq_length):
-        for j in range(i + 1, seq_length):
-            column_i = alignment2Num[:, i]
-            column_j = alignment2Num[:, j]
-            currMIS = mutual_info_score(column_i, column_j, contingency=None)
-            # AW: divides by individual entropies to normalize.
-            MI_matrix[i, j] = MI_matrix[j, i] = currMIS
-            overallMMI += currMIS
-    MMI += np.sum(MI_matrix, axis=1)
-    MMI -= MI_matrix[np.arange(seq_length), np.arange(seq_length)]
-    MMI /= (seq_length - 1)
-    overallMMI = 2.0 * (overallMMI / (seq_length - 1)) / seq_length
-    # Calculating APC
-    APC_matrix += np.outer(MMI, MMI)
-    APC_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
-    APC_matrix /= overallMMI
-    # Defining MIP matrix
-    MIP_matrix += MI_matrix - APC_matrix
-    MIP_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
+    if(os.path.exists(saveFile + '.npz')):
+        wholeMIP_Matrix = np.load(saveFile + '.npz')['wholeMIP']
+    else:
+        overallMMI = 0.0
+        key_list = alignment.keys()
+        seq_length = len(alignment[alignment.keys()[0]])
+        # generate an MI matrix for each cluster
+        MI_matrix = np.zeros((seq_length, seq_length))
+        # Vector of 1 column
+        MMI = np.zeros(seq_length)
+        APC_matrix = np.zeros((seq_length, seq_length))
+        MIP_matrix = np.zeros((seq_length, seq_length))
+        # Create matrix converting sequences of amino acids to sequences of integers
+        # representing sequences of amino acids.
+        alignment2Num = np.zeros((len(alignment), seq_length))
+        for i in range(len(key_list)):
+            for j in range(seq_length):
+                alignment2Num[i, j] = aa_dict[alignment[key_list[i]][j]]
+        # Generate MI matrix from alignment2Num matrix, the MMI matrix,
+        # and overallMMI
+        for i in range(seq_length):
+            for j in range(i + 1, seq_length):
+                column_i = alignment2Num[:, i]
+                column_j = alignment2Num[:, j]
+                currMIS = mutual_info_score(
+                    column_i, column_j, contingency=None)
+                # AW: divides by individual entropies to normalize.
+                MI_matrix[i, j] = MI_matrix[j, i] = currMIS
+                overallMMI += currMIS
+        MMI += np.sum(MI_matrix, axis=1)
+        MMI -= MI_matrix[np.arange(seq_length), np.arange(seq_length)]
+        MMI /= (seq_length - 1)
+        overallMMI = 2.0 * (overallMMI / (seq_length - 1)) / seq_length
+        # Calculating APC
+        APC_matrix += np.outer(MMI, MMI)
+        APC_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
+        APC_matrix /= overallMMI
+        # Defining MIP matrix
+        MIP_matrix += MI_matrix - APC_matrix
+        MIP_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
+        np.savez(saveFile, wholeMIP=MIP_Matrix)
     end = time.time()
     print('Whole analysis took {} min'.format((end - start) / 60.0))
     return MIP_matrix
 
 
-def importPDB(filename):
+def importPDB(filename, saveFile):
     '''
     importPDB
 
@@ -203,28 +241,35 @@ def importPDB(filename):
     Parameters:
     -----------
     filename: string
-        The file path to the pdb file.
+        The file path to the PDB file.
+    saveFile: str
+        The file path to a previously stored PDB file data structure.
     Returns:
     --------
     list:
         A list of lists containing the relevant information from the PDB file.
     '''
     start = time.time()
-    pdbFile = open(filename)
-    rows = []
-    pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-    for line in pdbFile:  # for a line in the pdb
-        res = re.match(pdbPattern, line)
-        if res:
-            terms = [res.group(i) for i in [3, 5, 6, 7, 8]]
-            rows.append(terms)
-    pdbFile.close()
+    if(os.path.exists(saveFile)):
+        pdbData = pickle.load(open(saveFile, 'rb'))
+    else:
+        pdbFile = open(filename)
+        rows = []
+        pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
+        for line in pdbFile:  # for a line in the pdb
+            res = re.match(pdbPattern, line)
+            if res:
+                terms = [res.group(i) for i in [3, 5, 6, 7, 8]]
+                rows.append(terms)
+        pdbFile.close()
+        pickle.dump(rows, open(saveFile, 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing the PDB file took {} min'.format((end - start) / 60.0))
     return rows
 
 
-def find_distance(pdbData):  # takes PDB
+def find_distance(pdbData, saveFile):  # takes PDB
     '''
     Find distance
 
@@ -235,6 +280,9 @@ def find_distance(pdbData):  # takes PDB
     -----------
     filename: string
         The file path to the pdb file.
+    saveFile: str
+        File name and/or location of file containing a previously computed set
+        of distance data for a PDB structure.
     Returns:
     dict
         Dictionary of distances
@@ -247,49 +295,56 @@ def find_distance(pdbData):  # takes PDB
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
     start = time.time()
-    residuedictionary = {}
-    PDBresidueList = []
-    ResidueDict = {}
-    prevRes = None
-    for selectline in pdbData:
-        resname = selectline[0]
-        # print resname
-        resnumdict = int(selectline[1])
-        # print resnumdict
-        resatomlisttemp = np.asarray([float(selectline[2]), float(selectline[3]),
-                                      float(selectline[4])])
-        # print resatomlisttemp
-        try:
-            residuedictionary[resnumdict].append(resatomlisttemp)
-        except KeyError:
-            if(prevRes):
-                residuedictionary[prevRes] = np.vstack(
-                    residuedictionary[prevRes])
-            prevRes = resnumdict
-            residuedictionary[resnumdict] = [resatomlisttemp]
-            PDBresidueList.append(resnumdict)
-            ResidueDict[resnumdict] = resname
-    residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
-    distancedict = {}
-    for i in PDBresidueList:  # Loop over all residues in the pdb
-        # Loop over residues to calculate distance between all residues i and j
-        for j in PDBresidueList:
-            '''print("size of ETvalues is equal to", len(ETvalues))'''
-            key = str(i) + '_' + str(j)
-            if i == j:
-                distancedict[key] = 0.0
-                continue
-            matvalue = []
-            # Getting the 3d coordinates for every atom in each residue.
-            # iterating over all pairs to find all distances
-            for k in range(residuedictionary[i].shape[0]):
-                matvalue.append(np.min(np.linalg.norm(residuedictionary[j] -
-                                                      residuedictionary[i][k],
-                                                      axis=1)))
-            # finding the minimum value from the distance array
-            # Making dictionary of all min values indexed by the two residue
-            # names
-            distancedict[key] = np.min(matvalue)
+    if(os.path.exists(saveFile)):
+        distancedict, PDBresidueList, ResidueDict, residuedictionary = pickle.load(
+            open(saveFile, 'rb'))
+    else:
+        residuedictionary = {}
+        PDBresidueList = []
+        ResidueDict = {}
+        prevRes = None
+        for selectline in pdbData:
+            resname = selectline[0]
+            # print resname
+            resnumdict = int(selectline[1])
+            # print resnumdict
+            resatomlisttemp = np.asarray([float(selectline[2]), float(selectline[3]),
+                                          float(selectline[4])])
+            # print resatomlisttemp
+            try:
+                residuedictionary[resnumdict].append(resatomlisttemp)
+            except KeyError:
+                if(prevRes):
+                    residuedictionary[prevRes] = np.vstack(
+                        residuedictionary[prevRes])
+                prevRes = resnumdict
+                residuedictionary[resnumdict] = [resatomlisttemp]
+                PDBresidueList.append(resnumdict)
+                ResidueDict[resnumdict] = resname
+        residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
+        distancedict = {}
+        for i in PDBresidueList:  # Loop over all residues in the pdb
+            # Loop over residues to calculate distance between all residues i
+            # and j
+            for j in PDBresidueList:
+                '''print("size of ETvalues is equal to", len(ETvalues))'''
+                key = str(i) + '_' + str(j)
+                if i == j:
+                    distancedict[key] = 0.0
+                    continue
+                matvalue = []
+                # Getting the 3d coordinates for every atom in each residue.
+                # iterating over all pairs to find all distances
+                for k in range(residuedictionary[i].shape[0]):
+                    matvalue.append(np.min(np.linalg.norm(residuedictionary[j] -
+                                                          residuedictionary[i][k],
+                                                          axis=1)))
+                # finding the minimum value from the distance array
+                # Making dictionary of all min values indexed by the two residue
+                # names
+                distancedict[key] = np.min(matvalue)
+        pickle.dump((distancedict, PDBresidueList, ResidueDict, residuedictionary),
+                    open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Computing the distance matrix based on the PDB file took {} min'.format(
         (end - start) / 60.0))
@@ -561,36 +616,15 @@ if __name__ == '__main__':
 
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
-    if(os.path.exists('alignment_dict.pkl')):
-        alignment_dict = pickle.load(open('alignment_dict.pkl', 'rb'))
-    else:
-        alignment_dict = importAlignment(files)
-        pickle.dump(alignment_dict, open('alignment_dict.pkl', 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+    alignment_dict = importAlignment(files, 'alignment_dict.pkl')
     # Remove gaps from aligned query sequences
-    if(os.path.exists('ungapped_alignment.pkl')):
-        query_name, fixed_alignment_dict = pickle.load(
-            open('ungapped_alignment.pkl', 'rb'))
-    else:
-        query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
-        pickle.dump((query_name, fixed_alignment_dict),
-                    open('ungapped_alignment.pkl', 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+    query_name, fixed_alignment_dict = remove_gaps(alignment_dict,
+                                                   'ungapped_alignment.pkl')
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-    if(os.path.exists('seq_order.pkl') and os.path.exists('X.npz')):
-        X = np.load('X.npz')['X']
-        sequence_order = pickle.load(open('seq_order.pkl', 'rb'))
-    else:
-        X, sequence_order = distance_matrix(fixed_alignment_dict)
-        np.savez('X', X=X)
-        pickle.dump(sequence_order, open('seq_order.pkl', 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+    X, sequence_order = distance_matrix(fixed_alignment_dict,
+                                        ('X', 'seq_order.pkl'))
     # Generate MIP Matrix
-    if(os.path.exists('wholeMIP.npz')):
-        wholeMIP_Matrix = np.load('wholeMIP.npz')['wholeMIP']
-    else:
-        wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_dict)
-        np.savez('wholeMIP', wholeMIP=wholeMIP_Matrix)
+    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_dict, 'wholeMIP')
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################
@@ -604,21 +638,10 @@ if __name__ == '__main__':
                    str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
-    if(os.path.exists('pdbData.pkl')):
-        pdbData = pickle.load(open('pdbData.pkl', 'rb'))
-    else:
-        pdbData = importPDB(startDir + '/' + pdbfilename)
-        pickle.dump(pdbData, open('pdbData.pkl', 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+    pdbData = importPDB(startDir + '/' + pdbfilename, 'pdbData.pkl')
     # e.g. 206_192 6.82
-    if(os.path.exists('PDBdist.pkl')):
-        distdict, PDBresidueList, residues_dict = pickle.load(
-            open('PDBdist.pkl', 'rb'))
-    else:
-        distdict, PDBresidueList, residues_dict, resdict = find_distance(
-            pdbData)
-        pickle.dump((distdict, PDBresidueList, residues_dict),
-                    open('PDBdist.pkl', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+    distdict, PDBresidueList, residues_dict, resdict = find_distance(
+        pdbData, 'PDBdist.pkl')
     # this is where we can do i, j by running a second loop
     sorted_PDB_dist = []
     for i in range(len(PDBresidueList)):
