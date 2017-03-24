@@ -34,6 +34,7 @@ def importAlignment(files):
     alignment_dict: dict    
         Dictionary which will be used to store alignments from the file.
     '''
+    start = time.time()
     alignment_dict = {}
     for line in files:
         if line.startswith(">"):
@@ -41,6 +42,8 @@ def importAlignment(files):
             alignment_dict[key] = ''
         else:
             alignment_dict[key] += line.rstrip()
+    end = time.time()
+    print('Importing alignment took {} min'.format((end - start) / 60.0))
     return alignment_dict
 
 
@@ -64,6 +67,7 @@ def remove_gaps(alignment_dict):
         A transform of the input dictionary without gaps.
     '''
     # Getting gapped columns for query
+    start = time.time()
     gap = ['-', '.', '_']
     query_gap_index = []
     for key, value in alignment_dict.iteritems():
@@ -81,9 +85,11 @@ def remove_gaps(alignment_dict):
                 new_alignment_dict[key] += value[query_gap_index[i]:
                                                  query_gap_index[i + 1]]
             new_alignment_dict[key] += value[query_gap_index[-1]:]
-        return query_name, new_alignment_dict
     else:
-        return query_name, alignment_dict
+        new_alignment_dict = alignment_dict
+    end = time.time()
+    print('Removing gaps took {} min'.format((end - start) / 60.0))
+    return query_name, new_alignment_dict
 
 
 def distance_matrix(alignment_dict):
@@ -109,6 +115,7 @@ def distance_matrix(alignment_dict):
         the matrix.
     '''
     # Generate distance_matrix: Calculating Sequence Identity
+    start = time.time()
     key_list = alignment_dict.keys()
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
     for i in range(len(alignment_dict)):
@@ -118,6 +125,9 @@ def distance_matrix(alignment_dict):
             valuematrix[i, j] += simm
             valuematrix[j, i] += simm
     valuematrix /= len(alignment_dict[key_list[0]])
+    end = time.time()
+    print('Computing the distance matrix took {} min'.format(
+        (end - start) / 60.0))
     return valuematrix, key_list
 
 
@@ -140,6 +150,7 @@ def wholeAnalysis(alignment, aa_dict):
     matrix
         Matrix of MIP scores which has dimensions seq_length by seq_length.
     '''
+    start = time.time()
     overallMMI = 0.0
     key_list = alignment.keys()
     seq_length = len(alignment[alignment.keys()[0]])
@@ -176,6 +187,8 @@ def wholeAnalysis(alignment, aa_dict):
     # Defining MIP matrix
     MIP_matrix += MI_matrix - APC_matrix
     MIP_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
+    end = time.time()
+    print('Whole analysis took {} min'.format((end - start) / 60.0))
     return MIP_matrix
 
 
@@ -196,6 +209,7 @@ def importPDB(filename):
     list:
         A list of lists containing the relevant information from the PDB file.
     '''
+    start = time.time()
     pdbFile = open(filename)
     rows = []
     pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
@@ -205,6 +219,8 @@ def importPDB(filename):
             terms = [res.group(i) for i in [3, 5, 6, 7, 8]]
             rows.append(terms)
     pdbFile.close()
+    end = time.time()
+    print('Importing the PDB file took {} min'.format((end - start) / 60.0))
     return rows
 
 
@@ -230,6 +246,7 @@ def find_distance(pdbData):  # takes PDB
     '''
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
+    start = time.time()
     residuedictionary = {}
     PDBresidueList = []
     ResidueDict = {}
@@ -273,6 +290,9 @@ def find_distance(pdbData):  # takes PDB
             # Making dictionary of all min values indexed by the two residue
             # names
             distancedict[key] = np.min(matvalue)
+    end = time.time()
+    print('Computing the distance matrix based on the PDB file took {} min'.format(
+        (end - start) / 60.0))
     return distancedict, PDBresidueList, ResidueDict, residuedictionary
 
 
@@ -300,6 +320,7 @@ def AggClustering(n_cluster, X, alignment_dict):
     set
         A unique sorted set of the cluster values.
     '''
+    start = time.time()
     linkage = 'ward'
     model = AgglomerativeClustering(linkage=linkage, n_clusters=n_cluster)
     model.fit(X)
@@ -314,6 +335,9 @@ def AggClustering(n_cluster, X, alignment_dict):
         if(clusterlist[i] not in cluster_dict):
             cluster_dict[clusterlist[i]] = []
         cluster_dict[clusterlist[i]].append(key_list[i])
+    end = time.time()
+    print('Performing agglomerative clustering took {} min'.format(
+        (end - start) / 60.0))
     return cluster_dict, set(clusterlist)
 
 
@@ -341,6 +365,7 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
     cutoff: int
         The distance used for proximity cutoff in the PDB structure.
     '''
+    start = time.time()
     pl.plot(fpr, tpr, label='(AUC = {0:.2f})'.format(roc_auc))
     pl.plot([0, 1], [0, 1], 'k--')
     pl.xlim([0.0, 1.0])
@@ -355,6 +380,8 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
         today, qName, cutoff, clus)
     pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     pl.close()
+    end = time.time()
+    print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
 
 
 def writeOutClusteringResults(today, qName, clus, scorePositions,
@@ -380,6 +407,7 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
     distDict: dict
         Dictionary of distances between sequences
     '''
+    start = time.time()
     e = "{0}/{1}/{1}_{2}_{0}.etmipCVG.clustered.txt".format(today, qName, clus)
     etmipoutfile = open(e, "w+")
     for i in range(0, len(sorted_res_list)):
@@ -399,6 +427,9 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
             etmipoutfile.write(etmipoutputline)
             etmipoutfile.write("\n")
     etmipoutfile.close()
+    end = time.time()
+    print('Writing the ETMIP worker data to file took {} min'.format(
+        (end - start) / 60.0))
 
 
 def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
@@ -435,7 +466,7 @@ def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
         Handle for a file to which the results of this workflow are being
         written.
     '''
-    time_start = time.time()
+    start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
     for c in clusterset:
@@ -476,11 +507,12 @@ def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
     roc_auc1 = auc(fpr1, tpr1)
     plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
     # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-    time_elapsed = (time.time() - time_start)
+    time_elapsed = (time.time() - start)
     output = "\t{0}\t{1}\t{2}\n".format(
         clus, round(roc_auc1, 2), round(time_elapsed, 2))
     outfile.write(output)
     print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
+
 
 ####--------------------------------------------------------#####
     ### BODY OF CODE ##
@@ -529,17 +561,13 @@ if __name__ == '__main__':
 
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
-    currS = time.time()
     if(os.path.exists('alignment_dict.pkl')):
         alignment_dict = pickle.load(open('alignment_dict.pkl', 'rb'))
     else:
         alignment_dict = importAlignment(files)
         pickle.dump(alignment_dict, open('alignment_dict.pkl', 'wb'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-    currE = time.time()
-    print 'Imported alignment: {}'.format((currE - currS) / 60.0)
     # Remove gaps from aligned query sequences
-    currS = time.time()
     if(os.path.exists('ungapped_alignment.pkl')):
         query_name, fixed_alignment_dict = pickle.load(
             open('ungapped_alignment.pkl', 'rb'))
@@ -548,10 +576,7 @@ if __name__ == '__main__':
         pickle.dump((query_name, fixed_alignment_dict),
                     open('ungapped_alignment.pkl', 'wb'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-    currE = time.time()
-    print 'Removed gaps: {}'.format((currE - currS) / 60.0)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-    currS = time.time()
     if(os.path.exists('seq_order.pkl') and os.path.exists('X.npz')):
         X = np.load('X.npz')['X']
         sequence_order = pickle.load(open('seq_order.pkl', 'rb'))
@@ -560,17 +585,12 @@ if __name__ == '__main__':
         np.savez('X', X=X)
         pickle.dump(sequence_order, open('seq_order.pkl', 'wb'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-    currE = time.time()
-    print 'Computed Distance Matrix: {}'.format((currE - currS) / 60.0)
     # Generate MIP Matrix
-    currS = time.time()
     if(os.path.exists('wholeMIP.npz')):
         wholeMIP_Matrix = np.load('wholeMIP.npz')['wholeMIP']
     else:
         wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_dict)
         np.savez('wholeMIP', wholeMIP=wholeMIP_Matrix)
-    currE = time.time()
-    print 'Computed MIP Matrix: {}'.format((currE - currS) / 60.0)
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################
@@ -584,15 +604,12 @@ if __name__ == '__main__':
                    str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
     outfile.write(proteininfo)
     outfile.write("#OfClusters\tAUC\tRunTime\n")
-    currS = time.time()
     if(os.path.exists('pdbData.pkl')):
         pdbData = pickle.load(open('pdbData.pkl', 'rb'))
     else:
         pdbData = importPDB(startDir + '/' + pdbfilename)
         pickle.dump(pdbData, open('pdbData.pkl', 'wb'),
                     protocol=pickle.HIGHEST_PROTOCOL)
-    currE = time.time()
-    print 'Imported PDB information: {}'.format((currE - currS) / 60.0)
     # e.g. 206_192 6.82
     if(os.path.exists('PDBdist.pkl')):
         distdict, PDBresidueList, residues_dict = pickle.load(
@@ -602,8 +619,6 @@ if __name__ == '__main__':
             pdbData)
         pickle.dump((distdict, PDBresidueList, residues_dict),
                     open('PDBdist.pkl', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-    currE = time.time()
-    print 'Atomic distances computed: {}'.format((currE - currS) / 60.0)
     # this is where we can do i, j by running a second loop
     sorted_PDB_dist = []
     for i in range(len(PDBresidueList)):
