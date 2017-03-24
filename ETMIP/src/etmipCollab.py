@@ -47,8 +47,9 @@ def importAlignment(files, saveFile=None):
                 alignment_dict[key] = ''
             else:
                 alignment_dict[key] += line.rstrip()
-        pickle.dump(alignment_dict, open(saveFile, 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+        if(saveFile is not None):
+            pickle.dump(alignment_dict, open(saveFile, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing alignment took {} min'.format((end - start) / 60.0))
     return alignment_dict
@@ -101,8 +102,9 @@ def remove_gaps(alignment_dict, saveFile=None):
                 new_alignment_dict[key] += value[query_gap_index[-1]:]
         else:
             new_alignment_dict = alignment_dict
-        pickle.dump((query_name, new_alignment_dict),
-                    open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+        if(saveFile is not None):
+            pickle.dump((query_name, new_alignment_dict),
+                        open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Removing gaps took {} min'.format((end - start) / 60.0))
     return query_name, new_alignment_dict
@@ -140,8 +142,8 @@ def distance_matrix(alignment_dict, saveFiles=None):
     start = time.time()
     if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
        os.path.exists(saveFiles[1])):
-        X = np.load(saveFile[0] + '.npz')['X']
-        sequence_order = pickle.load(open(saveFile[1], 'rb'))
+        valuematrix = np.load(saveFiles[0] + '.npz')['X']
+        key_list = pickle.load(open(saveFiles[1], 'rb'))
     else:
         key_list = alignment_dict.keys()
         valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
@@ -152,8 +154,8 @@ def distance_matrix(alignment_dict, saveFiles=None):
                 valuematrix[i, j] += simm
                 valuematrix[j, i] += simm
         valuematrix /= len(alignment_dict[key_list[0]])
-        np.savez(saveFiles[0], X=X)
-        pickle.dump(sequence_order, open(saveFiles[1], 'wb'),
+        np.savez(saveFiles[0], X=valuematrix)
+        pickle.dump(key_list, open(saveFiles[1], 'wb'),
                     protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Computing the distance matrix took {} min'.format(
@@ -185,7 +187,7 @@ def wholeAnalysis(alignment, aa_dict, saveFile=None):
     '''
     start = time.time()
     if(os.path.exists(saveFile + '.npz')):
-        wholeMIP_Matrix = np.load(saveFile + '.npz')['wholeMIP']
+        MIP_matrix = np.load(saveFile + '.npz')['wholeMIP']
     else:
         overallMMI = 0.0
         key_list = alignment.keys()
@@ -224,7 +226,7 @@ def wholeAnalysis(alignment, aa_dict, saveFile=None):
         # Defining MIP matrix
         MIP_matrix += MI_matrix - APC_matrix
         MIP_matrix[np.arange(seq_length), np.arange(seq_length)] = 0
-        np.savez(saveFile, wholeMIP=MIP_Matrix)
+        np.savez(saveFile, wholeMIP=MIP_matrix)
     end = time.time()
     print('Whole analysis took {} min'.format((end - start) / 60.0))
     return MIP_matrix
@@ -251,7 +253,7 @@ def importPDB(filename, saveFile):
     '''
     start = time.time()
     if(os.path.exists(saveFile)):
-        pdbData = pickle.load(open(saveFile, 'rb'))
+        rows = pickle.load(open(saveFile, 'rb'))
     else:
         pdbFile = open(filename)
         rows = []
@@ -337,7 +339,8 @@ def find_distance(pdbData, saveFile):  # takes PDB
                 # iterating over all pairs to find all distances
                 for k in range(residuedictionary[i].shape[0]):
                     matvalue.append(np.min(np.linalg.norm(residuedictionary[j] -
-                                                          residuedictionary[i][k],
+                                                          residuedictionary[
+                                                              i][k],
                                                           axis=1)))
                 # finding the minimum value from the distance array
                 # Making dictionary of all min values indexed by the two residue
@@ -488,7 +491,7 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
 
 
 def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
-                summed_Matrix, sorted_PDB_dist, distDict, outputfile):
+                sorted_PDB_dist, distDict):
     '''
     ETMIP Worker
 
@@ -517,19 +520,18 @@ def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
         Dictionary of sorted pairwise atom interactions
     distDict: dict
         Dictionary of distances between pairs of sequences in the alignment
-    outputfile: File object
-        Handle for a file to which the results of this workflow are being
-        written.
     '''
     start = time.time()
     print "Starting clustering: K={}".format(clus)
     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
+    size = np.sqrt(len(distDict))
+    res = np.zeros((size, size))
     for c in clusterset:
         new_alignment = {}
         for key in cluster_dict[c]:
             new_alignment[key] = fixed_alignment_dict[key]
         clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
-        summed_Matrix += clusteredMIP_matrix
+        res += clusteredMIP_matrix
 
     # this is where we can do i, j by running a second loop
     scorePositions = []
@@ -565,8 +567,8 @@ def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
     time_elapsed = (time.time() - start)
     output = "\t{0}\t{1}\t{2}\n".format(
         clus, round(roc_auc1, 2), round(time_elapsed, 2))
-    outfile.write(output)
     print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
+    return (clus, output, res)
 
 
 ####--------------------------------------------------------#####
@@ -654,9 +656,11 @@ if __name__ == '__main__':
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
     print qName, len(sequence_order), str(seq_length)
     for clus in [2, 3, 5, 7, 10, 25]:
-        etMIPWorker(today, qName, cutoff, aa_dict, clus, X,
-                    fixed_alignment_dict, summed_Matrix, sorted_PDB_dist,
-                    distdict, outfile)
+        clus, output, res = etMIPWorker(today, qName, cutoff, aa_dict, clus, X,
+                                        fixed_alignment_dict, sorted_PDB_dist,
+                                        distdict)
+        outfile.write(output)
+        summed_Matrix += res
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
