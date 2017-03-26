@@ -209,7 +209,7 @@ def agg_clustering(n_cluster, X, alignment_dict, precomputed=False):
                 clusteredkeylist.append(key_list[i])
         # cluster_dict[0 or 1] = [list of keys]
         cluster_dict[i1] = clusteredkeylist
-    return cluster_dict, g, model.labels_
+    return cluster_dict, g
 
 
 def import_pdb(filename):
@@ -386,7 +386,8 @@ if __name__ == '__main__':
         e = "../Output/" + str(today) + "/" + str(
             sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
         etmipoutfile = open("{0}".format(e), "w+")
-        cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
+        cluster_dict, clusterset = agg_clustering(
+            clus, X, fixed_alignment_dict)
         for c in clusterset:
             new_alignment = {}
             cluster_list = cluster_dict[c]

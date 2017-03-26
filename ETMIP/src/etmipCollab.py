@@ -216,7 +216,7 @@ def aggClustering(n_cluster, X, key_list, precomputed=False):
     end = time.time()
     print('Performing agglomerative clustering took {} min'.format(
         (end - start) / 60.0))
-    return cluster_dict, set(clusterlist), model.labels_
+    return cluster_dict, set(clusterlist)
 
 
 def wholeAnalysis(alignment, aa_dict, saveFile=None):
@@ -405,7 +405,7 @@ def findDistance(pdbData, saveFiles=None):
         sortedPDBDist = np.asarray(sortedPDBDist)
         if(saveFiles is not None):
             pickle.dump((PDBresidueList, ResidueDict, residuedictionary),
-                        open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                        open(saveFiles[0], 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
             np.savez(saveFiles[1], pdbDists=sortedPDBDist)
     end = time.time()
     print('Computing the distance matrix based on the PDB file took {} min'.format(
@@ -457,7 +457,8 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
 
 
 def writeOutClusteringResults(today, qName, clus, scorePositions,
-                              etmiplistCoverage, sortedPDBDist, residues_dict):
+                              etmiplistCoverage, sortedPDBDist, PDBresidueList,
+                              residues_dict):
     '''
     Write out clustering results
 
@@ -483,15 +484,15 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
     etmipoutfile = open(e, "w+")
     counter = 0
-    for i in range(0, len(sorted_res_list)):
-        for j in range(i + 1, len(sorted_res_list)):
-            key = '{}_{}'.format(sorted_res_list[i], sorted_res_list[j])
+    for i in range(0, len(PDBresidueList)):
+        for j in range(i + 1, len(PDBresidueList)):
+            res1 = PDBresidueList[i]
+            res2 = PDBresidueList[j]
+            key = '{}_{}'.format(res1, res2)
             if sortedPDBDist[counter] <= cutoff:
                 r = 1
             else:
                 r = 0
-            res1 = sorted_res_list[i]
-            res2 = sorted_res_list[j]
             ind = scorePositions.index(key)
             etmipoutputline = '{} ({}) {} ({}) {} {} {} {}'.format(
                 res1, residues_dict[res1], res2, residues_dict[res2],
@@ -615,7 +616,7 @@ def etMIPWorker2(inTup):
     sorted_PDB_dist: dict
         Dictionary of sorted pairwise atom interactions
     '''
-    today, qName, cutoff, aa_dict, clus, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict = inTup
+    today, qName, cutoff, aa_dict, clus, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList = inTup
     print('IN THREAD!')
     cTested = []
     outputs = []
@@ -639,10 +640,10 @@ def etMIPWorker2(inTup):
         # this is where we can do i, j by running a second loop
         scorePositions = []
         etmipResScoreList = []
-        for i in range(0, len(sorted_res_list)):
-            for j in range(i + 1, len(sorted_res_list)):
+        for i in range(0, len(PDBresidueList)):
+            for j in range(i + 1, len(PDBresidueList)):
                 newkey1 = "{}_{}".format(
-                    sorted_res_list[i], sorted_res_list[j])
+                    PDBresidueList[i], PDBresidueList[j])
                 scorePositions.append(newkey1)
                 etmipResScoreList.append(summed_Matrix[i][j])
         etmipResScoreList = np.asarray(etmipResScoreList)
@@ -662,7 +663,8 @@ def etMIPWorker2(inTup):
         y_true1 = ((sortedPDBDist <= cutoff) * 1)
 
         writeOutClusteringResults(today, qName, clus, scorePositions,
-                                  etmiplistCoverage, sortedPDBDist, residues_dict)
+                                  etmiplistCoverage, sortedPDBDist,
+                                  PDBresidueList, residues_dict)
         fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
                                             pos_label=1)
         roc_auc1 = auc(fpr1, tpr1)
@@ -710,7 +712,6 @@ if __name__ == '__main__':
     seq12_distscore_dict = {}
     key = ''
     temp_aa = ''
-
     ###########################################################################
     # Set up input variables
     ###########################################################################
@@ -729,7 +730,6 @@ if __name__ == '__main__':
             processes = pCount
     except:
         processes = 1
-
     ###########################################################################
     # Set up output location
     ###########################################################################
@@ -758,11 +758,11 @@ if __name__ == '__main__':
     summed_Matrix = np.zeros((seq_length, seq_length))
     summed_Matrix += wholeMIP_Matrix
     pdbData = importPDB(pdbfilename, 'pdbData.pkl')
-    # e.g. 206_192 6.82
     PDBresidueList, residues_dict, sortedPDBDist = findDistance(
         pdbData, ('PDBdist.pkl', 'PDBdistances'))
-    # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
-    print qName, len(sequence_order), str(seq_length)
+    ###########################################################################
+    # Perform multiprocessing of clustering method
+    ###########################################################################
     manager = Manager()
     aa_dict = manager.dict(aa_dict)
     fixed_alignment_dict = manager.dict(fixed_alignment_dict)
@@ -770,11 +770,15 @@ if __name__ == '__main__':
     sequence_order = manager.list(sequence_order)
     for clus in [2, 3, 5, 7, 10, 25]:
         cQueue.put(clus)
+#     etMIPWorker2((today, qName, cutoff, aa_dict, cQueue, X,
+#                   sequence_order, fixed_alignment_dict, sortedPDBDist,
+#                   residues_dict, PDBresidueList))
+#     exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker2,
                          [(today, qName, cutoff, aa_dict, cQueue, X,
                            sequence_order, fixed_alignment_dict, sortedPDBDist,
-                           residues_dict)] * processes)
+                           residues_dict, PDBresidueList)] * processes)
     pool.close()
     pool.join()
     res = res.get()

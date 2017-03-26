@@ -57,15 +57,11 @@ class Test(unittest.TestCase):
         qn2, nad2 = removeGaps(newAD)
         vm1, kl1 = distance_matrix(nad1)
         vm2, kl2 = distanceMatrix(nad2)
-        cd1, g1, l1 = agg_clustering(2, vm1, nad1, precomputed=True)
-        cd2, g2, l2 = aggClustering(2, vm2, kl2, precomputed=True)
+        cd1, g1 = agg_clustering(2, vm1, nad1, precomputed=True)
+        cd2, g2 = aggClustering(2, vm2, kl2, precomputed=True)
         self.assertEqual(g1, g2, 'Cluster sets are not identical')
         self.assertEqual(len(cd1), len(cd2),
                          'Cluster dictionaries differ in size')
-        self.assertEqual(len(l1), len(l2), 'Cluster label lengths differ')
-        for i in range(len(l1)):
-            self.assertEqual(
-                l1[i], l2[i], 'Cluster labels differ:{}\n{}\n{}'.format(i, l1, l2))
         queryKey = '>query_1c17A'
         c0_1 = None
         c0_2 = None
