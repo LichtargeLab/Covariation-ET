@@ -42,7 +42,7 @@ def importAlignment(files, saveFile=None):
         alignment_dict = pickle.load(open(saveFile, 'rb'))
     else:
         alignment_dict = {}
-        for line in open(files, 'rb'):
+        for line in files:
             if line.startswith(">"):
                 key = line.rstrip()
                 alignment_dict[key] = ''
@@ -167,43 +167,56 @@ def distanceMatrix(alignment_dict, saveFiles=None):
     return valuematrix, key_list
 
 
-def distance_matrix(alignment_dict):
-    #    Generate distance_matrix: Calculating Sequence Identity
-    key_list = []
-    pairwise_dist_score = {}
-    seq_length = len(alignment_dict.itervalues().next())
-    for key in alignment_dict:  # {seqid} = sequence
-        for key2 in alignment_dict:
-            sum = 0.0
-            if key > key2:
-                for idc, char in enumerate(alignment_dict[key]):
+def aggClustering(n_cluster, X, key_list, precomputed=False):
+    '''
+    Agglomerative clustering
 
-                    if (alignment_dict[key][idc] == alignment_dict[key2][idc]):
-                        # print alignment_dict[key][idc],
-                        # alignment_dict[key2][idc]
-                        sum += 1.0
-                newkey = key + "_" + key2
-                # (# of identical positions) / (aligned positions)
-                seq_identity = (sum / seq_length)
-                # {seq1_seq2} = distancescore
-                pairwise_dist_score[newkey] = seq_identity
+    Performs agglomerative clustering on a matrix of pairwise distances between
+    sequences in the alignment being analyzed.
 
-    valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
-
-    for key in alignment_dict:
-        key_list.append(key)
-
-    for key in key_list:
-        for key2 in key_list:
-            if key == key2:
-                continue
-            pair = key + "_" + key2
-            if pair in pairwise_dist_score:
-                valuematrix[
-                    key_list.index(key), key_list.index(key2)] = pairwise_dist_score[pair]
-                valuematrix[
-                    key_list.index(key2), key_list.index(key)] = pairwise_dist_score[pair]
-    return valuematrix, key_list
+    Parameters:
+    -----------
+    n_cluster: int
+        The number of clusters to separate sequences into.
+    X: numpy nd_array
+        The distance matrix computed between the sequences.
+    alignment_dict: dict
+        The corrected alignment dictionary containing sequences with all gaps
+        removed for the query sequence.
+    Returns:
+    --------
+    dict
+        A dictionary with cluster number as the key and a list of sequences in
+        the specified cluster as a value.
+    set
+        A unique sorted set of the cluster values.
+    '''
+    start = time.time()
+    if(precomputed):
+        affinity = 'precomputed'
+        linkage = 'complete'
+    else:
+        affinity = 'euclidean'
+        linkage = 'ward'
+    model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
+                                    n_clusters=n_cluster)
+    model.fit(X)
+    # ordered list of cluster ids
+    # unique and sorted cluster ids for e.g. for n_cluster = 2, g = [0,1]
+    clusterlist = model.labels_.tolist()
+    cluster_dict = {}
+    ####---------------------------------------#####
+    #       Mapping Clusters to Sequences
+    ####---------------------------------------#####
+    for i in range(len(clusterlist)):
+        key = clusterlist[i]
+        if(key not in cluster_dict):
+            cluster_dict[key] = []
+        cluster_dict[key].append(key_list[i])
+    end = time.time()
+    print('Performing agglomerative clustering took {} min'.format(
+        (end - start) / 60.0))
+    return cluster_dict, set(clusterlist), model.labels_
 
 
 def wholeAnalysis(alignment, aa_dict, saveFile=None):
@@ -276,7 +289,7 @@ def wholeAnalysis(alignment, aa_dict, saveFile=None):
     return MIP_matrix
 
 
-def importPDB(filename, saveFile):
+def importPDB(pdbFile, saveFile=None):
     '''
     importPDB
 
@@ -299,7 +312,6 @@ def importPDB(filename, saveFile):
     if((saveFile is not None) and os.path.exists(saveFile)):
         rows = pickle.load(open(saveFile, 'rb'))
     else:
-        pdbFile = open(filename)
         rows = []
         pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
         for line in pdbFile:  # for a line in the pdb
@@ -316,7 +328,7 @@ def importPDB(filename, saveFile):
     return rows
 
 
-def find_distance(pdbData, saveFile):  # takes PDB
+def findDistance(pdbData, saveFiles=None):
     '''
     Find distance
 
@@ -342,9 +354,11 @@ def find_distance(pdbData, saveFile):  # takes PDB
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
     start = time.time()
-    if((saveFile is not None) and os.path.exists(saveFile)):
+    if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
+       os.path.exists(saveFiles[1])):
         distancedict, PDBresidueList, ResidueDict, residuedictionary = pickle.load(
             open(saveFile, 'rb'))
+        sortedPDBDist = np.load(saveFiles[1] + '.npz')['pdbDists']
     else:
         residuedictionary = {}
         PDBresidueList = []
@@ -366,80 +380,37 @@ def find_distance(pdbData, saveFile):  # takes PDB
                 PDBresidueList.append(resnumdict)
                 ResidueDict[resnumdict] = resname
         residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
-        distancedict = {}
-        for i in PDBresidueList:  # Loop over all residues in the pdb
+        # list of sorted residues - necessary for those where res1 is not 1
+        PDBresidueList = list(sorted(PDBresidueList))
+        sortedPDBDist = []
+        # Loop over all residues in the pdb
+        for i in range(len(PDBresidueList)):
             # Loop over residues to calculate distance between all residues i
             # and j
-            for j in PDBresidueList:
-                '''print("size of ETvalues is equal to", len(ETvalues))'''
-                key = str(i) + '_' + str(j)
-                if i == j:
-                    distancedict[key] = 0.0
-                    continue
+            for j in range(i + 1, len(PDBresidueList)):
                 matvalue = []
                 # Getting the 3d coordinates for every atom in each residue.
                 # iterating over all pairs to find all distances
-                for k in range(residuedictionary[i].shape[0]):
-                    matvalue.append(np.min(np.linalg.norm(residuedictionary[j] -
-                                                          residuedictionary[
-                                                              i][k],
-                                                          axis=1)))
+                key1 = PDBresidueList[i]
+                key2 = PDBresidueList[j]
+                for k in range(residuedictionary[key1].shape[0]):
+                    matvalue.append(
+                        np.min(np.linalg.norm(residuedictionary[key2] -
+                                              residuedictionary[key1][k],
+                                              axis=1)))
                 # finding the minimum value from the distance array
                 # Making dictionary of all min values indexed by the two residue
                 # names
-                distancedict[key] = np.min(matvalue)
-        if(saveFile is not None):
-            pickle.dump((distancedict, PDBresidueList, ResidueDict, residuedictionary),
+                sortedPDBDist.append(np.min(matvalue))
+        sortedPDBDist = np.asarray(sortedPDBDist)
+        if(saveFiles is not None):
+            pickle.dump((PDBresidueList, ResidueDict, residuedictionary),
                         open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+            np.savez(saveFiles[1], pdbDists=sortedPDBDist)
     end = time.time()
     print('Computing the distance matrix based on the PDB file took {} min'.format(
         (end - start) / 60.0))
-    return distancedict, PDBresidueList, ResidueDict, residuedictionary
-
-
-def AggClustering(n_cluster, X, alignment_dict):
-    '''
-    Agglomerative clustering
-
-    Performs agglomerative clustering on a matrix of pairwise distances between
-    sequences in the alignment being analyzed.
-
-    Parameters:
-    -----------
-    n_cluster: int
-        The number of clusters to separate sequences into.
-    X: numpy nd_array
-        The distance matrix computed between the sequences.
-    alignment_dict: dict
-        The corrected alignment dictionary containing sequences with all gaps
-        removed for the query sequence.
-    Returns:
-    --------
-    dict
-        A dictionary with cluster number as the key and a list of sequences in
-        the specified cluster as a value.
-    set
-        A unique sorted set of the cluster values.
-    '''
-    start = time.time()
-    linkage = 'ward'
-    model = AgglomerativeClustering(linkage=linkage, n_clusters=n_cluster)
-    model.fit(X)
-    clusterlist = model.labels_.tolist()  # ordered list of cluster ids
-    # unique and sorted cluster ids for e.g. for n_cluster = 2, g = [0,1]
-    key_list = sorted(alignment_dict.keys())
-    cluster_dict = {}
-    ####---------------------------------------#####
-    #       Mapping Clusters to Sequences
-    ####---------------------------------------#####
-    for i in range(len(clusterlist)):
-        if(clusterlist[i] not in cluster_dict):
-            cluster_dict[clusterlist[i]] = []
-        cluster_dict[clusterlist[i]].append(key_list[i])
-    end = time.time()
-    print('Performing agglomerative clustering took {} min'.format(
-        (end - start) / 60.0))
-    return cluster_dict, set(clusterlist)
+    return PDBresidueList, ResidueDict, sortedPDBDist
 
 
 def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
@@ -486,7 +457,7 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
 
 
 def writeOutClusteringResults(today, qName, clus, scorePositions,
-                              etmiplistCoverage, distDict, residues_dict):
+                              etmiplistCoverage, sortedPDBDist, residues_dict):
     '''
     Write out clustering results
 
@@ -505,16 +476,17 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
         in the alignment.
     etmiplistCoverage: list
         The coverage of a specific sequence comparison
-    distDict: dict
-        Dictionary of distances between sequences
+    sortedPDBDist: numpy nd array
+        Array of the distances between sequences, sorted by sequence indices.
     '''
     start = time.time()
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
     etmipoutfile = open(e, "w+")
+    counter = 0
     for i in range(0, len(sorted_res_list)):
         for j in range(i + 1, len(sorted_res_list)):
             key = '{}_{}'.format(sorted_res_list[i], sorted_res_list[j])
-            if distdict[key] <= cutoff:
+            if sortedPDBDist[counter] <= cutoff:
                 r = 1
             else:
                 r = 0
@@ -523,10 +495,11 @@ def writeOutClusteringResults(today, qName, clus, scorePositions,
             ind = scorePositions.index(key)
             etmipoutputline = '{} ({}) {} ({}) {} {} {} {}'.format(
                 res1, residues_dict[res1], res2, residues_dict[res2],
-                round(etmiplistCoverage[ind], 2), round(distdict[key], 2), r,
-                clus)
+                round(etmiplistCoverage[ind], 2),
+                round(sortedPDBDist[counter], 2), r, clus)
             etmipoutfile.write(etmipoutputline)
             etmipoutfile.write("\n")
+            counter += 1
     etmipoutfile.close()
     end = time.time()
     print('Writing the ETMIP worker data to file took {} min'.format(
@@ -641,10 +614,8 @@ def etMIPWorker2(inTup):
         Tracks the ETMIP score over iterations of clustering
     sorted_PDB_dist: dict
         Dictionary of sorted pairwise atom interactions
-    distDict: dict
-        Dictionary of distances between pairs of sequences in the alignment
     '''
-    today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict, sorted_PDB_dist, distdict, residues_dict = inTup
+    today, qName, cutoff, aa_dict, clus, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict = inTup
     print('IN THREAD!')
     cTested = []
     outputs = []
@@ -654,19 +625,16 @@ def etMIPWorker2(inTup):
         cTested.append(clus)
         start = time.time()
         print "Starting clustering: K={}".format(clus)
-        cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
-        size = np.sqrt(len(distdict))
-        res = np.zeros((int(size), int(size)))
+        cluster_dict, clusterset = aggClustering(clus, X, sortedKeys)
         for c in clusterset:
             new_alignment = {}
             for key in cluster_dict[c]:
                 new_alignment[key] = fixed_alignment_dict[key]
             clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
-            res += clusteredMIP_matrix
-        if(resMatrix is None):
-            resMatrix = res
-        else:
-            resMatrix += res
+            if(resMatrix is None):
+                resMatrix = clusteredMIP_matrix
+            else:
+                resMatrix += clusteredMIP_matrix
 
         # this is where we can do i, j by running a second loop
         scorePositions = []
@@ -688,13 +656,13 @@ def etMIPWorker2(inTup):
             etmiplistCoverage.append(computeCoverage)
 
         # AUC computation
-        if len(etmiplistCoverage) != len(sorted_PDB_dist):
+        if len(etmiplistCoverage) != len(sortedPDBDist):
             print "lengths do not match"
             sys.exit()
-        y_true1 = ((sorted_PDB_dist <= cutoff) * 1)
+        y_true1 = ((sortedPDBDist <= cutoff) * 1)
 
         writeOutClusteringResults(today, qName, clus, scorePositions,
-                                  etmiplistCoverage, distdict, residues_dict)
+                                  etmiplistCoverage, sortedPDBDist, residues_dict)
         fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
                                             pos_label=1)
         roc_auc1 = auc(fpr1, tpr1)
@@ -706,6 +674,18 @@ def etMIPWorker2(inTup):
         outputs.append(output)
         print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
     return (cTested, outputs, resMatrix)
+
+
+def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict):
+    o = '{}_{}etmipAUC_results.txt'.format(qName, today)
+    outfile = open(o, 'w+')
+    proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
+                   str(len(sequence_order)) + " Length of protein: " +
+                   str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
+    outfile.write(proteininfo)
+    outfile.write("#OfClusters\tAUC\tRunTime\n")
+    for key in sorted(outDict.keys()):
+        outfile.write(outDict[key])
 
 
 ####--------------------------------------------------------#####
@@ -734,8 +714,8 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up input variables
     ###########################################################################
-    files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
-    pdbfilename = sys.argv[2].strip()
+    files = open(sys.argv[1], 'rb')
+    pdbfilename = open(sys.argv[2], 'rb')
     cutoff = float(sys.argv[3])
     qName = str(sys.argv[4])
     try:
@@ -777,44 +757,24 @@ if __name__ == '__main__':
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
     summed_Matrix = np.zeros((seq_length, seq_length))
     summed_Matrix += wholeMIP_Matrix
-    o = '{}_{}etmipAUC_results.txt'.format(qName, today)
-    outfile = open(o, 'w+')
-    proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
-                   str(len(sequence_order)) + " Length of protein: " +
-                   str(seq_length) + " Cutoff: " + str(cutoff) + "\n")
-    outfile.write(proteininfo)
-    outfile.write("#OfClusters\tAUC\tRunTime\n")
-    pdbData = importPDB(startDir + '/' + pdbfilename, 'pdbData.pkl')
+    pdbData = importPDB(pdbfilename, 'pdbData.pkl')
     # e.g. 206_192 6.82
-    distdict, PDBresidueList, residues_dict, resdict = find_distance(
-        pdbData, 'PDBdist.pkl')
-    # this is where we can do i, j by running a second loop
-    sorted_PDB_dist = []
-    for i in range(len(PDBresidueList)):
-        for j in range(i + 1, len(PDBresidueList)):
-            sorted_PDB_dist.append(distdict['{}_{}'.format(
-                PDBresidueList[i], PDBresidueList[j])])
-    sorted_PDB_dist = np.asarray(sorted_PDB_dist)
-    # list of sorted residues - necessary for those where res1 is not 1
-    sorted_res_list = sorted(list(set(PDBresidueList)))
+    PDBresidueList, residues_dict, sortedPDBDist = findDistance(
+        pdbData, ('PDBdist.pkl', 'PDBdistances'))
     # NAME, ALIGNMENT SIZE, PROTEIN LENGTH
     print qName, len(sequence_order), str(seq_length)
     manager = Manager()
     aa_dict = manager.dict(aa_dict)
     fixed_alignment_dict = manager.dict(fixed_alignment_dict)
-    distdict = manager.dict(distdict)
     cQueue = manager.Queue()
+    sequence_order = manager.list(sequence_order)
     for clus in [2, 3, 5, 7, 10, 25]:
         cQueue.put(clus)
-#     etMIPWorker2((today, qName, cutoff, aa_dict, clus, X,
-#                   fixed_alignment_dict, sorted_PDB_dist, distdict,
-#                   residues_dict))
-    # exit()
     pool = Pool(processes=processes)
-    res = pool.map_async(etMIPWorker2, [(today, qName, cutoff, aa_dict, cQueue,
-                                         X, fixed_alignment_dict,
-                                         sorted_PDB_dist, distdict,
-                                         residues_dict)] * processes)
+    res = pool.map_async(etMIPWorker2,
+                         [(today, qName, cutoff, aa_dict, cQueue, X,
+                           sequence_order, fixed_alignment_dict, sortedPDBDist,
+                           residues_dict)] * processes)
     pool.close()
     pool.join()
     res = res.get()
@@ -823,14 +783,8 @@ if __name__ == '__main__':
         for i in range(len(r[0])):
             outDict[r[0][i]] = r[1][i]
         summed_Matrix += r[2]
-    for key in sorted(outDict.keys()):
-        outfile.write(outDict[key])
-#     for clus in [2, 3, 5, 7, 10, 25]:
-#         clus, output, res = etMIPWorker(today, qName, cutoff, aa_dict, clus, X,
-#                                         fixed_alignment_dict, sorted_PDB_dist,
-#                                         distdict)
-#         outfile.write(output)
-#         summed_Matrix += res
+    writeFinalResults(qName, today, sequence_order,
+                      seq_length, cutoff, outDict)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
