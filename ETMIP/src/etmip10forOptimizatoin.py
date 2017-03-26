@@ -31,22 +31,27 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 from pylab import *
 import datetime
-today = datetime.date.today()
-neighbor_list = []
-gap_list = ["-", ".", "_"]
-aa_list = []
-aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-           'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']  # comment out for actual dataset
-aa_gap_list = aa_list + gap_list
-i_j_list = []
-alignment_dict = {}  # this will be our alignment
-seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
-key = ''
-temp_aa = ''
-cutoff = float(sys.argv[3])
+
+
+def import_alignment(filename):
+    currS = time.time()
+    files = open(filename, "r")  # provide complete path to fasta alignment
+    alignment_dict = {}
+    for line in files:
+        if line.startswith(">"):
+            if "query" in line.lower():
+                query_desc = line
+            key = line.rstrip()
+            alignment_dict[key] = ''
+        else:
+            alignment_dict[key] = alignment_dict[key] + line.rstrip()
+    currE = time.time()
+    print 'Original Imported alignment: {}'.format((currE - currS) / 60.0)
+    return alignment_dict
 
 
 def remove_gaps(alignment_dict):
+    currS = time.time()
     # Getting gapped columns for query
     gap = ['-', '.', '_']
     query_gap_index = []
@@ -65,11 +70,13 @@ def remove_gaps(alignment_dict):
                 continue
             else:
                 new_alignment_dict[key] = new_alignment_dict[key] + char
-
+    currE = time.time()
+    print 'Original Remove Gaps: {}'.format((currE - currS) / 60.0)
     return query_name, new_alignment_dict
 
 
 def distance_matrix(alignment_dict):
+    currS = time.time()
     #    Generate distance_matrix: Calculating Sequence Identity
     key_list = []
     pairwise_dist_score = {}
@@ -106,10 +113,13 @@ def distance_matrix(alignment_dict):
                     key_list.index(key), key_list.index(key2)] = pairwise_dist_score[pair]
                 valuematrix[
                     key_list.index(key2), key_list.index(key)] = pairwise_dist_score[pair]
+    currE = time.time()
+    print 'Original Distance Matrix took: {}'.format((currE - currS) / 60.0)
     return valuematrix, key_list
 
 
-def wholeAnalysis(alignment):
+def whole_analysis(alignment, aa_list):
+    start = time.time()
     overallMMI = 0.0
     seq_length = len(alignment.itervalues().next())
     # generate a MI matrix for each cluster
@@ -164,14 +174,22 @@ def wholeAnalysis(alignment):
             if i == j:
                 continue
             MIP_matrix[i][j] = MI_matrix[i][j] - APC_matrix[i][j]
+    end = time.time()
+    print('Original Whole Analysis takes: {} min'.format((end - start) / 60.0))
     return MIP_matrix
 
 
-def AggClustering(n_cluster, X, alignment_dict):
+def agg_clustering(n_cluster, X, alignment_dict, precomputed=False):
     key_list = []
     cluster_dict = {}
-    linkage = 'ward'
-    model = AgglomerativeClustering(linkage=linkage, n_clusters=n_cluster)
+    if(precomputed):
+        affinity = 'precomputed'
+        linkage = 'complete'
+    else:
+        affinity = 'euclidean'
+        linkage = 'ward'
+    model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
+                                    n_clusters=n_cluster)
     model.fit(X)
     clusterlist = model.labels_.tolist()  # ordered list of cluster ids
     # unique and sorted cluster ids for e.g. for n_cluster = 2, g = [0,1]
@@ -179,7 +197,7 @@ def AggClustering(n_cluster, X, alignment_dict):
 
     for key in alignment_dict:
         key_list.append(key)
-
+    key_list.sort()
     ####---------------------------------------#####
     #       Mapping Clusters to Sequences
     ####---------------------------------------#####
@@ -191,7 +209,20 @@ def AggClustering(n_cluster, X, alignment_dict):
                 clusteredkeylist.append(key_list[i])
         # cluster_dict[0 or 1] = [list of keys]
         cluster_dict[i1] = clusteredkeylist
-    return cluster_dict, g
+    return cluster_dict, g, model.labels_
+
+
+def import_pdb(filename):
+    file = open(filename)
+    rows = []
+    for line in file:  # for a line in the pdb
+        if line[0:5] == 'ATOM ':
+            try:
+                rows.append(line)
+            except Exception:
+                rows = line
+    file.close()
+    return rows
 
 
 def find_distance(filename):  # takes PDB
@@ -202,18 +233,10 @@ def find_distance(filename):  # takes PDB
     minvalue = 10000000000
     FileValue = 0
     originlist = []
-    file = open(filename)
-    rows = []
     loopcounter = 0
     Resnumarraynew = []
     loopcounter1 = 0
-    for line in file:  # for a line in the pdb
-        if line[0:5] == 'ATOM ':
-            try:
-                rows.append(line)
-            except Exception:
-                rows = line
-    file.close()
+    rows = import_pdb(filename)
     loop1var = rows[-1][23:26].strip()  # number of residues
     # print("loop1var",loop1var)
     # raw_input()
@@ -228,7 +251,7 @@ def find_distance(filename):  # takes PDB
 
         resnumdict = (selectline[22:26].strip())
         resname = (selectline[17:20].strip())
-        xvaluedict = float(selectline[32:38].strip())
+        xvaluedict = float(selectline[31:38].strip())
         yvaluedict = float(selectline[39:46].strip())
         zvaluedict = float(selectline[47:55].strip())
         resatomlisttemp = (xvaluedict, yvaluedict, zvaluedict)
@@ -293,34 +316,28 @@ def find_distance(filename):  # takes PDB
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
-    currS = time.time()
-    files = open(sys.argv[1], "r")  # provide complete path to fasta alignment
-    for line in files:
-        if line.startswith(">"):
-            if "query" in line.lower():
-                query_desc = line
-            key = line.rstrip()
-            alignment_dict[key] = ''
-        else:
-            alignment_dict[key] = alignment_dict[key] + line.rstrip()
-    currE = time.time()
-    print 'Imported alignment: {}'.format((currE - currS) / 60.0)
+    today = datetime.date.today()
+    neighbor_list = []
+    gap_list = ["-", ".", "_"]
+    aa_list = []
+    aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+               'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']  # comment out for actual dataset
+    aa_gap_list = aa_list + gap_list
+    i_j_list = []
+    seq12_distscore_dict = {}  # {seq1_seq2} = distancescore
+    key = ''
+    temp_aa = ''
+    cutoff = float(sys.argv[3])
+    alignment_dict = import_alignment(sys.argv[1])
     createFolder = ("../Output/" +
                     str(today) + "/" + str(sys.argv[4]))
 
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
-
-    currS = time.time()
     query_name, fixed_alignment_dict = remove_gaps(alignment_dict)
-    currE = time.time()
-    print 'Removed gaps: {}'.format((currE - currS) / 60.0)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-    currS = time.time()
     X, sequence_order = distance_matrix(fixed_alignment_dict)
-    currE = time.time()
-    print 'Computed Distance Matrix: {}'.format((currE - currS) / 60.0)
     currS = time.time()
     wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
     currE = time.time()
