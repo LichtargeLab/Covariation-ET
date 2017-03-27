@@ -339,25 +339,46 @@ def importPDB(pdbFile, saveFile=None):
     '''
     start = time.time()
     if((saveFile is not None) and os.path.exists(saveFile)):
-        rows = pickle.load(open(saveFile, 'rb'))
+        residuedictionary, PDBresidueList, ResidueDict = pickle.load(
+            open(saveFile, 'rb'))
     else:
-        rows = []
+        residuedictionary = {}
+        PDBresidueList = []
+        ResidueDict = {}
+        prevRes = None
         pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
         for line in pdbFile:  # for a line in the pdb
             res = re.match(pdbPattern, line)
-            if res:
-                terms = [res.group(i) for i in [3, 5, 6, 7, 8]]
-                rows.append(terms)
+            if not res:
+                continue
+            resname = res.group(3)
+            resnumdict = int(res.group(5))
+            resatomlisttemp = np.asarray([float(res.group(6)),
+                                          float(res.group(7)),
+                                          float(res.group(8))])
+            try:
+                residuedictionary[resnumdict].append(resatomlisttemp)
+            except KeyError:
+                if(prevRes):
+                    residuedictionary[prevRes] = np.vstack(
+                        residuedictionary[prevRes])
+                prevRes = resnumdict
+                residuedictionary[resnumdict] = [resatomlisttemp]
+                PDBresidueList.append(resnumdict)
+                ResidueDict[resnumdict] = resname
+        residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
+        # list of sorted residues - necessary for those where res1 is not 1
+        PDBresidueList = list(sorted(PDBresidueList))
         pdbFile.close()
         if(saveFile is not None):
-            pickle.dump(rows, open(saveFile, 'wb'),
-                        protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump((residuedictionary, PDBresidueList, ResidueDict),
+                        open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing the PDB file took {} min'.format((end - start) / 60.0))
-    return rows
+    return residuedictionary, PDBresidueList, ResidueDict
 
 
-def findDistance(pdbData, saveFiles=None):
+def findDistance(residuedictionary, PDBresidueList, saveFile=None):
     '''
     Find distance
 
@@ -383,34 +404,9 @@ def findDistance(pdbData, saveFiles=None):
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
     start = time.time()
-    if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
-       os.path.exists(saveFiles[1])):
-        distancedict, PDBresidueList, ResidueDict, residuedictionary = pickle.load(
-            open(saveFile, 'rb'))
+    if((saveFile is not None) and os.path.exists(saveFile)):
         sortedPDBDist = np.load(saveFiles[1] + '.npz')['pdbDists']
     else:
-        residuedictionary = {}
-        PDBresidueList = []
-        ResidueDict = {}
-        prevRes = None
-        for selectline in pdbData:
-            resname = selectline[0]
-            resnumdict = int(selectline[1])
-            resatomlisttemp = np.asarray([float(selectline[2]), float(selectline[3]),
-                                          float(selectline[4])])
-            try:
-                residuedictionary[resnumdict].append(resatomlisttemp)
-            except KeyError:
-                if(prevRes):
-                    residuedictionary[prevRes] = np.vstack(
-                        residuedictionary[prevRes])
-                prevRes = resnumdict
-                residuedictionary[resnumdict] = [resatomlisttemp]
-                PDBresidueList.append(resnumdict)
-                ResidueDict[resnumdict] = resname
-        residuedictionary[prevRes] = np.vstack(residuedictionary[prevRes])
-        # list of sorted residues - necessary for those where res1 is not 1
-        PDBresidueList = list(sorted(PDBresidueList))
         sortedPDBDist = []
         # Loop over all residues in the pdb
         for i in range(len(PDBresidueList)):
@@ -422,24 +418,21 @@ def findDistance(pdbData, saveFiles=None):
                 # iterating over all pairs to find all distances
                 key1 = PDBresidueList[i]
                 key2 = PDBresidueList[j]
-                for k in range(residuedictionary[key1].shape[0]):
-                    matvalue.append(
-                        np.min(np.linalg.norm(residuedictionary[key2] -
-                                              residuedictionary[key1][k],
-                                              axis=1)))
                 # finding the minimum value from the distance array
                 # Making dictionary of all min values indexed by the two residue
                 # names
-                sortedPDBDist.append(np.min(matvalue))
+                res1 = residuedictionary[key2] - \
+                    residuedictionary[key1][:, np.newaxis]
+                norms = np.linalg.norm(res1, axis=2)
+                sortedPDBDist.append(np.min(norms))
         sortedPDBDist = np.asarray(sortedPDBDist)
-        if(saveFiles is not None):
-            pickle.dump((PDBresidueList, ResidueDict, residuedictionary),
-                        open(saveFiles[0], 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-            np.savez(saveFiles[1], pdbDists=sortedPDBDist)
+        if(saveFile is not None):
+            np.savez(saveFile, pdbDists=sortedPDBDist)
     end = time.time()
     print('Computing the distance matrix based on the PDB file took {} min'.format(
         (end - start) / 60.0))
-    return PDBresidueList, ResidueDict, sortedPDBDist
+    # return PDBresidueList, ResidueDict, sortedPDBDist
+    return sortedPDBDist
 
 
 def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
@@ -786,9 +779,13 @@ if __name__ == '__main__':
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
     summed_Matrix = np.zeros((seq_length, seq_length))
     summed_Matrix += wholeMIP_Matrix
-    pdbData = importPDB(pdbfilename, 'pdbData.pkl')
-    PDBresidueList, residues_dict, sortedPDBDist = findDistance(
-        pdbData, ('PDBdist.pkl', 'PDBdistances'))
+    # pdbData = importPDB(pdbfilename, 'pdbData.pkl')
+    residuedictionary, PDBresidueList, ResidueDict = importPDB(
+        pdbfilename, 'pdbData.pkl')
+    # PDBresidueList, ResiduesDict, sortedPDBDist = findDistance(
+    sortedPDBDist = findDistance(residuedictionary, PDBresidueList,
+                                 ('PDBdist.pkl', 'PDBdistances'))
+    #   pdbData, ('PDBdist.pkl', 'PDBdistances'))
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
@@ -801,13 +798,13 @@ if __name__ == '__main__':
         cQueue.put(clus)
     # etMIPWorker2((today, qName, cutoff, aa_dict, cQueue, X,
     #              sequence_order, fixed_alignment_dict, sortedPDBDist,
-    #              residues_dict, PDBresidueList))
+    #              ResidueDict, PDBresidueList))
     # exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker2,
                          [(today, qName, cutoff, aa_dict, cQueue, X,
                            sequence_order, fixed_alignment_dict, sortedPDBDist,
-                           residues_dict, PDBresidueList)] * processes)
+                           ResidueDict, PDBresidueList)] * processes)
     pool.close()
     pool.join()
     res = res.get()

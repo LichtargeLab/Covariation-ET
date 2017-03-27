@@ -31,26 +31,26 @@ class Test(unittest.TestCase):
     #             self.assertEqual(nad1[key], nad2[key], 'Uneven removal: {}, {}, {}'.format(
     #                 key, nad1[key], nad2[key]))
 
-    def testDistanceMatrix(self):
-        testFile = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/1c17A.fa'
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-                   'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        AD = import_alignment(testFile)
-        newAD = importAlignment(open(testFile, 'rb'))
-        qn1, nad1 = remove_gaps(AD)
-        qn2, nad2 = removeGaps(newAD)
-        vm1, kl1 = distance_matrix(nad1)
-        vm2, kl2 = distanceMatrix(nad2, aa_dict)
-        self.assertEqual(len(kl1), len(kl2), 'Key list lengths differ')
-        for e in kl1:
-            self.assertTrue(
-                e in kl2, 'Element not in both lists: {}'.format(e))
-        self.assertEqual(vm1.shape, vm2.shape, 'Matrix dimensions differ')
-        for i in range(vm1.shape[0]):
-            for j in range(vm2.shape[1]):
-                self.assertEqual(vm1[i, j], vm2[i, j],
-                                 'Elements different: {}, {}'.format(vm1[i, j], vm2[i, j]))
+    #     def testDistanceMatrix(self):
+    #         testFile = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/1c17A.fa'
+    #         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+    #                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+    #         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #         AD = import_alignment(testFile)
+    #         newAD = importAlignment(open(testFile, 'rb'))
+    #         qn1, nad1 = remove_gaps(AD)
+    #         qn2, nad2 = removeGaps(newAD)
+    #         vm1, kl1 = distance_matrix(nad1)
+    #         vm2, kl2 = distanceMatrix(nad2, aa_dict)
+    #         self.assertEqual(len(kl1), len(kl2), 'Key list lengths differ')
+    #         for e in kl1:
+    #             self.assertTrue(
+    #                 e in kl2, 'Element not in both lists: {}'.format(e))
+    #         self.assertEqual(vm1.shape, vm2.shape, 'Matrix dimensions differ')
+    #         for i in range(vm1.shape[0]):
+    #             for j in range(vm2.shape[1]):
+    #                 self.assertEqual(vm1[i, j], vm2[i, j],
+    #                                  'Elements different: {}, {}'.format(vm1[i, j], vm2[i, j]))
 
     #     def testAggClustering(self):
     #         testFile = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/1c17A.fa'
@@ -84,98 +84,101 @@ class Test(unittest.TestCase):
     #         self.assertEqual(c1_1, c1_2, 'Cluster 1 does not match:\n{}\n{}'.format(
     #             c1_1, c1_2))
 
-#     def testWholeAnalysis(self):
-#         testFile = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/1c17A.fa'
-#         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-#                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-#         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-#         AD = {}
-#         files = open(testFile, "r")
-#         for line in files:
-#             if line.startswith(">"):
-#                 if "query" in line.lower():
-#                     query_desc = line
-#                 key = line.rstrip()
-#                 AD[key] = ''
-#             else:
-#                 AD[key] = AD[key] + line.rstrip()
-#         qn1, nad1 = remove_gaps(AD)
-#         MM1 = whole_analysis(nad1, aa_list)
-#         newAD = importAlignment(open(testFile, 'rb'))
-#         qn2, nad2 = removeGaps(newAD)
-#         MM2 = wholeAnalysis(nad2, aa_dict)
-#         self.assertEqual(MM1.shape, MM2.shape, 'Matries have different dims')
-#         for i in range(MM1.shape[0]):
-#             for j in range(MM2.shape[1]):
-#                 self.assertLess(MM1[i, j] - MM2[i, j], 1e-15, 'Matrices differ: ({}, {}): {} - {} = {}'.format(
-#                     i, j, MM1[i, j], MM2[i, j], (MM1[i, j] - MM2[i, j])))
+    #     def testWholeAnalysis(self):
+    #         testFile = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/1c17A.fa'
+    #         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+    #                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+    #         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #         AD = {}
+    #         files = open(testFile, "r")
+    #         for line in files:
+    #             if line.startswith(">"):
+    #                 if "query" in line.lower():
+    #                     query_desc = line
+    #                 key = line.rstrip()
+    #                 AD[key] = ''
+    #             else:
+    #                 AD[key] = AD[key] + line.rstrip()
+    #         qn1, nad1 = remove_gaps(AD)
+    #         MM1 = whole_analysis(nad1, aa_list)
+    #         newAD = importAlignment(open(testFile, 'rb'))
+    #         qn2, nad2 = removeGaps(newAD)
+    #         MM2 = wholeAnalysis(nad2, aa_dict)
+    #         self.assertEqual(MM1.shape, MM2.shape, 'Matries have different dims')
+    #         for i in range(MM1.shape[0]):
+    #             for j in range(MM2.shape[1]):
+    #                 self.assertLess(MM1[i, j] - MM2[i, j], 1e-15, 'Matrices differ: ({}, {}): {} - {} = {}'.format(
+    #                     i, j, MM1[i, j], MM2[i, j], (MM1[i, j] - MM2[i, j])))
 
-#     def testImportPDB(self):
-#         fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
-#         pdbData1 = import_pdb(fileName)
-#         pdbData2 = importPDB(open(fileName, 'rb'))
-#         self.assertEqual(len(pdbData1), len(pdbData2), 'Num elements mismatch')
-#         for i in range(len(pdbData1)):
-#             row1 = pdbData1[i]
-#             row2 = pdbData2[i]
-#             resname1 = (row1[17:20].strip())
-#             resname2 = row2[0]
-#             self.assertEqual(resname1, resname2,
-#                              'Resname {} differs: {} vs {}'.format(
-#                                  i, resname1, resname2))
-#             resnumdict1 = int(row1[22:26].strip())
-#             resnumdict2 = int(row2[1])
-#             self.assertEqual(resnumdict1, resnumdict2,
-#                              'Resnumdict differs: {} - {} vs {}'.format(
-#                                  i, resnumdict1, resnumdict2))
-#             xvaluedict = float(row1[31:38].strip())
-#             yvaluedict = float(row1[39:46].strip())
-#             zvaluedict = float(row1[47:55].strip())
-#             resatomlisttemp1 = list((xvaluedict, yvaluedict, zvaluedict))
-#             resatomlisttemp2 = np.asarray([float(row2[2]), float(row2[3]),
-#                                            float(row2[4])]).tolist()
-#             self.assertEqual(resatomlisttemp1, resatomlisttemp2,
-#                              'Atom lists differ: {} - {} vs {}'.format(
-#                                  i, resatomlisttemp1, resatomlisttemp2))
+    #     def testImportPDB(self):
+    #         fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
+    #         pdbData1 = import_pdb(fileName)
+    #         pdbData2 = importPDB(open(fileName, 'rb'))
+    #         self.assertEqual(len(pdbData1), len(pdbData2), 'Num elements mismatch')
+    #         for i in range(len(pdbData1)):
+    #             row1 = pdbData1[i]
+    #             row2 = pdbData2[i]
+    #             resname1 = (row1[17:20].strip())
+    #             resname2 = row2[0]
+    #             self.assertEqual(resname1, resname2,
+    #                              'Resname {} differs: {} vs {}'.format(
+    #                                  i, resname1, resname2))
+    #             resnumdict1 = int(row1[22:26].strip())
+    #             resnumdict2 = int(row2[1])
+    #             self.assertEqual(resnumdict1, resnumdict2,
+    #                              'Resnumdict differs: {} - {} vs {}'.format(
+    #                                  i, resnumdict1, resnumdict2))
+    #             xvaluedict = float(row1[31:38].strip())
+    #             yvaluedict = float(row1[39:46].strip())
+    #             zvaluedict = float(row1[47:55].strip())
+    #             resatomlisttemp1 = list((xvaluedict, yvaluedict, zvaluedict))
+    #             resatomlisttemp2 = np.asarray([float(row2[2]), float(row2[3]),
+    #                                            float(row2[4])]).tolist()
+    #             self.assertEqual(resatomlisttemp1, resatomlisttemp2,
+    #                              'Atom lists differ: {} - {} vs {}'.format(
+    #                                  i, resatomlisttemp1, resatomlisttemp2))
 
-#     def testComputePDBDist(self):
-#         fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
-#         distancedict, PDBresidueList, ResidueDict = find_distance(fileName)
-#         pdbData2 = importPDB(open(fileName, 'rb'))
+    def testComputePDBDist(self):
+        fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
+        distancedict, PDBresidueList, ResidueDict = find_distance(fileName)
+        #pdbData2 = importPDB(open(fileName, 'rb'))
+        residuedictionary, PDBresidueList2, ResidueDict2 = importPDB(
+            open(fileName, 'rb'))
 #         PDBresidueList2, ResidueDict2, sortedPDBDist2 = findDistance(
 #             pdbData2)
-#         sortedPDBDist = []
-#         sorted_res_list = []
-#
-#         for i in PDBresidueList:
-#             sorted_res_list.append(int(i))
-#         # list of sorted residues - necessary for those where res1 is not 1
-#         sorted(list(set(sorted_res_list)))
-#         # this is where we can do i, j by running a second loop
-#         for i in sorted_res_list:
-#             for j in sorted_res_list:
-#                 if i >= j:
-#                     continue
-#                 newkey1 = str(i) + "_" + str(j)
-#                 sortedPDBDist.append(distancedict[newkey1])
-#         self.assertEqual(len(sortedPDBDist), len(sortedPDBDist2),
-#                          'Size distance dict not equal')
-#         for i in range(len(sortedPDBDist)):
-#             self.assertLess(sortedPDBDist[i] - sortedPDBDist2[i], 1e-15,
-#                             'sortedPDBDist elements not equal {}: {} vs {}'.format(
-#                 i, sortedPDBDist[i], sortedPDBDist2[i]))
-#         self.assertEqual(len(PDBresidueList), len(PDBresidueList2),
-#                          'Number of PDB residues not equal')
-#         for i in range(len(PDBresidueList)):
-#             self.assertEqual(int(PDBresidueList[i]), PDBresidueList2[i],
-#                              'Lists not equal: {} - {} vs. {}'.format(
-#                 i, int(PDBresidueList[i]), PDBresidueList2[i]))
-#         self.assertEqual(len(ResidueDict), len(ResidueDict2),
-#                          'Residue dicts differ in length')
-#         for key in ResidueDict:
-#             self.assertEqual(ResidueDict[key], ResidueDict2[int(key)],
-#                              'Elements not equal: {}\n{}\n{}'.format(
-#                 key, ResidueDict[key], ResidueDict2[int(key)]))
+        sortedPDBDist2 = findDistance(residuedictionary, PDBresidueList2)
+        sortedPDBDist = []
+        sorted_res_list = []
+
+        for i in PDBresidueList:
+            sorted_res_list.append(int(i))
+        # list of sorted residues - necessary for those where res1 is not 1
+        sorted(list(set(sorted_res_list)))
+        # this is where we can do i, j by running a second loop
+        for i in sorted_res_list:
+            for j in sorted_res_list:
+                if i >= j:
+                    continue
+                newkey1 = str(i) + "_" + str(j)
+                sortedPDBDist.append(distancedict[newkey1])
+        self.assertEqual(len(sortedPDBDist), len(sortedPDBDist2),
+                         'Size distance dict not equal')
+        for i in range(len(sortedPDBDist)):
+            self.assertLess(sortedPDBDist[i] - sortedPDBDist2[i], 1e-15,
+                            'sortedPDBDist elements not equal {}: {} vs {}'.format(
+                i, sortedPDBDist[i], sortedPDBDist2[i]))
+        self.assertEqual(len(PDBresidueList), len(PDBresidueList2),
+                         'Number of PDB residues not equal')
+        for i in range(len(PDBresidueList)):
+            self.assertEqual(int(PDBresidueList[i]), PDBresidueList2[i],
+                             'Lists not equal: {} - {} vs. {}'.format(
+                i, int(PDBresidueList[i]), PDBresidueList2[i]))
+        self.assertEqual(len(ResidueDict), len(ResidueDict2),
+                         'Residue dicts differ in length')
+        for key in ResidueDict:
+            self.assertEqual(ResidueDict[key], ResidueDict2[int(key)],
+                             'Elements not equal: {}\n{}\n{}'.format(
+                key, ResidueDict[key], ResidueDict2[int(key)]))
 
 
 if __name__ == "__main__":
