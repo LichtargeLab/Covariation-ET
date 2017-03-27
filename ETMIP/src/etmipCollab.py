@@ -20,6 +20,40 @@ import re
 import os
 
 
+def alignment2num(alignment, key_list, seq_length, aa_dict):
+    '''
+    Alignment2num
+
+    Converts an alignment dictionary to a numerical representation.
+
+    Parameters:
+    -----------
+    alignment: dict
+        Dictionary where the keys are sequence ids and the values are the
+        actual sequences used in the alignment.
+    key_list: list
+        Ordered set of sequence ids which specifies the ordering of the
+        sequences along the row dimension of the resulting matrix.
+    seq_length: int
+        Length of the sequences in the alignment.
+    aa_dict: dict
+        Dictionary mapping characters which can appear in the alignment to
+        digits for representation.
+    Returns:
+    --------
+    numpy ndarray
+        A matrix of values which represents the alignment numerically. The
+        first dimension (rows) will iterate over sequences (as ordered by
+        key_list) while the second dimension (columns) will iterate over
+        positions in the sequence (0 to seq_length).
+    '''
+    alignment2Num = np.zeros((len(alignment), seq_length))
+    for i in range(len(key_list)):
+        for j in range(seq_length):
+            alignment2Num[i, j] = aa_dict[alignment[key_list[i]][j]]
+    return alignment2Num
+
+
 def importAlignment(files, saveFile=None):
     '''
     Import alignments:
@@ -111,7 +145,7 @@ def removeGaps(alignment_dict, saveFile=None):
     return query_name, new_alignment_dict
 
 
-def distanceMatrix(alignment_dict, saveFiles=None):
+def distanceMatrix(alignment, aa_dict, saveFiles=None):
     '''
     Distance matrix
 
@@ -146,16 +180,16 @@ def distanceMatrix(alignment_dict, saveFiles=None):
         valuematrix = np.load(saveFiles[0] + '.npz')['X']
         key_list = pickle.load(open(saveFiles[1], 'rb'))
     else:
-        key_list = sorted(alignment_dict.keys())
-        valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
-        seq_length = len(alignment_dict[key_list[0]])
+        key_list = sorted(alignment.keys())
+        valuematrix = np.zeros([len(alignment), len(alignment)])
+        seq_length = len(alignment[key_list[0]])
+        alignment2Num = alignment2num(alignment, key_list, seq_length, aa_dict)
         for i in range(len(key_list)):
-            seq1 = alignment_dict[key_list[i]]
-            for j in range(i + 1, len(key_list)):
-                seq2 = alignment_dict[key_list[j]]
-                simm = np.sum(ch1 == ch2 for ch1, ch2 in izip(seq1, seq2))
-                valuematrix[i, j] += simm
-                valuematrix[j, i] += simm
+            check = alignment2Num - alignment2Num[i]
+            matches = check == 0
+            simm = np.sum(matches, axis=1)
+            valuematrix[i] = simm
+        valuematrix[np.arange(len(key_list)), np.arange(len(key_list))] = 0
         valuematrix /= seq_length
         if(saveFiles is not None):
             np.savez(saveFiles[0], X=valuematrix)
@@ -256,10 +290,7 @@ def wholeAnalysis(alignment, aa_dict, saveFile=None):
         MIP_matrix = np.zeros((seq_length, seq_length))
         # Create matrix converting sequences of amino acids to sequences of integers
         # representing sequences of amino acids.
-        alignment2Num = np.zeros((len(alignment), seq_length))
-        for i in range(len(key_list)):
-            for j in range(seq_length):
-                alignment2Num[i, j] = aa_dict[alignment[key_list[i]][j]]
+        alignment2Num = alignment2num(alignment, key_list, seq_length, aa_dict)
         # Generate MI matrix from alignment2Num matrix, the MMI matrix,
         # and overallMMI
         for i in range(seq_length):
@@ -747,7 +778,7 @@ if __name__ == '__main__':
     query_name, fixed_alignment_dict = removeGaps(alignment_dict,
                                                   'ungapped_alignment.pkl')
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-    X, sequence_order = distanceMatrix(fixed_alignment_dict,
+    X, sequence_order = distanceMatrix(fixed_alignment_dict, aa_dict,
                                        ('X', 'seq_order.pkl'))
     # Generate MIP Matrix
     wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict, aa_dict, 'wholeMIP')
