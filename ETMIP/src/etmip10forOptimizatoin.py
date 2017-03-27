@@ -226,7 +226,7 @@ def import_pdb(filename):
 
 
 def find_distance(filename):  # takes PDB
-
+    start = time.time()
     # This code takes in an input of a pdb file and outputs a dictionary with the nearest atom distance between two residues
     ##########################################################################
     ##########################################################################
@@ -308,6 +308,8 @@ def find_distance(filename):  # takes PDB
             # Making dictionary of all min values indexed by the two residue
             # names
             distancedict[key] = minvalue
+    end = time.time()
+    print('Old pdb dist computation took {} min'.format((end - start) / 60.0))
     # print distancedict
     return distancedict, PDBresidueList, ResidueDict
 
