@@ -339,7 +339,7 @@ if __name__ == '__main__':
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distance_matrix(fixed_alignment_dict)
     currS = time.time()
-    wholeMIP_Matrix = wholeAnalysis(fixed_alignment_dict)
+    wholeMIP_Matrix = whole_analysis(fixed_alignment_dict)
     currE = time.time()
     print 'Computed MIP Matrix: {}'.format((currE - currS) / 60.0)
     seq_length = len(fixed_alignment_dict.itervalues().next())
@@ -394,7 +394,7 @@ if __name__ == '__main__':
             for key in fixed_alignment_dict:
                 if key in cluster_list:
                     new_alignment[key] = fixed_alignment_dict[key]
-            clusteredMIP_matrix = wholeAnalysis(new_alignment)
+            clusteredMIP_matrix = whole_analysis(new_alignment)
             summed_Matrix = np.add(summed_Matrix, clusteredMIP_matrix)
 
         etmiplist = []
