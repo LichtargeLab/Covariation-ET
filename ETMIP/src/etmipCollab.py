@@ -784,14 +784,12 @@ if __name__ == '__main__':
     res = res.get()
     outDict = {}
     for r in res:
-        for i in range(len(r[0])):
-            outDict[r[0][i]] = r[1][i]
-        print type(r[2])
         try:
             summed_Matrix += r[2]
-        except:
-            print r
-            exit()
+            for i in range(len(r[0])):
+                outDict[r[0][i]] = r[1][i]
+        except TypeError:
+            continue
     writeFinalResults(qName, today, sequence_order,
                       seq_length, cutoff, outDict)
     print "Generated results in", createFolder
