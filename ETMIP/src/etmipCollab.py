@@ -770,10 +770,10 @@ if __name__ == '__main__':
     sequence_order = manager.list(sequence_order)
     for clus in [2, 3, 5, 7, 10, 25]:
         cQueue.put(clus)
-    etMIPWorker2((today, qName, cutoff, aa_dict, cQueue, X,
-                  sequence_order, fixed_alignment_dict, sortedPDBDist,
-                  residues_dict, PDBresidueList))
-    exit()
+    # etMIPWorker2((today, qName, cutoff, aa_dict, cQueue, X,
+    #              sequence_order, fixed_alignment_dict, sortedPDBDist,
+    #              residues_dict, PDBresidueList))
+    # exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker2,
                          [(today, qName, cutoff, aa_dict, cQueue, X,

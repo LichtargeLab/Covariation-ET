@@ -316,6 +316,7 @@ def find_distance(filename):  # takes PDB
     ### BODY OF CODE ##
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
+    firstTime = time.time()
     today = datetime.date.today()
     neighbor_list = []
     gap_list = ["-", ".", "_"]
@@ -499,3 +500,6 @@ if __name__ == '__main__':
             sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
         pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     print "Generated results in", createFolder
+    lastTime = time.time()
+    print('Old implementation took {} min'.format(
+        (lastTime - firstTime) / 60.0))
