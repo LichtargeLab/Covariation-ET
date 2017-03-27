@@ -186,9 +186,7 @@ def distanceMatrix(alignment, aa_dict, saveFiles=None):
         alignment2Num = alignment2num(alignment, key_list, seq_length, aa_dict)
         for i in range(len(key_list)):
             check = alignment2Num - alignment2Num[i]
-            matches = check == 0
-            simm = np.sum(matches, axis=1)
-            valuematrix[i] = simm
+            valuematrix[i] = np.sum(check == 0, axis=1)
         valuematrix[np.arange(len(key_list)), np.arange(len(key_list))] = 0
         valuematrix /= seq_length
         if(saveFiles is not None):
