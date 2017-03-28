@@ -14,10 +14,41 @@ matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
 import datetime
+import argparse
 import time
 import sys
 import re
 import os
+
+
+def parseArguments():
+    '''
+    parse arguments
+
+    This method provides a nice interface for parsing command line arguments
+    and includes help functionality.
+
+    Returns:
+    --------
+    dict:
+        A dictionary containing the arguments parsed from the command line and
+        their arguments.
+    '''
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--alignment', metavar='A', type=str, nargs=1,
+                        help='The file path to the alignment to analyze in this run.')
+    parser.add_argument('--pdb', metavar='P', type=str, nargs=1,
+                        help='The file path to the PDB structure associated with the provided alignment.')
+    parser.add_argument('--query', metavar='Q', type=str, nargs=1,
+                        help='The name of the protein being queried in this analysis.')
+    parser.add_argument('--threshold', metavar='T', type=float, nargs=1,
+                        help='The distance within the molecular structure at which two residues are considered interacting.')
+    parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
+                        help='The number of processes to spawn when multiprocessing this analysis.')
+    parser.add_argument('--output', metavar='O', type=str, nargs='?',
+                        default='./', help='File path to a directory where the results can be generated.')
+    args = parser.parse_args()
+    return vars(args)
 
 
 def alignment2num(alignment, key_list, seq_length, aa_dict):
@@ -477,7 +508,7 @@ def plotAUC(fpr, tpr, roc_auc, qName, clus, today, cutoff):
     print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
 
 
-def writeOutClusteringResults(today, qName, clus, scorePositions,
+def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
                               etmiplistCoverage, sortedPDBDist, PDBresidueList,
                               residues_dict):
     '''
@@ -683,7 +714,7 @@ def etMIPWorker2(inTup):
             sys.exit()
         y_true1 = ((sortedPDBDist <= cutoff) * 1)
 
-        writeOutClusteringResults(today, qName, clus, scorePositions,
+        writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
                                   etmiplistCoverage, sortedPDBDist,
                                   PDBresidueList, residues_dict)
         fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
@@ -716,6 +747,7 @@ def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict)
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
     start = time.time()
+    args = parseArguments()
     ###########################################################################
     # Set up global variables
     ###########################################################################
@@ -736,16 +768,10 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up input variables
     ###########################################################################
-    files = open(sys.argv[1], 'rb')
-    pdbfilename = open(sys.argv[2], 'rb')
-    cutoff = float(sys.argv[3])
-    qName = str(sys.argv[4])
+    files = open(args['alignment'][0], 'rb')
+    pdbfilename = open(args['pdb'][0], 'rb')
     try:
-        outDir = sys.argv[5]
-    except:
-        outDir = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/"
-    try:
-        processes = int(sys.argv[6])
+        processes = args['processes']
         pCount = cpu_count()
         if(processes > pCount):
             processes = pCount
@@ -755,7 +781,7 @@ if __name__ == '__main__':
     # Set up output location
     ###########################################################################
     startDir = os.getcwd()
-    createFolder = (outDir + str(today) + "/" + qName)
+    createFolder = (args['output'] + str(today) + "/" + args['query'][0])
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
@@ -783,7 +809,7 @@ if __name__ == '__main__':
         pdbfilename, 'pdbData.pkl')
     # PDBresidueList, ResiduesDict, sortedPDBDist = findDistance(
     sortedPDBDist = findDistance(residuedictionary, PDBresidueList,
-                                 ('PDBdist.pkl', 'PDBdistances'))
+                                 'PDBdistances')
     #   pdbData, ('PDBdist.pkl', 'PDBdistances'))
     ###########################################################################
     # Perform multiprocessing of clustering method
@@ -795,13 +821,13 @@ if __name__ == '__main__':
     sequence_order = manager.list(sequence_order)
     for clus in [2, 3, 5, 7, 10, 25]:
         cQueue.put(clus)
-    # etMIPWorker2((today, qName, cutoff, aa_dict, cQueue, X,
+    # etMIPWorker2((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
     #              sequence_order, fixed_alignment_dict, sortedPDBDist,
     #              ResidueDict, PDBresidueList))
     # exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker2,
-                         [(today, qName, cutoff, aa_dict, cQueue, X,
+                         [(today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
                            sequence_order, fixed_alignment_dict, sortedPDBDist,
                            ResidueDict, PDBresidueList)] * processes)
     pool.close()
@@ -815,8 +841,8 @@ if __name__ == '__main__':
                 outDict[r[0][i]] = r[1][i]
         except TypeError:
             continue
-    writeFinalResults(qName, today, sequence_order,
-                      seq_length, cutoff, outDict)
+    writeFinalResults(args['query'][0], today, sequence_order,
+                      seq_length, args['threshold'][0], outDict)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
