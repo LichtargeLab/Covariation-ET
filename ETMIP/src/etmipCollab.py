@@ -413,7 +413,6 @@ def findDistance(residuedictionary, PDBresidueList, saveFile=None):
             # Loop over residues to calculate distance between all residues i
             # and j
             for j in range(i + 1, len(PDBresidueList)):
-                matvalue = []
                 # Getting the 3d coordinates for every atom in each residue.
                 # iterating over all pairs to find all distances
                 key1 = PDBresidueList[i]
