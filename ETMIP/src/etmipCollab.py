@@ -7,7 +7,6 @@ Created on Mar 10, 2017
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 from multiprocessing import Pool, cpu_count, Manager
-from itertools import izip
 import cPickle as pickle
 import matplotlib
 matplotlib.use('Agg')
@@ -121,7 +120,7 @@ def importAlignment(files, saveFile=None):
     return alignment_dict
 
 
-def removeGaps(alignment_dict, saveFile=None):
+def removeGaps(alignment_dict, query, saveFile=None):
     '''
     Remove Gaps
 
@@ -151,21 +150,18 @@ def removeGaps(alignment_dict, saveFile=None):
     else:
         gap = ['-', '.', '_']
         query_gap_index = []
-        for key, value in alignment_dict.iteritems():
-            if "query" in key.lower():
-                query_name = key
-                for idc, char in enumerate(value):
-                    if char in gap:
-                        query_gap_index.append(idc)
+        query_name = '>query_{}'.format(query)
+        for idc, char in enumerate(alignment_dict[query_name]):
+            if char in gap:
+                query_gap_index.append(idc)
         if(len(query_gap_index) > 0):
-            query_gap_index.sort()
             new_alignment_dict = {}
             for key, value in alignment_dict.iteritems():
                 new_alignment_dict[key] = value[0:query_gap_index[0]]
                 for i in range(1, len(query_gap_index) - 1):
-                    new_alignment_dict[key] += value[query_gap_index[i]:
+                    new_alignment_dict[key] += value[query_gap_index[i] + 1:
                                                      query_gap_index[i + 1]]
-                new_alignment_dict[key] += value[query_gap_index[-1]:]
+                new_alignment_dict[key] += value[query_gap_index[-1] + 1:]
         else:
             new_alignment_dict = alignment_dict
         if(saveFile is not None):
@@ -436,7 +432,7 @@ def findDistance(residuedictionary, PDBresidueList, saveFile=None):
     # Dimensional coordinates of each residue position
     start = time.time()
     if((saveFile is not None) and os.path.exists(saveFile)):
-        sortedPDBDist = np.load(saveFiles[1] + '.npz')['pdbDists']
+        sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
     else:
         sortedPDBDist = []
         # Loop over all residues in the pdb
@@ -559,88 +555,7 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
         (end - start) / 60.0))
 
 
-# def etMIPWorker(today, qName, cutoff, aa_dict, clus, X, fixed_alignment_dict,
-#                 sorted_PDB_dist, distDict):
-#     '''
-#     ETMIP Worker
-#
-#     Performs the repeated portion of analysis in this workflow.
-#
-#     Parameters:
-#     today: date
-#         Todays date, used for filenames
-#     qName: str
-#         The name of the query protein
-#     cutoff: int
-#         The distance for cut off in a PDB structure to consider two atoms as
-#         interacting.
-#     aa_dict: dict
-#         Dictionary mapping amino acid single letter code to a numerical value
-#     clus: int
-#         Number of clusters to create
-#     X: numpy nd_array
-#         The pairwise distance between a set of sequences in an alignment
-#     fixed_alignment_dict: dict
-#         Dictionary of sequences in the alignment with all gaps removed from the
-#         query sequences.
-#     summed_Matrix: numpy nd_array
-#         Tracks the ETMIP score over iterations of clustering
-#     sorted_PDB_dist: dict
-#         Dictionary of sorted pairwise atom interactions
-#     distDict: dict
-#         Dictionary of distances between pairs of sequences in the alignment
-#     '''
-#     start = time.time()
-#     print "Starting clustering: K={}".format(clus)
-#     cluster_dict, clusterset = AggClustering(clus, X, fixed_alignment_dict)
-#     size = np.sqrt(len(distDict))
-#     res = np.zeros((size, size))
-#     for c in clusterset:
-#         new_alignment = {}
-#         for key in cluster_dict[c]:
-#             new_alignment[key] = fixed_alignment_dict[key]
-#         clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
-#         res += clusteredMIP_matrix
-#
-#     # this is where we can do i, j by running a second loop
-#     scorePositions = []
-#     etmipResScoreList = []
-#     for i in range(0, len(sorted_res_list)):
-#         for j in range(i + 1, len(sorted_res_list)):
-#             newkey1 = "{}_{}".format(sorted_res_list[i], sorted_res_list[j])
-#             scorePositions.append(newkey1)
-#             etmipResScoreList.append(summed_Matrix[i][j])
-#     etmipResScoreList = np.asarray(etmipResScoreList)
-#
-#     # Converting to coverage
-#     etmiplistCoverage = []
-#     numPos = float(len(etmipResScoreList))
-#     for i in range(len(etmipResScoreList)):
-#         computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
-#                                     * 1.0) - 1) * 100) / numPos)
-#         etmiplistCoverage.append(computeCoverage)
-#
-#     # AUC computation
-#     if len(etmiplistCoverage) != len(sorted_PDB_dist):
-#         print "lengths do not match"
-#         sys.exit()
-#     y_true1 = ((sorted_PDB_dist <= cutoff) * 1)
-#
-#     writeOutClusteringResults(today, qName, clus, scorePositions,
-#                               etmiplistCoverage, distdict)
-#     fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
-#                                         pos_label=1)
-#     roc_auc1 = auc(fpr1, tpr1)
-#     plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
-#     # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-#     time_elapsed = (time.time() - start)
-#     output = "\t{0}\t{1}\t{2}\n".format(
-#         clus, round(roc_auc1, 2), round(time_elapsed, 2))
-#     print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
-#     return (clus, output, res)
-
-
-def etMIPWorker2(inTup):
+def etMIPWorker(inTup):
     '''
     ETMIP Worker
 
@@ -731,6 +646,11 @@ def etMIPWorker2(inTup):
 
 
 def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict):
+    '''
+    Write final results
+
+    This method writes the 
+    '''
     o = '{}_{}etmipAUC_results.txt'.format(qName, today)
     outfile = open(o, 'w+')
     proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
@@ -792,6 +712,7 @@ if __name__ == '__main__':
     alignment_dict = importAlignment(files, 'alignment_dict.pkl')
     # Remove gaps from aligned query sequences
     query_name, fixed_alignment_dict = removeGaps(alignment_dict,
+                                                  args['query'][0],
                                                   'ungapped_alignment.pkl')
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distanceMatrix(fixed_alignment_dict, aa_dict,
@@ -821,12 +742,12 @@ if __name__ == '__main__':
     sequence_order = manager.list(sequence_order)
     for clus in [2, 3, 5, 7, 10, 25]:
         cQueue.put(clus)
-    # etMIPWorker2((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
+    # etMIPWorker((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
     #              sequence_order, fixed_alignment_dict, sortedPDBDist,
     #              ResidueDict, PDBresidueList))
     # exit()
     pool = Pool(processes=processes)
-    res = pool.map_async(etMIPWorker2,
+    res = pool.map_async(etMIPWorker,
                          [(today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
                            sequence_order, fixed_alignment_dict, sortedPDBDist,
                            ResidueDict, PDBresidueList)] * processes)

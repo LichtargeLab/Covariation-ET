@@ -61,7 +61,6 @@ def remove_gaps(alignment_dict):
             for idc, char in enumerate(alignment_dict[key]):
                 if char in gap:
                     query_gap_index.append(idc)
-
     new_alignment_dict = {}
     for key, value in alignment_dict.iteritems():
         new_alignment_dict[key] = ''
