@@ -754,10 +754,10 @@ if __name__ == '__main__':
     for clus in clusters:
         cQueue.put(clus)
         semaphores[clus] = manager.Semaphore(0)
-    # etMIPWorker((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
-    #              sequence_order, fixed_alignment_dict, sortedPDBDist,
-    #              ResidueDict, PDBresidueList))
-    # exit()
+    etMIPWorker((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
+                 sequence_order, fixed_alignment_dict, sortedPDBDist,
+                 ResidueDict, PDBresidueList))
+    exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker,
                          [(today, args['query'][0], args['threshold'][0],
