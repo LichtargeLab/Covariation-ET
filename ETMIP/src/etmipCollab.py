@@ -753,7 +753,7 @@ if __name__ == '__main__':
     semaphores = manager.dict()
     for clus in clusters:
         cQueue.put(clus)
-        semaphores[clus] = Semaphore(0)
+        semaphores[clus] = manager.Semaphore(0)
     # etMIPWorker((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
     #              sequence_order, fixed_alignment_dict, sortedPDBDist,
     #              ResidueDict, PDBresidueList))
