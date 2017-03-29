@@ -3,10 +3,9 @@ Created on Mar 10, 2017
 
 @author: Benu Atri
 '''
-
+from multiprocessing import Pool, cpu_count, Manager, Semaphore
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
-from multiprocessing import Pool, cpu_count, Manager
 import cPickle as pickle
 import matplotlib
 matplotlib.use('Agg')
@@ -583,13 +582,14 @@ def etMIPWorker(inTup):
     sorted_PDB_dist: dict
         Dictionary of sorted pairwise atom interactions
     '''
-    today, qName, cutoff, aa_dict, clus, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList = inTup
+    today, qName, cutoff, aa_dict, cQueue, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList, clusters, semaphores, clusterMatrices = inTup
     print('IN THREAD!')
     cTested = []
     outputs = []
-    resMatrix = None
     while(not cQueue.empty()):
+        resMatrix = None
         clus = cQueue.get_nowait()
+        semaphores[clus].acquire()
         cTested.append(clus)
         start = time.time()
         print "Starting clustering: K={}".format(clus)
@@ -603,7 +603,15 @@ def etMIPWorker(inTup):
                 resMatrix = clusteredMIP_matrix
             else:
                 resMatrix += clusteredMIP_matrix
-
+        cluster_dict[clus] = resMatrix
+        semaphores[clus].acquire()
+        summed_Matrix = cluster_dict[0] + resMatrix
+        for c in clusters:
+            if(c >= clus):
+                break
+            semaphores[c].acquire()
+            summed_Matrix += cluster_dict[c]
+            semaphores[c].release()
         # this is where we can do i, j by running a second loop
         scorePositions = []
         etmipResScoreList = []
@@ -642,7 +650,7 @@ def etMIPWorker(inTup):
             clus, round(roc_auc1, 2), round(time_elapsed, 2))
         outputs.append(output)
         print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
-    return (cTested, outputs, resMatrix)
+    return (cTested, outputs)
 
 
 def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict):
@@ -740,28 +748,30 @@ if __name__ == '__main__':
     fixed_alignment_dict = manager.dict(fixed_alignment_dict)
     cQueue = manager.Queue()
     sequence_order = manager.list(sequence_order)
-    for clus in [2, 3, 5, 7, 10, 25]:
+    clusters = manager.list([2, 3, 5, 7, 10, 25])
+    clusterMatrices = manager.dict({0: wholeMIP_Matrix})
+    semaphores = manager.dict()
+    for clus in clusters:
         cQueue.put(clus)
+        semaphores[clus] = Semaphore(0)
     # etMIPWorker((today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
     #              sequence_order, fixed_alignment_dict, sortedPDBDist,
     #              ResidueDict, PDBresidueList))
     # exit()
     pool = Pool(processes=processes)
     res = pool.map_async(etMIPWorker,
-                         [(today, args['query'][0], args['threshold'][0], aa_dict, cQueue, X,
-                           sequence_order, fixed_alignment_dict, sortedPDBDist,
-                           ResidueDict, PDBresidueList)] * processes)
+                         [(today, args['query'][0], args['threshold'][0],
+                           aa_dict, cQueue, X, sequence_order,
+                           fixed_alignment_dict, sortedPDBDist, ResidueDict,
+                           PDBresidueList, clusters, semaphores,
+                           clusterMatrices)] * processes)
     pool.close()
     pool.join()
     res = res.get()
     outDict = {}
     for r in res:
-        try:
-            summed_Matrix += r[2]
-            for i in range(len(r[0])):
-                outDict[r[0][i]] = r[1][i]
-        except TypeError:
-            continue
+        for i in range(len(r[0])):
+            outDict[r[0][i]] = r[1][i]
     writeFinalResults(args['query'][0], today, sequence_order,
                       seq_length, args['threshold'][0], outDict)
     print "Generated results in", createFolder
