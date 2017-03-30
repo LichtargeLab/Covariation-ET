@@ -554,6 +554,17 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
         (end - start) / 60.0))
 
 
+def poolInit(a, seqDists, sK, fAD, sPDBD, rD, clusts):
+    global aa_dict
+    aa_dict = a
+    global X
+    X = seqDists
+    global sortedKeys
+    sortedKeys = sK
+    global fixed_alignment_dict
+    fixed_alignment_dict = fAD
+
+
 def etMIPWorker(inTup):
     '''
     ETMIP Worker
@@ -561,13 +572,7 @@ def etMIPWorker(inTup):
     Performs the repeated portion of analysis in this workflow.
 
     Parameters:
-    today: date
-        Todays date, used for filenames
-    qName: str
-        The name of the query protein
-    cutoff: int
-        The distance for cut off in a PDB structure to consider two atoms as
-        interacting.
+    -----------
     aa_dict: dict
         Dictionary mapping amino acid single letter code to a numerical value
     clus: int
@@ -577,80 +582,163 @@ def etMIPWorker(inTup):
     fixed_alignment_dict: dict
         Dictionary of sequences in the alignment with all gaps removed from the
         query sequences.
-    summed_Matrix: numpy nd_array
-        Tracks the ETMIP score over iterations of clustering
-    sorted_PDB_dist: dict
-        Dictionary of sorted pairwise atom interactions
     '''
-    today, qName, cutoff, aa_dict, cQueue, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList, clusters, semaphores, clusterMatrices = inTup
-    print('IN THREAD!')
-    cTested = []
-    outputs = []
-    while(not cQueue.empty()):
-        resMatrix = None
-        clus = cQueue.get_nowait()
-        semaphores[clus].acquire()
-        cTested.append(clus)
-        start = time.time()
-        print "Starting clustering: K={}".format(clus)
-        cluster_dict, clusterset = aggClustering(clus, X, sortedKeys)
-        for c in clusterset:
-            new_alignment = {}
-            for key in cluster_dict[c]:
-                new_alignment[key] = fixed_alignment_dict[key]
-            clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
-            if(resMatrix is None):
-                resMatrix = clusteredMIP_matrix
-            else:
-                resMatrix += clusteredMIP_matrix
-        cluster_dict[clus] = resMatrix
-        semaphores[clus].acquire()
-        summed_Matrix = cluster_dict[0] + resMatrix
-        for c in clusters:
-            if(c >= clus):
-                break
-            semaphores[c].acquire()
-            summed_Matrix += cluster_dict[c]
-            semaphores[c].release()
-        # this is where we can do i, j by running a second loop
-        scorePositions = []
-        etmipResScoreList = []
-        for i in range(0, len(PDBresidueList)):
-            for j in range(i + 1, len(PDBresidueList)):
-                newkey1 = "{}_{}".format(
-                    PDBresidueList[i], PDBresidueList[j])
-                scorePositions.append(newkey1)
-                etmipResScoreList.append(summed_Matrix[i][j])
-        etmipResScoreList = np.asarray(etmipResScoreList)
+    clus, X, sortedKeys, fixed_alignment_dict, aa_dict = inTup
+    resMatrix = None
+    start = time.time()
+    print "Starting clustering: K={}".format(clus)
+    cluster_dict, clusterset = aggClustering(clus, X, sortedKeys)
+    for c in clusterset:
+        new_alignment = {}
+        for key in cluster_dict[c]:
+            new_alignment[key] = fixed_alignment_dict[key]
+        clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
+        if(resMatrix is None):
+            resMatrix = clusteredMIP_matrix
+        else:
+            resMatrix += clusteredMIP_matrix
+    end = time.time()
+    time_elapsed = end - start
+    print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
+    return clus, resMatrix, time_elapsed
 
-        # Converting to coverage
-        etmiplistCoverage = []
-        numPos = float(len(etmipResScoreList))
-        for i in range(len(etmipResScoreList)):
-            computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
-                                        * 1.0) - 1) * 100) / numPos)
-            etmiplistCoverage.append(computeCoverage)
 
-        # AUC computation
-        if len(etmiplistCoverage) != len(sortedPDBDist):
-            print "lengths do not match"
-            sys.exit()
-        y_true1 = ((sortedPDBDist <= cutoff) * 1)
+def poolInit2(c, PDBRL, sPDBD):
+    global PDBresidueList
+    PDBresidueList = PDBRL
+    global cutoff
+    cutoff = c
+    global sortedPDBDist
+    sortedPDBDist = sPDBD
 
-        writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-                                  etmiplistCoverage, sortedPDBDist,
-                                  PDBresidueList, residues_dict)
-        fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
-                                            pos_label=1)
-        roc_auc1 = auc(fpr1, tpr1)
-        plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
-        # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-        time_elapsed = (time.time() - start)
-        output = "\t{0}\t{1}\t{2}\n".format(
-            clus, round(roc_auc1, 2), round(time_elapsed, 2))
-        outputs.append(output)
-        print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
-    return (cTested, outputs)
+
+def etMIPWorker2(inTup):
+    PDBresidueList, sortedPDBDist, cutoff, summed_Matrix = inTup
+    scorePositions = []
+    etmipResScoreList = []
+    for i in range(0, len(PDBresidueList)):
+        for j in range(i + 1, len(PDBresidueList)):
+            newkey1 = "{}_{}".format(
+                PDBresidueList[i], PDBresidueList[j])
+            scorePositions.append(newkey1)
+            etmipResScoreList.append(summed_Matrix[i][j])
+    etmipResScoreList = np.asarray(etmipResScoreList)
+
+    # Converting to coverage
+    etmiplistCoverage = []
+    numPos = float(len(etmipResScoreList))
+    for i in range(len(etmipResScoreList)):
+        computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
+                                    * 1.0) - 1) * 100) / numPos)
+        etmiplistCoverage.append(computeCoverage)
+    # AUC computation
+    if len(etmiplistCoverage) != len(sortedPDBDist):
+        print "lengths do not match"
+        sys.exit()
+    y_true1 = ((sortedPDBDist <= cutoff) * 1)
+    fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
+                                        pos_label=1)
+    roc_auc1 = auc(fpr1, tpr1)
+    return fpr1, tpr1, roc_auc1
+
+
+# def etMIPWorker(inTup):
+#     '''
+#     ETMIP Worker
+#
+#     Performs the repeated portion of analysis in this workflow.
+#
+#     Parameters:
+#     today: date
+#         Todays date, used for filenames
+#     qName: str
+#         The name of the query protein
+#     cutoff: int
+#         The distance for cut off in a PDB structure to consider two atoms as
+#         interacting.
+#     aa_dict: dict
+#         Dictionary mapping amino acid single letter code to a numerical value
+#     clus: int
+#         Number of clusters to create
+#     X: numpy nd_array
+#         The pairwise distance between a set of sequences in an alignment
+#     fixed_alignment_dict: dict
+#         Dictionary of sequences in the alignment with all gaps removed from the
+#         query sequences.
+#     summed_Matrix: numpy nd_array
+#         Tracks the ETMIP score over iterations of clustering
+#     sorted_PDB_dist: dict
+#         Dictionary of sorted pairwise atom interactions
+#     '''
+#     today, qName, cutoff, aa_dict, cQueue, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList, clusters, semaphores, clusterMatrices = inTup
+#     print('IN THREAD!')
+#     cTested = []
+#     outputs = []
+#     while(not cQueue.empty()):
+#         resMatrix = None
+#         clus = cQueue.get_nowait()
+#         semaphores[clus].acquire()
+#         cTested.append(clus)
+#         start = time.time()
+#         print "Starting clustering: K={}".format(clus)
+#         cluster_dict, clusterset = aggClustering(clus, X, sortedKeys)
+#         for c in clusterset:
+#             new_alignment = {}
+#             for key in cluster_dict[c]:
+#                 new_alignment[key] = fixed_alignment_dict[key]
+#             clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
+#             if(resMatrix is None):
+#                 resMatrix = clusteredMIP_matrix
+#             else:
+#                 resMatrix += clusteredMIP_matrix
+#         cluster_dict[clus] = resMatrix
+#         semaphores[clus].acquire()
+#         summed_Matrix = cluster_dict[0] + resMatrix
+#         for c in clusters:
+#             if(c >= clus):
+#                 break
+#             semaphores[c].acquire()
+#             summed_Matrix += clusterMatrices[c]
+#             semaphores[c].release()
+#         # this is where we can do i, j by running a second loop
+#         scorePositions = []
+#         etmipResScoreList = []
+#         for i in range(0, len(PDBresidueList)):
+#             for j in range(i + 1, len(PDBresidueList)):
+#                 newkey1 = "{}_{}".format(
+#                     PDBresidueList[i], PDBresidueList[j])
+#                 scorePositions.append(newkey1)
+#                 etmipResScoreList.append(summed_Matrix[i][j])
+#         etmipResScoreList = np.asarray(etmipResScoreList)
+#
+#         # Converting to coverage
+#         etmiplistCoverage = []
+#         numPos = float(len(etmipResScoreList))
+#         for i in range(len(etmipResScoreList)):
+#             computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
+#                                         * 1.0) - 1) * 100) / numPos)
+#             etmiplistCoverage.append(computeCoverage)
+#
+#         # AUC computation
+#         if len(etmiplistCoverage) != len(sortedPDBDist):
+#             print "lengths do not match"
+#             sys.exit()
+#         y_true1 = ((sortedPDBDist <= cutoff) * 1)
+#
+#         writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
+#                                   etmiplistCoverage, sortedPDBDist,
+#                                   PDBresidueList, residues_dict)
+#         fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
+#                                             pos_label=1)
+#         roc_auc1 = auc(fpr1, tpr1)
+#         plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
+#         # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
+#         time_elapsed = (time.time() - start)
+#         output = "\t{0}\t{1}\t{2}\n".format(
+#             clus, round(roc_auc1, 2), round(time_elapsed, 2))
+#         outputs.append(output)
+#         print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
+#     return (cTested, outputs)
 
 
 def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict):
