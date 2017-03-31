@@ -554,7 +554,7 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
         (end - start) / 60.0))
 
 
-def poolInit(a, seqDists, sK, fAD, sPDBD, rD, clusts):
+def poolInit(a, seqDists, sK, fAD):
     global aa_dict
     aa_dict = a
     global X
@@ -583,7 +583,7 @@ def etMIPWorker(inTup):
         Dictionary of sequences in the alignment with all gaps removed from the
         query sequences.
     '''
-    clus, X, sortedKeys, fixed_alignment_dict, aa_dict = inTup
+    clus = inTup[0]
     resMatrix = None
     start = time.time()
     print "Starting clustering: K={}".format(clus)
@@ -613,7 +613,7 @@ def poolInit2(c, PDBRL, sPDBD):
 
 
 def etMIPWorker2(inTup):
-    PDBresidueList, sortedPDBDist, cutoff, summed_Matrix = inTup
+    clus, summed_Matrix = inTup
     scorePositions = []
     etmipResScoreList = []
     for i in range(0, len(PDBresidueList)):
@@ -639,106 +639,7 @@ def etMIPWorker2(inTup):
     fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
                                         pos_label=1)
     roc_auc1 = auc(fpr1, tpr1)
-    return fpr1, tpr1, roc_auc1
-
-
-# def etMIPWorker(inTup):
-#     '''
-#     ETMIP Worker
-#
-#     Performs the repeated portion of analysis in this workflow.
-#
-#     Parameters:
-#     today: date
-#         Todays date, used for filenames
-#     qName: str
-#         The name of the query protein
-#     cutoff: int
-#         The distance for cut off in a PDB structure to consider two atoms as
-#         interacting.
-#     aa_dict: dict
-#         Dictionary mapping amino acid single letter code to a numerical value
-#     clus: int
-#         Number of clusters to create
-#     X: numpy nd_array
-#         The pairwise distance between a set of sequences in an alignment
-#     fixed_alignment_dict: dict
-#         Dictionary of sequences in the alignment with all gaps removed from the
-#         query sequences.
-#     summed_Matrix: numpy nd_array
-#         Tracks the ETMIP score over iterations of clustering
-#     sorted_PDB_dist: dict
-#         Dictionary of sorted pairwise atom interactions
-#     '''
-#     today, qName, cutoff, aa_dict, cQueue, X, sortedKeys, fixed_alignment_dict, sortedPDBDist, residues_dict, PDBresidueList, clusters, semaphores, clusterMatrices = inTup
-#     print('IN THREAD!')
-#     cTested = []
-#     outputs = []
-#     while(not cQueue.empty()):
-#         resMatrix = None
-#         clus = cQueue.get_nowait()
-#         semaphores[clus].acquire()
-#         cTested.append(clus)
-#         start = time.time()
-#         print "Starting clustering: K={}".format(clus)
-#         cluster_dict, clusterset = aggClustering(clus, X, sortedKeys)
-#         for c in clusterset:
-#             new_alignment = {}
-#             for key in cluster_dict[c]:
-#                 new_alignment[key] = fixed_alignment_dict[key]
-#             clusteredMIP_matrix = wholeAnalysis(new_alignment, aa_dict)
-#             if(resMatrix is None):
-#                 resMatrix = clusteredMIP_matrix
-#             else:
-#                 resMatrix += clusteredMIP_matrix
-#         cluster_dict[clus] = resMatrix
-#         semaphores[clus].acquire()
-#         summed_Matrix = cluster_dict[0] + resMatrix
-#         for c in clusters:
-#             if(c >= clus):
-#                 break
-#             semaphores[c].acquire()
-#             summed_Matrix += clusterMatrices[c]
-#             semaphores[c].release()
-#         # this is where we can do i, j by running a second loop
-#         scorePositions = []
-#         etmipResScoreList = []
-#         for i in range(0, len(PDBresidueList)):
-#             for j in range(i + 1, len(PDBresidueList)):
-#                 newkey1 = "{}_{}".format(
-#                     PDBresidueList[i], PDBresidueList[j])
-#                 scorePositions.append(newkey1)
-#                 etmipResScoreList.append(summed_Matrix[i][j])
-#         etmipResScoreList = np.asarray(etmipResScoreList)
-#
-#         # Converting to coverage
-#         etmiplistCoverage = []
-#         numPos = float(len(etmipResScoreList))
-#         for i in range(len(etmipResScoreList)):
-#             computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
-#                                         * 1.0) - 1) * 100) / numPos)
-#             etmiplistCoverage.append(computeCoverage)
-#
-#         # AUC computation
-#         if len(etmiplistCoverage) != len(sortedPDBDist):
-#             print "lengths do not match"
-#             sys.exit()
-#         y_true1 = ((sortedPDBDist <= cutoff) * 1)
-#
-#         writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-#                                   etmiplistCoverage, sortedPDBDist,
-#                                   PDBresidueList, residues_dict)
-#         fpr1, tpr1, _thresholds = roc_curve(y_true1, etmiplistCoverage,
-#                                             pos_label=1)
-#         roc_auc1 = auc(fpr1, tpr1)
-#         plotAUC(fpr1, tpr1, roc_auc1, qName, clus, today, cutoff)
-#         # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-#         time_elapsed = (time.time() - start)
-#         output = "\t{0}\t{1}\t{2}\n".format(
-#             clus, round(roc_auc1, 2), round(time_elapsed, 2))
-#         outputs.append(output)
-#         print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
-#     return (cTested, outputs)
+    return clus, etmiplistCoverage, scorePositions, fpr1, tpr1, roc_auc1
 
 
 def writeFinalResults(qName, today, sequence_order, seq_length, cutoff, outDict):
@@ -819,8 +720,6 @@ if __name__ == '__main__':
     # Set up for remaining analysis
     ###########################################################################
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
-    summed_Matrix = np.zeros((seq_length, seq_length))
-    summed_Matrix += wholeMIP_Matrix
     # pdbData = importPDB(pdbfilename, 'pdbData.pkl')
     residuedictionary, PDBresidueList, ResidueDict = importPDB(
         pdbfilename, 'pdbData.pkl')
@@ -831,37 +730,48 @@ if __name__ == '__main__':
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
-    manager = Manager()
-    aa_dict = manager.dict(aa_dict)
-    fixed_alignment_dict = manager.dict(fixed_alignment_dict)
-    cQueue = manager.Queue()
-    sequence_order = manager.list(sequence_order)
-    clusters = manager.list([2, 3, 5, 7, 10, 25])
-    clusterMatrices = manager.dict({0: wholeMIP_Matrix})
-    semaphores = manager.dict()
-    for clus in clusters:
-        cQueue.put(clus)
-        semaphores[clus] = manager.Semaphore(0)
-    etMIPWorker((today, args['query'][0], args['threshold'][0],
-                 aa_dict, cQueue, X, sequence_order,
-                 fixed_alignment_dict, sortedPDBDist, ResidueDict,
-                 PDBresidueList, clusters, semaphores,
-                 clusterMatrices))
-    exit()
-    pool = Pool(processes=processes)
-    res = pool.map_async(etMIPWorker,
-                         [(today, args['query'][0], args['threshold'][0],
-                           aa_dict, cQueue, X, sequence_order,
-                           fixed_alignment_dict, sortedPDBDist, ResidueDict,
-                           PDBresidueList, clusters, semaphores,
-                           clusterMatrices)] * processes)
+    clusters = [2, 3, 5, 7, 10, 25]
+    pool = Pool(processes=processes, initializer=poolInit, initargs=(
+        aa_dict, X, sequence_order, fixed_alignment_dict))
+    res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
     pool.close()
     pool.join()
-    res = res.get()
+    res1 = res1.get()
+    resMats = {}
+    resTimes = {}
+    for r in res1:
+        resMats[r[0]] = r[1]
+        resTimes[r[0]] = r[2]
+    pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
+        args['threshold'][0], PDBresidueList, sortedPDBDist))
+    summedMatrices = [np.zeros(wholeMIP_Matrix.shape)] * len(clusters)
+    for i in range(len(clusters)):
+        #print('i: {}'.format(i))
+        summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
+        for j in range(0, i):
+            #print('j: {}'.format(j))
+            summedMatrices[i] += resMats[clusters[j]]
+    res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
+                                          for i in range(len(clusters))])
+    pool2.close()
+    pool2.join()
+    res2 = res2.get()
+    resCoverage = {}
+    resScorePos = {}
+    resAUCROC = {}
+    for r in res2:
+        resCoverage[r[0]] = r[1]
+        resScorePos[r[0]] = r[2]
+        resAUCROC[r[0]] = r[3:]
     outDict = {}
-    for r in res:
-        for i in range(len(r[0])):
-            outDict[r[0][i]] = r[1][i]
+    for c in clusters:
+        plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
+                args['query'][0], c, today, args['threshold'][0])
+        writeOutClusteringResults(today, args['query'][0], args['threshold'][0],
+                                  c, resScorePos[c], resCoverage[c],
+                                  sortedPDBDist, PDBresidueList, ResidueDict)
+        outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, round(resAUCROC[c][2], 2),
+                                                round(resTimes[c], 2))
     writeFinalResults(args['query'][0], today, sequence_order,
                       seq_length, args['threshold'][0], outDict)
     print "Generated results in", createFolder
