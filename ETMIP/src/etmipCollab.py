@@ -3,7 +3,7 @@ Created on Mar 10, 2017
 
 @author: Benu Atri
 '''
-from multiprocessing import Pool, cpu_count, Manager, Semaphore
+from multiprocessing import Pool, cpu_count
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
 import cPickle as pickle
@@ -209,7 +209,7 @@ def distanceMatrix(alignment, aaDict, saveFiles=None):
     start = time.time()
     if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
        os.path.exists(saveFiles[1])):
-        valuematrix = np.load(saveFiles[0] + '.npz')['X']
+        valueMatrix = np.load(saveFiles[0] + '.npz')['X']
         keyList = pickle.load(open(saveFiles[1], 'rb'))
     else:
         keyList = sorted(alignment.keys())
@@ -228,7 +228,7 @@ def distanceMatrix(alignment, aaDict, saveFiles=None):
     end = time.time()
     print('Computing the distance matrix took {} min'.format(
         (end - start) / 60.0))
-    return valuematrix, keyList
+    return valueMatrix, keyList
 
 
 def aggClustering(nCluster, X, keyList, precomputed=False):
@@ -320,7 +320,7 @@ def wholeAnalysis(alignment, aaDict, saveFile=None):
         # generate an MI matrix for each cluster
         miMatrix = np.zeros((seqLength, seqLength))
         # Vector of 1 column
-        MMI = np.zeros(seq_length)
+        MMI = np.zeros(seqLength)
         apcMatrix = np.zeros((seqLength, seqLength))
         mipMatrix = np.zeros((seqLength, seqLength))
         # Create matrix converting sequences of amino acids to sequences of integers
@@ -493,7 +493,7 @@ def poolInit(a, seqDists, sK, fAD):
     fAD: dictionary
         A corrected dictionary mapping sequence ids to sequences.
     '''
-    global aa_dict
+    global aaDict
     aaDict = a
     global X
     X = seqDists
@@ -535,14 +535,14 @@ def etMIPWorker(inTup):
         newAlignment = {}
         for key in clusterDict[c]:
             newAlignment[key] = fixedAlignment[key]
-        clusteredMIP_matrix = wholeAnalysis(newAlignment, aaDict)
+        clusteredMIPMatrix = wholeAnalysis(newAlignment, aaDict)
         if(resMatrix is None):
             resMatrix = clusteredMIPMatrix
         else:
             resMatrix += clusteredMIPMatrix
     end = time.time()
     timeElapsed = end - start
-    print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
+    print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
     return clus, resMatrix, timeElapsed
 
 
@@ -567,7 +567,7 @@ def poolInit2(c, PDBRL, sPDBD):
     '''
     global cutoff
     cutoff = c
-    global PDBresidueList
+    global pdbResidueList
     pdbResidueList = PDBRL
     global sortedPDBDist
     sortedPDBDist = sPDBD
