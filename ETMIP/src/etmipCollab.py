@@ -834,36 +834,52 @@ if __name__ == '__main__':
     # Perform multiprocessing of clustering method
     ###########################################################################
     clusters = [2, 3, 5, 7, 10, 25]
-    pool = Pool(processes=processes, initializer=poolInit, initargs=(
-        aa_dict, X, sequence_order, fixed_alignment_dict))
-    res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
-    pool.close()
-    pool.join()
-    res1 = res1.get()
     resMats = {}
     resTimes = {}
-    for r in res1:
-        resMats[r[0]] = r[1]
-        resTimes[r[0]] = r[2]
-    pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
-        args['threshold'][0], PDBresidueList, sortedPDBDist))
+    if(processes == 1):
+        poolInit(aa_dict, X, sequence_order, fixed_alignment_dict)
+        for c in clusters:
+            clus, mat, times = etMIPWorker((c,))
+            resMats[clus] = mat
+            resTimes[clus] = times
+    else:
+        pool = Pool(processes=processes, initializer=poolInit, initargs=(
+            aa_dict, X, sequence_order, fixed_alignment_dict))
+        res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
+        pool.close()
+        pool.join()
+        es1 = res1.get()
+        for r in res1:
+            resMats[r[0]] = r[1]
+            resTimes[r[0]] = r[2]
     summedMatrices = [np.zeros(wholeMIP_Matrix.shape)] * len(clusters)
     for i in range(len(clusters)):
         summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
         for j in range(0, i):
             summedMatrices[i] += resMats[clusters[j]]
-    res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
-                                          for i in range(len(clusters))])
-    pool2.close()
-    pool2.join()
-    res2 = res2.get()
     resCoverage = {}
     resScorePos = {}
     resAUCROC = {}
-    for r in res2:
-        resCoverage[r[0]] = r[1]
-        resScorePos[r[0]] = r[2]
-        resAUCROC[r[0]] = r[3:]
+    if(processes == 1):
+        for i in range(len(clusters)):
+            poolInit2(args['threshold'][0], PDBresidueList, sortedPDBDist)
+            clus, coverage, score, auc, fpr, tpr = etMIPWorker2(clusters[i],
+                                                                summedMatrices[i])
+            resCoverage[clus] = coverage
+            resScorePos[clsu] = score
+            resAUCROC[clus] = (auc, fpr, tpr)
+    else:
+        pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
+            args['threshold'][0], PDBresidueList, sortedPDBDist))
+        res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
+                                              for i in range(len(clusters))])
+        pool2.close()
+        pool2.join()
+        res2 = res2.get()
+        for r in res2:
+            resCoverage[r[0]] = r[1]
+            resScorePos[r[0]] = r[2]
+            resAUCROC[r[0]] = r[3:]
     outDict = {}
     for c in clusters:
         plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
