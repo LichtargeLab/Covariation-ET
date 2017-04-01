@@ -11,139 +11,150 @@ import cProfile
 
 class Test(unittest.TestCase):
 
-    #     def testAlignmentImport(self):
-    #         #testFile = '../Input/1c17A.fa'
-    #         testFile = '../Input/1h1vA.fa'
-    #         AD = import_alignment(testFile)
-    #         newRes = importAlignment(open(testFile, 'rb'))
-    #         self.assertEqual(len(AD), len(newRes),
-    #                          'Different numbers of elements')
-    #         for key in AD:
-    #             self.assertEqual(AD[key], newRes[key], 'Line not equal: {}, {}, {}'.format(
-    #                 key, AD[key], newRes[key]))
+    def testAlignmentImport(self):
+        #testFile = '../Input/1c17A.fa'
+        #testFile = '../Input/1h1vA.fa'
+        testFile = '../Input/3q05A.fa'
+        AD = import_alignment(testFile)
+        newRes = importAlignment(open(testFile, 'rb'))
+        self.assertEqual(len(AD), len(newRes),
+                         'Different numbers of elements')
+        for key in AD:
+            self.assertEqual(AD[key], newRes[key], 'Line not equal: {}, {}, {}'.format(
+                key, AD[key], newRes[key]))
 
-    #     def testRemoveGaps(self):
-    #         #testFile = '../Input/1c17A.fa'
-    #         #query = '1c17A'
-    #         testFile = '../Input/1h1vA.fa'
-    #         query = '1h1vA'
-    #         AD = import_alignment(testFile)
-    #         newAD = importAlignment(open(testFile, 'rb'))
-    #         qn1, nad1 = remove_gaps(AD)
-    #         qn2, nad2 = removeGaps(newAD, query)
-    #         self.assertEqual(qn1, qn2, 'Queries not equal')
-    #         self.assertEqual(len(nad1), len(nad2), 'Different numbers of elements')
-    #         for key in nad1:
-    #             self.assertEqual(nad1[key], nad2[key], 'Uneven removal: {}, {}, {}'.format(
-    #                 key, nad1[key], nad2[key]))
+    def testRemoveGaps(self):
+        #testFile = '../Input/1c17A.fa'
+        #query = '1c17A'
+        #testFile = '../Input/1h1vA.fa'
+        #query = '1h1vA'
+        testFile = '../Input/3q05A.fa'
+        query = '3q05A'
+        AD = import_alignment(testFile)
+        newAD = importAlignment(open(testFile, 'rb'))
+        qn1, nad1 = remove_gaps(AD)
+        qn2, nad2 = removeGaps(newAD, query)
+        self.assertEqual(qn1, qn2, 'Queries not equal')
+        self.assertEqual(len(nad1), len(nad2), 'Different numbers of elements')
+        for key in nad1:
+            self.assertEqual(nad1[key], nad2[key], 'Uneven removal:\n{}\n{}\n{}'.format(
+                key, nad1[key], nad2[key]))
 
-    #     def testDistanceMatrix(self):
-    #         #testFile = '../Input/1c17A.fa'
-    #         #query = '1c17A'
-    #         testFile = '../Input/1h1vA.fa'
-    #         query = '1h1vA'
-    #         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-    #                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-    #         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #         AD = import_alignment(testFile)
-    #         newAD = importAlignment(open(testFile, 'rb'))
-    #         _qn1, nad1 = remove_gaps(AD)
-    #         _qn2, nad2 = removeGaps(newAD, query)
-    #         vm1, kl1 = distance_matrix(nad1)
-    #         vm2, kl2 = distanceMatrix(nad2, aa_dict)
-    #         self.assertEqual(len(kl1), len(kl2), 'Key list lengths differ')
-    #         for e in kl1:
-    #             self.assertTrue(
-    #                 e in kl2, 'Element not in both lists: {}'.format(e))
-    #         self.assertEqual(vm1.shape, vm2.shape, 'Matrix dimensions differ')
-    #         for i in range(vm1.shape[0]):
-    #             for j in range(vm2.shape[1]):
-    #                 self.assertEqual(vm1[i, j], vm2[i, j],
-    #                                  'Elements different: {}, {}'.format(vm1[i, j], vm2[i, j]))
+    def testDistanceMatrix(self):
+        #testFile = '../Input/1c17A.fa'
+        #query = '1c17A'
+        #testFile = '../Input/1h1vA.fa'
+        #query = '1h1vA'
+        testFile = '../Input/3q05A.fa'
+        query = '3q05A'
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+                   'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        AD = import_alignment(testFile)
+        newAD = importAlignment(open(testFile, 'rb'))
+        _qn1, nad1 = remove_gaps(AD)
+        _qn2, nad2 = removeGaps(newAD, query)
+        vm1, kl1 = distance_matrix(nad1)
+        vm2, kl2 = distanceMatrix(nad2, aa_dict)
+        self.assertEqual(len(kl1), len(kl2), 'Key list lengths differ')
+        for e in kl1:
+            self.assertTrue(
+                e in kl2, 'Element not in both lists: {}'.format(e))
+        self.assertEqual(vm1.shape, vm2.shape, 'Matrix dimensions differ')
+        for i in range(vm1.shape[0]):
+            for j in range(vm2.shape[1]):
+                self.assertEqual(vm1[i, j], vm2[i, j],
+                                 'Elements different: {}, {}'.format(vm1[i, j], vm2[i, j]))
 
-    #     def testAggClustering(self):
-    #         #testFile = '../Input/1c17A.fa'
-    #         #query = '1c17A'
-    #         testFile = '../Input/1h1vA.fa'
-    #         query = '1h1vA'
-    #         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-    #                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-    #         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #         AD = import_alignment(testFile)
-    #         newAD = importAlignment(open(testFile, 'rb'))
-    #         _qn1, nad1 = remove_gaps(AD)
-    #         _qn2, nad2 = removeGaps(newAD, query)
-    #         vm1, _kl1 = distance_matrix(nad1)
-    #         vm2, kl2 = distanceMatrix(nad2, aa_dict)
-    #         cd1, g1 = agg_clustering(2, vm1, nad1, precomputed=True)
-    #         cd2, g2 = aggClustering(2, vm2, kl2, precomputed=True)
-    #         self.assertEqual(g1, g2, 'Cluster sets are not identical')
-    #         self.assertEqual(len(cd1), len(cd2),
-    #                          'Cluster dictionaries differ in size')
-    #         queryKey = '>query_1c17A'
-    #         c0_1 = None
-    #         c0_2 = None
-    #         c1_1 = None
-    #         c1_2 = None
-    #         for key in cd1:
-    #             if(queryKey in cd1[key]):
-    #                 c0_1 = sorted(cd1[key])
-    #             else:
-    #                 c1_1 = sorted(cd1[key])
-    #             if(queryKey in cd2[key]):
-    #                 c0_2 = sorted(cd2[key])
-    #             else:
-    #                 c1_2 = sorted(cd2[key])
-    #         self.assertEqual(c0_1, c0_2, 'Cluster 0 does not match:\n{}\n{}'.format(
-    #             c0_1, c0_2))
-    #         self.assertEqual(c1_1, c1_2, 'Cluster 1 does not match:\n{}\n{}'.format(
-    #             c1_1, c1_2))
+    def testAggClustering(self):
+        #testFile = '../Input/1c17A.fa'
+        #query = '1c17A'
+        #testFile = '../Input/1h1vA.fa'
+        #query = '1h1vA'
+        testFile = '../Input/3q05A.fa'
+        query = '3q05A'
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+                   'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        AD = import_alignment(testFile)
+        newAD = importAlignment(open(testFile, 'rb'))
+        _qn1, nad1 = remove_gaps(AD)
+        _qn2, nad2 = removeGaps(newAD, query)
+        vm1, _kl1 = distance_matrix(nad1)
+        vm2, kl2 = distanceMatrix(nad2, aa_dict)
+        cd1, g1 = agg_clustering(2, vm1, nad1, precomputed=True)
+        cd2, g2 = aggClustering(2, vm2, kl2, precomputed=True)
+        self.assertEqual(g1, g2, 'Cluster sets are not identical')
+        self.assertEqual(len(cd1), len(cd2),
+                         'Cluster dictionaries differ in size')
+        queryKey = '>query_1c17A'
+        c0_1 = None
+        c0_2 = None
+        c1_1 = None
+        c1_2 = None
+        for key in cd1:
+            if(queryKey in cd1[key]):
+                c0_1 = sorted(cd1[key])
+            else:
+                c1_1 = sorted(cd1[key])
+            if(queryKey in cd2[key]):
+                c0_2 = sorted(cd2[key])
+            else:
+                c1_2 = sorted(cd2[key])
+        self.assertEqual(c0_1, c0_2, 'Cluster 0 does not match:\n{}\n{}'.format(
+            c0_1, c0_2))
+        self.assertEqual(c1_1, c1_2, 'Cluster 1 does not match:\n{}\n{}'.format(
+            c1_1, c1_2))
 
-    #     def testAlignment2Num(self):
-    #         #testFile = '../Input/1c17A.fa'
-    #         #query = '1c17A'
-    #         testFile = '../Input/1h1vA.fa'
-    #         query = '1h1vA'
-    #         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
-    #                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-    #         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #         AD = {}
-    #         files = open(testFile, "r")
-    #         for line in files:
-    #             if line.startswith(">"):
-    #                 if "query" in line.lower():
-    #                     _query_desc = line
-    #                 key = line.rstrip()
-    #                 AD[key] = ''
-    #             else:
-    #                 AD[key] = AD[key] + line.rstrip()
-    #         _qn1, nad1 = remove_gaps(AD)
-    #         alignment2Num = []
-    #         for key in sorted(nad1.keys()):
-    #             seq2Num = []
-    #             for idc, c in enumerate(nad1[key]):
-    #                 seq2Num.append(aa_list.index(c))
-    #             alignment2Num.append(seq2Num)
-    #         newAD = importAlignment(open(testFile, 'rb'))
-    #         _qn2, nad2 = removeGaps(newAD, query)
-    #         key_list2 = sorted(nad2.keys())
-    #         mat2 = alignment2num(
-    #             nad2, key_list2, len(nad2[nad2.keys()[0]]), aa_dict)
-    #         self.assertEqual((len(alignment2Num), len(alignment2Num[0])),
-    #                          mat2.shape, 'Sizes differ: {} vs {}'.format(
-    #                              (len(alignment2Num), len(alignment2Num[0])),
-    #                              mat2.shape))
-    #         for i in range(len(alignment2Num)):
-    #             for j in range(len(alignment2Num[0])):
-    #                 self.assertEqual(alignment2Num[i][j], mat2[i, j],
-    #                                  'Positions differ: ({},{}): {} vs {}'.format(
-    # i, j, alignment2Num[i][j], mat2[i, j]))
+    def testAlignment2Num(self):
+        #testFile = '../Input/1c17A.fa'
+        #query = '1c17A'
+        #testFile = '../Input/1h1vA.fa'
+        #query = '1h1vA'
+        testFile = '../Input/3q05A.fa'
+        query = '3q05A'
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+                   'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        AD = {}
+        files = open(testFile, "r")
+        for line in files:
+            if line.startswith(">"):
+                if "query" in line.lower():
+                    _query_desc = line
+                key = line.rstrip()
+                AD[key] = ''
+            else:
+                AD[key] = AD[key] + line.rstrip()
+        _qn1, nad1 = remove_gaps(AD)
+        alignment2Num = []
+        for key in sorted(nad1.keys()):
+            seq2Num = []
+            for idc, c in enumerate(nad1[key]):
+                seq2Num.append(aa_list.index(c))
+            alignment2Num.append(seq2Num)
+        newAD = importAlignment(open(testFile, 'rb'))
+        _qn2, nad2 = removeGaps(newAD, query)
+        key_list2 = sorted(nad2.keys())
+        mat2 = alignment2num(
+            nad2, key_list2, len(nad2[nad2.keys()[0]]), aa_dict)
+        self.assertEqual((len(alignment2Num), len(alignment2Num[0])),
+                         mat2.shape, 'Sizes differ: {} vs {}'.format(
+                             (len(alignment2Num), len(alignment2Num[0])),
+                             mat2.shape))
+        for i in range(len(alignment2Num)):
+            for j in range(len(alignment2Num[0])):
+                self.assertEqual(alignment2Num[i][j], mat2[i, j],
+                                 'Positions differ: ({},{}): {} vs {}'.format(
+                    i, j, alignment2Num[i][j], mat2[i, j]))
 
     def testWholeAnalysis(self):
         #testFile = '../Input/1c17A.fa'
         #query = '1c17A'
-        testFile = '../Input/1h1vA.fa'
-        query = '1h1vA'
+        #testFile = '../Input/1h1vA.fa'
+        #query = '1h1vA'
+        testFile = '../Input/3q05A.fa'
+        query = '3q05A'
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                    'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}

@@ -126,9 +126,9 @@ def removeGaps(alignment, query, saveFile=None):
             newAlignment = {}
             for key, value in alignment.iteritems():
                 newAlignment[key] = value[0:queryGapInd[0]]
-                for i in range(1, len(queryGapInd) - 1):
-                    newAlignment[key] += value[queryGapInd[i] + 1:
-                                               queryGapInd[i + 1]]
+                for i in range(1, len(queryGapInd)):
+                    newAlignment[key] += value[queryGapInd[i - 1] + 1:
+                                               queryGapInd[i]]
                 newAlignment[key] += value[queryGapInd[-1] + 1:]
         else:
             newAlignment = alignment
@@ -575,9 +575,9 @@ def poolInit2(c, PDBRL, sPDBD):
 
 def etMIPWorker2(inTup):
     '''
-    ETMIP Worker
+    ETMIP Worker 2
 
-    Performs clustering and calculation ofcluster dependent sequence distances.
+    Performs clustering and calculation of cluster dependent sequence distances.
     This function requires initialization of threads with poolInit, or setting
     of global variables as described in that function.
 
@@ -823,11 +823,9 @@ if __name__ == '__main__':
     # Set up for remaining analysis
     ###########################################################################
     seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
-    # pdbData = importPDB(pdbfilename, 'pdbData.pkl')
-    residuedictionary, PDBresidueList, ResidueDict = importPDB(
+    residuedictionary, pdbResidueList, ResidueDict = importPDB(
         pdbfilename, 'pdbData.pkl')
-    # PDBresidueList, ResiduesDict, sortedPDBDist = findDistance(
-    sortedPDBDist = findDistance(residuedictionary, PDBresidueList,
+    sortedPDBDist = findDistance(residuedictionary, pdbResidueList,
                                  'PDBdistances')
     #   pdbData, ('PDBdist.pkl', 'PDBdistances'))
     ###########################################################################
@@ -848,7 +846,7 @@ if __name__ == '__main__':
         res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
         pool.close()
         pool.join()
-        es1 = res1.get()
+        res1 = res1.get()
         for r in res1:
             resMats[r[0]] = r[1]
             resTimes[r[0]] = r[2]
@@ -862,12 +860,11 @@ if __name__ == '__main__':
     resAUCROC = {}
     if(processes == 1):
         for i in range(len(clusters)):
-            poolInit2(args['threshold'][0], PDBresidueList, sortedPDBDist)
-            clus, coverage, score, auc, fpr, tpr = etMIPWorker2(clusters[i],
-                                                                summedMatrices[i])
-            resCoverage[clus] = coverage
-            resScorePos[clsu] = score
-            resAUCROC[clus] = (auc, fpr, tpr)
+            poolInit2(args['threshold'][0], pdbResidueList, sortedPDBDist)
+            r = etMIPWorker2((clusters[i], summedMatrices[i]))
+            resCoverage[r[0]] = r[1]
+            resScorePos[r[0]] = r[2]
+            resAUCROC[r[0]] = r[3:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
             args['threshold'][0], PDBresidueList, sortedPDBDist))
@@ -886,7 +883,7 @@ if __name__ == '__main__':
                 args['query'][0], c, today, args['threshold'][0])
         writeOutClusteringResults(today, args['query'][0], args['threshold'][0],
                                   c, resScorePos[c], resCoverage[c],
-                                  sortedPDBDist, PDBresidueList, ResidueDict)
+                                  sortedPDBDist, pdbResidueList, ResidueDict)
         outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, round(resAUCROC[c][2], 2),
                                                 round(resTimes[c], 2))
     writeFinalResults(args['query'][0], today, sequence_order,

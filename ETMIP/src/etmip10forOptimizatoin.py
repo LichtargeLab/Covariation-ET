@@ -415,7 +415,6 @@ if __name__ == '__main__':
         etmipResScoreList = []
         forOutputCoverageList = []
         etmiplistCoverage = []
-
         for i in range(0, len(sorted_res_list)):
             for j in range(0, len(sorted_res_list)):
                 if i >= j:
