@@ -867,7 +867,7 @@ if __name__ == '__main__':
             resAUCROC[r[0]] = r[3:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
-            args['threshold'][0], PDBresidueList, sortedPDBDist))
+            args['threshold'][0], pdbResidueList, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
                                               for i in range(len(clusters))])
         pool2.close()
