@@ -341,6 +341,7 @@ print str(sys.argv[4]), len(sequence_order), str(seq_length)
 
 ls = [2, 3, 5, 7, 10, 25]
 for clus in ls:
+    clusterStart = time.time()
     # print "starting clustering"
     e = "../Output/" + str(today) + "/" + str(
         sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
@@ -435,7 +436,8 @@ for clus in ls:
     fpr1, tpr1, thresholds1 = roc_curve(y_true1, y_score1, pos_label=1)
     roc_auc1 = auc(fpr1, tpr1)
     # print "Area under the ROC curve : %f" % roc_auc1, sys.argv[1]
-    time_elapsed = (time.clock() - time_start)
+    time_elapsed = (time.time() - clusterStart)
+#     time_elapsed = (time.clock() - time_start)
     output = "\t{0}\t{1}\t{2}\n".format(
         str(clus), round(roc_auc1, 2), round(time_elapsed, 2))
     outfile.write(output)
