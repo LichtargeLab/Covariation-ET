@@ -9,27 +9,11 @@ import os
 import math
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-import numpy as np
-from subprocess import call
 from sklearn.cluster import AgglomerativeClustering
-import argparse
-#from Bio.PDB import *
-import operator
 import sys
 import time
-from subprocess import Popen, PIPE
-from sys import stdin
-from math import exp
-from collections import Counter
 import pylab as pl
-from sklearn import svm, datasets
-from sklearn.utils import shuffle
-from sklearn.metrics import roc_curve, auc, mutual_info_score, normalized_mutual_info_score
-from operator import itemgetter
-import matplotlib.pyplot as plt
-from pylab import *
+from sklearn.metrics import roc_curve, auc, mutual_info_score
 import datetime
 
 
@@ -39,8 +23,6 @@ def import_alignment(filename):
     alignment_dict = {}
     for line in files:
         if line.startswith(">"):
-            if "query" in line.lower():
-                query_desc = line
             key = line.rstrip()
             alignment_dict[key] = ''
         else:
@@ -55,14 +37,14 @@ def remove_gaps(alignment_dict):
     # Getting gapped columns for query
     gap = ['-', '.', '_']
     query_gap_index = []
-    for key, value in alignment_dict.iteritems():
+    for key, _value in alignment_dict.iteritems():
         if "query" in key.lower():
             query_name = key
             for idc, char in enumerate(alignment_dict[key]):
                 if char in gap:
                     query_gap_index.append(idc)
     new_alignment_dict = {}
-    for key, value in alignment_dict.iteritems():
+    for key, _value in alignment_dict.iteritems():
         new_alignment_dict[key] = ''
         for idc, char in enumerate(alignment_dict[key]):
             if idc in query_gap_index:
@@ -83,18 +65,14 @@ def distance_matrix(alignment_dict):
 
     for key in alignment_dict:  # {seqid} = sequence
         for key2 in alignment_dict:
-            sum = 0.0
+            sumDist = 0.0
             if key > key2:
-                for idc, char in enumerate(alignment_dict[key]):
+                for idc, _char in enumerate(alignment_dict[key]):
 
                     if (alignment_dict[key][idc] == alignment_dict[key2][idc]):
-                        # print alignment_dict[key][idc],
-                        # alignment_dict[key2][idc]
-                        sum += 1.0
+                        sumDist += 1.0
                 newkey = key + "_" + key2
-                # (# of identical positions) / (aligned positions)
-                seq_identity = (sum / seq_length)
-                # {seq1_seq2} = distancescore
+                seq_identity = (sumDist / seq_length)
                 pairwise_dist_score[newkey] = seq_identity
 
     valuematrix = np.zeros([len(alignment_dict), len(alignment_dict)])
@@ -131,7 +109,7 @@ def whole_analysis(alignment, aa_list):
 
     for key in alignment:
         seq2Num = []
-        for idc, c in enumerate(alignment[key]):
+        for _idc, c in enumerate(alignment[key]):
             seq2Num.append(aa_list.index(c))
         alignment2Num.append(seq2Num)
 
@@ -212,7 +190,6 @@ def agg_clustering(n_cluster, X, alignment_dict, precomputed=False):
 
 
 def import_pdb(filename):
-    file = open(filename)
     rows = []
     for line in file:  # for a line in the pdb
         if line[0:5] == 'ATOM ':
@@ -230,20 +207,11 @@ def find_distance(filename):  # takes PDB
     ##########################################################################
     ##########################################################################
     minvalue = 10000000000
-    FileValue = 0
-    originlist = []
-    loopcounter = 0
-    Resnumarraynew = []
-    loopcounter1 = 0
     rows = import_pdb(filename)
-    loop1var = rows[-1][23:26].strip()  # number of residues
-    # print("loop1var",loop1var)
-    # raw_input()
     residuedictionary = {}
 
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
-    resatomlist = []
     PDBresidueList = []
     ResidueDict = {}
     for i, selectline in enumerate(rows):
@@ -260,22 +228,15 @@ def find_distance(filename):  # takes PDB
             residuedictionary[resnumdict] = [resatomlisttemp]
             PDBresidueList.append(resnumdict)
             ResidueDict[resnumdict] = resname
-    # print PDBresidueList
-    # print("residuedictionary",ResidueDict)
-    # raw_input()
     '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
     '''print(residuedictionary)'''
-    arrminval = []
 
     distancedict = {}
     for i in PDBresidueList:  # Loop over all residues in the pdb
-        Dmatrixsumarr = []
-        resnumnew = PDBresidueList[int(i):]
         # Loop over residues to calculate distance between all residues i and j
         for j in PDBresidueList:
             matvalue = []
             tempvalue = ()
-            minvaluetemp = []
             loopcount1 = 0
 
             for k in range(0, len(residuedictionary[i])):
@@ -309,7 +270,6 @@ def find_distance(filename):  # takes PDB
             distancedict[key] = minvalue
     end = time.time()
     print('Old pdb dist computation took {} min'.format((end - start) / 60.0))
-    # print distancedict
     return distancedict, PDBresidueList, ResidueDict
 
 
