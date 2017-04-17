@@ -214,7 +214,7 @@ def find_distance(filename):  # takes PDB
 
     # create dictionary of every atom in each individual residue. 3
     # Dimensional coordinates of each residue position
-    resatomlist = []
+#     resatomlist = []
     PDBresidueList = []
     ResidueDict = {}
     for i, selectline in enumerate(rows):
