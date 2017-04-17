@@ -191,7 +191,8 @@ def agg_clustering(n_cluster, X, alignment_dict, precomputed=False):
 
 def import_pdb(filename):
     rows = []
-    for line in file:  # for a line in the pdb
+    fileHandle = open(filename, 'rb')
+    for line in fileHandle:  # for a line in the pdb
         if line[0:5] == 'ATOM ':
             try:
                 rows.append(line)
