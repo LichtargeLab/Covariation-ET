@@ -71,17 +71,17 @@ def distance_matrix(alignment_dict):
 
     for key in alignment_dict:  # {seqid} = sequence
         for key2 in alignment_dict:
-            sum = 0.0
+            sumDist = 0.0
             if key > key2:
                 for idc, char in enumerate(alignment_dict[key]):
 
                     if (alignment_dict[key][idc] == alignment_dict[key2][idc]):
                         # print alignment_dict[key][idc],
                         # alignment_dict[key2][idc]
-                        sum += 1.0
+                        sumDist += 1.0
                 newkey = key + "_" + key2
                 # (# of identical positions) / (aligned positions)
-                seq_identity = (sum / seq_length)
+                seq_identity = (sumDist / seq_length)
                 # {seq1_seq2} = distancescore
                 pairwise_dist_score[newkey] = seq_identity
 
