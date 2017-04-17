@@ -44,7 +44,7 @@ def remove_gaps(alignment_dict):
     # Getting gapped columns for query
     gap = ['-', '.', '_']
     query_gap_index = []
-    for key, value in alignment_dict.iteritems():
+    for key, _value in alignment_dict.iteritems():
         if "query" in key.lower():
             query_name = key
             for idc, char in enumerate(alignment_dict[key]):
@@ -52,7 +52,7 @@ def remove_gaps(alignment_dict):
                     query_gap_index.append(idc)
 
     new_alignment_dict = {}
-    for key, value in alignment_dict.iteritems():
+    for key, _value in alignment_dict.iteritems():
         new_alignment_dict[key] = ''
         for idc, char in enumerate(alignment_dict[key]):
             if idc in query_gap_index:
@@ -116,7 +116,7 @@ def wholeAnalysis(alignment):
 
     for key in alignment:
         seq2Num = []
-        for idc, c in enumerate(alignment[key]):
+        for _idc, c in enumerate(alignment[key]):
             seq2Num.append(aa_list.index(c))
         alignment2Num.append(seq2Num)
 
