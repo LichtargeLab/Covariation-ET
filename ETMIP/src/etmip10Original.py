@@ -236,16 +236,16 @@ def find_distance(filename):  # takes PDB
     # raw_input()
     '''Loops for comparing one residues atoms to a second list of atoms in seperate residue'''
     '''print(residuedictionary)'''
-    arrminval = []
+#    arrminval = []
 
     distancedict = {}
     for i in PDBresidueList:  # Loop over all residues in the pdb
-        Dmatrixsumarr = []
-        resnumnew = PDBresidueList[int(i):]
+        #        Dmatrixsumarr = []
+        #        resnumnew = PDBresidueList[int(i):]
         for j in PDBresidueList:  # Loop over residues to calculate distance between all residues i and j
             matvalue = []
             tempvalue = ()
-            minvaluetemp = []
+#            minvaluetemp = []
             loopcount1 = 0
 
             for k in range(0, len(residuedictionary[i])):
