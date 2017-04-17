@@ -604,6 +604,7 @@ def etMIPWorker2(inTup):
         The ROCAUC value for this clustering.
     '''
     clus, summedMatrix = inTup
+    start = time.time()
     scorePositions = []
     etmipResScoreList = []
     for i in range(0, len(pdbResidueList)):
@@ -628,7 +629,11 @@ def etMIPWorker2(inTup):
     fpr, tpr, _thresholds = roc_curve(y_true1, etmiplistCoverage,
                                       pos_label=1)
     roc_auc = auc(fpr, tpr)
-    return clus, etmiplistCoverage, scorePositions, fpr, tpr, roc_auc
+    end = time.time()
+    timeElapsed = end - start
+    print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
+    return (clus, etmiplistCoverage, scorePositions, timeElapsed, fpr, tpr,
+            roc_auc)
 
 
 def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
@@ -864,7 +869,8 @@ if __name__ == '__main__':
             r = etMIPWorker2((clusters[i], summedMatrices[i]))
             resCoverage[r[0]] = r[1]
             resScorePos[r[0]] = r[2]
-            resAUCROC[r[0]] = r[3:]
+            resTimes[r[0]] += r[3]
+            resAUCROC[r[0]] = r[4:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
             args['threshold'][0], pdbResidueList, sortedPDBDist))
@@ -876,14 +882,19 @@ if __name__ == '__main__':
         for r in res2:
             resCoverage[r[0]] = r[1]
             resScorePos[r[0]] = r[2]
-            resAUCROC[r[0]] = r[3:]
+            resTimes[r[0]] += r[3]
+            resAUCROC[r[0]] = r[4:]
     outDict = {}
     for c in clusters:
+        cStart = time.time()
         plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
                 args['query'][0], c, today, args['threshold'][0])
         writeOutClusteringResults(today, args['query'][0], args['threshold'][0],
                                   c, resScorePos[c], resCoverage[c],
                                   sortedPDBDist, pdbResidueList, ResidueDict)
+        cEnd = time.time()
+        timeElapsed = cEnd - cStart
+        resTimes[c] += timeElapsed
         outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, round(resAUCROC[c][2], 2),
                                                 round(resTimes[c], 2))
     writeFinalResults(args['query'][0], today, sequence_order,
