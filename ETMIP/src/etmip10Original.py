@@ -193,20 +193,20 @@ def find_distance(filename):  # takes PDB
     ##########################################################################
     ##########################################################################
     minvalue = 10000000000
-    FileValue = 0
-    originlist = []
-    file = open(filename)
+#     FileValue = 0
+#     originlist = []
+    fileHandle = open(filename)
     rows = []
     loopcounter = 0
     Resnumarraynew = []
     loopcounter1 = 0
-    for line in file:  # for a line in the pdb
+    for line in fileHandle:  # for a line in the pdb
         if line[0:5] == 'ATOM ':
             try:
                 rows.append(line)
             except Exception:
                 rows = line
-    file.close()
+    fileHandle.close()
     loop1var = rows[-1][23:26].strip()  # number of residues
     # print("loop1var",loop1var)
     # raw_input()
