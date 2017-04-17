@@ -293,7 +293,7 @@ for line in files:
         alignment_dict[key] = ''
     else:
         alignment_dict[key] = alignment_dict[key] + line.rstrip()
-createFolder = ("/cedar/atri/projects/coupling/OutputsforETMIP_BA/" +
+createFolder = ("../Output/" +
                 str(today) + "/" + str(sys.argv[4]))
 
 if not os.path.exists(createFolder):
@@ -312,7 +312,7 @@ pdbfilename = sys.argv[2].strip()
 
 time_start = time.clock()
 
-o = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+o = "../Output/" + str(today) + "/" + str(
     sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(today) + "etmipAUC_results.txt"
 outfile = open(o, 'w+')
 proteininfo = ("Protein/id: " + str(sys.argv[4]) + " Alignment Size: " + str(len(
@@ -343,7 +343,7 @@ ls = [2, 3, 5, 7, 10, 25]
 for clus in ls:
     clusterStart = time.time()
     # print "starting clustering"
-    e = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(
+    e = "../Output/" + str(today) + "/" + str(
         sys.argv[4]) + "/" + str(sys.argv[4]) + "_" + str(clus) + "_" + str(today) + ".etmipCVG.clustered.txt"
     etmipoutfile = open("{0}".format(e), "w+")
 #     setoffiles.append(e)
@@ -454,7 +454,7 @@ for clus in ls:
     pl.title(title)
     pl.legend(loc="lower right")
     # pl.show()
-    imagename = "/cedar/atri/projects/coupling/OutputsforETMIP_BA/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
+    imagename = "../Output/" + str(today) + "/" + str(sys.argv[4]) + "/" + str(
         sys.argv[4]) + str(int(cutoff)) + "A_C" + str(clus) + "_" + str(today) + "roc.eps"  # change here
     pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
 print "Generated results in", createFolder
