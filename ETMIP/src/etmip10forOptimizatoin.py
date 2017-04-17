@@ -198,7 +198,7 @@ def import_pdb(filename):
                 rows.append(line)
             except Exception:
                 rows = line
-    file.close()
+    fileHandle.close()
     return rows
 
 
