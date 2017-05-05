@@ -35,16 +35,16 @@ def parseArguments():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--alignment', metavar='A', type=str, nargs=1,
                         help='The file path to the alignment to analyze in this run.')
-    parser.add_argument('--pdb', metavar='P', type=str, nargs=1,
+    parser.add_argument('--pdb', metavar='P', type=str, nargs='?',
                         help='The file path to the PDB structure associated with the provided alignment.')
     parser.add_argument('--query', metavar='Q', type=str, nargs=1,
                         help='The name of the protein being queried in this analysis.')
     parser.add_argument('--threshold', metavar='T', type=float, nargs=1,
-                        help='The distance within the molecular structure at which two residues are considered interacting.')
+                        default=8.0, help='The distance within the molecular structure at which two residues are considered interacting.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--output', metavar='O', type=str, nargs='?',
-                        default='./', help='File path to a directory where the results can be generated.')
+                        default='../Output/', help='File path to a directory where the results can be generated.')
     args = parser.parse_args()
     return vars(args)
 
@@ -468,7 +468,6 @@ def findDistance(residue3D, pdbResidueList, saveFile=None):
     end = time.time()
     print('Computing the distance matrix based on the PDB file took {} min'.format(
         (end - start) / 60.0))
-    # return PDBresidueList, ResidueDict, sortedPDBDist
     return sortedPDBDist
 
 
@@ -546,7 +545,7 @@ def etMIPWorker(inTup):
     return clus, resMatrix, timeElapsed
 
 
-def poolInit2(c, PDBRL, sPDBD):
+def poolInit2(c, seqL, PDBRL, sPDBD):
     '''
     poolInit2
 
@@ -567,6 +566,8 @@ def poolInit2(c, PDBRL, sPDBD):
     '''
     global cutoff
     cutoff = c
+    global seqLen
+    seqLen = seqL
     global pdbResidueList
     pdbResidueList = PDBRL
     global sortedPDBDist
@@ -585,7 +586,7 @@ def etMIPWorker2(inTup):
     -----------
     inTup: tuple
         Tuple containing the number of clusters to form during agglomerative
-        clustering and a matric which is the result of summing the original
+        clustering and a matrix which is the result of summing the original
         MIP matrix and the matrix resulting from clustering at this clustering
         and lower clusterings.
     Returns:
@@ -607,10 +608,9 @@ def etMIPWorker2(inTup):
     start = time.time()
     scorePositions = []
     etmipResScoreList = []
-    for i in range(0, len(pdbResidueList)):
-        for j in range(i + 1, len(pdbResidueList)):
-            newkey1 = "{}_{}".format(
-                pdbResidueList[i], pdbResidueList[j])
+    for i in range(0, seqLen):
+        for j in range(i + 1, seqLen):
+            newkey1 = "{}_{}".format(i + 1, j + 1)
             scorePositions.append(newkey1)
             etmipResScoreList.append(summedMatrix[i][j])
     etmipResScoreList = np.asarray(etmipResScoreList)
@@ -622,16 +622,22 @@ def etMIPWorker2(inTup):
                                     * 1.0) - 1) * 100) / numPos)
         etmiplistCoverage.append(computeCoverage)
     # AUC computation
-    if len(etmiplistCoverage) != len(sortedPDBDist):
+    if((sortedPDBDist is not None) and
+       (len(etmiplistCoverage) != len(sortedPDBDist))):
         print "lengths do not match"
         sys.exit()
-    y_true1 = ((sortedPDBDist <= cutoff) * 1)
-    fpr, tpr, _thresholds = roc_curve(y_true1, etmiplistCoverage,
-                                      pos_label=1)
-    roc_auc = auc(fpr, tpr)
+    if(sortedPDBDist is not None):
+        y_true1 = ((sortedPDBDist <= cutoff) * 1)
+        fpr, tpr, _thresholds = roc_curve(y_true1, etmiplistCoverage,
+                                          pos_label=1)
+        roc_auc = auc(fpr, tpr)
+    else:
+        fpr = None
+        tpr = None
+        roc_auc = None
     end = time.time()
     timeElapsed = end - start
-    print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
+    print('ETMIP worker 2 took {} min'.format(timeElapsed / 60.0))
     return (clus, etmiplistCoverage, scorePositions, timeElapsed, fpr, tpr,
             roc_auc)
 
@@ -680,8 +686,7 @@ def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
 
 
 def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-                              etmiplistCoverage, sortedPDBDist, pdbResidueList,
-                              residues3D):
+                              etmiplistCoverage, sortedPDBDist, seq):
     '''
     Write out clustering results
 
@@ -702,27 +707,37 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
         The coverage of a specific sequence comparison
     sortedPDBDist: numpy nd array
         Array of the distances between sequences, sorted by sequence indices.
-    pdbResidueList: list
-        Sorted list of residues from the PDB structure
+    seq: Str
+        The query alignment sequence.
     '''
     start = time.time()
+    convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
+                 'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
+                 'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
+                 'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
+                 'Y': 'TYR', 'V': 'VAL'}
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
     etMIPOutFile = open(e, "w+")
     counter = 0
-    for i in range(0, len(pdbResidueList)):
-        for j in range(i + 1, len(pdbResidueList)):
-            res1 = pdbResidueList[i]
-            res2 = pdbResidueList[j]
+    for i in range(0, len(seq)):
+        for j in range(i + 1, len(seq)):
+            res1 = i + 1
+            res2 = j + 1
             key = '{}_{}'.format(res1, res2)
-            if sortedPDBDist[counter] <= cutoff:
+            if(sortedPDBDist is None):
+                r = '-'
+                dist = '-'
+            elif sortedPDBDist[counter] <= cutoff:
                 r = 1
+                dist = round(sortedPDBDist[counter], 2)
             else:
                 r = 0
+                dist = round(sortedPDBDist[counter], 2)
             ind = scorePositions.index(key)
             etMIPOutputLine = '{} ({}) {} ({}) {} {} {} {}\n'.format(
-                res1, residues3D[res1], res2, residues3D[res2],
+                res1, convertAA[seq[i]], res2, convertAA[seq[j]],
                 round(etmiplistCoverage[ind], 2),
-                round(sortedPDBDist[counter], 2), r, clus)
+                dist, r, clus)
             etMIPOutFile.write(etMIPOutputLine)
             counter += 1
     etMIPOutFile.close()
@@ -773,6 +788,8 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
 if __name__ == '__main__':
     start = time.time()
     args = parseArguments()
+    print args
+    # exit()
     ###########################################################################
     # Set up global variables
     ###########################################################################
@@ -793,8 +810,10 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up input variables
     ###########################################################################
-    files = open(args['alignment'][0], 'rb')
-    pdbfilename = open(args['pdb'][0], 'rb')
+    try:
+        files = open(args['alignment'][0], 'rb')
+    except(IOError):
+        files = open(args['alignment'], 'rb')
     try:
         processes = args['processes']
         pCount = cpu_count()
@@ -806,7 +825,10 @@ if __name__ == '__main__':
     # Set up output location
     ###########################################################################
     startDir = os.getcwd()
-    createFolder = (args['output'] + str(today) + "/" + args['query'][0])
+    try:
+        createFolder = (args['output'] + str(today) + "/" + args['query'])
+    except:
+        createFolder = (args['output'] + str(today) + "/" + args['query'][0])
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
@@ -816,9 +838,16 @@ if __name__ == '__main__':
     # Import alignment information: this will be our alignment
     alignment_dict = importAlignment(files, 'alignment_dict.pkl')
     # Remove gaps from aligned query sequences
-    query_name, fixed_alignment_dict = removeGaps(alignment_dict,
-                                                  args['query'][0],
-                                                  'ungapped_alignment.pkl')
+    try:
+        query_name, fixed_alignment_dict = removeGaps(alignment_dict,
+                                                      args['query'][0],
+                                                      'ungapped_alignment.pkl')
+    except(KeyError):
+        query_name, fixed_alignment_dict = removeGaps(alignment_dict,
+                                                      args['query'],
+                                                      'ungapped_alignment.pkl')
+    query_sequence = fixed_alignment_dict[query_name]
+    seq_length = len(query_sequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distanceMatrix(fixed_alignment_dict, aa_dict,
                                        ('X', 'seq_order.pkl'))
@@ -827,12 +856,19 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################
-    seq_length = len(fixed_alignment_dict[fixed_alignment_dict.keys()[0]])
-    residuedictionary, pdbResidueList, ResidueDict = importPDB(
-        pdbfilename, 'pdbData.pkl')
-    sortedPDBDist = findDistance(residuedictionary, pdbResidueList,
-                                 'PDBdistances')
-    #   pdbData, ('PDBdist.pkl', 'PDBdistances'))
+    if(args['pdb']):
+        print(os.getcwd())
+        os.chdir(startDir)
+        pdbfilename = open(args['pdb'], 'rb')
+        os.chdir(createFolder)
+        residuedictionary, pdbResidueList, ResidueDict = importPDB(
+            pdbfilename, 'pdbData.pkl')
+        sortedPDBDist = findDistance(residuedictionary, pdbResidueList,
+                                     'PDBdistances')
+    else:
+        pdbResidueList = None
+        ResidueDict = None
+        sortedPDBDist = None
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
@@ -865,15 +901,26 @@ if __name__ == '__main__':
     resAUCROC = {}
     if(processes == 1):
         for i in range(len(clusters)):
-            poolInit2(args['threshold'][0], pdbResidueList, sortedPDBDist)
+            try:
+                poolInit2(args['threshold'][0], seq_length, pdbResidueList,
+                          sortedPDBDist)
+            except(TypeError):
+                poolInit2(args['threshold'], seq_length, pdbResidueList,
+                          sortedPDBDist)
             r = etMIPWorker2((clusters[i], summedMatrices[i]))
             resCoverage[r[0]] = r[1]
             resScorePos[r[0]] = r[2]
             resTimes[r[0]] += r[3]
             resAUCROC[r[0]] = r[4:]
     else:
-        pool2 = Pool(processes=processes, initializer=poolInit2, initargs=(
-            args['threshold'][0], pdbResidueList, sortedPDBDist))
+        try:
+            pool2 = Pool(processes=processes, initializer=poolInit2,
+                         initargs=(args['threshold'][0], seq_length,
+                                   pdbResidueList, sortedPDBDist))
+        except(TypeError):
+            pool2 = Pool(processes=processes, initializer=poolInit2,
+                         initargs=(args['threshold'], seq_length,
+                                   pdbResidueList, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
                                               for i in range(len(clusters))])
         pool2.close()
@@ -887,18 +934,38 @@ if __name__ == '__main__':
     outDict = {}
     for c in clusters:
         cStart = time.time()
-        plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
-                args['query'][0], c, today, args['threshold'][0])
-        writeOutClusteringResults(today, args['query'][0], args['threshold'][0],
-                                  c, resScorePos[c], resCoverage[c],
-                                  sortedPDBDist, pdbResidueList, ResidueDict)
+        if(args['pdb']):
+            try:
+                plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
+                        args['query'][0], c, today, args['threshold'][0])
+            except(TypeError):
+                plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
+                        args['query'], c, today, args['threshold'])
+        try:
+            writeOutClusteringResults(today, args['query'][0],
+                                      args['threshold'][0], c, resScorePos[c],
+                                      resCoverage[c], sortedPDBDist,
+                                      query_sequence)
+        except(TypeError):
+            writeOutClusteringResults(today, args['query'], args['threshold'],
+                                      c, resScorePos[c], resCoverage[c],
+                                      sortedPDBDist, query_sequence)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         resTimes[c] += timeElapsed
-        outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, round(resAUCROC[c][2], 2),
-                                                round(resTimes[c], 2))
-    writeFinalResults(args['query'][0], today, sequence_order,
-                      seq_length, args['threshold'][0], outDict)
+        try:
+            outDict[c] = "\t{0}\t{1}\t{2}\n".format(c,
+                                                    round(resAUCROC[c][2], 2),
+                                                    round(resTimes[c], 2))
+        except(TypeError):
+            outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, '-',
+                                                    round(resTimes[c], 2))
+    try:
+        writeFinalResults(args['query'][0], today, sequence_order,
+                          seq_length, args['threshold'][0], outDict)
+    except(TypeError):
+        writeFinalResults(args['query'], today, sequence_order,
+                          seq_length, args['threshold'], outDict)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
