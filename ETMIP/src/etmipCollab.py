@@ -44,7 +44,7 @@ def parseArguments():
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--output', metavar='O', type=str, nargs='?',
-                        default='../Output/', help='File path to a directory where the results can be generated.')
+                        default='./', help='File path to a directory where the results can be generated.')
     args = parser.parse_args()
     return vars(args)
 
@@ -389,7 +389,7 @@ def importPDB(pdbFile, saveFile=None):
         residuePos = {}
         prevRes = None
         pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-        for line in pdbFile:  # for a line in the pdb
+        for line in pdbFile:
             res = re.match(pdbPattern, line)
             if not res:
                 continue
@@ -506,7 +506,7 @@ def etMIPWorker(inTup):
     '''
     ETMIP Worker
 
-    Performs clustering and calculation ofcluster dependent sequence distances.
+    Performs clustering and calculation of cluster dependent sequence distances.
     This function requires initialization of threads with poolInit, or setting
     of global variables as described in that function.
 
@@ -788,8 +788,6 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
 if __name__ == '__main__':
     start = time.time()
     args = parseArguments()
-    print args
-    # exit()
     ###########################################################################
     # Set up global variables
     ###########################################################################
@@ -810,25 +808,16 @@ if __name__ == '__main__':
     ###########################################################################
     # Set up input variables
     ###########################################################################
-    try:
-        files = open(args['alignment'][0], 'rb')
-    except(IOError):
-        files = open(args['alignment'], 'rb')
-    try:
-        processes = args['processes']
-        pCount = cpu_count()
-        if(processes > pCount):
-            processes = pCount
-    except:
-        processes = 1
+    files = open(args['alignment'][0], 'rb')
+    processes = args['processes']
+    pCount = cpu_count()
+    if(processes > pCount):
+        processes = pCount
     ###########################################################################
     # Set up output location
     ###########################################################################
     startDir = os.getcwd()
-    try:
-        createFolder = (args['output'] + str(today) + "/" + args['query'])
-    except:
-        createFolder = (args['output'] + str(today) + "/" + args['query'][0])
+    createFolder = (args['output'] + str(today) + "/" + args['query'][0])
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
@@ -838,14 +827,9 @@ if __name__ == '__main__':
     # Import alignment information: this will be our alignment
     alignment_dict = importAlignment(files, 'alignment_dict.pkl')
     # Remove gaps from aligned query sequences
-    try:
-        query_name, fixed_alignment_dict = removeGaps(alignment_dict,
-                                                      args['query'][0],
-                                                      'ungapped_alignment.pkl')
-    except(KeyError):
-        query_name, fixed_alignment_dict = removeGaps(alignment_dict,
-                                                      args['query'],
-                                                      'ungapped_alignment.pkl')
+    query_name, fixed_alignment_dict = removeGaps(alignment_dict,
+                                                  args['query'][0],
+                                                  'ungapped_alignment.pkl')
     query_sequence = fixed_alignment_dict[query_name]
     seq_length = len(query_sequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
@@ -901,26 +885,17 @@ if __name__ == '__main__':
     resAUCROC = {}
     if(processes == 1):
         for i in range(len(clusters)):
-            try:
-                poolInit2(args['threshold'][0], seq_length, pdbResidueList,
-                          sortedPDBDist)
-            except(TypeError):
-                poolInit2(args['threshold'], seq_length, pdbResidueList,
-                          sortedPDBDist)
+            poolInit2(args['threshold'][0], seq_length, pdbResidueList,
+                      sortedPDBDist)
             r = etMIPWorker2((clusters[i], summedMatrices[i]))
             resCoverage[r[0]] = r[1]
             resScorePos[r[0]] = r[2]
             resTimes[r[0]] += r[3]
             resAUCROC[r[0]] = r[4:]
     else:
-        try:
-            pool2 = Pool(processes=processes, initializer=poolInit2,
-                         initargs=(args['threshold'][0], seq_length,
-                                   pdbResidueList, sortedPDBDist))
-        except(TypeError):
-            pool2 = Pool(processes=processes, initializer=poolInit2,
-                         initargs=(args['threshold'], seq_length,
-                                   pdbResidueList, sortedPDBDist))
+        pool2 = Pool(processes=processes, initializer=poolInit2,
+                     initargs=(args['threshold'][0], seq_length,
+                               pdbResidueList, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
                                               for i in range(len(clusters))])
         pool2.close()
@@ -935,21 +910,12 @@ if __name__ == '__main__':
     for c in clusters:
         cStart = time.time()
         if(args['pdb']):
-            try:
-                plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
-                        args['query'][0], c, today, args['threshold'][0])
-            except(TypeError):
-                plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
-                        args['query'], c, today, args['threshold'])
-        try:
-            writeOutClusteringResults(today, args['query'][0],
-                                      args['threshold'][0], c, resScorePos[c],
-                                      resCoverage[c], sortedPDBDist,
-                                      query_sequence)
-        except(TypeError):
-            writeOutClusteringResults(today, args['query'], args['threshold'],
-                                      c, resScorePos[c], resCoverage[c],
-                                      sortedPDBDist, query_sequence)
+            plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
+                    args['query'][0], c, today, args['threshold'][0])
+        writeOutClusteringResults(today, args['query'][0],
+                                  args['threshold'][0], c, resScorePos[c],
+                                  resCoverage[c], sortedPDBDist,
+                                  query_sequence)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         resTimes[c] += timeElapsed
@@ -960,12 +926,8 @@ if __name__ == '__main__':
         except(TypeError):
             outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, '-',
                                                     round(resTimes[c], 2))
-    try:
-        writeFinalResults(args['query'][0], today, sequence_order,
-                          seq_length, args['threshold'][0], outDict)
-    except(TypeError):
-        writeFinalResults(args['query'], today, sequence_order,
-                          seq_length, args['threshold'], outDict)
+    writeFinalResults(args['query'][0], today, sequence_order,
+                      seq_length, args['threshold'][0], outDict)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
