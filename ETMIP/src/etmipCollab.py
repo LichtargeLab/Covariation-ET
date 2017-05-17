@@ -39,8 +39,8 @@ def parseArguments():
                         help='The file path to the PDB structure associated with the provided alignment.')
     parser.add_argument('--query', metavar='Q', type=str, nargs=1,
                         help='The name of the protein being queried in this analysis.')
-    parser.add_argument('--threshold', metavar='T', type=float, nargs=1,
-                        default=8.0, help='The distance within the molecular structure at which two residues are considered interacting.')
+    parser.add_argument('--threshold', metavar='T', type=float, nargs='?',
+                        help='The distance within the molecular structure at which two residues are considered interacting.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--output', metavar='O', type=str, nargs='?',
@@ -686,7 +686,8 @@ def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
 
 
 def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-                              etmiplistCoverage, sortedPDBDist, seq):
+                              etmiplistCoverage, seq, sortedPDBDist,
+                              pdbPositions):
     '''
     Write out clustering results
 
@@ -721,18 +722,21 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
     counter = 0
     for i in range(0, len(seq)):
         for j in range(i + 1, len(seq)):
-            res1 = i + 1
-            res2 = j + 1
-            key = '{}_{}'.format(res1, res2)
             if(sortedPDBDist is None):
+                res1 = i + 1
+                res2 = j + 1
                 r = '-'
                 dist = '-'
-            elif sortedPDBDist[counter] <= cutoff:
-                r = 1
-                dist = round(sortedPDBDist[counter], 2)
             else:
-                r = 0
-                dist = round(sortedPDBDist[counter], 2)
+                res1 = pdbPositions[i]
+                res2 = pdbPositions[j]
+                if sortedPDBDist[counter] <= cutoff:
+                    r = 1
+                    dist = round(sortedPDBDist[counter], 2)
+                else:
+                    r = 0
+                    dist = round(sortedPDBDist[counter], 2)
+            key = '{}_{}'.format(i + 1, j + 1)
             ind = scorePositions.index(key)
             etMIPOutputLine = '{} ({}) {} ({}) {} {} {} {}\n'.format(
                 res1, convertAA[seq[i]], res2, convertAA[seq[j]],
@@ -853,6 +857,8 @@ if __name__ == '__main__':
         pdbResidueList = None
         ResidueDict = None
         sortedPDBDist = None
+#     from IPython import embed
+#     embed()
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
@@ -885,7 +891,7 @@ if __name__ == '__main__':
     resAUCROC = {}
     if(processes == 1):
         for i in range(len(clusters)):
-            poolInit2(args['threshold'][0], seq_length, pdbResidueList,
+            poolInit2(args['threshold'], seq_length, pdbResidueList,
                       sortedPDBDist)
             r = etMIPWorker2((clusters[i], summedMatrices[i]))
             resCoverage[r[0]] = r[1]
@@ -894,7 +900,7 @@ if __name__ == '__main__':
             resAUCROC[r[0]] = r[4:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2,
-                     initargs=(args['threshold'][0], seq_length,
+                     initargs=(args['threshold'], seq_length,
                                pdbResidueList, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
                                               for i in range(len(clusters))])
@@ -911,11 +917,11 @@ if __name__ == '__main__':
         cStart = time.time()
         if(args['pdb']):
             plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
-                    args['query'][0], c, today, args['threshold'][0])
+                    args['query'][0], c, today, args['threshold'])
         writeOutClusteringResults(today, args['query'][0],
-                                  args['threshold'][0], c, resScorePos[c],
-                                  resCoverage[c], sortedPDBDist,
-                                  query_sequence)
+                                  args['threshold'], c, resScorePos[c],
+                                  resCoverage[c], query_sequence, sortedPDBDist,
+                                  pdbResidueList)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         resTimes[c] += timeElapsed
@@ -927,7 +933,7 @@ if __name__ == '__main__':
             outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, '-',
                                                     round(resTimes[c], 2))
     writeFinalResults(args['query'][0], today, sequence_order,
-                      seq_length, args['threshold'][0], outDict)
+                      seq_length, args['threshold'], outDict)
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()
