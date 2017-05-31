@@ -452,20 +452,21 @@ def mapAlignmentToPDBSeq(fastaSeq, pdbSeq):
     pCounter = 0
     fToPMap = {}
     for i in range(len(alignments[0][0])):
-        print('i: {}'.format(i))
+        #         print('i: {}'.format(i))
         if((alignments[0][0][i] != '-') and (alignments[0][1][i] != '-')):
             fToPMap[fCounter] = pCounter
         if(alignments[0][0][i] != '-'):
-            print('Alignment: {}'.format(fCounter))
+            #             print('Alignment: {}'.format(fCounter))
             fCounter += 1
         if(alignments[0][1][i] != '-'):
-            print('PDB: {}'.format(pCounter))
+            #             print('PDB: {}'.format(pCounter))
             pCounter += 1
-    print fToPMap
+#     print fToPMap
     return fToPMap
 
 
-def findDistance(residue3D, pdbResidueList, saveFile=None):
+def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
+                 saveFile=None):
     '''
     Find distance
 
@@ -474,6 +475,13 @@ def findDistance(residue3D, pdbResidueList, saveFile=None):
 
     Parameters:
     -----------
+    querySequence: str
+        A string providing the amino acid (single letter abbreviations)
+        sequence for the protein.
+    qToPMap: dict
+        A structure mapping the index of the positions in the fasta sequence
+        which align to positions in the PDB sequence based on a local alignment
+        with no mismatches allowed.
     residue3D: dictionary
         A dictionary mapping a residue position from the PDB file to its three
         dimensional position.
@@ -492,22 +500,30 @@ def findDistance(residue3D, pdbResidueList, saveFile=None):
     if((saveFile is not None) and os.path.exists(saveFile)):
         sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
     else:
+        qLen = len(querySequence)
         sortedPDBDist = []
         # Loop over all residues in the pdb
-        for i in range(len(pdbResidueList)):
+#         for i in range(len(pdbResidueList)):
+        for i in range(qLen):
             # Loop over residues to calculate distance between all residues i
             # and j
-            for j in range(i + 1, len(pdbResidueList)):
+            #             for j in range(i + 1, len(pdbResidueList)):
+            for j in range(i + 1, qLen):
                 # Getting the 3d coordinates for every atom in each residue.
                 # iterating over all pairs to find all distances
-                key1 = pdbResidueList[i]
-                key2 = pdbResidueList[j]
-                # finding the minimum value from the distance array
-                # Making dictionary of all min values indexed by the two residue
-                # names
-                res1 = residue3D[key2] - residue3D[key1][:, np.newaxis]
-                norms = np.linalg.norm(res1, axis=2)
-                sortedPDBDist.append(np.min(norms))
+                #                 key1 = pdbResidueList[i]
+                #                 key2 = pdbResidueList[j]
+                try:
+                    key1 = pdbResidueList[qToPMap[i]]
+                    key2 = pdbResidueList[qToPMap[j]]
+                    # finding the minimum value from the distance array
+                    # Making dictionary of all min values indexed by the two residue
+                    # names
+                    res1 = residue3D[key2] - residue3D[key1][:, np.newaxis]
+                    norms = np.linalg.norm(res1, axis=2)
+                    sortedPDBDist.append(np.min(norms))
+                except(KeyError):
+                    sortedPDBDist.append(float('NaN'))
         sortedPDBDist = np.asarray(sortedPDBDist)
         if(saveFile is not None):
             np.savez(saveFile, pdbDists=sortedPDBDist)
