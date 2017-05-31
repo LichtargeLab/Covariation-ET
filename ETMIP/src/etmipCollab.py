@@ -6,6 +6,7 @@ Created on Mar 10, 2017
 from multiprocessing import Pool, cpu_count
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
+from Bio import pairwise2
 import cPickle as pickle
 import matplotlib
 matplotlib.use('Agg')
@@ -380,20 +381,26 @@ def importPDB(pdbFile, saveFile=None):
         position.
     '''
     start = time.time()
+    convertAA = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'ASX': 'B',
+                 'CYS': 'C', 'GLU': 'E', 'GLN': 'Q', 'GLX': 'Z', 'GLY': 'G',
+                 'HIS': 'H', 'ILE': 'I', 'LEU': 'L', 'LYS': 'K', 'MET': 'M',
+                 'PHE': 'F', 'PRO': 'P', 'SER': 'S', 'THR': 'T', 'TRP': 'W',
+                 'TYR': 'Y', 'VAL': 'V'}
     if((saveFile is not None) and os.path.exists(saveFile)):
-        residue3D, pdbResidueList, residuePos = pickle.load(
+        residue3D, pdbResidueList, residuePos, seq = pickle.load(
             open(saveFile, 'rb'))
     else:
         residue3D = {}
         pdbResidueList = []
         residuePos = {}
+        seq = []
         prevRes = None
         pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
         for line in pdbFile:
             res = re.match(pdbPattern, line)
             if not res:
                 continue
-            resName = res.group(3)
+            resName = convertAA[res.group(3)]
             resNum = int(res.group(5))
             resAtomList = np.asarray([float(res.group(6)),
                                       float(res.group(7)),
@@ -407,16 +414,55 @@ def importPDB(pdbFile, saveFile=None):
                 residue3D[resNum] = [resAtomList]
                 pdbResidueList.append(resNum)
                 residuePos[resNum] = resName
+                seq.append(resName)
         residue3D[prevRes] = np.vstack(residue3D[prevRes])
         # list of sorted residues - necessary for those where res1 is not 1
         pdbResidueList = sorted(pdbResidueList)
+        seq = ''.join(seq)
         pdbFile.close()
         if(saveFile is not None):
-            pickle.dump((residue3D, pdbResidueList, residuePos),
+            pickle.dump((residue3D, pdbResidueList, residuePos, seq),
                         open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing the PDB file took {} min'.format((end - start) / 60.0))
-    return residue3D, pdbResidueList, residuePos
+    return residue3D, pdbResidueList, residuePos, seq
+
+
+def mapAlignmentToPDBSeq(fastaSeq, pdbSeq):
+    '''
+    Map sequence positions between query from alignment and residues in PDB
+
+    Parameters:
+    -----------
+    fastaSeq: str
+        A string providing the amino acid (single letter abbreviations)
+        sequence for the protein.
+    pdbSeq: str
+        A string providing the amino acid (single letter abbreviations)
+        sequence for the protein.
+    Returns:
+    --------
+    dict
+        A structure mapping the index of the positions in the fasta sequence
+        which align to positions in the PDB sequence based on a local alignment
+        with no mismatches allowed.
+    '''
+    alignments = pairwise2.align.globalxx(query_sequence, pdbSeq)
+    fCounter = 0
+    pCounter = 0
+    fToPMap = {}
+    for i in range(len(alignments[0][0])):
+        print('i: {}'.format(i))
+        if((alignments[0][0][i] != '-') and (alignments[0][1][i] != '-')):
+            fToPMap[fCounter] = pCounter
+        if(alignments[0][0][i] != '-'):
+            print('Alignment: {}'.format(fCounter))
+            fCounter += 1
+        if(alignments[0][1][i] != '-'):
+            print('PDB: {}'.format(pCounter))
+            pCounter += 1
+    print fToPMap
+    return fToPMap
 
 
 def findDistance(residue3D, pdbResidueList, saveFile=None):
@@ -835,6 +881,8 @@ if __name__ == '__main__':
                                                   args['query'][0],
                                                   'ungapped_alignment.pkl')
     query_sequence = fixed_alignment_dict[query_name]
+    print('Query Sequence:')
+    print(query_sequence)
     seq_length = len(query_sequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
     X, sequence_order = distanceMatrix(fixed_alignment_dict, aa_dict,
@@ -849,7 +897,7 @@ if __name__ == '__main__':
         os.chdir(startDir)
         pdbfilename = open(args['pdb'], 'rb')
         os.chdir(createFolder)
-        residuedictionary, pdbResidueList, ResidueDict = importPDB(
+        residuedictionary, pdbResidueList, ResidueDict, pdbSeq = importPDB(
             pdbfilename, 'pdbData.pkl')
         sortedPDBDist = findDistance(residuedictionary, pdbResidueList,
                                      'PDBdistances')
@@ -857,8 +905,14 @@ if __name__ == '__main__':
         pdbResidueList = None
         ResidueDict = None
         sortedPDBDist = None
+        pdbSeq = None
 #     from IPython import embed
 #     embed()
+    print('PDB Sequence')
+    print(pdbSeq)
+
+    mapAlignmentToPDBSeq(query_sequence, pdbSeq)
+    exit()
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
