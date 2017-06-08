@@ -447,7 +447,9 @@ def mapAlignmentToPDBSeq(fastaSeq, pdbSeq):
         which align to positions in the PDB sequence based on a local alignment
         with no mismatches allowed.
     '''
-    alignments = pairwise2.align.globalxx(query_sequence, pdbSeq)
+    alignments = pairwise2.align.globalxs(query_sequence, pdbSeq, -1, 0)
+    from Bio.pairwise2 import format_alignment
+    print(format_alignment(*alignments[0]))
     fCounter = 0
     pCounter = 0
     fToPMap = {}
@@ -781,6 +783,10 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
                  'Y': 'TYR', 'V': 'VAL'}
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
     etMIPOutFile = open(e, "w+")
+    header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
+        'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'Residue_Dist',
+        'Within_Threshold', 'Cluster')
+    etMIPOutFile.write(header)
     counter = 0
     for i in range(0, len(seq)):
         for j in range(i + 1, len(seq)):
@@ -792,15 +798,16 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
             else:
                 res1 = pdbPositions[i]
                 res2 = pdbPositions[j]
-                if sortedPDBDist[counter] <= cutoff:
+                dist = round(sortedPDBDist[counter], 2)
+                if(sortedPDBDist[counter] <= cutoff):
                     r = 1
-                    dist = round(sortedPDBDist[counter], 2)
+                elif(np.isnan(sortedPDBDist[counter])):
+                    r = '-'
                 else:
                     r = 0
-                    dist = round(sortedPDBDist[counter], 2)
             key = '{}_{}'.format(i + 1, j + 1)
             ind = scorePositions.index(key)
-            etMIPOutputLine = '{} ({}) {} ({}) {} {} {} {}\n'.format(
+            etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
                 res1, convertAA[seq[i]], res2, convertAA[seq[j]],
                 round(etmiplistCoverage[ind], 2),
                 dist, r, clus)
@@ -915,7 +922,9 @@ if __name__ == '__main__':
         os.chdir(createFolder)
         residuedictionary, pdbResidueList, ResidueDict, pdbSeq = importPDB(
             pdbfilename, 'pdbData.pkl')
-        sortedPDBDist = findDistance(residuedictionary, pdbResidueList,
+        mapAToP = mapAlignmentToPDBSeq(query_sequence, pdbSeq)
+        sortedPDBDist = findDistance(query_sequence, mapAToP,
+                                     residuedictionary, pdbResidueList,
                                      'PDBdistances')
     else:
         pdbResidueList = None
@@ -927,8 +936,7 @@ if __name__ == '__main__':
     print('PDB Sequence')
     print(pdbSeq)
 
-    mapAlignmentToPDBSeq(query_sequence, pdbSeq)
-    exit()
+#     exit()
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
