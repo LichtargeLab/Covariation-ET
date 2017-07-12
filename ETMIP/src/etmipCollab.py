@@ -702,8 +702,8 @@ def etMIPWorker2(inTup):
     end = time.time()
     timeElapsed = end - start
     print('ETMIP worker 2 took {} min'.format(timeElapsed / 60.0))
-    return (clus, etmiplistCoverage, scorePositions, timeElapsed, fpr, tpr,
-            roc_auc)
+    return (clus, etmipResScoreList, etmiplistCoverage, scorePositions,
+            timeElapsed, fpr, tpr, roc_auc)
 
 
 def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
@@ -750,8 +750,8 @@ def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
 
 
 def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-                              etmiplistCoverage, seq, sortedPDBDist,
-                              pdbPositions):
+                              etmipResScoreList, etmiplistCoverage, seq,
+                              sortedPDBDist, pdbPositions):
     '''
     Write out clustering results
 
@@ -784,8 +784,8 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
     etMIPOutFile = open(e, "w+")
     header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
-        'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'Residue_Dist',
-        'Within_Threshold', 'Cluster')
+        'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'ETMIp_Coverage',
+        'Residue_Dist', 'Within_Threshold', 'Cluster')
     etMIPOutFile.write(header)
     counter = 0
     for i in range(0, len(seq)):
@@ -807,8 +807,9 @@ def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
                     r = 0
             key = '{}_{}'.format(i + 1, j + 1)
             ind = scorePositions.index(key)
-            etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
+            etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\t{}\n'.format(
                 res1, convertAA[seq[i]], res2, convertAA[seq[j]],
+                round(etmipResScoreList[ind], 2),
                 round(etmiplistCoverage[ind], 2),
                 dist, r, clus)
             etMIPOutFile.write(etMIPOutputLine)
@@ -964,6 +965,7 @@ if __name__ == '__main__':
         summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
         for j in range(0, i):
             summedMatrices[i] += resMats[clusters[j]]
+    resRawScore = {}
     resCoverage = {}
     resScorePos = {}
     resAUCROC = {}
@@ -986,10 +988,11 @@ if __name__ == '__main__':
         pool2.join()
         res2 = res2.get()
         for r in res2:
-            resCoverage[r[0]] = r[1]
-            resScorePos[r[0]] = r[2]
-            resTimes[r[0]] += r[3]
-            resAUCROC[r[0]] = r[4:]
+            resRawScore[r[0]] = r[1]
+            resCoverage[r[0]] = r[2]
+            resScorePos[r[0]] = r[3]
+            resTimes[r[0]] += r[4]
+            resAUCROC[r[0]] = r[5:]
     outDict = {}
     for c in clusters:
         cStart = time.time()
@@ -998,7 +1001,8 @@ if __name__ == '__main__':
                     args['query'][0], c, today, args['threshold'])
         writeOutClusteringResults(today, args['query'][0],
                                   args['threshold'], c, resScorePos[c],
-                                  resCoverage[c], query_sequence, sortedPDBDist,
+                                  resRawScore[c], resCoverage[c],
+                                  query_sequence, sortedPDBDist,
                                   pdbResidueList)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
