@@ -54,7 +54,7 @@ def importAlignment(faFile, saveFile=None):
     '''
     Import alignments:
 
-    This method imports alignments into an existing dictionary.
+    This method imports alignments into an existing dictionary, and replaces .
 
     Parameters:
     -----------
@@ -77,7 +77,8 @@ def importAlignment(faFile, saveFile=None):
                 key = line.rstrip()
                 alignment[key] = ''
             else:
-                alignment[key] += line.rstrip()
+                alignment[key] += line.rstrip().replace('.',
+                                                        '-').replace('_', '-')
         faFile.close()
         if(saveFile is not None):
             pickle.dump(alignment, open(saveFile, 'wb'),
