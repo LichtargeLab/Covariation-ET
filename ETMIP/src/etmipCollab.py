@@ -66,26 +66,42 @@ def importAlignment(faFile, saveFile=None):
     --------
     alignment_dict: dict    
         Dictionary which will be used to store alignments from the file.
+    seqOrder: list
+        List of sequence ids in the order in which they were parsed from the
+        alignment file.
     '''
     start = time.time()
     if((saveFile is not None) and (os.path.exists(saveFile))):
-        alignment = pickle.load(open(saveFile, 'rb'))
+        alignment, seqOrder = pickle.load(open(saveFile, 'rb'))
     else:
         alignment = {}
+        seqOrder = []
         for line in faFile:
             if line.startswith(">"):
                 key = line.rstrip()
                 alignment[key] = ''
+                seqOrder.append(key)
             else:
                 alignment[key] += line.rstrip().replace('.',
                                                         '-').replace('_', '-')
         faFile.close()
         if(saveFile is not None):
-            pickle.dump(alignment, open(saveFile, 'wb'),
+            pickle.dump((alignment, seqOrder), open(saveFile, 'wb'),
                         protocol=pickle.HIGHEST_PROTOCOL)
     end = time.time()
     print('Importing alignment took {} min'.format((end - start) / 60.0))
-    return alignment
+    return alignment, seqOrder
+
+
+def writeOutAlignment(seqDict, seqOrder, fileName):
+    outFile = open(fileName, 'wb')
+    for id in seqOrder:
+        if(id in seqOrder):
+            outFile.write(id)
+            outFile.write(seqDict[id])
+        else:
+            pass
+    outFile.close()
 
 
 def removeGaps(alignment, query, saveFile=None):
@@ -900,7 +916,7 @@ if __name__ == '__main__':
 
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
-    alignment_dict = importAlignment(files, 'alignment_dict.pkl')
+    alignment_dict, seqOrder = importAlignment(files, 'alignment_dict.pkl')
     # Remove gaps from aligned query sequences
     query_name, fixed_alignment_dict = removeGaps(alignment_dict,
                                                   args['query'][0],
