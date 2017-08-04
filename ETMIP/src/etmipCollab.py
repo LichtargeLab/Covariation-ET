@@ -9,12 +9,14 @@ from sklearn.cluster import AgglomerativeClustering
 from Bio import pairwise2
 import cPickle as pickle
 import matplotlib
+from Bio.SearchIO.FastaIO import _PTR_ID_DESC_SEQLEN
 matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
 import datetime
 import argparse
 import time
+import csv
 import sys
 import re
 import os
@@ -95,10 +97,15 @@ def importAlignment(faFile, saveFile=None):
 
 def writeOutAlignment(seqDict, seqOrder, fileName):
     outFile = open(fileName, 'wb')
-    for id in seqOrder:
-        if(id in seqOrder):
-            outFile.write(id)
-            outFile.write(seqDict[id])
+    for seqId in seqOrder:
+        if(seqId in seqDict):
+            outFile.write(seqId + '\n')
+            seqLen = len(seqDict[seqId])
+            breaks = seqLen / 60
+            if((seqLen % 60) != 0):
+                breaks += 1
+            for i in range(breaks):
+                outFile.write(seqDict[seqId][0 + i * 60:60 + i * 60] + '\n')
         else:
             pass
     outFile.close()
@@ -552,7 +559,7 @@ def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
     return sortedPDBDist
 
 
-def poolInit(a, seqDists, sK, fAD):
+def poolInit(a, seqDists, sK, fAD, sO, sL):
     '''
     poolInit
 
@@ -572,6 +579,11 @@ def poolInit(a, seqDists, sK, fAD):
         construction of seqDists.
     fAD: dictionary
         A corrected dictionary mapping sequence ids to sequences.
+    sO: list
+        A list of sequence ids in the order which they should appear in an
+        alignment.
+    sL: int
+        The length of the query sequence
     '''
     global aaDict
     aaDict = a
@@ -581,6 +593,10 @@ def poolInit(a, seqDists, sK, fAD):
     sortedKeys = sK
     global fixedAlignment
     fixedAlignment = fAD
+    global seqOrder
+    seqOrder = sO
+    global seqLen
+    seqLen = sL
 
 
 def etMIPWorker(inTup):
@@ -607,23 +623,28 @@ def etMIPWorker(inTup):
         The time in seconds which it took to perform clustering.
     '''
     clus = inTup[0]
-    resMatrix = None
+#     resMatrix = None
     start = time.time()
     print "Starting clustering: K={}".format(clus)
     clusterDict, clusterDet = aggClustering(clus, X, sortedKeys)
+    rawScores = np.zeros((clus, seqLen, seqLen))
     for c in clusterDet:
         newAlignment = {}
         for key in clusterDict[c]:
             newAlignment[key] = fixedAlignment[key]
+        writeOutAlignment(newAlignment, seqOrder,
+                          'AligmentForK{}_{}.fa'.format(clus, c))
         clusteredMIPMatrix = wholeAnalysis(newAlignment, aaDict)
-        if(resMatrix is None):
-            resMatrix = clusteredMIPMatrix
-        else:
-            resMatrix += clusteredMIPMatrix
+#         if(resMatrix is None):
+#             resMatrix = clusteredMIPMatrix
+#         else:
+#             resMatrix += clusteredMIPMatrix
+        rawScores[c] = clusteredMIPMatrix
+    resMatrix = np.sum(rawScores, axis=0)
     end = time.time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
-    return clus, resMatrix, timeElapsed
+    return clus, resMatrix, timeElapsed, rawScores
 
 
 def poolInit2(c, seqL, PDBRL, sPDBD):
@@ -764,6 +785,64 @@ def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
     pl.close()
     end = time.time()
     print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
+
+
+def writeOutClusterScoring(today, qName, seq, clus, scorePositions,
+                           etmipResScoreList, etmiplistCoverage,
+                           clusterScores, originalMIP, clusterMat, summedMat):
+    '''
+    Write out clustering scoring results
+
+    This method writes the results of the clustering to file.
+
+    Parameters:
+    today: date
+        Todays date.
+    qName: str
+        The name of the query protein
+    clus: int
+        The number of clusters created
+    scorePositions: list
+        A list of the order in which the sequence distances are presented.
+        The element format is {}_{} where each {} is the number of a sequence
+        in the alignment.
+    etmiplistCoverage: list
+        The coverage of a specific sequence comparison
+    sortedPDBDist: numpy nd array
+        Array of the distances between sequences, sorted by sequence indices.
+    seq: Str
+        The query alignment sequence.
+    '''
+    start = time.time()
+    convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
+                 'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
+                 'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
+                 'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
+                 'Y': 'TYR', 'V': 'VAL'}
+    e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
+    etMIPOutFile = open(e, "wb")
+    etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
+    etMIPWriter.writerow(['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore'] +
+                         ['C.' + i for i in map(str, range(1, clus + 1))] +
+                         ['Cluster_Score', 'Summed_Score', 'ETMIp_Score',
+                          'ETMIp_Coverage'])
+    for i in range(0, len(seq)):
+        for j in range(i + 1, len(seq)):
+            res1 = i + 1
+            res2 = j + 1
+            key = '{}_{}'.format(i + 1, j + 1)
+            ind = scorePositions.index(key)
+            rowP1 = [res1, convertAA[seq[i]], res2, convertAA[seq[j]],
+                     round(originalMIP[i, j], 2)]
+            rowP2 = [round(clusterScores[c, i, j], 2) for c in range(clus)]
+            rowP3 = [round(clusterMat[i, j], 2), round(summedMat[i, j], 2),
+                     round(etmipResScoreList[ind], 2),
+                     round(etmiplistCoverage[ind], 2)]
+            etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
+    etMIPOutFile.close()
+    end = time.time()
+    print('Writing the ETMIP worker data to file took {} min'.format(
+        (end - start) / 60.0))
 
 
 def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
@@ -922,6 +1001,7 @@ if __name__ == '__main__':
                                                   args['query'][0],
                                                   'ungapped_alignment.pkl')
     query_sequence = fixed_alignment_dict[query_name]
+    writeOutAlignment(fixed_alignment_dict, seqOrder, 'UngappedAlignment.fa')
     print('Query Sequence:')
     print(query_sequence)
     seq_length = len(query_sequence)
@@ -961,15 +1041,19 @@ if __name__ == '__main__':
     clusters = [2, 3, 5, 7, 10, 25]
     resMats = {}
     resTimes = {}
+    rawClusters = {}
     if(processes == 1):
-        poolInit(aa_dict, X, sequence_order, fixed_alignment_dict)
+        poolInit(aa_dict, X, sequence_order, fixed_alignment_dict, seqOrder,
+                 seq_length)
         for c in clusters:
-            clus, mat, times = etMIPWorker((c,))
+            clus, mat, times, rawCScores = etMIPWorker((c,))
             resMats[clus] = mat
             resTimes[clus] = times
+            rawClusters[clus] = rawCScores
     else:
-        pool = Pool(processes=processes, initializer=poolInit, initargs=(
-            aa_dict, X, sequence_order, fixed_alignment_dict))
+        pool = Pool(processes=processes, initializer=poolInit,
+                    initargs=(aa_dict, X, sequence_order, fixed_alignment_dict,
+                              seqOrder, seq_length))
         res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
         pool.close()
         pool.join()
@@ -977,30 +1061,43 @@ if __name__ == '__main__':
         for r in res1:
             resMats[r[0]] = r[1]
             resTimes[r[0]] = r[2]
-    summedMatrices = [np.zeros(wholeMIP_Matrix.shape)] * len(clusters)
-    for i in range(len(clusters)):
-        summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
-        for j in range(0, i):
-            summedMatrices[i] += resMats[clusters[j]]
+            rawClusters[r[0]] = r[3]
+#     summedMatrices = [np.zeros(wholeMIP_Matrix.shape)] * len(clusters)
+    summedMatrices = {i: np.zeros(wholeMIP_Matrix.shape)
+                      for i in clusters}
+    for i in clusters:
+        #     for i in range(len(clusters)):
+        #         summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
+        summedMatrices[i] += wholeMIP_Matrix
+#         for j in range(0, i):
+        for j in [c for c in clusters if c <= i]:
+            #             summedMatrices[i] += resMats[clusters[j]]
+            #             summedMatrices[i] += resMats[i]
+            summedMatrices[i] += resMats[j]
     resRawScore = {}
     resCoverage = {}
     resScorePos = {}
     resAUCROC = {}
     if(processes == 1):
-        for i in range(len(clusters)):
+        #         for i in range(len(clusters)):
+        for clus in clusters:
             poolInit2(args['threshold'], seq_length, pdbResidueList,
                       sortedPDBDist)
-            r = etMIPWorker2((clusters[i], summedMatrices[i]))
-            resCoverage[r[0]] = r[1]
-            resScorePos[r[0]] = r[2]
-            resTimes[r[0]] += r[3]
-            resAUCROC[r[0]] = r[4:]
+            r = etMIPWorker2((clus, summedMatrices[clus]))
+#             r = etMIPWorker2((clusters[i], summedMatrices[i]))
+            resRawScore[r[0]] = r[1]
+            resCoverage[r[0]] = r[2]
+            resScorePos[r[0]] = r[3]
+            resTimes[r[0]] += r[4]
+            resAUCROC[r[0]] = r[5:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2,
                      initargs=(args['threshold'], seq_length,
                                pdbResidueList, sortedPDBDist))
-        res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
-                                              for i in range(len(clusters))])
+        res2 = pool2.map_async(etMIPWorker2, [(clus, summedMatrices[clus])
+                                              for clus in clusters])
+#         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
+#                                               for i in range(len(clusters))])
         pool2.close()
         pool2.join()
         res2 = res2.get()
@@ -1016,6 +1113,10 @@ if __name__ == '__main__':
         if(args['pdb']):
             plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
                     args['query'][0], c, today, args['threshold'])
+        writeOutClusterScoring(today, args['query'][0], query_sequence, c,
+                               resScorePos[c], resRawScore[c], resCoverage[c],
+                               rawClusters[c], wholeMIP_Matrix, resMats[c],
+                               summedMatrices[c])
         writeOutClusteringResults(today, args['query'][0],
                                   args['threshold'], c, resScorePos[c],
                                   resRawScore[c], resCoverage[c],
