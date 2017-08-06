@@ -6,11 +6,15 @@ Created on Mar 10, 2017
 from multiprocessing import Pool, cpu_count
 from sklearn.metrics import roc_curve, auc, mutual_info_score
 from sklearn.cluster import AgglomerativeClustering
+from seaborn import heatmap
+import matplotlib
+matplotlib.use('Agg')
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from Bio import pairwise2
 import cPickle as pickle
-import matplotlib
-from Bio.SearchIO.FastaIO import _PTR_ID_DESC_SEQLEN
-matplotlib.use('Agg')
 import numpy as np
 import pylab as pl
 import datetime
@@ -952,8 +956,45 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
         outfile.write(outDict[key])
 
 
+def heatmapPlot(name, dataMat):
+    print('In Heatmapping')
+    dmMax = np.max(dataMat)
+    print('Identified max')
+    dmMin = np.min(dataMat)
+    print('Identified min')
+    plotMax = max([dmMax, abs(dmMin)])
+    print('Determined highest value')
+    heatMap = heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
+                      vmax=plotMax, cbar=True, square=True)
+    print('Plotted heat map')
+    plt.title(name)
+    print('Altered title')
+    plt.savefig(name.replace(' ', '_') + '.pdf')
+    print('Saved figure')
+    plt.clf()
+    print('Cleared figure')
+
+
+def surfacePlot(name, dataMat):
+    dmMax = np.max(dataMat)
+    dmMin = np.min(dataMat)
+    plotMax = max([dmMax, abs(dmMin)])
+    X = Y = np.arange(max(dataMat.shape))
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    X, Y = np.meshgrid(X, Y)
+    surf = ax.plot_surface(X, Y, dataMat, cmap=cm.jet,
+                           linewidth=0, antialiased=False)
+    ax.set_zlim(-1 * plotMax, plotMax)
+    ax.zaxis.set_major_locator(LinearLocator(10))
+    ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+    plt.savefig(name.replace(' ', '_') + '.pdf')
+    plt.clf()
+
+
 ####--------------------------------------------------------#####
-    ### BODY OF CODE ##
+### BODY OF CODE ##
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
     start = time.time()
@@ -1109,6 +1150,13 @@ if __name__ == '__main__':
             resAUCROC[r[0]] = r[5:]
     outDict = {}
     for c in clusters:
+        clusterDir = '{}/'.format(c)
+        if(not os.path.exists(clusterDir)):
+            print('making dir')
+            os.mkdir(clusterDir)
+        else:
+            print('not making dir')
+        os.chdir(clusterDir)
         cStart = time.time()
         if(args['pdb']):
             plotAUC(resAUCROC[c][0], resAUCROC[c][1], resAUCROC[c][2],
@@ -1117,6 +1165,10 @@ if __name__ == '__main__':
                                resScorePos[c], resRawScore[c], resCoverage[c],
                                rawClusters[c], wholeMIP_Matrix, resMats[c],
                                summedMatrices[c])
+        heatmapPlot('Raw Score Heatmap K {}'.format(c), summedMatrices[c])
+        surfacePlot('Raw Score Surface K {}'.format(c), summedMatrices[c])
+#         heatmapPlot('Coverage Heatmap K {}'.format(c), resCoverage[c])
+#         surfacePlot('Coverage Surface K {}'.format(c), resCoverage[c])
         writeOutClusteringResults(today, args['query'][0],
                                   args['threshold'], c, resScorePos[c],
                                   resRawScore[c], resCoverage[c],
@@ -1132,6 +1184,7 @@ if __name__ == '__main__':
         except(TypeError):
             outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, '-',
                                                     round(resTimes[c], 2))
+        os.chdir('..')
     writeFinalResults(args['query'][0], today, sequence_order,
                       seq_length, args['threshold'], outDict)
     print "Generated results in", createFolder
