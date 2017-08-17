@@ -24,6 +24,7 @@ import csv
 import sys
 import re
 import os
+from IPython import embed
 
 
 def parseArguments():
