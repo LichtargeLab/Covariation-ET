@@ -13,8 +13,6 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
-from Bio import pairwise2
-import cPickle as pickle
 import numpy as np
 import pylab as pl
 import datetime
@@ -22,9 +20,9 @@ import argparse
 import time
 import csv
 import sys
-import re
 import os
 from SeqAlignment import SeqAlignment
+from PDBReference import PDBReference
 from IPython import embed
 
 
@@ -153,6 +151,7 @@ def wholeAnalysis(alignment, saveFile=None):
 #             alignment, keyList, alignment.seqLength, aaDict)
         # Generate MI matrix from alignment2Num matrix, the MMI matrix,
         # and overallMMI
+#         usablePositions = alignment.determineUsablePositions(ratio=0.2)
         for i in range(alignment.seqLength):
             for j in range(i + 1, alignment.seqLength):
                 #                 columnI = alignment2Num[:, i]
@@ -186,186 +185,7 @@ def wholeAnalysis(alignment, saveFile=None):
     return mipMatrix
 
 
-def importPDB(pdbFile, saveFile=None):
-    '''
-    importPDB
-
-    This method imports a PDB files information generating a list of lists. Each
-    list contains the Amino Acid 3-letter abbreviation, residue number, x, y,
-    and z coordinate.
-
-    Parameters:
-    -----------
-    pdbFile: File
-        The file handle for the PDB file.
-    saveFile: str
-        The file path to a previously stored PDB file data structure.
-    Returns:
-    --------
-    dict:
-        A dictionary mapping a residue number to its spatial position in 3D.
-    list:
-        A sorted list of residue numbers from the PDB file.
-    dict:
-        A dictionary mapping residue number to the name of the residue at that
-        position.
-    '''
-    start = time.time()
-    convertAA = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'ASX': 'B',
-                 'CYS': 'C', 'GLU': 'E', 'GLN': 'Q', 'GLX': 'Z', 'GLY': 'G',
-                 'HIS': 'H', 'ILE': 'I', 'LEU': 'L', 'LYS': 'K', 'MET': 'M',
-                 'PHE': 'F', 'PRO': 'P', 'SER': 'S', 'THR': 'T', 'TRP': 'W',
-                 'TYR': 'Y', 'VAL': 'V'}
-    if((saveFile is not None) and os.path.exists(saveFile)):
-        residue3D, pdbResidueList, residuePos, seq = pickle.load(
-            open(saveFile, 'rb'))
-    else:
-        residue3D = {}
-        pdbResidueList = []
-        residuePos = {}
-        seq = []
-        prevRes = None
-        pdbPattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-        for line in pdbFile:
-            res = re.match(pdbPattern, line)
-            if not res:
-                continue
-            resName = convertAA[res.group(3)]
-            resNum = int(res.group(5))
-            resAtomList = np.asarray([float(res.group(6)),
-                                      float(res.group(7)),
-                                      float(res.group(8))])
-            try:
-                residue3D[resNum].append(resAtomList)
-            except KeyError:
-                if(prevRes):
-                    residue3D[prevRes] = np.vstack(residue3D[prevRes])
-                prevRes = resNum
-                residue3D[resNum] = [resAtomList]
-                pdbResidueList.append(resNum)
-                residuePos[resNum] = resName
-                seq.append(resName)
-        residue3D[prevRes] = np.vstack(residue3D[prevRes])
-        # list of sorted residues - necessary for those where res1 is not 1
-        pdbResidueList = sorted(pdbResidueList)
-        seq = ''.join(seq)
-        pdbFile.close()
-        if(saveFile is not None):
-            pickle.dump((residue3D, pdbResidueList, residuePos, seq),
-                        open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-    end = time.time()
-    print('Importing the PDB file took {} min'.format((end - start) / 60.0))
-    return residue3D, pdbResidueList, residuePos, seq
-
-
-def mapAlignmentToPDBSeq(fastaSeq, pdbSeq):
-    '''
-    Map sequence positions between query from alignment and residues in PDB
-
-    Parameters:
-    -----------
-    fastaSeq: str
-        A string providing the amino acid (single letter abbreviations)
-        sequence for the protein.
-    pdbSeq: str
-        A string providing the amino acid (single letter abbreviations)
-        sequence for the protein.
-    Returns:
-    --------
-    dict
-        A structure mapping the index of the positions in the fasta sequence
-        which align to positions in the PDB sequence based on a local alignment
-        with no mismatches allowed.
-    '''
-    alignments = pairwise2.align.globalxs(fastaSeq, pdbSeq, -1, 0)
-    from Bio.pairwise2 import format_alignment
-    print(format_alignment(*alignments[0]))
-    fCounter = 0
-    pCounter = 0
-    fToPMap = {}
-    for i in range(len(alignments[0][0])):
-        #         print('i: {}'.format(i))
-        if((alignments[0][0][i] != '-') and (alignments[0][1][i] != '-')):
-            fToPMap[fCounter] = pCounter
-        if(alignments[0][0][i] != '-'):
-            #             print('Alignment: {}'.format(fCounter))
-            fCounter += 1
-        if(alignments[0][1][i] != '-'):
-            #             print('PDB: {}'.format(pCounter))
-            pCounter += 1
-#     print fToPMap
-    return fToPMap
-
-
-def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
-                 saveFile=None):
-    '''
-    Find distance
-
-    This code takes in an input of a pdb file and outputs a dictionary with the
-    nearest atom distance between two residues.
-
-    Parameters:
-    -----------
-    querySequence: str
-        A string providing the amino acid (single letter abbreviations)
-        sequence for the protein.
-    qToPMap: dict
-        A structure mapping the index of the positions in the fasta sequence
-        which align to positions in the PDB sequence based on a local alignment
-        with no mismatches allowed.
-    residue3D: dictionary
-        A dictionary mapping a residue position from the PDB file to its three
-        dimensional position.
-    pdbResidueList: list
-        A sorted list of residue numbers from the PDB file.
-    saveFile: str
-        File name and/or location of file containing a previously computed set
-        of distance data for a PDB structure.
-    Returns:
-    list
-        List of minimum distances between residues, sorted by the ordering of
-        residues in pdbResidueList.
-    --------
-    '''
-    start = time.time()
-    if((saveFile is not None) and os.path.exists(saveFile)):
-        sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
-    else:
-        qLen = len(querySequence)
-        sortedPDBDist = []
-        # Loop over all residues in the pdb
-#         for i in range(len(pdbResidueList)):
-        for i in range(qLen):
-            # Loop over residues to calculate distance between all residues i
-            # and j
-            #             for j in range(i + 1, len(pdbResidueList)):
-            for j in range(i + 1, qLen):
-                # Getting the 3d coordinates for every atom in each residue.
-                # iterating over all pairs to find all distances
-                #                 key1 = pdbResidueList[i]
-                #                 key2 = pdbResidueList[j]
-                try:
-                    key1 = pdbResidueList[qToPMap[i]]
-                    key2 = pdbResidueList[qToPMap[j]]
-                    # finding the minimum value from the distance array
-                    # Making dictionary of all min values indexed by the two residue
-                    # names
-                    res1 = residue3D[key2] - residue3D[key1][:, np.newaxis]
-                    norms = np.linalg.norm(res1, axis=2)
-                    sortedPDBDist.append(np.min(norms))
-                except(KeyError):
-                    sortedPDBDist.append(float('NaN'))
-        sortedPDBDist = np.asarray(sortedPDBDist)
-        if(saveFile is not None):
-            np.savez(saveFile, pdbDists=sortedPDBDist)
-    end = time.time()
-    print('Computing the distance matrix based on the PDB file took {} min'.format(
-        (end - start) / 60.0))
-    return sortedPDBDist
-
-
-def poolInit(a, seqDists, sK, fAD, sO, sL):
+def poolInit(a, seqDists, qAlignment):
     '''
     poolInit
 
@@ -380,29 +200,15 @@ def poolInit(a, seqDists, sK, fAD, sO, sL):
         alignments to dictionary representations.
     seqDists: numpy ndarray
         Matrix of distances between sequences in the initial alignments.
-    sK: list
-        A set of sorted sequence ids with the same ordering as that used in the
-        construction of seqDists.
-    fAD: dictionary
-        A corrected dictionary mapping sequence ids to sequences.
-    sO: list
-        A list of sequence ids in the order which they should appear in an
-        alignment.
-    sL: int
-        The length of the query sequence
+    qAlignment: SeqAlignment
+        Object holding the alignment for the current analysis.
     '''
     global aaDict
     aaDict = a
     global X
     X = seqDists
-    global sortedKeys
-    sortedKeys = sK
-    global fixedAlignment
-    fixedAlignment = fAD
-    global seqOrder
-    seqOrder = sO
-    global seqLen
-    seqLen = sL
+    global poolAlignment
+    poolAlignment = qAlignment
 
 
 def etMIPWorker(inTup):
@@ -429,31 +235,27 @@ def etMIPWorker(inTup):
         The time in seconds which it took to perform clustering.
     '''
     clus = inTup[0]
-#     resMatrix = None
     start = time.time()
     print "Starting clustering: K={}".format(clus)
-    clusterDict, clusterDet = aggClustering(clus, X, sortedKeys)
-    rawScores = np.zeros((clus, seqLen, seqLen))
+    clusterDict, clusterDet = aggClustering(clus, X, poolAlignment.seqOrder)
+    rawScores = np.zeros((clus, poolAlignment.seqLength,
+                          poolAlignment.seqLength))
     for c in clusterDet:
-        newAlignment = fixedAlignment.generateSubAlignment(clusterDict[c])
+        newAlignment = poolAlignment.generateSubAlignment(clusterDict[c])
         newAlignment.alignment2num(aaDict)
         newAlignment.writeOutAlignment(
-            saveFile='AligmentForK{}_{}.fa'.format(clus, c))
-#         newAlignment = {}
-#         for key in clusterDict[c]:
-#             newAlignment[key] = fixedAlignment[key]
-#         writeOutAlignment(newAlignment, seqOrder,
-#                           'AligmentForK{}_{}.fa'.format(clus, c))
+            fileName='AligmentForK{}_{}.fa'.format(clus, c))
         clusteredMIPMatrix = wholeAnalysis(newAlignment)
         rawScores[c] = clusteredMIPMatrix
     resMatrix = np.sum(rawScores, axis=0)
+#     resMatrix = np.mean(rawScores, axis=0)
     end = time.time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
     return clus, resMatrix, timeElapsed, rawScores
 
 
-def poolInit2(c, seqL, PDBRL, sPDBD):
+def poolInit2(c, qAlignment, qStructure, sPDBD):
     '''
     poolInit2
 
@@ -466,8 +268,10 @@ def poolInit2(c, seqL, PDBRL, sPDBD):
     c: float
         The threshold distance at which to consider two residues as interacting
         with one another.
-    PDBRL: list
-        List of PDB residue numbers sorted by position.
+    qAlignment: SeqAlignment
+        Object containing the sequence alignment for this analysis.
+    aStructure: PDBReference
+        Object containing the PDB information for this analysis.
     sPDBD: list
         List of distances between PDB residues sorted by pairwise residue
         numbers.
@@ -475,9 +279,12 @@ def poolInit2(c, seqL, PDBRL, sPDBD):
     global cutoff
     cutoff = c
     global seqLen
-    seqLen = seqL
+    seqLen = qAlignment.seqLength
     global pdbResidueList
-    pdbResidueList = PDBRL
+    if(qStructure is None):
+        pdbResidueList = None
+    else:
+        pdbResidueList = qStructure.pdbResidueList
     global sortedPDBDist
     sortedPDBDist = sPDBD
 
@@ -796,9 +603,9 @@ def surfacePlot(name, dataMat):
 
 
 if __name__ == '__main__':
-    ####--------------------------------------------------------#####
-    ### BODY OF CODE ##
-    ####--------------------------------------------------------#####
+    ###########################################################################
+    # BODY OF CODE ##
+    ###########################################################################
     start = time.time()
     # Read input from the command line
     args = parseArguments()
@@ -808,11 +615,10 @@ if __name__ == '__main__':
     today = str(datetime.date.today())
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
-    aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    aaDict = {aa_list[i]: i for i in range(len(aa_list))}
     ###########################################################################
     # Set up input variables
     ###########################################################################
-    files = open(args['alignment'][0], 'rb')
     processes = args['processes']
     pCount = cpu_count()
     if(processes > pCount):
@@ -821,15 +627,19 @@ if __name__ == '__main__':
     # Set up output location
     ###########################################################################
     startDir = os.getcwd()
+    print startDir
     createFolder = (args['output'] + str(today) + "/" + args['query'][0])
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "creating new folder"
     os.chdir(createFolder)
-
+    ###########################################################################
+    # Import alignment and perform initial analysis
+    ###########################################################################
     print 'Starting ETMIP'
     # Import alignment information: this will be our alignment
-    queryAlignment = SeqAlignment(fileName=files)
+    queryAlignment = SeqAlignment(fileName=startDir + '/' + args['alignment'][0],
+                                  queryID=args['query'][0])
     queryAlignment.importAlignment(saveFile='alignment_dict.pkl')
     # Remove gaps from aligned query sequences
     queryAlignment.removeGaps(saveFile='ungapped_alignment.pkl')
@@ -838,34 +648,22 @@ if __name__ == '__main__':
     print('Query Sequence:')
     print(queryAlignment.querySequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-    X = queryAlignment.distanceMatrix(saveFiles=('X', 'seq_order.pkl'))
+    X = queryAlignment.distanceMatrix(saveFile='X')
     # Generate MIP Matrix
     wholeMIP_Matrix = wholeAnalysis(queryAlignment, 'wholeMIP')
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################
     if(args['pdb']):
-        print(os.getcwd())
-        os.chdir(startDir)
-        pdbfilename = open(args['pdb'], 'rb')
-        os.chdir(createFolder)
-        residuedictionary, pdbResidueList, ResidueDict, pdbSeq = importPDB(
-            pdbfilename, 'pdbData.pkl')
-        mapAToP = mapAlignmentToPDBSeq(queryAlignment.querySequence, pdbSeq)
-        sortedPDBDist = findDistance(queryAlignment.querySequence, mapAToP,
-                                     residuedictionary, pdbResidueList,
-                                     'PDBdistances')
+        queryStructure = PDBReference(startDir + '/' + args['pdb'])
+        queryStructure.importPDB(saveFile='pdbData.pkl')
+        queryStructure.mapAlignmentToPDBSeq(queryAlignment.querySequence)
+        sortedPDBDist = queryStructure.findDistance(
+            queryAlignment.querySequence, saveFile='PDBdistances')
     else:
-        pdbResidueList = None
-        ResidueDict = None
-        sortedPDBDist = None
-        pdbSeq = None
-#     from IPython import embed
-#     embed()
+        queryStructure = None
     print('PDB Sequence')
-    print(pdbSeq)
-
-#     exit()
+    print(queryStructure.seq)
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
@@ -874,9 +672,7 @@ if __name__ == '__main__':
     resTimes = {}
     rawClusters = {}
     if(processes == 1):
-        poolInit(aa_dict, X, queryAlignment.seqOrder,
-                 queryAlignment,
-                 queryAlignment.seqOrder, queryAlignment.seqLength)
+        poolInit(aaDict, X, queryAlignment)
         for c in clusters:
             clus, mat, times, rawCScores = etMIPWorker((c,))
             resMats[clus] = mat
@@ -884,10 +680,7 @@ if __name__ == '__main__':
             rawClusters[clus] = rawCScores
     else:
         pool = Pool(processes=processes, initializer=poolInit,
-                    initargs=(aa_dict, X, queryAlignment.seqOrder,
-                              queryAlignment.alignmentDict,
-                              queryAlignment.seqOrder,
-                              queryAlignment.seqLength))
+                    initargs=(aaDict, X, queryAlignment))
         res1 = pool.map_async(etMIPWorker, [(x,) for x in clusters])
         pool.close()
         pool.join()
@@ -896,29 +689,23 @@ if __name__ == '__main__':
             resMats[r[0]] = r[1]
             resTimes[r[0]] = r[2]
             rawClusters[r[0]] = r[3]
-#     summedMatrices = [np.zeros(wholeMIP_Matrix.shape)] * len(clusters)
     summedMatrices = {i: np.zeros(wholeMIP_Matrix.shape)
                       for i in clusters}
-    for i in clusters:
-        #     for i in range(len(clusters)):
-        #         summedMatrices[i] = summedMatrices[i] + wholeMIP_Matrix
-        summedMatrices[i] += wholeMIP_Matrix
-#         for j in range(0, i):
-        for j in [c for c in clusters if c <= i]:
-            #             summedMatrices[i] += resMats[clusters[j]]
-            #             summedMatrices[i] += resMats[i]
-            summedMatrices[i] += resMats[j]
+    for i in range(len(clusters)):
+        currClus = clusters[i]
+        summedMatrices[currClus] += wholeMIP_Matrix
+        for j in [c for c in clusters if c <= currClus]:
+            summedMatrices[currClus] += resMats[j]
+        summedMatrices[currClus] /= (i + 2)
     resRawScore = {}
     resCoverage = {}
     resScorePos = {}
     resAUCROC = {}
     if(processes == 1):
-        #         for i in range(len(clusters)):
         for clus in clusters:
-            poolInit2(args['threshold'], queryAlignment.seqLength,
-                      pdbResidueList, sortedPDBDist)
+            poolInit2(args['threshold'], queryAlignment,
+                      queryStructure, sortedPDBDist)
             r = etMIPWorker2((clus, summedMatrices[clus]))
-#             r = etMIPWorker2((clusters[i], summedMatrices[i]))
             resRawScore[r[0]] = r[1]
             resCoverage[r[0]] = r[2]
             resScorePos[r[0]] = r[3]
@@ -926,12 +713,10 @@ if __name__ == '__main__':
             resAUCROC[r[0]] = r[5:]
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2,
-                     initargs=(args['threshold'], queryAlignment.seqLength,
-                               pdbResidueList, sortedPDBDist))
+                     initargs=(args['threshold'], queryAlignment,
+                               queryStructure, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clus, summedMatrices[clus])
                                               for clus in clusters])
-#         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
-#                                               for i in range(len(clusters))])
         pool2.close()
         pool2.join()
         res2 = res2.get()
@@ -967,7 +752,7 @@ if __name__ == '__main__':
                                   args['threshold'], c, resScorePos[c],
                                   resRawScore[c], resCoverage[c],
                                   queryAlignment.querySequence, sortedPDBDist,
-                                  pdbResidueList)
+                                  queryStructure.pdbResidueList)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         resTimes[c] += timeElapsed
