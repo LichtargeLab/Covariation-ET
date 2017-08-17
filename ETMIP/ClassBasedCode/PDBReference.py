@@ -155,7 +155,7 @@ class PDBReference(object):
             residues in pdbResidueList.
         --------
         '''
-        start = time.time()
+        start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
             sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
         else:
@@ -184,7 +184,7 @@ class PDBReference(object):
             sortedPDBDist = np.asarray(sortedPDBDist)
             if(saveFile is not None):
                 np.savez(saveFile, pdbDists=sortedPDBDist)
-        end = time.time()
+        end = time()
         print('Computing the distance matrix based on the PDB file took {} min'.format(
             (end - start) / 60.0))
         return sortedPDBDist
