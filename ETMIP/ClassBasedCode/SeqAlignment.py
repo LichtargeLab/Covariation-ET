@@ -8,6 +8,7 @@ from time import time
 import numpy as np
 import os
 import re
+from IPython import embed
 
 
 class SeqAlignment(object):
@@ -20,7 +21,7 @@ class SeqAlignment(object):
         Constructor
         '''
         self.fileName = fileName
-        self.queryID = queryID
+        self.queryID = '>query_' + queryID
         self.alignmentDict = None
         self.seqOrder = None
         self.querySequence = None
@@ -70,7 +71,7 @@ class SeqAlignment(object):
         print('Importing alignment took {} min'.format((end - start) / 60.0))
         self.alignmentDict = alignment
         self.seqOrder = seqOrder
-        self.querySequence = self.alignmentDict['>query_' + self.queryID]
+        self.querySequence = self.alignmentDict[self.queryID]
         self.seqLength = len(self.querySequence)
         self.size = len(self.alignmentDict)
 
@@ -121,27 +122,27 @@ class SeqAlignment(object):
         dict
             A transform of the input dictionary without gaps.
         '''
-        start = time.time()
+        start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
-            queryName, newAlignment = pickle.load(
+            newAlignment = pickle.load(
                 open(saveFile, 'rb'))
         else:
             queryArr = np.array(list(self.querySequence))
-            queryUngappedInd = np.where(queryArr != '-')
+            queryUngappedInd = np.where(queryArr != '-')[0]
             if(len(queryUngappedInd) > 0):
                 newAlignment = {}
                 for key, value in self.alignmentDict.iteritems():
                     currArr = np.array(list(value))[queryUngappedInd]
                     newAlignment[key] = currArr.tostring()
-                self.alignmentDict = newAlignment
-                self.querySequence = self.alignmentDict[self.queryID]
-                self.seqLength = len(self.querySequence)
             else:
                 pass
             if(saveFile is not None):
-                pickle.dump((queryName, newAlignment),
-                            open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-        end = time.time()
+                pickle.dump((newAlignment), open(saveFile, 'wb'),
+                            protocol=pickle.HIGHEST_PROTOCOL)
+        self.alignmentDict = newAlignment
+        self.querySequence = self.alignmentDict[self.queryID]
+        self.seqLength = len(self.querySequence)
+        end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
 
     def alignment2num(self, aaDict):
@@ -166,14 +167,14 @@ class SeqAlignment(object):
             key_list) while the second dimension (columns) will iterate over
             positions in the sequence (0 to seq_length).
         '''
-        alignment2Num = np.zeros((len(self.alignment), self.seqLength))
+        alignment2Num = np.zeros((self.size, self.seqLength))
         for i in range(self.size):
             for j in range(self.seqLength):
-                currSeq = self.alignment[self.seqOrder[i]]
+                currSeq = self.alignmentDict[self.seqOrder[i]]
                 alignment2Num[i, j] = aaDict[currSeq[j]]
         self.alignmentMatrix = alignment2Num
 
-    def distanceMatrix(self, saveFiles=None):
+    def distanceMatrix(self, saveFile=None):
         '''
         Distance matrix
 
@@ -182,12 +183,9 @@ class SeqAlignment(object):
 
         Parameters:
         -----------
-        saveFiles: tuple
-            A tuple or list containing two file paths the first should be the path
-            for a .npz file containing distances between sequences in the alignment
-            (leave out the .npz as it will be added automatically) and the file
-            path for a .pkl file containing the the sequence order for the distance
-            matrix.
+        saveFile: str
+            The path for an .npz file containing distances between sequences in
+            the alignment (leave out the .npz as it will be added automatically.
         Returns:
         --------
         matrix
@@ -197,11 +195,9 @@ class SeqAlignment(object):
             List of the sequence identifiers in the order in which they appear in
             the matrix.
         '''
-        start = time.time()
-        if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
-           os.path.exists(saveFiles[1])):
-            valueMatrix = np.load(saveFiles[0] + '.npz')['X']
-            keyList = pickle.load(open(saveFiles[1], 'rb'))
+        start = time()
+        if((saveFile is not None) and os.path.exists(saveFile + '.npz')):
+            valueMatrix = np.load(saveFile + '.npz')['X']
         else:
             valueMatrix = np.zeros([self.size, self.size])
             for i in range(self.size):
@@ -209,11 +205,9 @@ class SeqAlignment(object):
                 valueMatrix[i] = np.sum(check == 0, axis=1)
             valueMatrix[np.arange(self.size), np.arange(self.size)] = 0
             valueMatrix /= self.seqLength
-            if(saveFiles is not None):
-                np.savez(saveFiles[0], X=valueMatrix)
-                pickle.dump(keyList, open(saveFiles[1], 'wb'),
-                            protocol=pickle.HIGHEST_PROTOCOL)
-        end = time.time()
+            if(saveFile is not None):
+                np.savez(saveFile, X=valueMatrix)
+        end = time()
         print('Computing the distance matrix took {} min'.format(
             (end - start) / 60.0))
         return valueMatrix
@@ -267,7 +261,7 @@ class SeqAlignment(object):
             represented by ids which are present in the new seqOrder.  The size
             is set to the lenght of the new seqOrder.
         '''
-        newAlignment = SeqAlignment(self.fileName)
+        newAlignment = SeqAlignment(self.fileName, self.queryID.split('_')[1])
         newAlignment.queryID = self.queryID
         newAlignment.querySequence = self.querySequence
         newAlignment.seqLength = self.seqLength
