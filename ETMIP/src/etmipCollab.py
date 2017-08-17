@@ -748,6 +748,17 @@ def etMIPWorker2(inTup):
             timeElapsed, fpr, tpr, roc_auc)
 
 
+def determineUsablePositions(alignment, ratio):
+    '''
+    '''
+    gaps = (alignment == 21) * 1.0
+    perColumn = np.sum(gaps, axis=0)
+    percentGaps = perColumn / alignment.shape[0]
+    usablePositions = np.where(percentGaps >= ratio)[0]
+    evidence = (np.ones(alignment.shape[1]) * alignment.shape[0]) - perColumn
+    return usablePositions, evidence
+
+
 def plotAUC(fpr, tpr, rocAUC, qName, clus, today, cutoff):
     '''
     Plot AUC
@@ -998,24 +1009,25 @@ def surfacePlot(name, dataMat):
 ####--------------------------------------------------------#####
 if __name__ == '__main__':
     start = time.time()
+    # Read input from the command line
     args = parseArguments()
     ###########################################################################
     # Set up global variables
     ###########################################################################
     today = str(datetime.date.today())
-    neighbor_list = []
+#     neighbor_list = []
     gap_list = ["-", ".", "_"]
-    aa_list = []
-    # comment out for actual dataset
+#     aa_list = []
+#     # comment out for actual dataset
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    aa_gap_list = aa_list + gap_list
-    i_j_list = []
+#     aa_gap_list = aa_list + gap_list
+#     i_j_list = []
     # {seq1_seq2} = distancescore
-    seq12_distscore_dict = {}
-    key = ''
-    temp_aa = ''
+#     seq12_distscore_dict = {}
+#     key = ''
+#     temp_aa = ''
     ###########################################################################
     # Set up input variables
     ###########################################################################
