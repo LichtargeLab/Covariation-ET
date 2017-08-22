@@ -136,32 +136,41 @@ def wholeAnalysis(alignment, saveFile=None):
     '''
     start = time.time()
     if((saveFile is not None) and os.path.exists(saveFile + '.npz')):
-        mipMatrix = np.load(saveFile + '.npz')['wholeMIP']
+        loadedData = np.load(saveFile + '.npz')
+        mipMatrix = loadedData['wholeMIP']
+#         evidenceMatrix = loadedData['evidence']
     else:
         overallMMI = 0.0
         # generate an MI matrix for each cluster
         miMatrix = np.zeros((alignment.seqLength, alignment.seqLength))
+#         evidenceMatrix = np.zeros((alignment.seqLength, alignment.seqLength))
         # Vector of 1 column
         MMI = np.zeros(alignment.seqLength)
         apcMatrix = np.zeros((alignment.seqLength, alignment.seqLength))
         mipMatrix = np.zeros((alignment.seqLength, alignment.seqLength))
-        # Create matrix converting sequences of amino acids to sequences of integers
-        # representing sequences of amino acids
-#         alignment2Num = alignment2num(
-#             alignment, keyList, alignment.seqLength, aaDict)
         # Generate MI matrix from alignment2Num matrix, the MMI matrix,
         # and overallMMI
-#         usablePositions = alignment.determineUsablePositions(ratio=0.2)
         for i in range(alignment.seqLength):
             for j in range(i + 1, alignment.seqLength):
-                #                 columnI = alignment2Num[:, i]
-                #                 columnJ = alignment2Num[:, j]
-                columnI = alignment.alignmentMatrix[:, i]
-                columnJ = alignment.alignmentMatrix[:, j]
-                currMIS = mutual_info_score(
-                    columnI, columnJ, contingency=None)
+                colI = alignment.alignmentMatrix[:, i]
+                colJ = alignment.alignmentMatrix[:, j]
+                currMIS = mutual_info_score(colI, colJ, contingency=None)
+#                 colI, colJ, _pos, ev, r = alignment.identifyComparableSequences(
+#                     i, j)
+#                 if(ev == 0):
+#                     #                 if((ev == 0) or (r >= 0.8)):
+#                     currMIS = 0
+#                 else:
+#                     try:
+#                         currMIS = mutual_info_score(
+#                             colI, colJ, contingency=None)
+#                     except:
+#                         print 'wholeAnalysis'
+#                         embed()
+#                         exit()
                 # AW: divides by individual entropies to normalize.
                 miMatrix[i, j] = miMatrix[j, i] = currMIS
+#                 evidenceMatrix[i, j] = evidenceMatrix[j, i] = ev
                 overallMMI += currMIS
         MMI += np.sum(miMatrix, axis=1)
         MMI -= miMatrix[np.arange(alignment.seqLength),
@@ -179,10 +188,12 @@ def wholeAnalysis(alignment, saveFile=None):
         mipMatrix[np.arange(alignment.seqLength),
                   np.arange(alignment.seqLength)] = 0
         if(saveFile is not None):
+            # , evidence=evidenceMatrix)
             np.savez(saveFile, wholeMIP=mipMatrix)
     end = time.time()
     print('Whole analysis took {} min'.format((end - start) / 60.0))
     return mipMatrix
+#     return mipMatrix, evidenceMatrix
 
 
 def poolInit(a, seqDists, qAlignment):
@@ -240,15 +251,29 @@ def etMIPWorker(inTup):
     clusterDict, clusterDet = aggClustering(clus, X, poolAlignment.seqOrder)
     rawScores = np.zeros((clus, poolAlignment.seqLength,
                           poolAlignment.seqLength))
+#     evidenceCounts = np.zeros((clus, poolAlignment.seqLength,
+#                                poolAlignment.seqLength))
+    clusterSizes = {}
     for c in clusterDet:
         newAlignment = poolAlignment.generateSubAlignment(clusterDict[c])
+        clusterSizes[c] = newAlignment.size
+        # Create matrix converting sequences of amino acids to sequences of
+        # integers representing sequences of amino acids
         newAlignment.alignment2num(aaDict)
         newAlignment.writeOutAlignment(
             fileName='AligmentForK{}_{}.fa'.format(clus, c))
         clusteredMIPMatrix = wholeAnalysis(newAlignment)
+#         clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment)
         rawScores[c] = clusteredMIPMatrix
-    resMatrix = np.sum(rawScores, axis=0)
-#     resMatrix = np.mean(rawScores, axis=0)
+#         evidenceCounts[c] = evidenceMat
+        # Additive clusters
+#     resMatrix = np.sum(rawScores, axis=0)
+    # Normal average over clusters
+    resMatrix = np.mean(rawScores, axis=0)
+    # Weighted average over clusters based on evidence counts at each pair
+#     resMatrix = (np.sum(rawScores * evidenceCounts, axis=0) /
+#                  np.sum(evidenceCounts, axis=0))
+    resMatrix[np.isnan(resMatrix)] = 0.0
     end = time.time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
@@ -643,6 +668,8 @@ if __name__ == '__main__':
     queryAlignment.importAlignment(saveFile='alignment_dict.pkl')
     # Remove gaps from aligned query sequences
     queryAlignment.removeGaps(saveFile='ungapped_alignment.pkl')
+    # Create matrix converting sequences of amino acids to sequences of integers
+    # representing sequences of amino acids
     queryAlignment.alignment2num(aaDict)
     queryAlignment.writeOutAlignment(fileName='UngappedAlignment.fa')
     print('Query Sequence:')
@@ -651,6 +678,7 @@ if __name__ == '__main__':
     X = queryAlignment.distanceMatrix(saveFile='X')
     # Generate MIP Matrix
     wholeMIP_Matrix = wholeAnalysis(queryAlignment, 'wholeMIP')
+#     wholeMIP_Matrix, wholeEvidence = wholeAnalysis(queryAlignment, 'wholeMIP')
     ###########################################################################
     # Set up for remaining analysis
     ###########################################################################

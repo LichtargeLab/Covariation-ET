@@ -237,6 +237,42 @@ class SeqAlignment(object):
         evidence = (np.ones(self.seqLength) * self.size) - perColumn
         return usablePositions, evidence
 
+    def identifyComparableSequences(self, pos1, pos2):
+        '''
+        For two specified sequence positions identify the sequences which are
+        not gaps in either and return them.
+
+        Parameters:
+        -----------
+        pos1: int
+            First position to check in the sequence alignment.
+        pos2: int
+            Second position to check in the sequence alignment.
+
+        Returns:
+        --------
+        np.array
+            The column for position 1 which was specified, where the amino acids
+            are not gaps in position 1 or position 2.
+        np.array
+            The column for position 2 which was specified, where the amino acids
+            are not gaps in position 1 or position 2.
+        np.array
+            The array of indices for which the positions were not gapped.  This
+            corresponds to the sequences where there were no gaps in the
+            alignment at those positions.
+        int
+            Number of comparable positions, this will be less than or equal to
+            the SeqAlignment.size variable.
+        '''
+        columnI = self.alignmentMatrix[:, pos1]
+        indices1 = (columnI != 20.0) * 1
+        columnJ = self.alignmentMatrix[:, pos2]
+        indices2 = (columnJ != 20.0) * 1
+        check = np.where((indices1 + indices2) == 2)[0]
+        return (columnI[check], columnJ[check], check, check.shape[0],
+                (check.shape[0] / self.size))
+
     def generateSubAlignment(self, sequenceIDs):
         '''
         Initializes a new alignment which is a subset of the current alignment.
