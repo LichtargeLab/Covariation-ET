@@ -269,7 +269,12 @@ def etMIPWorker(inTup):
         # Additive clusters
 #     resMatrix = np.sum(rawScores, axis=0)
     # Normal average over clusters
-    resMatrix = np.mean(rawScores, axis=0)
+#     resMatrix = np.mean(rawScores, axis=0)
+    # Weighted average over clusters based on cluster sizes
+    weighting = np.array([clusterSizes[c]
+                          for c in sorted(clusterSizes.keys())])
+    resMatrix = weighting[:, None, None] * rawScores
+    resMatrix = np.sum(resMatrix, axis=0) / poolAlignment.size
     # Weighted average over clusters based on evidence counts at each pair
 #     resMatrix = (np.sum(rawScores * evidenceCounts, axis=0) /
 #                  np.sum(evidenceCounts, axis=0))
