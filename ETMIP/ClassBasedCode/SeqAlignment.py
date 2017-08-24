@@ -28,6 +28,7 @@ class SeqAlignment(object):
         self.alignmentMatrix = None
         self.seqLength = None
         self.size = None
+        self.distanceMatrix = None
 
     def importAlignment(self, saveFile=None):
         '''
@@ -210,7 +211,8 @@ class SeqAlignment(object):
         end = time()
         print('Computing the distance matrix took {} min'.format(
             (end - start) / 60.0))
-        return valueMatrix
+        self.distanceMatrix = valueMatrix
+#         return valueMatrix
 
     def determineUsablePositions(self, ratio):
         '''
@@ -270,8 +272,7 @@ class SeqAlignment(object):
         columnJ = self.alignmentMatrix[:, pos2]
         indices2 = (columnJ != 20.0) * 1
         check = np.where((indices1 + indices2) == 2)[0]
-        return (columnI[check], columnJ[check], check, check.shape[0],
-                (check.shape[0] / self.size))
+        return (columnI[check], columnJ[check], check, check.shape[0])
 
     def generateSubAlignment(self, sequenceIDs):
         '''
