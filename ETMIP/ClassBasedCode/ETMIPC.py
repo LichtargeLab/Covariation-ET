@@ -230,10 +230,15 @@ class ETMIPC(object):
                      'Y': 'TYR', 'V': 'VAL'}
         e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
         etMIPOutFile = open(e, "w+")
-        header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
-            'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'ETMIp_Coverage',
-            'Residue_Dist', 'Within_Threshold', 'Cluster')
-        etMIPOutFile.write(header)
+        etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
+#         header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
+#             'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'ETMIp_Coverage',
+#             'Residue_Dist', 'Within_Threshold', 'Cluster')
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
+                  'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
+                  'Cluster']
+#         etMIPOutFile.write(header)
+        etMIPWriter.writerow(header)
         counter = 0
         for i in range(0, self.alignment.seqLength):
             for j in range(i + 1, self.alignment.seqLength):
@@ -254,13 +259,20 @@ class ETMIPC(object):
                         r = 0
                 key = '{}_{}'.format(i + 1, j + 1)
                 ind = self.scorePositions[clus].index(key)
-                etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    res1, convertAA[self.alignment.querySequence[i]],
-                    res2, convertAA[self.alignment.querySequence[j]],
+#                 etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\t{}\n'.format(
+#                     res1, convertAA[self.alignment.querySequence[i]],
+#                     res2, convertAA[self.alignment.querySequence[j]],
+#                     round(self.summaryMatrices[clus][i, j], 2),
+#                     round(self.coverage[clus][ind], 2),
+#                     dist, r, clus)
+                etMIPOutputLine = [res1, '({})'.format(
+                    convertAA[self.alignment.querySequence[i]]),
+                    res2, '({})'.format(
+                    convertAA[self.alignment.querySequence[j]]),
                     round(self.summaryMatrices[clus][i, j], 2),
-                    round(self.coverage[clus][ind], 2),
-                    dist, r, clus)
-                etMIPOutFile.write(etMIPOutputLine)
+                    round(self.coverage[clus][ind], 2), dist, r, clus]
+#                 etMIPOutFile.write(etMIPOutputLine)
+                etMIPWriter.writerow(etMIPOutputLine)
                 counter += 1
         etMIPOutFile.close()
         end = time()
