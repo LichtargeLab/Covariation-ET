@@ -175,7 +175,7 @@ class SeqAlignment(object):
                 alignment2Num[i, j] = aaDict[currSeq[j]]
         self.alignmentMatrix = alignment2Num
 
-    def distanceMatrix(self, saveFile=None):
+    def computeDistanceMatrix(self, saveFile=None):
         '''
         Distance matrix
 

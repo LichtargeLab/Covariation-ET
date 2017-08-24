@@ -52,79 +52,6 @@ def parseArguments():
     return vars(args)
 
 
-# def writeOutClusteringResults(today, qName, cutoff, clus, scorePositions,
-#                               etmipResScoreList, etmiplistCoverage, seq,
-#                               sortedPDBDist, pdbPositions):
-#     '''
-#     Write out clustering results
-#
-#     This method writes the results of the clustering to file.
-#
-#     Parameters:
-#     today: date
-#         Todays date.
-#     qName: str
-#         The name of the query protein
-#     clus: int
-#         The number of clusters created
-#     scorePositions: list
-#         A list of the order in which the sequence distances are presented.
-#         The element format is {}_{} where each {} is the number of a sequence
-#         in the alignment.
-#     etmiplistCoverage: list
-#         The coverage of a specific sequence comparison
-#     sortedPDBDist: numpy nd array
-#         Array of the distances between sequences, sorted by sequence indices.
-#     seq: Str
-#         The query alignment sequence.
-#     '''
-#     start = time.time()
-#     convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
-#                  'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
-#                  'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
-#                  'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
-#                  'Y': 'TYR', 'V': 'VAL'}
-#     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
-#     etMIPOutFile = open(e, "w+")
-#     header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
-#         'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'ETMIp_Coverage',
-#         'Residue_Dist', 'Within_Threshold', 'Cluster')
-#     etMIPOutFile.write(header)
-#     counter = 0
-#     for i in range(0, len(seq)):
-#         for j in range(i + 1, len(seq)):
-#             if(sortedPDBDist is None):
-#                 res1 = i + 1
-#                 res2 = j + 1
-#                 r = '-'
-#                 dist = '-'
-#             else:
-#                 res1 = pdbPositions[i]
-#                 res2 = pdbPositions[j]
-#                 dist = round(sortedPDBDist[counter], 2)
-#                 if(sortedPDBDist[counter] <= cutoff):
-#                     r = 1
-#                 elif(np.isnan(sortedPDBDist[counter])):
-#                     r = '-'
-#                 else:
-#                     r = 0
-#             key = '{}_{}'.format(i + 1, j + 1)
-#             ind = scorePositions.index(key)
-# #             embed()
-# #             exit()
-#             etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\t{}\n'.format(
-#                 res1, convertAA[seq[i]], res2, convertAA[seq[j]],
-#                 round(etmipResScoreList[i, j], 2),
-#                 round(etmiplistCoverage[ind], 2),
-#                 dist, r, clus)
-#             etMIPOutFile.write(etMIPOutputLine)
-#             counter += 1
-#     etMIPOutFile.close()
-#     end = time.time()
-#     print('Writing the ETMIP worker data to file took {} min'.format(
-#         (end - start) / 60.0))
-
-
 def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
     '''
     Write final results
@@ -247,7 +174,7 @@ if __name__ == '__main__':
     print(queryAlignment.querySequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
 #     X = queryAlignment.distanceMatrix(saveFile='X')
-    queryAlignment.distanceMatrix(saveFile='X')
+    queryAlignment.computeDistanceMatrix(saveFile='X')
     # Generate MIP Matrix
     ###########################################################################
     # Set up for remaining analysis
@@ -299,14 +226,9 @@ if __name__ == '__main__':
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         etmipObj.resultTimes[c] += timeElapsed
-        try:
-            outDict[c] = "\t{0}\t{1}\t{2}\n".format(c,
-                                                    round(
-                                                        etmipObj.aucs[c][2], 2),
-                                                    round(etmipObj.resultTimes[c], 2))
-        except(TypeError):
-            outDict[c] = "\t{0}\t{1}\t{2}\n".format(c, '-',
-                                                    round(etmipObj.resultTimes[c], 2))
+        outDict[c] = "\t{0}\t{1}\t{2}\n".format(c,
+                                                round(etmipObj.aucs[c][2], 2),
+                                                round(etmipObj.resultTimes[c], 2))
         os.chdir('..')
     writeFinalResults(args['query'][0], today, queryAlignment.seqOrder,
                       queryAlignment.seqLength, args['threshold'], outDict)
