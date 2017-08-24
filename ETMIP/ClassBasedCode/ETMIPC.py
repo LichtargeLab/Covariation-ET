@@ -55,14 +55,14 @@ class ETMIPC(object):
     def calculateClusteredMIPScores(self, aaDict, wCC='evidence_weighted'):
         # wCC options: 'sum', 'average', 'size_weighted', 'evidence_weighted'
         if(self.processes == 1):
-            poolInit(aaDict, self.dists, self.alignment, wCC)
+            poolInit(aaDict, self.alignment, wCC)
             res1 = []
             for c in self.clusters:
                 clus, mat, times, rawCScores = etMIPWorker((c,))
                 res1.append((clus, mat, times, rawCScores))
         else:
             pool = Pool(processes=self.processes, initializer=poolInit,
-                        initargs=(aaDict, self.dists, self.alignment, wCC))
+                        initargs=(aaDict, self.alignment, wCC))
             res1 = pool.map_async(etMIPWorker, [(x,) for x in self.clusters])
             pool.close()
             pool.join()
@@ -231,13 +231,9 @@ class ETMIPC(object):
         e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
         etMIPOutFile = open(e, "w+")
         etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
-#         header = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\n'.format(
-#             'Pos1', 'AA1', 'Pos2', 'AA2', 'ETMIp_Score', 'ETMIp_Coverage',
-#             'Residue_Dist', 'Within_Threshold', 'Cluster')
         header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
                   'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
                   'Cluster']
-#         etMIPOutFile.write(header)
         etMIPWriter.writerow(header)
         counter = 0
         for i in range(0, self.alignment.seqLength):
@@ -259,19 +255,12 @@ class ETMIPC(object):
                         r = 0
                 key = '{}_{}'.format(i + 1, j + 1)
                 ind = self.scorePositions[clus].index(key)
-#                 etMIPOutputLine = '{}\t({})\t{}\t({})\t{}\t{}\t{}\t{}\t{}\n'.format(
-#                     res1, convertAA[self.alignment.querySequence[i]],
-#                     res2, convertAA[self.alignment.querySequence[j]],
-#                     round(self.summaryMatrices[clus][i, j], 2),
-#                     round(self.coverage[clus][ind], 2),
-#                     dist, r, clus)
                 etMIPOutputLine = [res1, '({})'.format(
                     convertAA[self.alignment.querySequence[i]]),
                     res2, '({})'.format(
                     convertAA[self.alignment.querySequence[j]]),
                     round(self.summaryMatrices[clus][i, j], 2),
                     round(self.coverage[clus][ind], 2), dist, r, clus]
-#                 etMIPOutFile.write(etMIPOutputLine)
                 etMIPWriter.writerow(etMIPOutputLine)
                 counter += 1
         etMIPOutFile.close()
@@ -450,7 +439,7 @@ def aggClustering(nCluster, X, keyList, precomputed=False):
     return clusterDict, set(clusterList)
 
 
-def poolInit(a, seqDists, qAlignment, wCC):
+def poolInit(a, qAlignment, wCC):
     '''
     poolInit
 
@@ -470,8 +459,6 @@ def poolInit(a, seqDists, qAlignment, wCC):
     '''
     global aaDict
     aaDict = a
-    global X
-    X = seqDists
     global poolAlignment
     poolAlignment = qAlignment
     global withinClusterCombi
@@ -508,7 +495,8 @@ def etMIPWorker(inTup):
         os.mkdir(resultDir)
     os.chdir(resultDir)
     print "Starting clustering: K={}".format(clus)
-    clusterDict, clusterDet = aggClustering(clus, X, poolAlignment.seqOrder)
+    clusterDict, clusterDet = aggClustering(clus, poolAlignment.distanceMatrix,
+                                            poolAlignment.seqOrder)
     rawScores = np.zeros((clus, poolAlignment.seqLength,
                           poolAlignment.seqLength))
     evidenceCounts = np.zeros((clus, poolAlignment.seqLength,
