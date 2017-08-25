@@ -115,13 +115,6 @@ class SeqAlignment(object):
         saveFile: str
             Path to a file where the alignment with gaps in the query sequence
             removed was stored previously.
-
-        Returns:
-        --------
-        str
-            A new query name.
-        dict
-            A transform of the input dictionary without gaps.
         '''
         start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
@@ -187,14 +180,6 @@ class SeqAlignment(object):
         saveFile: str
             The path for an .npz file containing distances between sequences in
             the alignment (leave out the .npz as it will be added automatically.
-        Returns:
-        --------
-        matrix
-            A symmetric matrix of pairwise distance computed between two sequences
-            using the sequence identity metric.
-        list
-            List of the sequence identifiers in the order in which they appear in
-            the matrix.
         '''
         start = time()
         if((saveFile is not None) and os.path.exists(saveFile + '.npz')):
@@ -212,7 +197,6 @@ class SeqAlignment(object):
         print('Computing the distance matrix took {} min'.format(
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
-#         return valueMatrix
 
     def determineUsablePositions(self, ratio):
         '''
