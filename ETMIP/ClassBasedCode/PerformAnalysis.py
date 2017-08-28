@@ -89,22 +89,14 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
 
 
 def heatmapPlot(name, dataMat):
-    print('In Heatmapping')
     dmMax = np.max(dataMat)
-    print('Identified max')
     dmMin = np.min(dataMat)
-    print('Identified min')
     plotMax = max([dmMax, abs(dmMin)])
-    print('Determined highest value')
     heatMap = heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
                       vmax=plotMax, cbar=True, square=True)
-    print('Plotted heat map')
     plt.title(name)
-    print('Altered title')
     plt.savefig(name.replace(' ', '_') + '.pdf')
-    print('Saved figure')
     plt.clf()
-    print('Cleared figure')
 
 
 def surfacePlot(name, dataMat):
