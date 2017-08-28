@@ -148,6 +148,7 @@ if __name__ == '__main__':
         os.makedirs(createFolder)
         print "creating new folder"
     os.chdir(createFolder)
+    createFolder = os.getcwd()
     ###########################################################################
     # Import alignment and perform initial analysis
     ###########################################################################
@@ -198,10 +199,7 @@ if __name__ == '__main__':
     for c in clusters:
         clusterDir = '{}/'.format(c)
         if(not os.path.exists(clusterDir)):
-            print('making dir')
             os.mkdir(clusterDir)
-        else:
-            print('not making dir')
         os.chdir(clusterDir)
         cStart = time.time()
         if(args['pdb']):

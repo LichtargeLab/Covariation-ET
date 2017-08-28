@@ -21,10 +21,21 @@ class PDBReference(object):
         Constructor
         '''
         self.fileName = pdbFile
+        # dict:
+        # A dictionary mapping a residue number to its spatial position in 3D.
         self.residue3D = None
+        # list:
+        #    A sorted list of residue numbers from the PDB file.
         self.pdbResidueList = None
+        # dict:
+        #    A dictionary mapping residue number to the name of the residue at that
+        #    position.
         self.residuePos = None
         self.seq = None
+        # dict
+        #    A structure mapping the index of the positions in the fasta sequence
+        #    which align to positions in the PDB sequence based on a local alignment
+        #    with no mismatches allowed.
         self.fastaToPDBMapping = None
 
     def importPDB(self, saveFile=None):
@@ -39,15 +50,6 @@ class PDBReference(object):
         -----------
         saveFile: str
             The file path to a previously stored PDB file data structure.
-        Returns:
-        --------
-        dict:
-            A dictionary mapping a residue number to its spatial position in 3D.
-        list:
-            A sorted list of residue numbers from the PDB file.
-        dict:
-            A dictionary mapping residue number to the name of the residue at that
-            position.
         '''
         start = time()
         convertAA = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'ASX': 'B',
@@ -112,12 +114,6 @@ class PDBReference(object):
         pdbSeq: str
             A string providing the amino acid (single letter abbreviations)
             sequence for the protein.
-        Returns:
-        --------
-        dict
-            A structure mapping the index of the positions in the fasta sequence
-            which align to positions in the PDB sequence based on a local alignment
-            with no mismatches allowed.
         '''
         alignments = pairwise2.align.globalxs(fastaSeq, self.seq, -1, 0)
         from Bio.pairwise2 import format_alignment
@@ -162,10 +158,9 @@ class PDBReference(object):
             qLen = len(querySequence)
             sortedPDBDist = []
             # Loop over all residues in the pdb
-    #         for i in range(len(pdbResidueList)):
             for i in range(qLen):
-                # Loop over residues to calculate distance between all residues i
-                # and j
+                # Loop over residues to calculate distance between all residues
+                # i and j
                 for j in range(i + 1, qLen):
                     # Getting the 3d coordinates for every atom in each residue.
                     # iterating over all pairs to find all distances

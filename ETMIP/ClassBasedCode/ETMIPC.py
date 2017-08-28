@@ -55,14 +55,14 @@ class ETMIPC(object):
     def calculateClusteredMIPScores(self, aaDict, wCC='evidence_weighted'):
         # wCC options: 'sum', 'average', 'size_weighted', 'evidence_weighted'
         if(self.processes == 1):
-            poolInit(aaDict, self.alignment, wCC)
+            poolInit(aaDict, self.alignment, wCC, self.outputDir)
             res1 = []
             for c in self.clusters:
                 clus, mat, times, rawCScores = etMIPWorker((c,))
                 res1.append((clus, mat, times, rawCScores))
         else:
             pool = Pool(processes=self.processes, initializer=poolInit,
-                        initargs=(aaDict, self.alignment, wCC))
+                        initargs=(aaDict, self.alignment, wCC, self.outputDir))
             res1 = pool.map_async(etMIPWorker, [(x,) for x in self.clusters])
             pool.close()
             pool.join()
@@ -439,7 +439,7 @@ def aggClustering(nCluster, X, keyList, precomputed=False):
     return clusterDict, set(clusterList)
 
 
-def poolInit(a, qAlignment, wCC):
+def poolInit(a, qAlignment, wCC, oDir):
     '''
     poolInit
 
@@ -463,6 +463,8 @@ def poolInit(a, qAlignment, wCC):
     poolAlignment = qAlignment
     global withinClusterCombi
     withinClusterCombi = wCC
+    global outDir
+    outDir = oDir
 
 
 def etMIPWorker(inTup):
@@ -490,7 +492,7 @@ def etMIPWorker(inTup):
     '''
     clus = inTup[0]
     start = time()
-    resultDir = os.getcwd() + '/{}/'.format(clus)
+    resultDir = outDir + '/{}/'.format(clus)
     if(not os.path.exists(resultDir)):
         os.mkdir(resultDir)
     os.chdir(resultDir)
@@ -539,6 +541,7 @@ def etMIPWorker(inTup):
         print 'Combination method not yet implemented'
         raise NotImplementedError()
     resMatrix[np.isnan(resMatrix)] = 0.0
+    os.chdir(outDir)
     end = time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
