@@ -13,6 +13,7 @@ from multiprocessing import Pool
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
+from nose.plugins import cover
 
 
 class ETMIPC(object):
@@ -42,8 +43,10 @@ class ETMIPC(object):
         self.summaryMatrices = {c: np.zeros((self.alignment.seqLength,
                                              self.alignment.seqLength))
                                 for c in self.clusters}
-        self.coverage = {}
-        self.scorePositions = {}
+        self.coverage = {c: np.zeros((self.alignment.seqLength,
+                                      self.alignment.seqLength))
+                         for c in self.clusters}
+#         self.scorePositions = {}
         self.aucs = {}
 
     def determineWholeMIP(self):
@@ -82,7 +85,12 @@ class ETMIPC(object):
                 self.summaryMatrices[currClus] /= (i + 2)
 
     def computeCoverageAndAUC(self, sortedPDBDist, threshold):
-        if(self.processes == 1):
+        #         if(self.processes == 1):
+        #
+        #
+        #
+        #
+        if(True):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment,
@@ -99,10 +107,9 @@ class ETMIPC(object):
             pool2.join()
             res2 = res2.get()
         for r in res2:
-            self.coverage[r[0]] = r[2]
-            self.scorePositions[r[0]] = r[3]
-            self.resultTimes[r[0]] += r[4]
-            self.aucs[r[0]] = r[5:]
+            self.coverage[r[0]] = r[1]
+            self.resultTimes[r[0]] += r[2]
+            self.aucs[r[0]] = r[3:]
 
     def plotAUC(self, qName, clus, today, cutoff):
         '''
@@ -181,8 +188,6 @@ class ETMIPC(object):
             for j in range(i + 1, self.alignment.seqLength):
                 res1 = i + 1
                 res2 = j + 1
-                key = '{}_{}'.format(i + 1, j + 1)
-                ind = self.scorePositions[clus].index(key)
                 rowP1 = [res1, convertAA[self.alignment.querySequence[i]], res2,
                          convertAA[self.alignment.querySequence[j]],
                          round(self.wholeMIPMatrix[i, j], 2)]
@@ -190,7 +195,7 @@ class ETMIPC(object):
                          for c in range(clus)]
                 rowP3 = [round(self.resultMatrices[clus][i, j], 2),
                          round(self.summaryMatrices[clus][i, j], 2),
-                         round(self.coverage[clus][ind], 2)]
+                         round(self.coverage[clus][i, j], 2)]
                 etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
         etMIPOutFile.close()
         end = time()
@@ -253,14 +258,12 @@ class ETMIPC(object):
                         r = '-'
                     else:
                         r = 0
-                key = '{}_{}'.format(i + 1, j + 1)
-                ind = self.scorePositions[clus].index(key)
                 etMIPOutputLine = [res1, '({})'.format(
                     convertAA[self.alignment.querySequence[i]]),
                     res2, '({})'.format(
                     convertAA[self.alignment.querySequence[j]]),
                     round(self.summaryMatrices[clus][i, j], 2),
-                    round(self.coverage[clus][ind], 2), dist, r, clus]
+                    round(self.coverage[clus][i, j], 2), dist, r, clus]
                 etMIPWriter.writerow(etMIPOutputLine)
                 counter += 1
         etMIPOutFile.close()
@@ -614,21 +617,19 @@ def etMIPWorker2(inTup):
     '''
     clus, summedMatrix = inTup
     start = time()
-    scorePositions = []
-    etmipResScoreList = []
-    for i in range(0, seqLen):
-        for j in range(i + 1, seqLen):
-            newkey1 = "{}_{}".format(i + 1, j + 1)
-            scorePositions.append(newkey1)
-            etmipResScoreList.append(summedMatrix[i][j])
-    etmipResScoreList = np.asarray(etmipResScoreList)
-    # Converting to coverage
-    etmiplistCoverage = []
-    numPos = float(len(etmipResScoreList))
-    for i in range(len(etmipResScoreList)):
-        computeCoverage = (((np.sum((etmipResScoreList[i] >= etmipResScoreList)
-                                    * 1.0) - 1) * 100) / numPos)
-        etmiplistCoverage.append(computeCoverage)
+    coverage = np.zeros(summedMatrix.shape)
+    testMat = np.triu(summedMatrix)
+    mask = np.triu(np.ones(summedMatrix.shape), k=1)
+    normalization = ((summedMatrix.shape[0]**2 - summedMatrix.shape[0]) / 2.0)
+    for i in range(summedMatrix.shape[0]):
+        for j in range(i + 1, summedMatrix.shape[0]):
+            print('{} : {}'.format(i, j))
+            boolMat = (testMat[i, j] >= testMat) * 1.0
+            correctedMat = boolMat * mask
+            computeCoverage2 = (((np.sum(correctedMat) - 1) * 100) /
+                                normalization)
+            coverage[i, j] = coverage[j, i] = computeCoverage2
+    etmiplistCoverage = coverage[np.triu_indices(summedMatrix.shape[0], 1)]
     # AUC computation
     if((sortedPDBDist is not None) and
        (len(etmiplistCoverage) != len(sortedPDBDist))):
@@ -646,5 +647,4 @@ def etMIPWorker2(inTup):
     end = time()
     timeElapsed = end - start
     print('ETMIP worker 2 took {} min'.format(timeElapsed / 60.0))
-    return (clus, etmipResScoreList, etmiplistCoverage, scorePositions,
-            timeElapsed, fpr, tpr, roc_auc)
+    return (clus, coverage, timeElapsed, fpr, tpr, roc_auc)

@@ -211,8 +211,8 @@ if __name__ == '__main__':
                     etmipObj.summaryMatrices[c])
         surfacePlot('Raw Score Surface K {}'.format(c),
                     etmipObj.summaryMatrices[c])
-#         heatmapPlot('Coverage Heatmap K {}'.format(c), resCoverage[c])
-#         surfacePlot('Coverage Surface K {}'.format(c), resCoverage[c])
+        heatmapPlot('Coverage Heatmap K {}'.format(c), etmipObj.coverage[c])
+        surfacePlot('Coverage Surface K {}'.format(c), etmipObj.coverage[c])
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         etmipObj.resultTimes[c] += timeElapsed
