@@ -9,11 +9,17 @@ import sys
 import numpy as np
 import pylab as pl
 from time import time
+from seaborn import heatmap
+import matplotlib
+matplotlib.use('Agg')
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from multiprocessing import Pool
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
-from nose.plugins import cover
 
 
 class ETMIPC(object):
@@ -46,7 +52,6 @@ class ETMIPC(object):
         self.coverage = {c: np.zeros((self.alignment.seqLength,
                                       self.alignment.seqLength))
                          for c in self.clusters}
-#         self.scorePositions = {}
         self.aucs = {}
 
     def determineWholeMIP(self):
@@ -85,12 +90,7 @@ class ETMIPC(object):
                 self.summaryMatrices[currClus] /= (i + 2)
 
     def computeCoverageAndAUC(self, sortedPDBDist, threshold):
-        #         if(self.processes == 1):
-        #
-        #
-        #
-        #
-        if(True):
+        if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment,
@@ -147,6 +147,43 @@ class ETMIPC(object):
         pl.close()
         end = time()
         print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
+
+    def heatmapPlot(self, name, normalized, cluster):
+        if(normalized):
+            relData = self.coverage
+        else:
+            relData = self.summaryMatrices
+        dataMat = relData[cluster]
+        dmMax = np.max(dataMat)
+        dmMin = np.min(dataMat)
+        plotMax = max([dmMax, abs(dmMin)])
+        heatMap = heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
+                          vmax=plotMax, cbar=True, square=True)
+        plt.title(name)
+        plt.savefig(name.replace(' ', '_') + '.pdf')
+        plt.clf()
+
+    def surfacePlot(self, name, normalized, cluster):
+        if(normalized):
+            relData = self.coverage
+        else:
+            relData = self.summaryMatrices
+        dataMat = relData[cluster]
+        dmMax = np.max(dataMat)
+        dmMin = np.min(dataMat)
+        plotMax = max([dmMax, abs(dmMin)])
+        X = Y = np.arange(max(dataMat.shape))
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        X, Y = np.meshgrid(X, Y)
+        surf = ax.plot_surface(X, Y, dataMat, cmap=cm.jet,
+                               linewidth=0, antialiased=False)
+        ax.set_zlim(-1 * plotMax, plotMax)
+        ax.zaxis.set_major_locator(LinearLocator(10))
+        ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+        fig.colorbar(surf, shrink=0.5, aspect=5)
+        plt.savefig(name.replace(' ', '_') + '.pdf')
+        plt.clf()
 
     def writeOutClusterScoring(self, today, qName, clus):
         '''
@@ -623,7 +660,6 @@ def etMIPWorker2(inTup):
     normalization = ((summedMatrix.shape[0]**2 - summedMatrix.shape[0]) / 2.0)
     for i in range(summedMatrix.shape[0]):
         for j in range(i + 1, summedMatrix.shape[0]):
-            print('{} : {}'.format(i, j))
             boolMat = (testMat[i, j] >= testMat) * 1.0
             correctedMat = boolMat * mask
             computeCoverage2 = (((np.sum(correctedMat) - 1) * 100) /

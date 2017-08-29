@@ -4,13 +4,6 @@ Created on Aug 17, 2017
 @author: daniel
 '''
 from multiprocessing import cpu_count
-from seaborn import heatmap
-import matplotlib
-matplotlib.use('Agg')
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import numpy as np
 import datetime
 import argparse
@@ -88,35 +81,6 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
         outfile.write(outDict[key])
 
 
-def heatmapPlot(name, dataMat):
-    dmMax = np.max(dataMat)
-    dmMin = np.min(dataMat)
-    plotMax = max([dmMax, abs(dmMin)])
-    heatMap = heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
-                      vmax=plotMax, cbar=True, square=True)
-    plt.title(name)
-    plt.savefig(name.replace(' ', '_') + '.pdf')
-    plt.clf()
-
-
-def surfacePlot(name, dataMat):
-    dmMax = np.max(dataMat)
-    dmMin = np.min(dataMat)
-    plotMax = max([dmMax, abs(dmMin)])
-    X = Y = np.arange(max(dataMat.shape))
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    X, Y = np.meshgrid(X, Y)
-    surf = ax.plot_surface(X, Y, dataMat, cmap=cm.jet,
-                           linewidth=0, antialiased=False)
-    ax.set_zlim(-1 * plotMax, plotMax)
-    ax.zaxis.set_major_locator(LinearLocator(10))
-    ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-    fig.colorbar(surf, shrink=0.5, aspect=5)
-    plt.savefig(name.replace(' ', '_') + '.pdf')
-    plt.clf()
-
-
 if __name__ == '__main__':
     ###########################################################################
     # BODY OF CODE ##
@@ -166,7 +130,6 @@ if __name__ == '__main__':
     print('Query Sequence:')
     print(queryAlignment.querySequence)
     # I will get a corr_dict for method x for all residue pairs FOR ONE PROTEIN
-#     X = queryAlignment.distanceMatrix(saveFile='X')
     queryAlignment.computeDistanceMatrix(saveFile='X')
     # Generate MIP Matrix
     ###########################################################################
@@ -207,12 +170,14 @@ if __name__ == '__main__':
         etmipObj.writeOutClusterScoring(today, args['query'][0], c)
         etmipObj.writeOutClusteringResults(today, args['query'][0],
                                            args['threshold'], c, sortedPDBDist)
-        heatmapPlot('Raw Score Heatmap K {}'.format(c),
-                    etmipObj.summaryMatrices[c])
-        surfacePlot('Raw Score Surface K {}'.format(c),
-                    etmipObj.summaryMatrices[c])
-        heatmapPlot('Coverage Heatmap K {}'.format(c), etmipObj.coverage[c])
-        surfacePlot('Coverage Surface K {}'.format(c), etmipObj.coverage[c])
+        etmipObj.heatmapPlot('Raw Score Heatmap K {}'.format(c),
+                             normalized=False, cluster=c)
+        etmipObj.surfacePlot('Raw Score Surface K {}'.format(c),
+                             normalized=False, cluster=c)
+        etmipObj.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
+                             cluster=c)
+        etmipObj.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
+                             cluster=c)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         etmipObj.resultTimes[c] += timeElapsed
