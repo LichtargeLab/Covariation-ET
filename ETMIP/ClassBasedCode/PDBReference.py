@@ -20,7 +20,7 @@ class PDBReference(object):
         '''
         Constructor
 
-        Initiates an instance of the SeqAlignment class which stores the
+        Initiates an instance of the PDBReference class which stores the
         following data:
 
         fileName: str
