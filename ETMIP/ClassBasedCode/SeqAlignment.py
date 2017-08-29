@@ -8,7 +8,6 @@ from time import time
 import numpy as np
 import os
 import re
-from IPython import embed
 
 
 class SeqAlignment(object):
@@ -19,6 +18,36 @@ class SeqAlignment(object):
     def __init__(self, fileName, queryID):
         '''
         Constructor
+
+        Initiates an instance of the SeqAlignment class which stores the
+        following data:
+
+        fileName: str
+            The file path to the file from which the alignment can be parsed.
+        queryID: str
+            The provided queryID prepended with >query_, which should be the
+            identifier for query sequence in the alignment file.
+        size: int
+            The number of sequences in the alignment represented by this object.
+        seqOrder: list
+            List of sequence ids in the order in which they were parsed from the
+            alignment file.
+        seqLength: int
+            The length of the query sequence.
+        querySequence: str
+            The sequence matching the sequence identifier give by the queryID
+            variable.
+        alignmentDict: dict
+            A dictionary mapping sequence IDs with their sequences as parsed
+            from the alignment file.
+        alignmentMatrix: np.array
+            A numerical representation of alignment, every amino acid has been
+            assigned a numerical representation as has the gap symbol.  All
+            rows are different sequences as described in seqOrder, while each
+            column in the matrix is a position in the sequence.
+        distanceMatrix: np.array
+            A matrix with the identity scores between sequences in the
+            alignment.
         '''
         self.fileName = fileName
         self.queryID = '>query_' + queryID
@@ -35,19 +64,14 @@ class SeqAlignment(object):
         Import alignments:
 
         This method imports the alignments into the class and forces all
-        non-amino acids to take on the standard gap character "-".
+        non-amino acids to take on the standard gap character "-".  This
+        updates the alignmentDict, seqOrder, querySequence, seqLength, and size
+        class variables.
 
         Parameters:
         -----------
         saveFile: str
             Path to file in which the desired alignment was stored previously.
-        Returns:
-        --------
-        alignment_dict: dict    
-            Dictionary which will be used to store alignments from the file.
-        seqOrder: list
-            List of sequence ids in the order in which they were parsed from the
-            alignment file.
         '''
         start = time()
         if((saveFile is not None) and (os.path.exists(saveFile))):
@@ -62,7 +86,6 @@ class SeqAlignment(object):
                     alignment[key] = ''
                     seqOrder.append(key)
                 else:
-                    # .replace('.', '-').replace('_', '-')
                     alignment[key] += re.sub(r'[^a-zA-Z]', '-', line.rstrip())
             faFile.close()
             if(saveFile is not None):
@@ -108,7 +131,8 @@ class SeqAlignment(object):
         Remove Gaps
 
         Removes all gaps from the query sequence and removes characters at the
-        corresponding positions in all other sequences.
+        corresponding positions in all other sequences. This method updates the
+        class variables alignmentDict, querySequence, and seqLength.
 
         Parameters:
         -----------
@@ -143,7 +167,8 @@ class SeqAlignment(object):
         '''
         Alignment2num
 
-        Converts an alignment dictionary to a numerical representation.
+        Converts an alignment dictionary to a numerical representation.  This
+        method updates the alignmentMatrix class variable.
 
         Parameters:
         -----------
@@ -173,7 +198,8 @@ class SeqAlignment(object):
         Distance matrix
 
         Computes the sequence identity distance between a set of sequences and
-        returns a matrix of the pairwise distances.
+        returns a matrix of the pairwise distances.  This method updates the
+        distanceMatrix class variable.
 
         Parameters:
         -----------
@@ -280,7 +306,7 @@ class SeqAlignment(object):
             preserving their ordering from the current SeqAlignment object.
             The alignmentDict will contain only the subset of sequences
             represented by ids which are present in the new seqOrder.  The size
-            is set to the lenght of the new seqOrder.
+            is set to the length of the new seqOrder.
         '''
         newAlignment = SeqAlignment(self.fileName, self.queryID.split('_')[1])
         newAlignment.queryID = self.queryID
