@@ -19,23 +19,34 @@ class PDBReference(object):
     def __init__(self, pdbFile):
         '''
         Constructor
+
+        Initiates an instance of the SeqAlignment class which stores the
+        following data:
+
+        fileName: str
+            The file name or path to the desired PDB file.
+        residue3D : dict
+            A dictionary mapping a residue number to its spatial position in 3D.
+        pdbResidueList : list
+            A sorted list of residue numbers from the PDB file.
+        residuePos : dict
+            A dictionary mapping residue number to the name of the residue at that
+            position.
+        seq:
+            Sequence of the structure parsed in from the PDB file.
+        fastaToPDBMapping : dict
+            A structure mapping the index of the positions in the fasta sequence
+            which align to positions in the PDB sequence based on a local alignment
+            with no mismatches allowed.
+        residueDists : list
+            List of minimum distances between residues, sorted by the ordering
+            of residues in pdbResidueList.
         '''
         self.fileName = pdbFile
-        # dict:
-        # A dictionary mapping a residue number to its spatial position in 3D.
         self.residue3D = None
-        # list:
-        #    A sorted list of residue numbers from the PDB file.
         self.pdbResidueList = None
-        # dict:
-        #    A dictionary mapping residue number to the name of the residue at that
-        #    position.
         self.residuePos = None
         self.seq = None
-        # dict
-        #    A structure mapping the index of the positions in the fasta sequence
-        #    which align to positions in the PDB sequence based on a local alignment
-        #    with no mismatches allowed.
         self.fastaToPDBMapping = None
         self.residueDists = None
 
@@ -43,9 +54,10 @@ class PDBReference(object):
         '''
         importPDB
 
-        This method imports a PDB files information generating a list of lists. Each
-        list contains the Amino Acid 3-letter abbreviation, residue number, x, y,
-        and z coordinate.
+        This method imports a PDB files information generating a list of lists.
+        Each list contains the Amino Acid 3-letter abbreviation, residue number,
+        x, y, and z coordinate. This method updates the following class
+        variables: residue3D, pdbResidueList, residuePos, and seq.
 
         Parameters:
         -----------
@@ -105,7 +117,8 @@ class PDBReference(object):
 
     def mapAlignmentToPDBSeq(self, fastaSeq):
         '''
-        Map sequence positions between query from alignment and residues in PDB
+        Map sequence positions between query from the alignment and residues in
+        PDB file. This method updates the fastaToPDBMapping class variable.
 
         Parameters:
         -----------
@@ -136,7 +149,8 @@ class PDBReference(object):
         Find distance
 
         This code takes in an input of a pdb file and outputs a dictionary with the
-        nearest atom distance between two residues.
+        nearest atom distance between two residues. This method updates the
+        resideuDists class variables.
 
         Parameters:
         -----------
@@ -146,10 +160,6 @@ class PDBReference(object):
         saveFile: str
             File name and/or location of file containing a previously computed set
             of distance data for a PDB structure.
-        Returns:
-        list
-            List of minimum distances between residues, sorted by the ordering of
-            residues in pdbResidueList.
         --------
         '''
         start = time()
@@ -183,5 +193,4 @@ class PDBReference(object):
         end = time()
         print('Computing the distance matrix based on the PDB file took {} min'.format(
             (end - start) / 60.0))
-#         return sortedPDBDist
         self.residueDists = sortedPDBDist
