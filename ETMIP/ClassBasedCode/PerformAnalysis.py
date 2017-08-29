@@ -4,7 +4,6 @@ Created on Aug 17, 2017
 @author: daniel
 '''
 from multiprocessing import cpu_count
-import numpy as np
 import datetime
 import argparse
 import time
@@ -43,42 +42,6 @@ def parseArguments():
                         default='./', help='File path to a directory where the results can be generated.')
     args = parser.parse_args()
     return vars(args)
-
-
-def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
-    '''
-    Write final results
-
-    This method writes the final results to file for an analysis.  In this case
-    that consists of the cluster numbers, the resulting AUCs, and the time
-    spent in processing.
-
-    Parameters:
-    -----------
-    qName: str
-        The id for the query sequence.
-    today: str
-        The current date in string format.
-    sequenceOrder: list
-        A list of the sequence ids used in the alignment in sorted order.
-    seqLength: int
-        The length of the gap removed sequences from the alignment.
-    cutoff: float
-        The distance threshold for interaction between two residues in a
-        protein structure.
-    outDict: dict
-        A dictionary with the lines of output mapped to the clustering
-        constants for which they were produced.
-    '''
-    o = '{}_{}etmipAUC_results.txt'.format(qName, today)
-    outfile = open(o, 'w+')
-    proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
-                   str(len(sequenceOrder)) + " Length of protein: " +
-                   str(seqLength) + " Cutoff: " + str(cutoff) + "\n")
-    outfile.write(proteininfo)
-    outfile.write("#OfClusters\tAUC\tRunTime\n")
-    for key in sorted(outDict.keys()):
-        outfile.write(outDict[key])
 
 
 if __name__ == '__main__':
@@ -139,8 +102,10 @@ if __name__ == '__main__':
         queryStructure = PDBReference(startDir + '/' + args['pdb'])
         queryStructure.importPDB(saveFile='pdbData.pkl')
         queryStructure.mapAlignmentToPDBSeq(queryAlignment.querySequence)
-        sortedPDBDist = queryStructure.findDistance(
-            queryAlignment.querySequence, saveFile='PDBdistances')
+#         sortedPDBDist = queryStructure.findDistance(
+#             queryAlignment.querySequence, saveFile='PDBdistances')
+        queryStructure.findDistance(queryAlignment.querySequence,
+                                    saveFile='PDBdistances')
     else:
         queryStructure = None
     print('PDB Sequence')
@@ -156,37 +121,9 @@ if __name__ == '__main__':
     etmipObj.calculateClusteredMIPScores(aaDict=aaDict)
 #     etmipObj.combineClusteringResults(combination='addative')
     etmipObj.combineClusteringResults(combination='average')
-    etmipObj.computeCoverageAndAUC(sortedPDBDist=sortedPDBDist,
-                                   threshold=args['threshold'])
-    outDict = {}
-    for c in clusters:
-        clusterDir = '{}/'.format(c)
-        if(not os.path.exists(clusterDir)):
-            os.mkdir(clusterDir)
-        os.chdir(clusterDir)
-        cStart = time.time()
-        if(args['pdb']):
-            etmipObj.plotAUC(args['query'][0], c, today, args['threshold'])
-        etmipObj.writeOutClusterScoring(today, args['query'][0], c)
-        etmipObj.writeOutClusteringResults(today, args['query'][0],
-                                           args['threshold'], c, sortedPDBDist)
-        etmipObj.heatmapPlot('Raw Score Heatmap K {}'.format(c),
-                             normalized=False, cluster=c)
-        etmipObj.surfacePlot('Raw Score Surface K {}'.format(c),
-                             normalized=False, cluster=c)
-        etmipObj.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
-                             cluster=c)
-        etmipObj.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
-                             cluster=c)
-        cEnd = time.time()
-        timeElapsed = cEnd - cStart
-        etmipObj.resultTimes[c] += timeElapsed
-        outDict[c] = "\t{0}\t{1}\t{2}\n".format(c,
-                                                round(etmipObj.aucs[c][2], 2),
-                                                round(etmipObj.resultTimes[c], 2))
-        os.chdir('..')
-    writeFinalResults(args['query'][0], today, queryAlignment.seqOrder,
-                      queryAlignment.seqLength, args['threshold'], outDict)
+    etmipObj.computeCoverageAndAUC(threshold=args['threshold'])
+    etmipObj.produceFinalFigures(today, cutOff=args['threshold'])
+    etmipObj.writeFinalResults(today, args['threshold'])
     print "Generated results in", createFolder
     os.chdir(startDir)
     end = time.time()

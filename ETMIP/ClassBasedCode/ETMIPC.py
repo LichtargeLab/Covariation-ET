@@ -89,20 +89,19 @@ class ETMIPC(object):
             if(combination == 'average'):
                 self.summaryMatrices[currClus] /= (i + 2)
 
-    def computeCoverageAndAUC(self, sortedPDBDist, threshold):
+    def computeCoverageAndAUC(self, threshold):
         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
-                poolInit2(threshold, self.alignment,
-                          self.pdb, sortedPDBDist)
+                poolInit2(threshold, self.alignment, self.pdb)
                 r = etMIPWorker2((clus, self.summaryMatrices[clus]))
                 res2.append(r)
         else:
             pool2 = Pool(processes=self.processes, initializer=poolInit2,
-                         initargs=(threshold, self.alignment,
-                                   self.pdb, sortedPDBDist))
-            res2 = pool2.map_async(etMIPWorker2, [(clus, self.summaryMatrices[clus])
-                                                  for clus in self.clusters])
+                         initargs=(threshold, self.alignment, self.pdb))
+            res2 = pool2.map_async(etMIPWorker2,
+                                   [(clus, self.summaryMatrices[clus])
+                                    for clus in self.clusters])
             pool2.close()
             pool2.join()
             res2 = res2.get()
@@ -110,6 +109,32 @@ class ETMIPC(object):
             self.coverage[r[0]] = r[1]
             self.resultTimes[r[0]] += r[2]
             self.aucs[r[0]] = r[3:]
+
+    def produceFinalFigures(self, today, cutOff):
+        for c in self.clusters:
+            clusterDir = '{}/'.format(c)
+            if(not os.path.exists(clusterDir)):
+                os.mkdir(clusterDir)
+            os.chdir(clusterDir)
+            start = time()
+            qName = self.alignment.queryID.split('_')[1]
+            if(self.pdb):
+                self.plotAUC(qName, c, today, cutOff)
+            self.writeOutClusterScoring(today, qName, c)
+            self.writeOutClusteringResults(today, qName, cutOff, c,
+                                           self.pdb.residueDists)
+            self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
+                             normalized=False, cluster=c)
+            self.surfacePlot('Raw Score Surface K {}'.format(c),
+                             normalized=False, cluster=c)
+            self.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
+                             cluster=c)
+            self.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
+                             cluster=c)
+            end = time()
+            timeElapsed = end - start
+            self.resultTimes[c] += timeElapsed
+            os.chdir('..')
 
     def plotAUC(self, qName, clus, today, cutoff):
         '''
@@ -307,6 +332,47 @@ class ETMIPC(object):
         end = time()
         print('Writing the ETMIP worker data to file took {} min'.format(
             (end - start) / 60.0))
+
+    def writeFinalResults(self, today, cutoff):
+        '''
+        Write final results
+
+        This method writes the final results to file for an analysis.  In this case
+        that consists of the cluster numbers, the resulting AUCs, and the time
+        spent in processing.
+
+        Parameters:
+        -----------
+        qName: str
+            The id for the query sequence.
+        today: str
+            The current date in string format.
+        sequenceOrder: list
+            A list of the sequence ids used in the alignment in sorted order.
+        seqLength: int
+            The length of the gap removed sequences from the alignment.
+        cutoff: float
+            The distance threshold for interaction between two residues in a
+            protein structure.
+        outDict: dict
+            A dictionary with the lines of output mapped to the clustering
+            constants for which they were produced.
+        '''
+        qName = self.alignment.queryID
+        o = '{}_{}etmipAUC_results.txt'.format(qName, today)
+        outfile = open(o, 'w+')
+#         proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
+#                        str(self.alignment.size) + " Length of protein: " +
+#                        str(self.alignment.seqLength) + " Cutoff: " +
+#                        str(cutoff) + "\n")
+#         outfile.write(proteininfo)
+        outfile.write(
+            "Protein/id: {} Alignment Size: {} Length of protein: {} Cutoff: {}\n".format(
+                qName, self.alignment.size, self.alignment.seqLength, cutoff))
+        outfile.write("#OfClusters\tAUC\tRunTime\n")
+        for c in self.clusters:
+            outfile.write("\t{0}\t{1}\t{2}\n".format(
+                c, round(self.aucs[c][2], 4), round(self.resultTimes[c], 4)))
 ###############################################################################
 #
 ###############################################################################
@@ -588,7 +654,7 @@ def etMIPWorker(inTup):
     return clus, resMatrix, timeElapsed, rawScores
 
 
-def poolInit2(c, qAlignment, qStructure, sPDBD):
+def poolInit2(c, qAlignment, qStructure):
     '''
     poolInit2
 
@@ -619,7 +685,7 @@ def poolInit2(c, qAlignment, qStructure, sPDBD):
     else:
         pdbResidueList = qStructure.pdbResidueList
     global sortedPDBDist
-    sortedPDBDist = sPDBD
+    sortedPDBDist = qStructure.residueDists
 
 
 def etMIPWorker2(inTup):
