@@ -37,6 +37,7 @@ class PDBReference(object):
         #    which align to positions in the PDB sequence based on a local alignment
         #    with no mismatches allowed.
         self.fastaToPDBMapping = None
+        self.residueDists = None
 
     def importPDB(self, saveFile=None):
         '''
@@ -182,4 +183,5 @@ class PDBReference(object):
         end = time()
         print('Computing the distance matrix based on the PDB file took {} min'.format(
             (end - start) / 60.0))
-        return sortedPDBDist
+#         return sortedPDBDist
+        self.residueDists = sortedPDBDist
