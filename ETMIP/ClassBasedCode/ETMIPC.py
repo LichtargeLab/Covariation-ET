@@ -405,12 +405,12 @@ class ETMIPC(object):
                 res2 = j + 1
                 rowP1 = [res1, convertAA[self.alignment.querySequence[i]], res2,
                          convertAA[self.alignment.querySequence[j]],
-                         round(self.wholeMIPMatrix[i, j], 2)]
-                rowP2 = [round(self.rawScores[clus][c, i, j], 2)
+                         round(self.wholeMIPMatrix[i, j], 4)]
+                rowP2 = [round(self.rawScores[clus][c, i, j], 4)
                          for c in range(clus)]
-                rowP3 = [round(self.resultMatrices[clus][i, j], 2),
-                         round(self.summaryMatrices[clus][i, j], 2),
-                         round(self.coverage[clus][i, j], 2)]
+                rowP3 = [round(self.resultMatrices[clus][i, j], 4),
+                         round(self.summaryMatrices[clus][i, j], 4),
+                         round(self.coverage[clus][i, j], 4)]
                 etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
         etMIPOutFile.close()
         end = time()
@@ -460,7 +460,7 @@ class ETMIPC(object):
                 else:
                     res1 = self.pdb.pdbResidueList[i]
                     res2 = self.pdb.pdbResidueList[j]
-                    dist = round(sortedPDBDist[counter], 2)
+                    dist = round(sortedPDBDist[counter], 4)
                     if(sortedPDBDist[counter] <= cutoff):
                         r = 1
                     elif(np.isnan(sortedPDBDist[counter])):
@@ -471,8 +471,8 @@ class ETMIPC(object):
                     convertAA[self.alignment.querySequence[i]]),
                     res2, '({})'.format(
                     convertAA[self.alignment.querySequence[j]]),
-                    round(self.summaryMatrices[clus][i, j], 2),
-                    round(self.coverage[clus][i, j], 2), dist, r, clus]
+                    round(self.summaryMatrices[clus][i, j], 4),
+                    round(self.coverage[clus][i, j], 4), dist, r, clus]
                 etMIPWriter.writerow(etMIPOutputLine)
                 counter += 1
         etMIPOutFile.close()
