@@ -30,6 +30,62 @@ class ETMIPC(object):
     def __init__(self, alignment, clusters, pdb, outputDir, processes):
         '''
         Constructor
+
+        Initiates an instance of the ETMIPC class which stores the
+        following data:
+
+        alignment : SeqAlignment
+            The SeqAlignment object containing relevant information for this
+            ETMIPC analysis.
+        clusters : list
+            The k's for which to create different clusterings.
+        pdb : PDBReference
+            The PDBReference object containing relevant information for this
+            ETMIPC analysis.
+        outputDir : str
+            Directory name or path to directory where results from this analysis
+            should be stored.
+        processes : int
+            The number of processes to spawn for more intense computations
+            performed during this analysis.  If the number is higher than the
+            number of jobs required to quickly perform this analysis the number
+            of jobs is used as the number of processes.  If the number of
+            processes is higher than the number of processors available to the
+            program, the number of processors available is used instead.
+        wholeMIPMatrix : np.array
+            Matrix scoring the coupling between all positions in the query
+            sequence, as computed over all sequences in the input alignment.
+        wholeEvidenceMatrix : np.array
+            Matrix containing the number of sequences which are not gaps in
+            either position used for scoring the wholeMIPMatrix.
+        resultTimes : dict
+            Dictionary mapping k constant to the amount of time it took to
+            perform analysis for that k constant.
+        rawScores : dict
+            This dictionary maps clustering constant to an k x m x n matrix.
+            This matrix has coupling scores for all positions in the query
+            sequences for each of the clusters created by hierarchical
+            clustering.
+        resultMatrices : dict
+            This dictionary maps clustering constants to a matrix scoring the
+            coupling between all residues in the query sequence over all of the
+            clusters created at that constant.
+        evidenceCounts : dict
+            This dictionary maps clustering constants to a matrix which has
+            counts for the number of sequences which are not gaps in
+            either position used for scoring at that position.
+        summaryMatrices : dict
+            This dictionary maps clustering constants to a matrix which combines
+            the scores from the wholeMIPMatrix, all lower clustering constants,
+            and this clustering constant.
+        coverage : dict
+            This dictionary maps clustering constants to a matrix of normalized
+            coupling scores between 0 and 100, computed from the
+            summaryMatrices.
+        aucs : dict
+            This dictionary maps clustering constants to a tuple containing the
+            auc, tpr, and fpr for comparing the coupled scores to the PDB
+            reference (if provided) at a specified distance threshold.
         '''
         self.alignment = alignment
         self.clusters = clusters
@@ -55,13 +111,36 @@ class ETMIPC(object):
         self.aucs = {}
 
     def determineWholeMIP(self):
+        '''
+        determineWholeMIP
+
+        This method performs the wholeAnalysis method on all sequences in the
+        sequence alignment. This method updates the wholeMIPMatrix and
+        wholeEvidenceMatrix class variables.
+        '''
         mipMatrix, evidenceCounts = wholeAnalysis(self.alignment,
                                                   saveFile='wholeMIP')
         self.wholeMIPMatrix = mipMatrix
-        self.evidenceCounts = evidenceCounts
+        self.wholeEvidenceMatrix = evidenceCounts
 
     def calculateClusteredMIPScores(self, aaDict, wCC='evidence_weighted'):
-        # wCC options: 'sum', 'average', 'size_weighted', 'evidence_weighted'
+        '''
+        Calculate Clustered MIP Scores
+
+        This method calculates the coupling scores for subsets of sequences
+        from the alignment as determined by hierarchical clustering on the
+        distance matrix between sequences of the alignment. This method updates
+        the resultMatrices, resultTimes, and rawScores class variables.
+
+        Parameters:
+        -----------
+        aaDict : dict
+            A dictionary mapping amino acids to numerical representations.
+        wCC : str
+            Method by which to combine individual matrices from one round of
+            clustering. The options supported now are: sum, average,
+            size_weighted, and evidence_weighted.
+        '''
         if(self.processes == 1):
             poolInit(aaDict, self.alignment, wCC, self.outputDir)
             res1 = []
@@ -80,7 +159,22 @@ class ETMIPC(object):
             self.resultTimes[r[0]] = r[2]
             self.rawScores[r[0]] = r[3]
 
-    def combineClusteringResults(self, combination='average'):
+    def combineClusteringResults(self, combination='sum'):
+        '''
+        Combine Clustering Result
+
+        This method combines data from wholeMIPMatrix and resultMatrices to
+        populate the summaryMatrices.  The combination occurs by simple addition
+        but if average is specified it is normalized by the number of elements
+        added.
+
+        Parameters:
+        -----------
+        combination: str
+            Method by which to combine scores across clustering constants. By
+            default only a sum is performed, the option average is also
+            supported.
+        '''
         for i in range(len(self.clusters)):
             currClus = self.clusters[i]
             self.summaryMatrices[currClus] += self.wholeMIPMatrix
@@ -90,6 +184,22 @@ class ETMIPC(object):
                 self.summaryMatrices[currClus] /= (i + 2)
 
     def computeCoverageAndAUC(self, threshold):
+        '''
+        Compute Coverage And AUC
+
+        This method computes the coverage/normalized coupling scores between
+        residues in the query sequence as well as the AUC summary values
+        determined when comparing the coupling score to the distance between
+        residues in the PDB file. This method updates the coverage, resultTimes,
+        and aucs variables.
+
+        Parameters:
+        -----------
+        threshold : float
+            Distance in Angstroms between residues considered as a preliminary
+            positive set of coupled residues based on spatial positions in
+            the PDB file if provided.
+        '''
         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
@@ -111,6 +221,23 @@ class ETMIPC(object):
             self.aucs[r[0]] = r[3:]
 
     def produceFinalFigures(self, today, cutOff):
+        '''
+        Produce Final Figures
+
+        This method writes out clustering scores and additional results, as well
+        as plotting heatmaps and surface plots of the coupling data for the
+        query sequence. This method updates the resultTimes class variable.
+
+        Parameters:
+        -----------
+        today : str
+            The current date which will be used for identifying the proper
+            directory to store files in.
+        cutOff : float
+            Distance in Angstroms between residues considered as a preliminary
+            positive set of coupled residues based on spatial positions in
+            the PDB file if provided.
+        '''
         for c in self.clusters:
             clusterDir = '{}/'.format(c)
             if(not os.path.exists(clusterDir)):
@@ -140,11 +267,12 @@ class ETMIPC(object):
         '''
         Plot AUC
 
-        This function plots and saves the AUCROC.  The image will be stored in the
-        eps format with dpi=1000 using a name specified by the query name, cutoff,
-        clustering constant, and date.
+        This function plots and saves the AUCROC.  The image will be stored in
+        the eps format with dpi=1000 using a name specified by the query name,
+        cutoff, clustering constant, and date.
 
         Parameters:
+        -----------
         qName: str
             Name of the query protein
         clus: int
@@ -174,6 +302,23 @@ class ETMIPC(object):
         print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
 
     def heatmapPlot(self, name, normalized, cluster):
+        '''
+        Heatmap Plot
+
+        This method creates a heatmap using the Seaborn plotting package. The
+        data used can come from the summaryMatrices or coverage data.
+
+        Parameters:
+        -----------
+        name : str
+            Name used as the title of the plot and the filename for the saved
+            figure.
+        normalized : bool
+            Whether or not to use the coverage data or not. If not the summary
+            Matrices data will be used.
+        cluster : int
+            The clustering constant for which to create a heatmap.
+        '''
         if(normalized):
             relData = self.coverage
         else:
@@ -182,13 +327,31 @@ class ETMIPC(object):
         dmMax = np.max(dataMat)
         dmMin = np.min(dataMat)
         plotMax = max([dmMax, abs(dmMin)])
-        heatMap = heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
-                          vmax=plotMax, cbar=True, square=True)
+        heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
+                vmax=plotMax, cbar=True, square=True)
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()
 
     def surfacePlot(self, name, normalized, cluster):
+        '''
+        Surface Plot
+
+        This method creates a surface plot using the matplotlib plotting
+        package. The data used can come from the summaryMatrices or coverage
+        data.
+
+        Parameters:
+        -----------
+        name : str
+            Name used as the title of the plot and the filename for the saved
+            figure.
+        normalized : bool
+            Whether or not to use the coverage data or not. If not the summary
+            Matrices data will be used.
+        cluster : int
+            The clustering constant for which to create a heatmap.
+        '''
         if(normalized):
             relData = self.coverage
         else:
@@ -223,16 +386,6 @@ class ETMIPC(object):
             The name of the query protein
         clus: int
             The number of clusters created
-        scorePositions: list
-            A list of the order in which the sequence distances are presented.
-            The element format is {}_{} where each {} is the number of a sequence
-            in the alignment.
-        etmiplistCoverage: list
-            The coverage of a specific sequence comparison
-        sortedPDBDist: numpy nd array
-            Array of the distances between sequences, sorted by sequence indices.
-        seq: Str
-            The query alignment sequence.
         '''
         start = time()
         convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
@@ -276,18 +429,12 @@ class ETMIPC(object):
             Todays date.
         qName: str
             The name of the query protein
+        cutoff : float
+            The distance used for proximity cutoff in the PDB structure.
         clus: int
             The number of clusters created
-        scorePositions: list
-            A list of the order in which the sequence distances are presented.
-            The element format is {}_{} where each {} is the number of a sequence
-            in the alignment.
-        etmiplistCoverage: list
-            The coverage of a specific sequence comparison
         sortedPDBDist: numpy nd array
             Array of the distances between sequences, sorted by sequence indices.
-        seq: Str
-            The query alignment sequence.
         '''
         start = time()
         convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
@@ -343,29 +490,15 @@ class ETMIPC(object):
 
         Parameters:
         -----------
-        qName: str
-            The id for the query sequence.
         today: str
             The current date in string format.
-        sequenceOrder: list
-            A list of the sequence ids used in the alignment in sorted order.
-        seqLength: int
-            The length of the gap removed sequences from the alignment.
         cutoff: float
             The distance threshold for interaction between two residues in a
             protein structure.
-        outDict: dict
-            A dictionary with the lines of output mapped to the clustering
-            constants for which they were produced.
         '''
-        qName = self.alignment.queryID
+        qName = self.alignment.queryID.split('_')[1]
         o = '{}_{}etmipAUC_results.txt'.format(qName, today)
         outfile = open(o, 'w+')
-#         proteininfo = ("Protein/id: " + qName + " Alignment Size: " +
-#                        str(self.alignment.size) + " Length of protein: " +
-#                        str(self.alignment.seqLength) + " Cutoff: " +
-#                        str(cutoff) + "\n")
-#         outfile.write(proteininfo)
         outfile.write(
             "Protein/id: {} Alignment Size: {} Length of protein: {} Cutoff: {}\n".format(
                 qName, self.alignment.size, self.alignment.seqLength, cutoff))
@@ -390,9 +523,9 @@ def wholeAnalysis(alignment, evidence=False, ratioCutOff=None, alterInput=False,
     alignment: SeqAlignment
         A class containing the query sequence alignment in different formats,
         as well as summary values.
-    aaDict: list
-        Dictionary of amino acids and other characters possible in an alignment
-        mapping to integer representations.
+    evidence : bool
+        Whether or not to normalize using the evidence using the evidence
+        counts computed while performing the coupling scoring.
     ratioCutOff: float or None
         A cutoff for the percentage of sequences in the alignment which
         must have information (no gaps) for the MIP score at that position
@@ -410,6 +543,9 @@ def wholeAnalysis(alignment, evidence=False, ratioCutOff=None, alterInput=False,
     --------
     matrix
         Matrix of MIP scores which has dimensions seq_length by seq_length.
+    matrix
+        Matrix containing the number of sequences which are not gaps in either
+        position used for scoring the wholeMIPMatrix.
     '''
     start = time()
     if((saveFile is not None) and os.path.exists(saveFile + '.npz')):
@@ -558,10 +694,15 @@ def poolInit(a, qAlignment, wCC, oDir):
     a: dict
         A dictionary mapping amino acids and other characters found in
         alignments to dictionary representations.
-    seqDists: numpy ndarray
-        Matrix of distances between sequences in the initial alignments.
     qAlignment: SeqAlignment
         Object holding the alignment for the current analysis.
+    wCC : str
+        Method by which to combine individual matrices from one round of
+        clustering. The options supported now are: sum, average, size_weighted,
+        and evidence_weighted.
+    oDir : str
+        Directory name or filepath to directory in which results are to be
+        stored.
     '''
     global aaDict
     aaDict = a
@@ -590,11 +731,15 @@ def etMIPWorker(inTup):
     --------
     int
         The number of clusters formed
-    numpy ndarray
+    numpy.array
         A matrix of pairwise distances between sequences based on subalignments
         formed during clustering.
     float
         The time in seconds which it took to perform clustering.
+    numpy.array
+        A matrix containing not only the overall clustering scores for the
+        specified clustering constants, but all of the scores computed in the
+        subalignments identified by the hierarchical clustering.
     '''
     clus = inTup[0]
     start = time()
@@ -671,9 +816,6 @@ def poolInit2(c, qAlignment, qStructure):
         Object containing the sequence alignment for this analysis.
     aStructure: PDBReference
         Object containing the PDB information for this analysis.
-    sPDBD: list
-        List of distances between PDB residues sorted by pairwise residue
-        numbers.
     '''
     global cutoff
     cutoff = c
@@ -709,8 +851,8 @@ def etMIPWorker2(inTup):
         Number of clusters.
     list
         Coverage values for this clustering.
-    list
-        Positions corresponding to the coverage values.
+    float
+        The time in seconds which it took to perform clustering.
     list
         List of false positive rates.
     list
