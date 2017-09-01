@@ -159,6 +159,96 @@ class ETMIPC(object):
             self.resultTimes[r[0]] = r[2]
             self.rawScores[r[0]] = r[3]
 
+    def calculateClusteredMIPScores2(self, aaDict, wCC='evidence_weighted'):
+        '''
+        Calculate Clustered MIP Scores
+
+        This method calculates the coupling scores for subsets of sequences
+        from the alignment as determined by hierarchical clustering on the
+        distance matrix between sequences of the alignment. This method updates
+        the resultMatrices, resultTimes, and rawScores class variables.
+
+        Parameters:
+        -----------
+        aaDict : dict
+            A dictionary mapping amino acids to numerical representations.
+        wCC : str
+            Method by which to combine individual matrices from one round of
+            clustering. The options supported now are: sum, average,
+            size_weighted, and evidence_weighted.
+        '''
+        # Generate clusters and jobs to perform
+        inputs = []
+        clusterSizes = {}
+        for c in self.clusters:
+            start = time()
+            clusterSizes[c] = {}
+            resultDir = self.outputDir + '/{}/'.format(c)
+            if(not os.path.exists(resultDir)):
+                os.mkdir(resultDir)
+            os.chdir(resultDir)
+            clusDict, clusDet = aggClustering(c, self.alignment.distanceMatrix,
+                                              self.alignment.seqOrder)
+            for sub in clusDet:
+                newAlignment = self.alignment.generateSubAlignment(
+                    clusDict[sub])
+                clusterSizes[c][sub] = newAlignment.size
+                # Create matrix converting sequences of amino acids to sequences of
+                # integers representing sequences of amino acids
+                newAlignment.alignment2num(aaDict)
+                newAlignment.writeOutAlignment(
+                    fileName='AligmentForK{}_{}.fa'.format(c, sub))
+                inputs.append((c, sub, newAlignment))
+            end = time()
+            self.resultTimes[c] += end - start
+        # Perform jobs
+        if(self.processes == 1):
+            poolInitTemp(wCC)
+            res1 = []
+            for i in inputs:
+                res = etMIPWorkerTemp(i)
+                res1.append(res)
+        else:
+            pool = Pool(processes=self.processes, initializer=poolInitTemp,
+                        initargs=(wCC,))
+            res1 = pool.map_async(etMIPWorkerTemp, inputs)
+            pool.close()
+            pool.join()
+            res1 = res1.get()
+        # Retrieve results
+        for r in res1:
+            self.rawScores[r[0]][r[1]] = r[2]
+            self.evidenceCounts[r[0]][r[1]] = r[3]
+            self.resultTimes[r[0]] += r[4]
+        # Combine results
+        for c in self.clusters:
+            start = time()
+            # Additive clusters
+            if(wCC == 'sum'):
+                resMatrix = np.sum(self.rawScores[c], axis=0)
+            # Normal average over clusters
+            elif(wCC == 'average'):
+                resMatrix = np.mean(self.rawScores[c], axis=0)
+            # Weighted average over clusters based on cluster sizes
+            elif(wCC == 'size_weighted'):
+                weighting = np.array([clusterSizes[c][s]
+                                      for s in sorted(clusterSizes[c].keys())])
+                resMatrix = weighting[:, None, None] * self.rawScores[c]
+                resMatrix = np.sum(resMatrix, axis=0) / self.alignment.size
+            # Weighted average over clusters based on evidence counts at each
+            # pair
+            elif(wCC == 'evidence_weighted'):
+                resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
+                                    axis=0) / float(self.alignment.size))
+        #                      np.sum(evidenceCounts, axis=0))
+            else:
+                print 'Combination method not yet implemented'
+                raise NotImplementedError()
+            resMatrix[np.isnan(resMatrix)] = 0.0
+            self.resultMatrices[c] = resMatrix
+            end = time()
+            self.resultTimes[c] += end - start
+
     def combineClusteringResults(self, combination='sum'):
         '''
         Combine Clustering Result
@@ -797,6 +887,66 @@ def etMIPWorker(inTup):
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
     return clus, resMatrix, timeElapsed, rawScores
+
+
+def poolInitTemp(wCC):
+    '''
+    poolInit
+
+    A function which initializes processes spawned in a worker pool performing
+    the etMIPWorker function.  This provides a set of variables to all working
+    processes which are shared.
+
+    Parameters:
+    -----------
+    wCC : str
+        Method by which to combine individual matrices from one round of
+        clustering. The options supported now are: sum, average, size_weighted,
+        and evidence_weighted.
+    '''
+    global withinClusterCombi
+    withinClusterCombi = wCC
+
+
+def etMIPWorkerTemp(inTup):
+    '''
+    ETMIP Worker
+
+    Performs clustering and calculation of cluster dependent sequence distances.
+    This function requires initialization of threads with poolInit, or setting
+    of global variables as described in that function.
+
+    Parameters:
+    -----------
+    inTup: tuple
+        Tuple containing the number of clusters to form during agglomerative
+        clustering.
+    Returns:
+    --------
+    int
+        The clustering constant K.
+    int
+        The subalignment analyzed in this alignment.
+    numpy.array
+        A matrix of pairwise distances between sequences based on subalignments
+        formed during clustering.
+    numpy.array
+        A matrix containing not only the overall clustering scores for the
+        specified clustering constants, but all of the scores computed in the
+        subalignments identified by the hierarchical clustering.
+    float
+        The time in seconds which it took to perform clustering.
+    '''
+    clus, sub, newAlignment = inTup
+    start = time()
+    if(withinClusterCombi == 'evidence_weighted'):
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True)
+    else:
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False)
+    end = time()
+    timeElapsed = end - start
+    print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
+    return clus, sub, clusteredMIPMatrix, evidenceMat, timeElapsed
 
 
 def poolInit2(c, qAlignment, qStructure):

@@ -119,6 +119,7 @@ if __name__ == '__main__':
                       processes)
     etmipObj.determineWholeMIP()
     etmipObj.calculateClusteredMIPScores(aaDict=aaDict)
+#     etmipObj.calculateClusteredMIPScores2(aaDict=aaDict)
 #     etmipObj.combineClusteringResults(combination='addative')
     etmipObj.combineClusteringResults(combination='average')
     etmipObj.computeCoverageAndAUC(threshold=args['threshold'])
