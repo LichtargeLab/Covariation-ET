@@ -102,14 +102,12 @@ if __name__ == '__main__':
         queryStructure = PDBReference(startDir + '/' + args['pdb'])
         queryStructure.importPDB(saveFile='pdbData.pkl')
         queryStructure.mapAlignmentToPDBSeq(queryAlignment.querySequence)
-#         sortedPDBDist = queryStructure.findDistance(
-#             queryAlignment.querySequence, saveFile='PDBdistances')
         queryStructure.findDistance(queryAlignment.querySequence,
                                     saveFile='PDBdistances')
+        print('PDB Sequence')
+        print(queryStructure.seq)
     else:
         queryStructure = None
-    print('PDB Sequence')
-    print(queryStructure.seq)
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
