@@ -972,12 +972,13 @@ def poolInit2(c, qAlignment, qStructure):
     global seqLen
     seqLen = qAlignment.seqLength
     global pdbResidueList
+    global sortedPDBDist
     if(qStructure is None):
         pdbResidueList = None
+        sortedPDBDist = None
     else:
         pdbResidueList = qStructure.pdbResidueList
-    global sortedPDBDist
-    sortedPDBDist = qStructure.residueDists
+        sortedPDBDist = qStructure.residueDists
 
 
 def etMIPWorker2(inTup):
