@@ -338,8 +338,7 @@ class ETMIPC(object):
             if(self.pdb):
                 self.plotAUC(qName, c, today, cutOff)
             self.writeOutClusterScoring(today, qName, c)
-            self.writeOutClusteringResults(today, qName, cutOff, c,
-                                           self.pdb.residueDists)
+            self.writeOutClusteringResults(today, qName, cutOff, c)
             self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
                              normalized=False, cluster=c)
             self.surfacePlot('Raw Score Surface K {}'.format(c),
@@ -507,8 +506,7 @@ class ETMIPC(object):
         print('Writing the ETMIP worker data to file took {} min'.format(
             (end - start) / 60.0))
 
-    def writeOutClusteringResults(self, today, qName, cutoff, clus,
-                                  sortedPDBDist):
+    def writeOutClusteringResults(self, today, qName, cutoff, clus):
         '''
         Write out clustering results
 
@@ -523,6 +521,10 @@ class ETMIPC(object):
             The distance used for proximity cutoff in the PDB structure.
         clus: int
             The number of clusters created
+        pdb: PDBReference
+            Object representing the pdb structure used in the current
+            analysis.  This object is passed in to enable access to the
+            sortedPDBDist variable.
         sortedPDBDist: numpy nd array
             Array of the distances between sequences, sorted by sequence indices.
         '''
@@ -542,7 +544,7 @@ class ETMIPC(object):
         counter = 0
         for i in range(0, self.alignment.seqLength):
             for j in range(i + 1, self.alignment.seqLength):
-                if(sortedPDBDist is None):
+                if(self.pdb is None):
                     res1 = i + 1
                     res2 = j + 1
                     r = '-'
@@ -551,9 +553,9 @@ class ETMIPC(object):
                     res1 = self.pdb.pdbResidueList[i]
                     res2 = self.pdb.pdbResidueList[j]
                     dist = round(sortedPDBDist[counter], 4)
-                    if(sortedPDBDist[counter] <= cutoff):
+                    if(self.pdb.residueDists[counter] <= cutoff):
                         r = 1
-                    elif(np.isnan(sortedPDBDist[counter])):
+                    elif(np.isnan(self.pdb.residueDists[counter])):
                         r = '-'
                     else:
                         r = 0
