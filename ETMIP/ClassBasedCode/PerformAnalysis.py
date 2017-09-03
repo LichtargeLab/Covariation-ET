@@ -116,12 +116,14 @@ if __name__ == '__main__':
     etmipObj = ETMIPC(queryAlignment, clusters, queryStructure, createFolder,
                       processes)
     etmipObj.determineWholeMIP()
-    etmipObj.calculateClusteredMIPScores(aaDict=aaDict)
-#     etmipObj.calculateClusteredMIPScores2(aaDict=aaDict)
+#     etmipObj.calculateClusteredMIPScores(aaDict=aaDict)
+    etmipObj.calculateClusteredMIPScores2(aaDict=aaDict)
 #     etmipObj.combineClusteringResults(combination='addative')
     etmipObj.combineClusteringResults(combination='average')
     etmipObj.computeCoverageAndAUC(threshold=args['threshold'])
     etmipObj.produceFinalFigures(today, cutOff=args['threshold'])
+#     embed()
+#     exit()
     etmipObj.writeFinalResults(today, args['threshold'])
     print "Generated results in", createFolder
     os.chdir(startDir)
