@@ -597,8 +597,14 @@ class ETMIPC(object):
                 qName, self.alignment.size, self.alignment.seqLength, cutoff))
         outfile.write("#OfClusters\tAUC\tRunTime\n")
         for c in self.clusters:
-            outfile.write("\t{0}\t{1}\t{2}\n".format(
-                c, round(self.aucs[c][2], 4), round(self.resultTimes[c], 4)))
+            if(self.pdb):
+                outfile.write("\t{0}\t{1}\t{2}\n".format(
+                    c, round(self.aucs[c][2], 4),
+                    round(self.resultTimes[c], 4)))
+            else:
+                outfile.write("\t{0}\t{1}\t{2}\n".format(
+                    c, '-',
+                    round(self.resultTimes[c], 4)))
 ###############################################################################
 #
 ###############################################################################
