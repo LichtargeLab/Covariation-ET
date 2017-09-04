@@ -110,20 +110,30 @@ class ETMIPC(object):
                          for c in self.clusters}
         self.aucs = {}
 
-    def determineWholeMIP(self):
+    def determineWholeMIP(self, evidence, alterInput):
         '''
         determineWholeMIP
+
+        Paramters:
+        evidence : bool
+            Whether or not to normalize using the evidence using the evidence
+            counts computed while performing the coupling scoring.
+        alterInput: bool
+            Whether or not to restrict the input to the mutual information
+            computation to only those sequences which have gaps in neither of
+            the considered positions.
 
         This method performs the wholeAnalysis method on all sequences in the
         sequence alignment. This method updates the wholeMIPMatrix and
         wholeEvidenceMatrix class variables.
         '''
-        mipMatrix, evidenceCounts = wholeAnalysis(self.alignment,
+        mipMatrix, evidenceCounts = wholeAnalysis(self.alignment, evidence,
+                                                  alterInput,
                                                   saveFile='wholeMIP')
         self.wholeMIPMatrix = mipMatrix
         self.wholeEvidenceMatrix = evidenceCounts
 
-    def calculateClusteredMIPScores2(self, aaDict, wCC='evidence_weighted'):
+    def calculateClusteredMIPScores(self, aaDict, wCC, alterInput):
         '''
         Calculate Clustered MIP Scores
 
@@ -139,7 +149,11 @@ class ETMIPC(object):
         wCC : str
             Method by which to combine individual matrices from one round of
             clustering. The options supported now are: sum, average,
-            size_weighted, and evidence_weighted.
+            size_weighted, evidence_weighted, and evidence_vs_size.
+        alter: bool
+            Whether or not to restrict the input to the mutual information
+            computation to only those sequences which have gaps in neither of
+            the considered positions.
         '''
         # Generate clusters and jobs to perform
         inputs = []
@@ -168,14 +182,14 @@ class ETMIPC(object):
             self.resultTimes[c] += end - start
         # Perform jobs
         if(self.processes == 1):
-            poolInitTemp(wCC)
+            poolInitTemp(wCC, alterInput)
             res1 = []
             for i in inputs:
                 res = etMIPWorkerTemp(i)
                 res1.append(res)
         else:
             pool = Pool(processes=self.processes, initializer=poolInitTemp,
-                        initargs=(wCC,))
+                        initargs=(wCC, alterInput))
             res1 = pool.map_async(etMIPWorkerTemp, inputs)
             pool.close()
             pool.join()
@@ -201,11 +215,15 @@ class ETMIPC(object):
                 resMatrix = weighting[:, None, None] * self.rawScores[c]
                 resMatrix = np.sum(resMatrix, axis=0) / self.alignment.size
             # Weighted average over clusters based on evidence counts at each
-            # pair
+            # pair vs. the number of sequences with evidence for that pairing.
             elif(wCC == 'evidence_weighted'):
                 resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
+                                    axis=0) / np.sum(self.evidenceCounts, axis=0))
+            # Weighted average over clusters based on evidence counts at each
+            # pair vs. the entire size of the alignment.
+            elif(wCC == 'evidence_vs_size'):
+                resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
                                     axis=0) / float(self.alignment.size))
-        #                      np.sum(evidenceCounts, axis=0))
             else:
                 print 'Combination method not yet implemented'
                 raise NotImplementedError()
@@ -214,7 +232,7 @@ class ETMIPC(object):
             end = time()
             self.resultTimes[c] += end - start
 
-    def combineClusteringResults(self, combination='sum'):
+    def combineClusteringResults(self, combination):
         '''
         Combine Clustering Result
 
@@ -574,8 +592,7 @@ class ETMIPC(object):
 ###############################################################################
 
 
-def wholeAnalysis(alignment, evidence=False, ratioCutOff=None, alterInput=False,
-                  saveFile=None):
+def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
     '''
     Whole Analysis
 
@@ -589,12 +606,6 @@ def wholeAnalysis(alignment, evidence=False, ratioCutOff=None, alterInput=False,
     evidence : bool
         Whether or not to normalize using the evidence using the evidence
         counts computed while performing the coupling scoring.
-    ratioCutOff: float or None
-        A cutoff for the percentage of sequences in the alignment which
-        must have information (no gaps) for the MIP score at that position
-        to be considered relevant.  Positions which fall below this
-        threshold will be set to a MIP score of zero and given an evidence
-        count of 0.
     alterInput: bool
         Whether or not to restrict the input to the mutual information
         computation to only those sequences which have gaps in neither of
@@ -744,7 +755,7 @@ def aggClustering(nCluster, X, keyList, precomputed=False):
     return clusterDict, set(clusterList)
 
 
-def poolInitTemp(wCC):
+def poolInitTemp(wCC, alterInput):
     '''
     poolInit
 
@@ -758,9 +769,15 @@ def poolInitTemp(wCC):
         Method by which to combine individual matrices from one round of
         clustering. The options supported now are: sum, average, size_weighted,
         and evidence_weighted.
+    alterInput: bool
+        Whether or not to restrict the input to the mutual information
+        computation to only those sequences which have gaps in neither of
+        the considered positions.
     '''
     global withinClusterCombi
     withinClusterCombi = wCC
+    global alterMIInput
+    alterMIInput = alterInput
 
 
 def etMIPWorkerTemp(inTup):
@@ -794,10 +811,12 @@ def etMIPWorkerTemp(inTup):
     '''
     clus, sub, newAlignment = inTup
     start = time()
-    if(withinClusterCombi == 'evidence_weighted'):
-        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True)
+    if('evidence' in withinClusterCombi):
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True,
+                                                        alterMIInput)
     else:
-        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False)
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False,
+                                                        alterMIInput)
     end = time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
