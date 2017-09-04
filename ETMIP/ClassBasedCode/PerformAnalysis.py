@@ -54,7 +54,7 @@ def parseArguments():
                         choices=['sum', 'average', 'size_weighted',
                                  'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering constant.')
-    parser.add_argument('--alterInput', metaVar='a', type=bool, nargs='?',
+    parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
                         default=False,
                         help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
@@ -66,8 +66,8 @@ def parseArguments():
     pCount = cpu_count()
     if(args['processes'] > pCount):
         args['processes'] = pCount
-    embed()
-    exit()
+#     embed()
+#     exit()
     return args
 
 
@@ -98,8 +98,13 @@ if __name__ == '__main__':
     ###########################################################################
     print 'Importing alignment'
     # Create SeqAlignment object to represent the alignment for this analysis.
-    queryAlignment = SeqAlignment(fileName=args['alignment'][0],
-                                  queryID=args['query'][0])
+    if(args['alignment'][0].startswith('..')):
+        queryAlignment = SeqAlignment(fileName=(startDir + '/' +
+                                                args['alignment'][0]),
+                                      queryID=args['query'][0])
+    else:
+        queryAlignment = SeqAlignment(fileName=args['alignment'][0],
+                                      queryID=args['query'][0])
     # Import alignment information from file.
     queryAlignment.importAlignment(saveFile='alignment_dict.pkl')
     # Remove gaps from aligned query sequences
@@ -136,7 +141,7 @@ if __name__ == '__main__':
     ###########################################################################
     print 'Starting ETMIP'
     # Create ETMIPC object to represent the analysis being performed.
-    etmipObj = ETMIPC(queryAlignment, args.clusters, queryStructure,
+    etmipObj = ETMIPC(queryAlignment, args['clusters'], queryStructure,
                       createFolder, args['processes'])
     # Calculate the MI scores for all residues across all sequences
     etmipObj.determineWholeMIP('evidence' in args['combineClusters'],
