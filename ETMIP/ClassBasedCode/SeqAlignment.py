@@ -8,6 +8,7 @@ from time import time
 import numpy as np
 import os
 import re
+from IPython import embed
 
 
 class SeqAlignment(object):
