@@ -7,17 +7,17 @@ import os
 import csv
 import sys
 import numpy as np
-import pylab as pl
 from time import time
-from seaborn import heatmap
 import matplotlib
 matplotlib.use('Agg')
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
+import pylab as pl
+from seaborn import heatmap
 from multiprocessing import Pool
-from sklearn.cluster import AgglomerativeClustering
+# from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
 
@@ -165,8 +165,8 @@ class ETMIPC(object):
             if(not os.path.exists(resultDir)):
                 os.mkdir(resultDir)
             os.chdir(resultDir)
-            clusDict, clusDet = aggClustering(c, self.alignment.distanceMatrix,
-                                              self.alignment.seqOrder)
+            clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
+                                                             cacheDir=self.outputDir)
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
                     clusDict[sub])
@@ -176,6 +176,8 @@ class ETMIPC(object):
                 newAlignment.alignment2num(aaDict)
                 newAlignment.writeOutAlignment(
                     fileName='AligmentForK{}_{}.fa'.format(c, sub))
+                newAlignment.heatmapPlot(
+                    name='Aligment For K {} {}'.format(c, sub))
                 inputs.append((c, sub, newAlignment))
             os.chdir('..')
             end = time()
@@ -218,7 +220,7 @@ class ETMIPC(object):
             # pair vs. the number of sequences with evidence for that pairing.
             elif(wCC == 'evidence_weighted'):
                 resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
-                                    axis=0) / np.sum(self.evidenceCounts, axis=0))
+                                    axis=0) / np.sum(self.evidenceCounts[c], axis=0))
             # Weighted average over clusters based on evidence counts at each
             # pair vs. the entire size of the alignment.
             elif(wCC == 'evidence_vs_size'):
@@ -642,12 +644,8 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
         for i in range(alignment.seqLength):
             for j in range(i + 1, alignment.seqLength):
                 if(evidence or alterInput):
-                    #                     t11 = time()
                     colSubI, colSubJ, _pos, ev = alignment.identifyComparableSequences(
                         i, j)
-#                     t22 = time()
-#                     print('Time to identifyComp: {} min'.format(
-#                         (t22 - t11) / 60.0))
                 else:
                     ev = 0
                 if(alterInput):
@@ -697,62 +695,6 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
     end = time()
     print('Whole analysis took {} min'.format((end - start) / 60.0))
     return mipMatrix, evidenceMatrix
-
-
-def aggClustering(nCluster, X, keyList, precomputed=False):
-    '''
-    Agglomerative clustering
-
-    Performs agglomerative clustering on a matrix of pairwise distances between
-    sequences in the alignment being analyzed.
-
-    Parameters:
-    -----------
-    nCluster: int
-        The number of clusters to separate sequences into.
-    X: numpy nd_array
-        The distance matrix computed between the sequences.
-    keyList: list
-        Set of sequence ids ordered to correspond with the ordering of
-        sequences along the dimensions of X.
-    precomputed: boolean
-        Whether or not to use the distances from X as the distances to cluster
-        on, the alternative is to compute a new distance matrix based on X
-        using Euclidean distance.
-    Returns:
-    --------
-    dict
-        A dictionary with cluster number as the key and a list of sequences in
-        the specified cluster as a value.
-    set
-        A unique sorted set of the cluster values.
-    '''
-    start = time()
-    if(precomputed):
-        affinity = 'precomputed'
-        linkage = 'complete'
-    else:
-        affinity = 'euclidean'
-        linkage = 'ward'
-    model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
-                                    n_clusters=nCluster)
-    model.fit(X)
-    # ordered list of cluster ids
-    # unique and sorted cluster ids for e.g. for n_cluster = 2, g = [0,1]
-    clusterList = model.labels_.tolist()
-    clusterDict = {}
-    ####---------------------------------------#####
-    #       Mapping Clusters to Sequences
-    ####---------------------------------------#####
-    for i in range(len(clusterList)):
-        key = clusterList[i]
-        if(key not in clusterDict):
-            clusterDict[key] = []
-        clusterDict[key].append(keyList[i])
-    end = time()
-    print('Performing agglomerative clustering took {} min'.format(
-        (end - start) / 60.0))
-    return clusterDict, set(clusterList)
 
 
 def poolInitTemp(wCC, alterInput):
