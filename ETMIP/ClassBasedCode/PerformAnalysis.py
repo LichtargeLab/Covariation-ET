@@ -116,6 +116,10 @@ if __name__ == '__main__':
     queryAlignment.writeOutAlignment(fileName='UngappedAlignment.fa')
     # Compute distance between all sequences in the alignment
     queryAlignment.computeDistanceMatrix(saveFile='X')
+    # Determine the full clustering tree for the alignment and the ordering of
+    # its sequences.
+    queryAlignment.setTreeOrdering(cacheDir=createFolder)
+    queryAlignment.heatmapPlot('Overall Alignment')
     print('Query Sequence:')
     print(queryAlignment.querySequence)
     ###########################################################################
