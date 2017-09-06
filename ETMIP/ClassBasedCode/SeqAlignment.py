@@ -3,11 +3,16 @@ Created on Aug 17, 2017
 
 @author: daniel
 '''
+from sklearn.cluster import AgglomerativeClustering
 import cPickle as pickle
 from time import time
 import numpy as np
 import os
 import re
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from seaborn import heatmap, clustermap
 from IPython import embed
 
 
@@ -59,6 +64,7 @@ class SeqAlignment(object):
         self.seqLength = None
         self.size = None
         self.distanceMatrix = None
+        self.treeOrder = None
 
     def importAlignment(self, saveFile=None):
         '''
@@ -126,6 +132,39 @@ class SeqAlignment(object):
             else:
                 pass
         outFile.close()
+
+    def heatmapPlot(self, name):
+        '''
+        Heatmap Plot
+
+        This method creates a heatmap using the Seaborn plotting package. The
+        data used can come from the summaryMatrices or coverage data.
+
+        Parameters:
+        -----------
+        name : str
+            Name used as the title of the plot and the filename for the saved
+            figure.
+        cluster : int
+            The clustering constant for which to create a heatmap.
+        '''
+#         embed()
+#         exit()
+        reIndexing = [self.seqOrder.index(x) for x in self.treeOrder]
+#         import pandas as pd
+#         df = pd.DataFrame(self.alignmentMatrix,
+#                           columns=list(self.querySequence),
+#                           index=self.treeOrder)
+#         hm = clustermap(df, method='ward', metric='euclidean',
+#                         z_score=None, standard_scale=None, row_cluster=True,
+#                         col_cluster=False, cmap='jet')
+        hm = heatmap(data=self.alignmentMatrix[reIndexing, :], cmap='jet',
+                     center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
+        hm.set_xticklabels(list(self.querySequence), fontsize=6, rotation=0)
+        hm.set_yticklabels(self.treeOrder, fontsize=8)
+        plt.title(name)
+        plt.savefig(name.replace(' ', '_') + '.pdf')
+        plt.clf()
 
     def removeGaps(self, saveFile=None):
         '''
@@ -225,6 +264,123 @@ class SeqAlignment(object):
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
 
+    def setTreeOrdering(self, cacheDir, precomputed=False):
+        '''
+        Determine the ordering of the sequences from the full clustering tree
+        used when separating the alignment into sub-clusters.
+
+        cacheDir : str
+            The path to the directory where the clustering model can be stored
+            for access later when identifying different numbers of clusters.
+        precomputed: boolean
+            Whether or not to use the distances from X as the distances to
+            cluster on, the alternative is to compute a new distance matrix
+            based on X using Euclidean distance.
+        '''
+        if(self.treeOrder is None):
+            clusterDict, _clusterLables = self.aggClustering(nCluster=self.size,
+                                                             cacheDir=cacheDir,
+                                                             precomputed=precomputed)
+#             embed()
+#             exit()
+            self.treeOrder = [clusterDict[i][0] for i in
+                              sorted(clusterDict.keys())]
+        else:
+            pass
+
+    def aggClustering(self, nCluster, cacheDir, precomputed=False):
+        '''
+        Agglomerative clustering
+
+        Performs agglomerative clustering on a matrix of pairwise distances
+        between sequences in the alignment being analyzed.
+
+        Parameters:
+        -----------
+        nCluster: int
+            The number of clusters to separate sequences into.
+        cacheDir : str
+            The path to the directory where the clustering model can be stored
+            for access later when identifying different numbers of clusters.
+        precomputed: boolean
+            Whether or not to use the distances from X as the distances to
+            cluster on, the alternative is to compute a new distance matrix
+            based on X using Euclidean distance.
+        Returns:
+        --------
+        dict
+            A dictionary with cluster number as the key and the sub-alignment
+            of this alignment created by that clustering.
+        dict
+            A dictionary with cluster number as the key and a list of sequences in
+            the specified cluster as a value.
+        set
+            A unique sorted set of the cluster values.
+        '''
+        start = time()
+        if(precomputed):
+            affinity = 'precomputed'
+            linkage = 'complete'
+        else:
+            affinity = 'euclidean'
+            linkage = 'ward'
+        model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
+                                        n_clusters=nCluster, memory=cacheDir,
+                                        compute_full_tree=True)
+        model.fit(self.distanceMatrix)
+        # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
+        clusterList = model.labels_.tolist()
+        ####---------------------------------------#####
+        #       Mapping Clusters to Sequences
+        ####---------------------------------------#####
+        clusterDict = {}
+        for i in range(len(clusterList)):
+            key = clusterList[i]
+            if(key not in clusterDict):
+                clusterDict[key] = []
+            clusterDict[key].append(self.seqOrder[i])
+        end = time()
+        print('Performing agglomerative clustering took {} min'.format(
+            (end - start) / 60.0))
+        return clusterDict, set(clusterList)
+#         return subAlignments
+
+    def generateSubAlignment(self, sequenceIDs):
+        '''
+        Initializes a new alignment which is a subset of the current alignment.
+
+        This method creates a new alignment which contains only sequences
+        relating to a set of provided sequence ids.
+
+        Parameters:
+        -----------
+        sequenceIDs: list
+            A list of strings which are sequence identifiers for sequences in
+            the current alignment.  Other sequence ids will be skipped.
+
+        Returns:
+        --------
+        SeqAlignment
+            A new SeqAlignment object containing the same fileName, queryID,
+            seqLength, and query sequence.  The seqOrder will be updated to
+            only those passed in ids which are also in the current alignment,
+            preserving their ordering from the current SeqAlignment object.
+            The alignmentDict will contain only the subset of sequences
+            represented by ids which are present in the new seqOrder.  The size
+            is set to the length of the new seqOrder.
+        '''
+        newAlignment = SeqAlignment(self.fileName, self.queryID.split('_')[1])
+        newAlignment.queryID = self.queryID
+        newAlignment.querySequence = self.querySequence
+        newAlignment.seqLength = self.seqLength
+        newAlignment.seqOrder = [x for x in self.seqOrder if x in sequenceIDs]
+        newAlignment.alignmentDict = {x: self.alignmentDict[x]
+                                      for x in newAlignment.seqOrder}
+        newAlignment.size = len(newAlignment.seqOrder)
+        newAlignment.treeOrder = [x for x in self.treeOrder
+                                  if x in sequenceIDs]
+        return newAlignment
+
     def determineUsablePositions(self, ratio):
         '''
         Determine which positions in the alignment can be used for analysis.
@@ -284,37 +440,3 @@ class SeqAlignment(object):
         indices2 = (columnJ != 20.0) * 1
         check = np.where((indices1 + indices2) == 2)[0]
         return (columnI[check], columnJ[check], check, check.shape[0])
-
-    def generateSubAlignment(self, sequenceIDs):
-        '''
-        Initializes a new alignment which is a subset of the current alignment.
-
-        This method creates a new alignment which contains only sequences
-        relating to a set of provided sequence ids.
-
-        Parameters:
-        -----------
-        sequenceIDs: list
-            A list of strings which are sequence identifiers for sequences in
-            the current alignment.  Other sequence ids will be skipped.
-
-        Returns:
-        --------
-        SeqAlignment
-            A new SeqAlignment object containing the same fileName, queryID,
-            seqLength, and query sequence.  The seqOrder will be updated to
-            only those passed in ids which are also in the current alignment,
-            preserving their ordering from the current SeqAlignment object.
-            The alignmentDict will contain only the subset of sequences
-            represented by ids which are present in the new seqOrder.  The size
-            is set to the length of the new seqOrder.
-        '''
-        newAlignment = SeqAlignment(self.fileName, self.queryID.split('_')[1])
-        newAlignment.queryID = self.queryID
-        newAlignment.querySequence = self.querySequence
-        newAlignment.seqLength = self.seqLength
-        newAlignment.seqOrder = [x for x in self.seqOrder if x in sequenceIDs]
-        newAlignment.alignmentDict = {x: self.alignmentDict[x]
-                                      for x in newAlignment.seqOrder}
-        newAlignment.size = len(newAlignment.seqOrder)
-        return newAlignment
