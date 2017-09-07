@@ -6,6 +6,7 @@ Created on Aug 17, 2017
 from sklearn.cluster import AgglomerativeClustering
 import cPickle as pickle
 from time import time
+import pandas as pd
 import numpy as np
 import os
 import re
@@ -151,17 +152,10 @@ class SeqAlignment(object):
 #         embed()
 #         exit()
         reIndexing = [self.seqOrder.index(x) for x in self.treeOrder]
-#         import pandas as pd
-#         df = pd.DataFrame(self.alignmentMatrix,
-#                           columns=list(self.querySequence),
-#                           index=self.treeOrder)
-#         hm = clustermap(df, method='ward', metric='euclidean',
-#                         z_score=None, standard_scale=None, row_cluster=True,
-#                         col_cluster=False, cmap='jet')
         hm = heatmap(data=self.alignmentMatrix[reIndexing, :], cmap='jet',
                      center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
         hm.set_xticklabels(list(self.querySequence), fontsize=6, rotation=0)
-        hm.set_yticklabels(self.treeOrder, fontsize=8)
+        hm.set_yticklabels(self.treeOrder, fontsize=8, rotation=0)
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()
@@ -278,13 +272,18 @@ class SeqAlignment(object):
             based on X using Euclidean distance.
         '''
         if(self.treeOrder is None):
-            clusterDict, _clusterLables = self.aggClustering(nCluster=self.size,
-                                                             cacheDir=cacheDir,
-                                                             precomputed=precomputed)
-#             embed()
-#             exit()
-            self.treeOrder = [clusterDict[i][0] for i in
-                              sorted(clusterDict.keys())]
+            df = pd.DataFrame(self.alignmentMatrix,
+                              columns=list(self.querySequence),
+                              index=self.treeOrder)
+            hm = clustermap(df, method='ward', metric='euclidean',
+                            z_score=None, standard_scale=None, row_cluster=True,
+                            col_cluster=False, cmap='jet')
+            reIndexing = hm.dendrogram_row.reordered_ind
+            plt.clf()
+#             clusterDict, _clusterLables = self.aggClustering(nCluster=self.size,
+#                                                              cacheDir=cacheDir,
+#                                                              precomputed=precomputed)
+            self.treeOrder = [self.seqOrder[i] for i in reIndexing]
         else:
             pass
 
