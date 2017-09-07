@@ -11,6 +11,7 @@ import numpy as np
 import os
 import re
 import matplotlib
+from Bio.SearchIO import index
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
@@ -308,9 +309,6 @@ class SeqAlignment(object):
         Returns:
         --------
         dict
-            A dictionary with cluster number as the key and the sub-alignment
-            of this alignment created by that clustering.
-        dict
             A dictionary with cluster number as the key and a list of sequences in
             the specified cluster as a value.
         set
@@ -332,17 +330,27 @@ class SeqAlignment(object):
         ####---------------------------------------#####
         #       Mapping Clusters to Sequences
         ####---------------------------------------#####
+        clusterLabels = set(clusterList)
         clusterDict = {}
+        clusterOrdering = {}
         for i in range(len(clusterList)):
+            seqID = self.seqOrder[i]
+            index = self.treeOrder.index(seqID)
             key = clusterList[i]
             if(key not in clusterDict):
                 clusterDict[key] = []
+                clusterOrdering[key] = index
+            if(index < clusterOrdering[key]):
+                clusterOrdering[key] = index
             clusterDict[key].append(self.seqOrder[i])
+        sortedClusterLabels = sorted(clusterDict, key=lambda k: clusterDict[k])
+        clusterDict2 = {}
+        for i in range(len(clusterLabels)):
+            clusterDict2[i] = clusterDict[sortedClusterLabels[i]]
         end = time()
         print('Performing agglomerative clustering took {} min'.format(
             (end - start) / 60.0))
-        return clusterDict, set(clusterList)
-#         return subAlignments
+        return clusterDict2, clusterLabels
 
     def generateSubAlignment(self, sequenceIDs):
         '''
