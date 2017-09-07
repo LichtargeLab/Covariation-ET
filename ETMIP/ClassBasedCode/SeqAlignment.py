@@ -259,11 +259,14 @@ class SeqAlignment(object):
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
 
-    def setTreeOrdering(self, cacheDir, precomputed=False):
+    def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=False):
         '''
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
 
+        tOrder : list
+            An ordered list of sequence IDs which contains at least the
+            sequence IDs represented in this SeqAlignment.
         cacheDir : str
             The path to the directory where the clustering model can be stored
             for access later when identifying different numbers of clusters.
@@ -272,7 +275,9 @@ class SeqAlignment(object):
             cluster on, the alternative is to compute a new distance matrix
             based on X using Euclidean distance.
         '''
-        if(self.treeOrder is None):
+        if(tOrder is not None):
+            self.treeOrder = [x for x in tOrder if x in self.seqOrder]
+        elif(self.treeOrder is None):
             df = pd.DataFrame(self.alignmentMatrix,
                               columns=list(self.querySequence),
                               index=self.treeOrder)
@@ -281,9 +286,6 @@ class SeqAlignment(object):
                             col_cluster=False, cmap='jet')
             reIndexing = hm.dendrogram_row.reordered_ind
             plt.clf()
-#             clusterDict, _clusterLables = self.aggClustering(nCluster=self.size,
-#                                                              cacheDir=cacheDir,
-#                                                              precomputed=precomputed)
             self.treeOrder = [self.seqOrder[i] for i in reIndexing]
         else:
             pass
@@ -343,7 +345,8 @@ class SeqAlignment(object):
             if(index < clusterOrdering[key]):
                 clusterOrdering[key] = index
             clusterDict[key].append(self.seqOrder[i])
-        sortedClusterLabels = sorted(clusterDict, key=lambda k: clusterDict[k])
+        sortedClusterLabels = sorted(clusterOrdering,
+                                     key=lambda k: clusterOrdering[k])
         clusterDict2 = {}
         for i in range(len(clusterLabels)):
             clusterDict2[i] = clusterDict[sortedClusterLabels[i]]
