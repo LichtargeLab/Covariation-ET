@@ -167,6 +167,7 @@ class ETMIPC(object):
             os.chdir(resultDir)
             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
                                                              cacheDir=self.outputDir)
+            treeOrdering = []
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
                     clusDict[sub])
@@ -179,6 +180,8 @@ class ETMIPC(object):
                 newAlignment.heatmapPlot(
                     name='Aligment For K {} {}'.format(c, sub))
                 inputs.append((c, sub, newAlignment))
+                treeOrdering += newAlignment.treeOrder
+            self.alignment.treeOrder = treeOrdering
             os.chdir('..')
             end = time()
             self.resultTimes[c] += end - start
