@@ -119,7 +119,6 @@ if __name__ == '__main__':
     # Determine the full clustering tree for the alignment and the ordering of
     # its sequences.
     queryAlignment.setTreeOrdering(cacheDir=createFolder)
-    queryAlignment.heatmapPlot('Overall Alignment')
     print('Query Sequence:')
     print(queryAlignment.querySequence)
     ###########################################################################
