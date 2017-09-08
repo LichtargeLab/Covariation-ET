@@ -320,6 +320,7 @@ class SeqAlignment(object):
         if(precomputed):
             affinity = 'precomputed'
             linkage = 'complete'
+#             linkage = 'average'
         else:
             affinity = 'euclidean'
             linkage = 'ward'
