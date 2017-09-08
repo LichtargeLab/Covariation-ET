@@ -89,6 +89,7 @@ class ETMIPC(object):
         '''
         self.alignment = alignment
         self.clusters = clusters
+        self.subAlignments = {c: {} for c in self.clusters}
         self.pdb = pdb
         self.outputDir = outputDir
         self.processes = processes
@@ -158,7 +159,7 @@ class ETMIPC(object):
         # Generate clusters and jobs to perform
         inputs = []
         clusterSizes = {}
-        subAlignments = []
+#         subAlignments = []
         for c in self.clusters:
             start = time()
             clusterSizes[c] = {}
@@ -176,24 +177,13 @@ class ETMIPC(object):
                 # Create matrix converting sequences of amino acids to sequences of
                 # integers representing sequences of amino acids
                 newAlignment.alignment2num(aaDict)
-                newAlignment.writeOutAlignment(
-                    fileName='AligmentForK{}_{}.fa'.format(c, sub))
                 inputs.append((c, sub, newAlignment))
                 treeOrdering += newAlignment.treeOrder
-                subAlignments.append((c, sub, newAlignment))
+                self.subAlignments[c][sub] = newAlignment
             self.alignment.setTreeOrdering(tOrder=treeOrdering)
             os.chdir('..')
             end = time()
             self.resultTimes[c] += end - start
-        self.alignment.heatmapPlot('Overall Alignment')
-        for sub in subAlignments:
-            resultDir = self.outputDir + '/{}/'.format(sub[0])
-            os.chdir(resultDir)
-            sub[2].setTreeOrdering(tOrder=self.alignment.treeOrder)
-            sub[2].heatmapPlot(
-                name='Aligment For K {} {}'.format(sub[0], sub[1]))
-            os.chdir('..')
-        exit()
         # Perform jobs
         if(self.processes == 1):
             poolInitTemp(wCC, alterInput)
@@ -325,6 +315,7 @@ class ETMIPC(object):
             positive set of coupled residues based on spatial positions in
             the PDB file if provided.
         '''
+        self.alignment.heatmapPlot('Overall Alignment')
         for c in self.clusters:
             clusterDir = '{}/'.format(c)
             if(not os.path.exists(clusterDir)):
@@ -334,6 +325,13 @@ class ETMIPC(object):
             qName = self.alignment.queryID.split('_')[1]
             if(self.pdb):
                 self.plotAUC(qName, c, today, cutOff)
+            for sub in self.subAlignments[c].keys():
+                self.subAlignments[c][sub].writeOutAlignment(
+                    fileName='AligmentForK{}_{}.fa'.format(c, sub))
+                self.subAlignments[c][sub].setTreeOrdering(
+                    tOrder=self.alignment.treeOrder)
+                self.subAlignments[c][sub].heatmapPlot(
+                    name='Aligment For K {} {}'.format(c, sub))
             self.writeOutClusterScoring(today, qName, c)
             self.writeOutClusteringResults(today, qName, cutOff, c)
             self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
@@ -413,7 +411,7 @@ class ETMIPC(object):
         dmMax = np.max(dataMat)
         dmMin = np.min(dataMat)
         plotMax = max([dmMax, abs(dmMin)])
-        heatmap(data=dataMat, cmap=cm.jet, center=0.0, vmin=-1 * plotMax,
+        heatmap(data=dataMat, cmap='jet', center=0.0, vmin=-1 * plotMax,
                 vmax=plotMax, cbar=True, square=True)
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
