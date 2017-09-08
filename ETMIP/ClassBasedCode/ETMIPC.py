@@ -185,7 +185,6 @@ class ETMIPC(object):
             os.chdir('..')
             end = time()
             self.resultTimes[c] += end - start
-        print self.alignment.treeOrder
         self.alignment.heatmapPlot('Overall Alignment')
         for sub in subAlignments:
             resultDir = self.outputDir + '/{}/'.format(sub[0])
