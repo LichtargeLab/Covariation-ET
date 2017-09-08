@@ -150,13 +150,13 @@ class SeqAlignment(object):
         cluster : int
             The clustering constant for which to create a heatmap.
         '''
-#         embed()
-#         exit()
-        reIndexing = [self.seqOrder.index(x) for x in self.treeOrder]
-        hm = heatmap(data=self.alignmentMatrix[reIndexing, :], cmap='jet',
-                     center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
-        hm.set_xticklabels(list(self.querySequence), fontsize=6, rotation=0)
-        hm.set_yticklabels(self.treeOrder, fontsize=8, rotation=0)
+        df = pd.DataFrame(self.alignmentMatrix, index=self.seqOrder,
+                          columns=list(self.querySequence))
+        df = df.loc[self.treeOrder]
+        hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
+                     cbar=True, square=False)
+        hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
+        hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()

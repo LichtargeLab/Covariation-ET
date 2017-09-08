@@ -158,6 +158,7 @@ class ETMIPC(object):
         # Generate clusters and jobs to perform
         inputs = []
         clusterSizes = {}
+        subAlignments = []
         for c in self.clusters:
             start = time()
             clusterSizes[c] = {}
@@ -177,14 +178,23 @@ class ETMIPC(object):
                 newAlignment.alignment2num(aaDict)
                 newAlignment.writeOutAlignment(
                     fileName='AligmentForK{}_{}.fa'.format(c, sub))
-                newAlignment.heatmapPlot(
-                    name='Aligment For K {} {}'.format(c, sub))
                 inputs.append((c, sub, newAlignment))
                 treeOrdering += newAlignment.treeOrder
-            self.alignment.treeOrder = treeOrdering
+                subAlignments.append((c, sub, newAlignment))
+            self.alignment.setTreeOrdering(tOrder=treeOrdering)
             os.chdir('..')
             end = time()
             self.resultTimes[c] += end - start
+        print self.alignment.treeOrder
+        self.alignment.heatmapPlot('Overall Alignment')
+        for sub in subAlignments:
+            resultDir = self.outputDir + '/{}/'.format(sub[0])
+            os.chdir(resultDir)
+            sub[2].setTreeOrdering(tOrder=self.alignment.treeOrder)
+            sub[2].heatmapPlot(
+                name='Aligment For K {} {}'.format(sub[0], sub[1]))
+            os.chdir('..')
+        exit()
         # Perform jobs
         if(self.processes == 1):
             poolInitTemp(wCC, alterInput)
