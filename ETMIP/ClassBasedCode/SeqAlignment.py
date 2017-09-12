@@ -118,6 +118,7 @@ class SeqAlignment(object):
         fileName: str
             Path to file where the alignment should be written.
         '''
+        start = time()
         outFile = open(fileName, 'wb')
         for seqId in self.seqOrder:
             if(seqId in self.alignmentDict):
@@ -134,6 +135,8 @@ class SeqAlignment(object):
             else:
                 pass
         outFile.close()
+        end = time()
+        print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
     def heatmapPlot(self, name):
         '''
@@ -150,6 +153,7 @@ class SeqAlignment(object):
         cluster : int
             The clustering constant for which to create a heatmap.
         '''
+        start = time()
         df = pd.DataFrame(self.alignmentMatrix, index=self.seqOrder,
                           columns=list(self.querySequence))
         df = df.loc[self.treeOrder]
@@ -160,6 +164,8 @@ class SeqAlignment(object):
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()
+        end = time()
+        print('Plotting alignment took {} min'.format((end - start) / 60.0))
 
     def removeGaps(self, saveFile=None):
         '''
@@ -221,12 +227,15 @@ class SeqAlignment(object):
             key_list) while the second dimension (columns) will iterate over
             positions in the sequence (0 to seq_length).
         '''
+        start = time()
         alignment2Num = np.zeros((self.size, self.seqLength))
         for i in range(self.size):
             for j in range(self.seqLength):
                 currSeq = self.alignmentDict[self.seqOrder[i]]
                 alignment2Num[i, j] = aaDict[currSeq[j]]
         self.alignmentMatrix = alignment2Num
+        end = time()
+        print('Converting alignment took {} min'.format((end - start) / 60.0))
 
     def computeDistanceMatrix(self, saveFile=None):
         '''
@@ -250,6 +259,7 @@ class SeqAlignment(object):
             for i in range(self.size):
                 check = self.alignmentMatrix - self.alignmentMatrix[i]
                 valueMatrix[i] = np.sum(check == 0, axis=1)
+#                 valueMatrix[i] = np.sum(check != 0, axis=1)
             valueMatrix[np.arange(self.size), np.arange(self.size)] = 0
             valueMatrix /= self.seqLength
             if(saveFile is not None):
@@ -259,7 +269,9 @@ class SeqAlignment(object):
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
 
-    def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=False):
+#     def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=True):
+    def setTreeOrdering(self, tOrder=None, cacheDir=None,
+                        precomputed=False):
         '''
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -290,6 +302,7 @@ class SeqAlignment(object):
         else:
             pass
 
+#     def aggClustering(self, nCluster, cacheDir, precomputed=True):
     def aggClustering(self, nCluster, cacheDir, precomputed=False):
         '''
         Agglomerative clustering
@@ -380,6 +393,7 @@ class SeqAlignment(object):
             represented by ids which are present in the new seqOrder.  The size
             is set to the length of the new seqOrder.
         '''
+        start = time()
         newAlignment = SeqAlignment(self.fileName, self.queryID.split('_')[1])
         newAlignment.queryID = self.queryID
         newAlignment.querySequence = self.querySequence
@@ -390,6 +404,8 @@ class SeqAlignment(object):
         newAlignment.size = len(newAlignment.seqOrder)
         newAlignment.treeOrder = [x for x in self.treeOrder
                                   if x in sequenceIDs]
+        end = time()
+        print('Generating sub-alignment took {} min'.format((end - start) / 60.0))
         return newAlignment
 
     def determineUsablePositions(self, ratio):

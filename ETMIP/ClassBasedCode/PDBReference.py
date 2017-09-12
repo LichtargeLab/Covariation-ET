@@ -129,6 +129,7 @@ class PDBReference(object):
             A string providing the amino acid (single letter abbreviations)
             sequence for the protein.
         '''
+        start = time()
         alignments = pairwise2.align.globalxs(fastaSeq, self.seq, -1, 0)
         from Bio.pairwise2 import format_alignment
         print(format_alignment(*alignments[0]))
@@ -142,6 +143,9 @@ class PDBReference(object):
                 fCounter += 1
             if(alignments[0][1][i] != '-'):
                 pCounter += 1
+        end = time()
+        print('Mapping query sequence and pdb took {} min'.format(
+            (end - start) / 60.0))
         self.fastaToPDBMapping = fToPMap
 
     def findDistance(self, querySequence, saveFile=None):

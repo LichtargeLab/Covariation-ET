@@ -252,6 +252,7 @@ class ETMIPC(object):
             default only a sum is performed, the option average is also
             supported.
         '''
+        start = time()
         for i in range(len(self.clusters)):
             currClus = self.clusters[i]
             self.summaryMatrices[currClus] += self.wholeMIPMatrix
@@ -259,6 +260,9 @@ class ETMIPC(object):
                 self.summaryMatrices[currClus] += self.resultMatrices[j]
             if(combination == 'average'):
                 self.summaryMatrices[currClus] /= (i + 2)
+        end = time()
+        print('Combining data across clusters took {} min'.format(
+            (end - start) / 60.0))
 
     def computeCoverageAndAUC(self, threshold):
         '''
@@ -277,6 +281,7 @@ class ETMIPC(object):
             positive set of coupled residues based on spatial positions in
             the PDB file if provided.
         '''
+        start = time()
         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
@@ -296,6 +301,8 @@ class ETMIPC(object):
             self.coverage[r[0]] = r[1]
             self.resultTimes[r[0]] += r[2]
             self.aucs[r[0]] = r[3:]
+        end = time()
+        print('Computing coverage and AUC took {} min'.format((end - start) / 60.0))
 
     def produceFinalFigures(self, today, cutOff):
         '''
@@ -315,6 +322,7 @@ class ETMIPC(object):
             positive set of coupled residues based on spatial positions in
             the PDB file if provided.
         '''
+        start = time()
         self.alignment.heatmapPlot('Overall Alignment')
         for c in self.clusters:
             clusterDir = '{}/'.format(c)
@@ -346,6 +354,8 @@ class ETMIPC(object):
             timeElapsed = end - start
             self.resultTimes[c] += timeElapsed
             os.chdir('..')
+        end = time()
+        print('Producing final figures took {} min'.format((end - start) / 60.0))
 
     def plotAUC(self, qName, clus, today, cutoff):
         '''
@@ -403,6 +413,7 @@ class ETMIPC(object):
         cluster : int
             The clustering constant for which to create a heatmap.
         '''
+        start = time()
         if(normalized):
             relData = self.coverage
         else:
@@ -416,6 +427,8 @@ class ETMIPC(object):
         plt.title(name)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()
+        end = time()
+        print('Plotting ETMIp-C heatmap took {} min'.format((end - start) / 60.0))
 
     def surfacePlot(self, name, normalized, cluster):
         '''
@@ -436,6 +449,7 @@ class ETMIPC(object):
         cluster : int
             The clustering constant for which to create a heatmap.
         '''
+        start = time()
         if(normalized):
             relData = self.coverage
         else:
@@ -456,6 +470,8 @@ class ETMIPC(object):
         fig.colorbar(surf, shrink=0.5, aspect=5)
         plt.savefig(name.replace(' ', '_') + '.pdf')
         plt.clf()
+        end = time()
+        print('Plotting ETMIp-C surface plot took {} min'.format((end - start) / 60.0))
 
     def writeOutClusterScoring(self, today, qName, clus):
         '''
@@ -583,6 +599,7 @@ class ETMIPC(object):
             The distance threshold for interaction between two residues in a
             protein structure.
         '''
+        start = time()
         qName = self.alignment.queryID.split('_')[1]
         o = '{}_{}etmipAUC_results.txt'.format(qName, today)
         outfile = open(o, 'w+')
@@ -599,6 +616,8 @@ class ETMIPC(object):
                 outfile.write("\t{0}\t{1}\t{2}\n".format(
                     c, '-',
                     round(self.resultTimes[c], 4)))
+        end = time()
+        print('Writing final results took {} min'.format((end - start) / 60.0))
 ###############################################################################
 #
 ###############################################################################
@@ -650,7 +669,6 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
         mipMatrix = np.zeros((alignment.seqLength, alignment.seqLength))
         # Generate MI matrix from alignment2Num matrix, the MMI matrix,
         # and overallMMI
-        t1 = time()
         for i in range(alignment.seqLength):
             for j in range(i + 1, alignment.seqLength):
                 if(evidence or alterInput):
@@ -680,9 +698,6 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
                 miMatrix[i, j] = miMatrix[j, i] = currMIS
                 evidenceMatrix[i, j] = evidenceMatrix[j, i] = ev
                 overallMMI += currMIS
-        t2 = time()
-        print('Time to in loop: {} min'.format((t2 - t1) / 60.0))
-        t1 = time()
         MMI += np.sum(miMatrix, axis=1)
         MMI -= miMatrix[np.arange(alignment.seqLength),
                         np.arange(alignment.seqLength)]
@@ -698,8 +713,6 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
         mipMatrix += miMatrix - apcMatrix
         mipMatrix[np.arange(alignment.seqLength),
                   np.arange(alignment.seqLength)] = 0
-        t2 = time()
-        print('Time to perform normalization: {} min'.format((t2 - t1) / 60.0))
         if(saveFile is not None):
             np.savez(saveFile, wholeMIP=mipMatrix, evidence=evidenceMatrix)
     end = time()
