@@ -561,12 +561,25 @@ class ETMIPC(object):
                     r = '-'
                     dist = '-'
                 else:
-                    res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
-                    res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
-                    dist = round(self.pdb.residueDists[counter], 4)
-                    if(self.pdb.residueDists[counter] <= cutoff):
+                    if((i in self.pdb.fastaToPDBMapping) or
+                       (j in self.pdb.fastaToPDBMapping)):
+                        if(i in self.pdb.fastaToPDBMapping):
+                            res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
+                        else:
+                            res1 = '-'
+                        if(j in self.pdb.fastaToPDBMapping):
+                            res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
+                        else:
+                            res2 = '-'
+                        if((i in self.pdb.fastaToPDBMapping) and
+                           (j in self.pdb.fastaToPDBMapping)):
+                            dist = round(self.pdb.residueDists[counter], 4)
+                            counter += 1
+                        else:
+                            dist = float('NaN')
+                    if(dist <= cutoff):
                         r = 1
-                    elif(np.isnan(self.pdb.residueDists[counter])):
+                    elif(np.isnan(dist)):
                         r = '-'
                     else:
                         r = 0
@@ -577,7 +590,6 @@ class ETMIPC(object):
                     round(self.summaryMatrices[clus][i, j], 4),
                     round(self.coverage[clus][i, j], 4), dist, r, clus]
                 etMIPWriter.writerow(etMIPOutputLine)
-                counter += 1
         etMIPOutFile.close()
         end = time()
         print('Writing the ETMIP worker data to file took {} min'.format(
