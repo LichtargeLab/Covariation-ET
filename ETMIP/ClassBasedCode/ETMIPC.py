@@ -335,7 +335,7 @@ class ETMIPC(object):
                 self.plotAUC(qName, c, today, cutOff)
             for sub in self.subAlignments[c].keys():
                 self.subAlignments[c][sub].writeOutAlignment(
-                    fileName='AligmentForK{}_{}.fa'.format(c, sub))
+                    fileName='AlignmentForK{}_{}.fa'.format(c, sub))
                 self.subAlignments[c][sub].setTreeOrdering(
                     tOrder=self.alignment.treeOrder)
                 self.subAlignments[c][sub].heatmapPlot(
