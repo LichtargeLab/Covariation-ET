@@ -12,7 +12,6 @@ import matplotlib
 matplotlib.use('Agg')
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import pylab as pl
 from seaborn import heatmap
@@ -462,7 +461,7 @@ class ETMIPC(object):
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         X, Y = np.meshgrid(X, Y)
-        surf = ax.plot_surface(X, Y, dataMat, cmap=cm.jet,
+        surf = ax.plot_surface(X, Y, dataMat, cmap='jet',  # cm.jet,
                                linewidth=0, antialiased=False)
         ax.set_zlim(-1 * plotMax, plotMax)
         ax.zaxis.set_major_locator(LinearLocator(10))
@@ -563,18 +562,19 @@ class ETMIPC(object):
                     if((i in self.pdb.fastaToPDBMapping) or
                        (j in self.pdb.fastaToPDBMapping)):
                         if(i in self.pdb.fastaToPDBMapping):
-                            #                             res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
-                            res1 = self.pdb.fastaToPDBMapping[i]
+                            mapped1 = self.pdb.fastaToPDBMapping[i]
+                            res1 = self.pdb.pdbResidueList[mapped1]
                         else:
                             res1 = '-'
                         if(j in self.pdb.fastaToPDBMapping):
-                            #                             res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
-                            res2 = self.pdb.fastaToPDBMapping[j]
+                            mapped2 = self.pdb.fastaToPDBMapping[j]
+                            res2 = self.pdb.pdbResidueList[mapped2]
                         else:
                             res2 = '-'
                         if((i in self.pdb.fastaToPDBMapping) and
                            (j in self.pdb.fastaToPDBMapping)):
-                            dist = round(self.pdb.residueDists[res1, res2], 4)
+                            dist = round(
+                                self.pdb.residueDists[mapped1, mapped2], 4)
                         else:
                             dist = float('NaN')
                     if(dist <= cutoff):
