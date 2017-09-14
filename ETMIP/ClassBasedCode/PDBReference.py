@@ -150,57 +150,6 @@ class PDBReference(object):
             (end - start) / 60.0))
         self.fastaToPDBMapping = fToPMap
 
-#     def findDistance(self, querySequence, saveFile=None):
-#         '''
-#         Find distance
-#
-#         This code takes in an input of a pdb file and outputs a dictionary with the
-#         nearest atom distance between two residues. This method updates the
-#         resideuDists class variables.
-#
-#         Parameters:
-#         -----------
-#         querySequence: str
-#             A string providing the amino acid (single letter abbreviations)
-#             sequence for the protein.
-#         saveFile: str
-#             File name and/or location of file containing a previously computed set
-#             of distance data for a PDB structure.
-#         --------
-#         '''
-#         start = time()
-#         if((saveFile is not None) and os.path.exists(saveFile)):
-#             sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
-#         else:
-#             qLen = len(querySequence)
-#             sortedPDBDist = []
-#             # Loop over all residues in the pdb
-#             for i in range(qLen):
-#                 # Loop over residues to calculate distance between all residues
-#                 # i and j
-#                 for j in range(i + 1, qLen):
-#                     # Getting the 3d coordinates for every atom in each residue.
-#                     # iterating over all pairs to find all distances
-#                     try:
-#                         key1 = self.pdbResidueList[self.fastaToPDBMapping[i]]
-#                         key2 = self.pdbResidueList[self.fastaToPDBMapping[j]]
-#                         # finding the minimum value from the distance array
-#                         # Making dictionary of all min values indexed by the two residue
-#                         # names
-#                         res1 = (self.residue3D[key2] -
-#                                 self.residue3D[key1][:, np.newaxis])
-#                         norms = np.linalg.norm(res1, axis=2)
-#                         sortedPDBDist.append(np.min(norms))
-#                     except(KeyError):
-#                         sortedPDBDist.append(float('NaN'))
-#             sortedPDBDist = np.asarray(sortedPDBDist)
-#             if(saveFile is not None):
-#                 np.savez(saveFile, pdbDists=sortedPDBDist)
-#         end = time()
-#         print('Computing the distance matrix based on the PDB file took {} min'.format(
-#             (end - start) / 60.0))
-#         self.residueDists = sortedPDBDist
-
     def findDistance(self, saveFile=None):
         '''
         Find distance
@@ -218,9 +167,9 @@ class PDBReference(object):
         '''
         start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
-            sortedPDBDist = np.load(saveFile + '.npz')['pdbDists']
+            pdbDist = np.load(saveFile + '.npz')['pdbDists']
         else:
-            self.residueDists = np.zeros((self.size, self.size))
+            pdbDist = np.zeros((self.size, self.size))
             # Loop over all residues in the pdb
             for i in range(self.size):
                 # Loop over residues to calculate distance between all residues
@@ -236,11 +185,11 @@ class PDBReference(object):
                     res1 = (self.residue3D[key2] -
                             self.residue3D[key1][:, np.newaxis])
                     norms = np.linalg.norm(res1, axis=2)
-                    self.residueDists[i, j] = self.residueDists[j, i] = np.min(
+                    pdbDist[i, j] = pdbDist[j, i] = np.min(
                         norms)
             if(saveFile is not None):
-                np.savez(saveFile, pdbDists=sortedPDBDist)
+                np.savez(saveFile, pdbDists=pdbDist)
         end = time()
         print('Computing the distance matrix based on the PDB file took {} min'.format(
             (end - start) / 60.0))
-        self.residueDists = sortedPDBDist
+        self.residueDists = pdbDist
