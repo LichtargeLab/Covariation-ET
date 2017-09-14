@@ -127,7 +127,10 @@ if __name__ == '__main__':
     if(args['pdb']):
         # Create PDBReference object to represent the structure for this
         # analysis.
-        queryStructure = PDBReference(startDir + '/' + args['pdb'])
+        if(args['pdb'].startswith('..')):
+            queryStructure = PDBReference(startDir + '/' + args['pdb'])
+        else:
+            queryStructure = PDBReference(args['pdb'])
         # Import the structure information from the file.
         queryStructure.importPDB(saveFile='pdbData.pkl')
         # Map between the query sequence in the alignment and the structure.
