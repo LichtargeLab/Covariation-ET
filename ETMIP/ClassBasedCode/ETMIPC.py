@@ -561,8 +561,8 @@ class ETMIPC(object):
                     r = '-'
                     dist = '-'
                 else:
-                    res1 = self.pdb.pdbResidueList[i]
-                    res2 = self.pdb.pdbResidueList[j]
+                    res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
+                    res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
                     dist = round(self.pdb.residueDists[counter], 4)
                     if(self.pdb.residueDists[counter] <= cutoff):
                         r = 1
