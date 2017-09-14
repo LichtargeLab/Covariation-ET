@@ -552,7 +552,6 @@ class ETMIPC(object):
                   'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
                   'Cluster']
         etMIPWriter.writerow(header)
-        counter = 0
         for i in range(0, self.alignment.seqLength):
             for j in range(i + 1, self.alignment.seqLength):
                 if(self.pdb is None):
@@ -564,17 +563,18 @@ class ETMIPC(object):
                     if((i in self.pdb.fastaToPDBMapping) or
                        (j in self.pdb.fastaToPDBMapping)):
                         if(i in self.pdb.fastaToPDBMapping):
-                            res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
+                            #                             res1 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[i]]
+                            res1 = self.pdb.fastaToPDBMapping[i]
                         else:
                             res1 = '-'
                         if(j in self.pdb.fastaToPDBMapping):
-                            res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
+                            #                             res2 = self.pdb.pdbResidueList[self.pdb.fastaToPDBMapping[j]]
+                            res2 = self.pdb.fastaToPDBMapping[j]
                         else:
                             res2 = '-'
                         if((i in self.pdb.fastaToPDBMapping) and
                            (j in self.pdb.fastaToPDBMapping)):
-                            dist = round(self.pdb.residueDists[counter], 4)
-                            counter += 1
+                            dist = round(self.pdb.residueDists[res1, res2], 4)
                         else:
                             dist = float('NaN')
                     if(dist <= cutoff):
@@ -823,13 +823,16 @@ def poolInit2(c, qAlignment, qStructure):
     global seqLen
     seqLen = qAlignment.seqLength
     global pdbResidueList
-    global sortedPDBDist
+    global pdbDist
+    global seqToPDB
     if(qStructure is None):
         pdbResidueList = None
-        sortedPDBDist = None
+        pdbDist = None
+        seqToPDB = None
     else:
         pdbResidueList = qStructure.pdbResidueList
-        sortedPDBDist = qStructure.residueDists
+        pdbDist = qStructure.residueDists
+        seqToPDB = qStructure.fastaToPDBMapping
 
 
 def etMIPWorker2(inTup):
@@ -875,7 +878,26 @@ def etMIPWorker2(inTup):
             computeCoverage2 = (((np.sum(correctedMat) - 1) * 100) /
                                 normalization)
             coverage[i, j] = coverage[j, i] = computeCoverage2
-    etmiplistCoverage = coverage[np.triu_indices(summedMatrix.shape[0], 1)]
+    # Defining which of the values which there are ETMIPC scores for have
+    # distance measurements in the PDB Structure
+    indices = np.triu_indices(summedMatrix.shape[0], 1)
+    mappablePos = np.array(seqToPDB.keys())
+    xMappable = np.in1d(indices[0], mappablePos)
+    yMappable = np.in1d(indices[1], mappablePos)
+    finalMappable = xMappable & yMappable
+    indices = (indices[0][finalMappable], indices[1][finalMappable])
+#     etmiplistCoverage = coverage[np.triu_indices(summedMatrix.shape[0], 1)]
+    etmiplistCoverage = coverage[indices]
+    # Mapping indices used for ETMIPC coverage list so that it can be used to
+    # retrieve correct distances from PDB distances matrix.
+    replace = np.array([list(seqToPDB.keys()), list(seqToPDB.values())])
+    mask1 = np.in1d(indices[0], replace[0, :])
+    indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
+                                                   indices[0][mask1])]
+    mask2 = np.in1d(indices[1], replace[0, :])
+    indices[1][mask2] = replace[1, np.searchsorted(replace[0, :],
+                                                   indices[1][mask2])]
+    sortedPDBDist = pdbDist[indices]
     # AUC computation
     if((sortedPDBDist is not None) and
        (len(etmiplistCoverage) != len(sortedPDBDist))):
