@@ -270,8 +270,7 @@ class SeqAlignment(object):
         self.distanceMatrix = valueMatrix
 
 #     def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=True):
-    def setTreeOrdering(self, tOrder=None, cacheDir=None,
-                        precomputed=False):
+    def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=False):
         '''
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -332,8 +331,8 @@ class SeqAlignment(object):
         start = time()
         if(precomputed):
             affinity = 'precomputed'
-#             linkage = 'complete'
-            linkage = 'average'
+            linkage = 'complete'
+#             linkage = 'average'
         else:
             affinity = 'euclidean'
             linkage = 'ward'
