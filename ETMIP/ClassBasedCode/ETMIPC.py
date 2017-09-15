@@ -158,14 +158,9 @@ class ETMIPC(object):
         # Generate clusters and jobs to perform
         inputs = []
         clusterSizes = {}
-#         subAlignments = []
         for c in self.clusters:
             start = time()
             clusterSizes[c] = {}
-            resultDir = self.outputDir + '/{}/'.format(c)
-            if(not os.path.exists(resultDir)):
-                os.mkdir(resultDir)
-            os.chdir(resultDir)
             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
                                                              cacheDir=self.outputDir)
             treeOrdering = []
@@ -180,7 +175,6 @@ class ETMIPC(object):
                 treeOrdering += newAlignment.treeOrder
                 self.subAlignments[c][sub] = newAlignment
             self.alignment.setTreeOrdering(tOrder=treeOrdering)
-            os.chdir('..')
             end = time()
             self.resultTimes[c] += end - start
         # Perform jobs
