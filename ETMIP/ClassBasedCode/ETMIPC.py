@@ -303,7 +303,7 @@ class ETMIPC(object):
         end = time()
         print('Computing coverage and AUC took {} min'.format((end - start) / 60.0))
 
-    def produceFinalFigures(self, today, cutOff):
+    def produceFinalFigures(self, today, cutOff, verbosity):
         '''
         Produce Final Figures
 
@@ -320,41 +320,51 @@ class ETMIPC(object):
             Distance in Angstroms between residues considered as a preliminary
             positive set of coupled residues based on spatial positions in
             the PDB file if provided.
+        verbosity : int
+            How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+            and final AUC and Timing file. 2 = files with all scores at each
+            clustering. 3 = sub-alignment files and plots. 4 = surface plots
+            and heatmaps of ETMIP raw and coverage scores.'
         '''
-        start = time()
+        begin = time()
         self.alignment.heatmapPlot('Overall Alignment')
         for c in self.clusters:
             clusterDir = '{}/'.format(c)
             if(not os.path.exists(clusterDir)):
                 os.mkdir(clusterDir)
             os.chdir(clusterDir)
-            start = time()
             qName = self.alignment.queryID.split('_')[1]
-            if(self.pdb):
-                self.plotAUC(qName, c, today, cutOff)
-            for sub in self.subAlignments[c].keys():
-                self.subAlignments[c][sub].writeOutAlignment(
-                    fileName='AlignmentForK{}_{}.fa'.format(c, sub))
-                self.subAlignments[c][sub].setTreeOrdering(
-                    tOrder=self.alignment.treeOrder)
-                self.subAlignments[c][sub].heatmapPlot(
-                    name='Aligment For K {} {}'.format(c, sub))
-            self.writeOutClusterScoring(today, qName, c)
-            self.writeOutClusteringResults(today, qName, cutOff, c)
-            self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
-                             normalized=False, cluster=c)
-            self.surfacePlot('Raw Score Surface K {}'.format(c),
-                             normalized=False, cluster=c)
-            self.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
-                             cluster=c)
-            self.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
-                             cluster=c)
-            end = time()
-            timeElapsed = end - start
-            self.resultTimes[c] += timeElapsed
+            if(verbosity >= 1):
+                start = time()
+                self.writeOutClusteringResults(today, qName, cutOff, c)
+                end = time()
+                timeElapsed = end - start
+                self.resultTimes[c] += timeElapsed
+                if(self.pdb):
+                    self.plotAUC(qName, c, today, cutOff)
+            if(verbosity >= 2):
+                self.writeOutClusterScoring(today, qName, c)
+            if(verbosity >= 3):
+                for sub in self.subAlignments[c].keys():
+                    self.subAlignments[c][sub].writeOutAlignment(
+                        fileName='AlignmentForK{}_{}.fa'.format(c, sub))
+                    self.subAlignments[c][sub].setTreeOrdering(
+                        tOrder=self.alignment.treeOrder)
+                    self.subAlignments[c][sub].heatmapPlot(
+                        name='Aligment For K {} {}'.format(c, sub))
+            if(verbosity >= 4):
+                self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
+                                 normalized=False, cluster=c)
+                self.surfacePlot('Raw Score Surface K {}'.format(c),
+                                 normalized=False, cluster=c)
+                self.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
+                                 cluster=c)
+                self.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
+                                 cluster=c)
             os.chdir('..')
-        end = time()
-        print('Producing final figures took {} min'.format((end - start) / 60.0))
+        finish = time()
+        print('Producing final figures took {} min'.format(
+            (finish - begin) / 60.0))
 
     def plotAUC(self, qName, clus, today, cutoff):
         '''

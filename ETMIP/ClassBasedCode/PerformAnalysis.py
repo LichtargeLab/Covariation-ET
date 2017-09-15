@@ -59,6 +59,8 @@ def parseArguments():
                         help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
+    parser.add_argument('--verbosity', metavar='V', type=int, default=1,
+                        nargs='?', choices=[1, 2, 3, 4], help='How many figures to produce.\n1 = ROC Curves, ETMIP Coverage file, and final AUC and Timing file\n2 = files with all scores at each clustering\n3 = sub-alignment files and plots\n4 = surface plots and heatmaps of ETMIP raw and coverage scores.')
     # Clean command line input
     args = parser.parse_args()
     args = vars(args)
@@ -163,7 +165,8 @@ if __name__ == '__main__':
     # provided.
     etmipObj.computeCoverageAndAUC(threshold=args['threshold'])
     # Write out cluster specific scores and produce figures.
-    etmipObj.produceFinalFigures(today, cutOff=args['threshold'])
+    etmipObj.produceFinalFigures(today, cutOff=args['threshold'],
+                                 verbosity=args['verbosity'])
     # Write out the AUCs and final times for the different clustering constants
     # tested.
     etmipObj.writeFinalResults(today, args['threshold'])
