@@ -332,8 +332,8 @@ class SeqAlignment(object):
         start = time()
         if(precomputed):
             affinity = 'precomputed'
-            linkage = 'complete'
-#             linkage = 'average'
+#             linkage = 'complete'
+            linkage = 'average'
         else:
             affinity = 'euclidean'
             linkage = 'ward'
@@ -346,6 +346,44 @@ class SeqAlignment(object):
         ####---------------------------------------#####
         #       Mapping Clusters to Sequences
         ####---------------------------------------#####
+        clusterLabels = set(clusterList)
+        clusterDict = {}
+        clusterOrdering = {}
+        for i in range(len(clusterList)):
+            seqID = self.seqOrder[i]
+            index = self.treeOrder.index(seqID)
+            key = clusterList[i]
+            if(key not in clusterDict):
+                clusterDict[key] = []
+                clusterOrdering[key] = index
+            if(index < clusterOrdering[key]):
+                clusterOrdering[key] = index
+            clusterDict[key].append(self.seqOrder[i])
+        sortedClusterLabels = sorted(clusterOrdering,
+                                     key=lambda k: clusterOrdering[k])
+        clusterDict2 = {}
+        for i in range(len(clusterLabels)):
+            clusterDict2[i] = clusterDict[sortedClusterLabels[i]]
+        end = time()
+        print('Performing agglomerative clustering took {} min'.format(
+            (end - start) / 60.0))
+        return clusterDict2, clusterLabels
+
+    def randomAssignment(self, nCluster):
+        start = time()
+        clusterSizes = np.ones(nCluster, dtype=np.int64)
+        minSize = self.size / nCluster
+        clusterSizes *= minSize
+        largerClusters = self.size % nCluster
+        if(largerClusters > 0):
+            clusterSizes[(-1 * largerClusters):] += 1
+        clusterList = [0] * self.size
+        choices = range(self.size)
+        for i in range(nCluster):
+            currAssignment = np.random.choice(choices, size=clusterSizes[i])
+            for j in currAssignment:
+                clusterList[j] = i
+            choices = list(set(choices) - set(currAssignment))
         clusterLabels = set(clusterList)
         clusterDict = {}
         clusterOrdering = {}
