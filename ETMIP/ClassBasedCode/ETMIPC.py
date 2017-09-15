@@ -165,9 +165,9 @@ class ETMIPC(object):
             if(not os.path.exists(resultDir)):
                 os.mkdir(resultDir)
             os.chdir(resultDir)
-            clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
-                                                             cacheDir=self.outputDir)
-#             clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
+#             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
+#                                                              cacheDir=self.outputDir)
+            clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
             treeOrdering = []
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
@@ -280,7 +280,8 @@ class ETMIPC(object):
             the PDB file if provided.
         '''
         start = time()
-        if(self.processes == 1):
+        if(1):
+            #         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment, self.pdb)
@@ -890,23 +891,27 @@ def etMIPWorker2(inTup):
     # Defining which of the values which there are ETMIPC scores for have
     # distance measurements in the PDB Structure
     indices = np.triu_indices(summedMatrix.shape[0], 1)
-    mappablePos = np.array(seqToPDB.keys())
-    xMappable = np.in1d(indices[0], mappablePos)
-    yMappable = np.in1d(indices[1], mappablePos)
-    finalMappable = xMappable & yMappable
-    indices = (indices[0][finalMappable], indices[1][finalMappable])
+    if(seqToPDB is not None):
+        mappablePos = np.array(seqToPDB.keys())
+        xMappable = np.in1d(indices[0], mappablePos)
+        yMappable = np.in1d(indices[1], mappablePos)
+        finalMappable = xMappable & yMappable
+        indices = (indices[0][finalMappable], indices[1][finalMappable])
 #     etmiplistCoverage = coverage[np.triu_indices(summedMatrix.shape[0], 1)]
     etmiplistCoverage = coverage[indices]
     # Mapping indices used for ETMIPC coverage list so that it can be used to
     # retrieve correct distances from PDB distances matrix.
-    replace = np.array([list(seqToPDB.keys()), list(seqToPDB.values())])
-    mask1 = np.in1d(indices[0], replace[0, :])
-    indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
-                                                   indices[0][mask1])]
-    mask2 = np.in1d(indices[1], replace[0, :])
-    indices[1][mask2] = replace[1, np.searchsorted(replace[0, :],
-                                                   indices[1][mask2])]
-    sortedPDBDist = pdbDist[indices]
+    if(seqToPDB is not None):
+        replace = np.array([list(seqToPDB.keys()), list(seqToPDB.values())])
+        mask1 = np.in1d(indices[0], replace[0, :])
+        indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
+                                                       indices[0][mask1])]
+        mask2 = np.in1d(indices[1], replace[0, :])
+        indices[1][mask2] = replace[1, np.searchsorted(replace[0, :],
+                                                       indices[1][mask2])]
+        sortedPDBDist = pdbDist[indices]
+    else:
+        sortedPDBDist = None
     # AUC computation
     if((sortedPDBDist is not None) and
        (len(etmiplistCoverage) != len(sortedPDBDist))):
