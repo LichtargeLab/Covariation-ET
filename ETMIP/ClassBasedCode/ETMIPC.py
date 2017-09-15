@@ -165,9 +165,9 @@ class ETMIPC(object):
             if(not os.path.exists(resultDir)):
                 os.mkdir(resultDir)
             os.chdir(resultDir)
-#             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
-#                                                              cacheDir=self.outputDir)
-            clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
+            clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
+                                                             cacheDir=self.outputDir)
+#             clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
             treeOrdering = []
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
