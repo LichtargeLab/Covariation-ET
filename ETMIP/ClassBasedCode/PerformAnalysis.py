@@ -73,10 +73,8 @@ def parseArguments():
     return args
 
 
-if __name__ == '__main__':
+def AnalyzeAlignment(args):
     start = time.time()
-    # Read input from the command line
-    args = parseArguments()
     ###########################################################################
     # Set up global variables
     ###########################################################################
@@ -174,3 +172,10 @@ if __name__ == '__main__':
     os.chdir(startDir)
     end = time.time()
     print('ET MIP took {} minutes to run!'.format((end - start) / 60.0))
+
+
+if __name__ == '__main__':
+    # Read input from the command line
+    args = parseArguments()
+    # Perform analysis
+    AnalyzeAlignment(args)
