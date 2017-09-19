@@ -26,7 +26,7 @@ def parseArguments():
     # Create input parser
     parser = argparse.ArgumentParser(description='Process some integers.')
     # Set up all variables to be parsed from the command line (no defaults)
-    parser.add_argument('--inputDir', metavar='I', type=str, nargs=1,
+    parser.add_argument('--inputDir', metavar='I', type=str, nargs='+',
                         help='Directory containing pdb and fa files for running ETMIP analysis.')
     parser.add_argument('--output', metavar='O', type=str, nargs='?',
                         default='./', help='File path to a directory where the results can be generated.')
@@ -60,25 +60,28 @@ def parseArguments():
     pCount = cpu_count()
     if(args['processes'] > pCount):
         args['processes'] = pCount
-#     embed()
-#     exit()
     return args
 
 
 if __name__ == '__main__':
     args = parseArguments()
-    files = os.listdir(args['inputDir'][0])
-    print files
+    inputFiles = []
+    for inDir in args['inputDir']:
+        files = os.listdir(inDir)
+        inputFiles += map(lambda fileName: fileName + inDir, files)
+    inputFiles.sort(key=lambda f: os.path.splitext(f)[1])
+    print inputFiles
     inputDict = {}
-    for f in files:
-        check = re.search(r'(\d[\d|a-z]{3}[A-Z])', f)
-        query = check.group(1)
+    for f in inputFiles:
+        check = re.search(r'(\d[\d|A-Za-z]{3}[A-Z])', f)
+        query = check.group(1).lower()
         if(query not in inputDict):
-            inputDict[query] = [None, None]
+            inputDict[query] = [None, None, None]
         if(f.endswith('fa')):
-            inputDict[query][0] = f
-        elif(f.endswith('pdb')):
+
             inputDict[query][1] = f
+        elif(f.endswith('pdb')):
+            inputDict[query][2] = f
         else:
             pass
     print inputDict
