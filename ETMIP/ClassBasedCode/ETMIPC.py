@@ -161,13 +161,9 @@ class ETMIPC(object):
         for c in self.clusters:
             start = time()
             clusterSizes[c] = {}
-            resultDir = self.outputDir + '/{}/'.format(c)
-            if(not os.path.exists(resultDir)):
-                os.mkdir(resultDir)
-            os.chdir(resultDir)
-#             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
-#                                                              cacheDir=self.outputDir)
-            clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
+            clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
+                                                             cacheDir=self.outputDir)
+#             clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
             treeOrdering = []
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
@@ -280,8 +276,7 @@ class ETMIPC(object):
             the PDB file if provided.
         '''
         start = time()
-        if(1):
-            #         if(self.processes == 1):
+        if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment, self.pdb)

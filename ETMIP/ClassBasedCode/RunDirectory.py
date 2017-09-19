@@ -3,8 +3,8 @@ Created on Sep 15, 2017
 
 @author: daniel
 '''
+from PerformAnalysis import AnalyzeAlignment
 from multiprocessing import cpu_count
-from subprocess import Popen
 import argparse
 import os
 import re
@@ -85,21 +85,9 @@ if __name__ == '__main__':
         else:
             pass
     print inputDict
-    runParameters = (['python', 'PerformAnalysis.py', '--verbosity',
-                      args['verbosity'], '--processes', args['processes'],
-                      '--alterInput', args['alterInput'], '--combineClusters',
-                      args['combineClusters'], '--combineKs', args['combineKs'],
-                      '--clusters'] + map(str, args['clusters']) +
-                     ['--threshold', args['threshold'], '--output',
-                      args['output'], '--query', None, '--alignment', None,
-                      '--pdb', None, ])
-    runParameters = map(str, runParameters)
     for query in inputDict:
-        runParameters[-5] = query
-        runParameters[-3] = args['inputDir'][0] + inputDict[query][0]
-        runParameters[-1] = args['inputDir'][0] + inputDict[query][1]
-        print runParameters
-        p = Popen(runParameters)
-        stdOut, stdError = p.communicate()
-        print stdOut
-        print stdError
+        args['query'] = [query]
+        args['alignment'] = [args['inputDir'][0] + inputDict[query][0]]
+        args['pdb'] = args['inputDir'][0] + inputDict[query][1]
+        AnalyzeAlignment(args)
+        print('Completed successfully: {}'.format(query))
