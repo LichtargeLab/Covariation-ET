@@ -63,31 +63,45 @@ def parseArguments():
     return args
 
 
+def parseID(faFile):
+    for line in open(faFile, 'rb'):
+        check = re.match(r'^>query_(.*)\s?$', line)
+        if(check):
+            return check.group(1)
+        else:
+            continue
+
+
 if __name__ == '__main__':
     args = parseArguments()
     inputFiles = []
     for inDir in args['inputDir']:
         files = os.listdir(inDir)
-        inputFiles += map(lambda fileName: fileName + inDir, files)
+        inputFiles += map(lambda fileName: inDir + fileName, files)
     inputFiles.sort(key=lambda f: os.path.splitext(f)[1])
-    print inputFiles
     inputDict = {}
     for f in inputFiles:
-        check = re.search(r'(\d[\d|A-Za-z]{3}[A-Z])', f)
+        print f
+        check = re.search(r'(\d[\d|A-Z|a-z]{3}[A-Z]?)', f.split('/')[-1])
+        if not check:
+            continue
         query = check.group(1).lower()
         if(query not in inputDict):
             inputDict[query] = [None, None, None]
         if(f.endswith('fa')):
-
+            inputDict[query][0] = parseID(f)
             inputDict[query][1] = f
         elif(f.endswith('pdb')):
             inputDict[query][2] = f
         else:
             pass
-    print inputDict
+    counter = 0
     for query in inputDict:
-        args['query'] = [query]
-        args['alignment'] = [args['inputDir'][0] + inputDict[query][0]]
-        args['pdb'] = args['inputDir'][0] + inputDict[query][1]
-        AnalyzeAlignment(args)
-        print('Completed successfully: {}'.format(query))
+        if inputDict[query][0] is not None:
+            counter += 1
+            args['query'] = [inputDict[query][0]]
+            args['alignment'] = [inputDict[query][1]]
+            args['pdb'] = inputDict[query][2]
+            AnalyzeAlignment(args)
+            print('Completed successfully: {}'.format(query))
+    print('{} analyses performed'.format(counter))
