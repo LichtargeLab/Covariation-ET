@@ -16,7 +16,6 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import pylab as pl
 from seaborn import heatmap
 from multiprocessing import Pool
-# from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
 
