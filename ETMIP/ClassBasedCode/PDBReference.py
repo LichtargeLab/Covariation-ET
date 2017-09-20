@@ -79,7 +79,7 @@ class PDBReference(object):
                      'PHE': 'F', 'PRO': 'P', 'SER': 'S', 'THR': 'T', 'TRP': 'W',
                      'TYR': 'Y', 'VAL': 'V'}
         if((saveFile is not None) and os.path.exists(saveFile)):
-            residue3D, pdbResidueList, residuePos, seq = pickle.load(
+            residue3D, pdbResidueList, residuePos, seq, chains = pickle.load(
                 open(saveFile, 'rb'))
         else:
             pdbFile = open(self.fileName, 'rb')
@@ -134,7 +134,7 @@ class PDBReference(object):
                 seq[chain] = ''.join(seq[chain])
             pdbFile.close()
             if(saveFile is not None):
-                pickle.dump((residue3D, pdbResidueList, residuePos, seq),
+                pickle.dump((residue3D, pdbResidueList, residuePos, seq, chains),
                             open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         self.chains = chains
         self.residue3D = residue3D
@@ -162,7 +162,7 @@ class PDBReference(object):
         start = time()
         chain = None
         if(len(self.chains) == 1):
-            chain, _ = self.chains
+            chain, = self.chains
             alignments = pairwise2.align.globalxs(fastaSeq, self.seq[chain],
                                                   -1, 0)
         else:
