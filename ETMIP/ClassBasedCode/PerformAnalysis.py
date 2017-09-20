@@ -140,7 +140,7 @@ def AnalyzeAlignment(args):
 #                                     saveFile='PDBdistances')
         queryStructure.findDistance(saveFile='PDBdistances')
         print('PDB Sequence')
-        print(queryStructure.seq)
+        print(queryStructure.seq[queryStructure.fastaToPDBMapping[0]])
     else:
         queryStructure = None
     ###########################################################################

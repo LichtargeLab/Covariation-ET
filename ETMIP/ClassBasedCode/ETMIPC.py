@@ -555,6 +555,10 @@ class ETMIPC(object):
                   'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
                   'Cluster']
         etMIPWriter.writerow(header)
+        if(self.pdb):
+            mappedChain = self.pdb.fastaToPDBMapping[0]
+        else:
+            mappedChain = None
         for i in range(0, self.alignment.seqLength):
             for j in range(i + 1, self.alignment.seqLength):
                 if(self.pdb is None):
@@ -563,22 +567,22 @@ class ETMIPC(object):
                     r = '-'
                     dist = '-'
                 else:
-                    if((i in self.pdb.fastaToPDBMapping) or
-                       (j in self.pdb.fastaToPDBMapping)):
-                        if(i in self.pdb.fastaToPDBMapping):
-                            mapped1 = self.pdb.fastaToPDBMapping[i]
-                            res1 = self.pdb.pdbResidueList[mapped1]
+                    if((i in self.pdb.fastaToPDBMapping[1]) or
+                       (j in self.pdb.fastaToPDBMapping[1])):
+                        if(i in self.pdb.fastaToPDBMapping[1]):
+                            mapped1 = self.pdb.fastaToPDBMapping[1][i]
+                            res1 = self.pdb.pdbResidueList[mappedChain][mapped1]
                         else:
                             res1 = '-'
-                        if(j in self.pdb.fastaToPDBMapping):
-                            mapped2 = self.pdb.fastaToPDBMapping[j]
-                            res2 = self.pdb.pdbResidueList[mapped2]
+                        if(j in self.pdb.fastaToPDBMapping[1]):
+                            mapped2 = self.pdb.fastaToPDBMapping[1][j]
+                            res2 = self.pdb.pdbResidueList[mappedChain][mapped2]
                         else:
                             res2 = '-'
-                        if((i in self.pdb.fastaToPDBMapping) and
-                           (j in self.pdb.fastaToPDBMapping)):
+                        if((i in self.pdb.fastaToPDBMapping[1]) and
+                           (j in self.pdb.fastaToPDBMapping[1])):
                             dist = round(
-                                self.pdb.residueDists[mapped1, mapped2], 4)
+                                self.pdb.residueDists[mappedChain][mapped1, mapped2], 4)
                         else:
                             dist = float('NaN')
                     if(dist <= cutoff):
@@ -834,9 +838,10 @@ def poolInit2(c, qAlignment, qStructure):
         pdbDist = None
         seqToPDB = None
     else:
-        pdbResidueList = qStructure.pdbResidueList
-        pdbDist = qStructure.residueDists
-        seqToPDB = qStructure.fastaToPDBMapping
+        mappedChain = qStructure.fastaToPDBMapping[0]
+        pdbResidueList = qStructure.pdbResidueList[mappedChain]
+        pdbDist = qStructure.residueDists[mappedChain]
+        seqToPDB = qStructure.fastaToPDBMapping[1]
 
 
 def etMIPWorker2(inTup):
