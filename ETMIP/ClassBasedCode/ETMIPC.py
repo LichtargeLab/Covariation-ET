@@ -585,6 +585,10 @@ class ETMIPC(object):
                                 self.pdb.residueDists[mappedChain][mapped1, mapped2], 4)
                         else:
                             dist = float('NaN')
+                    else:
+                        res1 = '-'
+                        res2 = '-'
+                        dist = float('NaN')
                     if(dist <= cutoff):
                         r = 1
                     elif(np.isnan(dist)):
