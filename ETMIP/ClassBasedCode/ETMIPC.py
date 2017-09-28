@@ -275,7 +275,8 @@ class ETMIPC(object):
             the PDB file if provided.
         '''
         start = time()
-        if(self.processes == 1):
+        if(1):
+            #         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment, self.pdb)
@@ -837,15 +838,18 @@ def poolInit2(c, qAlignment, qStructure):
     global pdbResidueList
     global pdbDist
     global seqToPDB
+    global pdbStructure
     if(qStructure is None):
         pdbResidueList = None
         pdbDist = None
         seqToPDB = None
+        pdbStructure = None
     else:
         mappedChain = qStructure.fastaToPDBMapping[0]
         pdbResidueList = qStructure.pdbResidueList[mappedChain]
         pdbDist = qStructure.residueDists[mappedChain]
         seqToPDB = qStructure.fastaToPDBMapping[1]
+        pdbStructure = qStructure
 
 
 def etMIPWorker2(inTup):
@@ -905,7 +909,9 @@ def etMIPWorker2(inTup):
     # Mapping indices used for ETMIPC coverage list so that it can be used to
     # retrieve correct distances from PDB distances matrix.
     if(seqToPDB is not None):
-        replace = np.array([list(seqToPDB.keys()), list(seqToPDB.values())])
+        keys = sorted(seqToPDB.keys())
+        values = [seqToPDB[k] for k in keys]
+        replace = np.array([keys, values])
         mask1 = np.in1d(indices[0], replace[0, :])
         indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
                                                        indices[0][mask1])]
