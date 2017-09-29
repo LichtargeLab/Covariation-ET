@@ -100,10 +100,13 @@ def writeOutSBATCHScript(topDir, args):
     callString = "python PerformAnalysis.py"
     for key in args:
         callString += " --{} ".format(key)
-        if(type(args[key]) == list):
-            callString += " ".join(map(str, args[key]))
+        if(key == 'query'):
+            callString += "'{}'".format(args[key][0])
         else:
-            callString += str(args[key])
+            if(type(args[key]) == list):
+                callString += " ".join(map(str, args[key]))
+            else:
+                callString += str(args[key])
 #     fileHandle.write(
 #         "python PerformAnalysis.py --verbosity 4 --processes 11 --alignment {} --pdb {} --query {} --output {}")
     callString += '\n'
