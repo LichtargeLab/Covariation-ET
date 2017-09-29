@@ -275,8 +275,7 @@ class ETMIPC(object):
             the PDB file if provided.
         '''
         start = time()
-        if(1):
-            #         if(self.processes == 1):
+        if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
                 poolInit2(threshold, self.alignment, self.pdb)
