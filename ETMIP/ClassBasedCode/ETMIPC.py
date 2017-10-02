@@ -706,7 +706,12 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
                 else:
                     colI = alignment.alignmentMatrix[:, i]
                     colJ = alignment.alignmentMatrix[:, j]
-                currMIS = mutual_info_score(colI, colJ, contingency=None)
+                try:
+                    currMIS = mutual_info_score(colI, colJ, contingency=None)
+                except:
+                    print colI
+                    print colJ
+                    exit()
 #                 if(((alterInput) and (ev == 0)) or
 #                    ((ratioCutOff is not None) and (r >= 0.8))):
 #                     currMIS = 0
@@ -799,6 +804,7 @@ def etMIPWorkerTemp(inTup):
         The time in seconds which it took to perform clustering.
     '''
     clus, sub, newAlignment = inTup
+    print('Current alignment has {} sequences'.format(newAlignment.size))
     start = time()
     if('evidence' in withinClusterCombi):
         clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True,
