@@ -68,6 +68,7 @@ def parseArguments():
     pCount = cpu_count()
     if(args['processes'] > pCount):
         args['processes'] = pCount
+#     print args
 #     embed()
 #     exit()
     return args
