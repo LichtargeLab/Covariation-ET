@@ -167,6 +167,6 @@ if __name__ == '__main__':
                 os.mkdir(args['output'])
             currFN = writeOutSBATCHScript(outputDir, args)
             print currFN
-#             status = call(['sbatch', currFN])
-#             print('{} return status: {}'.format(query, status))
+            status = call(['sbatch', currFN])
+            print('{} return status: {}'.format(query, status))
     print('{} analyses submitted'.format(counter))
