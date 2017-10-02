@@ -99,7 +99,8 @@ def writeOutSBATCHScript(topDir, args):
     fileHandle.write("\n")
     callString = "python PerformAnalysis.py"
     for key in args:
-        callString += " --{} ".format(key)
+        if(not (key == 'alterInput' and args[key])):
+            callString += " --{} ".format(key)
         if(key == 'query'):
             callString += "'{}'".format(args[key][0])
         else:
