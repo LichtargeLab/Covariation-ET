@@ -105,7 +105,7 @@ class PDBReference(object):
                 # New conditional to manage prev res and prev chain
                 if(prevRes != resNum):
                     if(prevChain != resChain):
-                        if(prevChain):
+                        if(prevChain is not None):
                             residue3D[prevChain][prevRes] = np.vstack(
                                 residue3D[prevChain][prevRes])
                         prevChain = resChain
@@ -114,7 +114,7 @@ class PDBReference(object):
                         pdbResidueList[resChain] = []
                         residuePos[resChain] = {}
                         seq[resChain] = []
-                    elif(prevRes):
+                    elif(prevRes is not None):
                         residue3D[resChain][prevRes] = np.vstack(
                             residue3D[resChain][prevRes])
                     else:
