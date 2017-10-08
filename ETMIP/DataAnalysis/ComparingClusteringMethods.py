@@ -37,10 +37,10 @@ def plotBoxPlot(df, name, x='Method', y='AUC', hue=None):
     plt.ylim([0.5, 1.0])
     plt.tight_layout()
     if(hue):
-        plt.savefig('{}.eps'.format(name), bbox_inches='tight',
+        plt.savefig('{}.png'.format(name), dpi=150, bbox_inches='tight',
                     bbox_extra_artists=[lgd])
     else:
-        plt.savefig('{}.eps'.format(name), bbox_inches='tight')
+        plt.savefig('{}.png'.format(name), dpi=150, bbox_inches='tight')
     plt.clf()
 
 
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     ##########################################################################
     # Import data
     ##########################################################################
-    #     os.chdir('/Users/dmkonecki/Desktop/ETMIPC/')
-    os.chdir('/media/daniel/ExtraDrive1/Results/ETMIPC/ClusteringDistanceAndLinkage/')
+    os.chdir('/Users/dmkonecki/Desktop/ETMIPC/')
+#     os.chdir('/media/daniel/ExtraDrive1/Results/ETMIPC/ClusteringDistanceAndLinkage/')
     df = pandas.read_csv('ClusteringDistanceAUCs.txt',
                          delimiter='\t', header=0)
     ##########################################################################
@@ -75,7 +75,7 @@ if __name__ == '__main__':
                    col='K', kind='box', aspect=1.0)
     f.set_xticklabels(rotation=90)
     plt.tight_layout()
-    plt.savefig('Ks.eps')
+    plt.savefig('Ks.png', dpi=150)
     plt.clf()
     ##########################################################################
     # Compute statistics and plot data by clustering constant
@@ -90,5 +90,5 @@ if __name__ == '__main__':
                    col='Protein', kind='box', aspect=1.0)
     f.set_xticklabels(rotation=90)
     plt.tight_layout()
-    plt.savefig('Proteins.eps')
+    plt.savefig('Proteins.png', dpi=150)
     plt.clf()
