@@ -7,6 +7,7 @@ import os
 import csv
 import pandas
 import itertools
+import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import ranksums
 from seaborn import boxplot, factorplot
@@ -26,6 +27,7 @@ def computeWilcoxonRankSum(df, name):
 
 
 def plotBoxPlot(df, name, x='Method', y='AUC', hue=None):
+    sns.set_style('whitegrid')
     if(hue):
         boxplot(data=df, x=x, y=y, hue=hue)
         lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -46,6 +48,7 @@ if __name__ == '__main__':
     ##########################################################################
     # Import data
     ##########################################################################
+    #     os.chdir('/Users/dmkonecki/Desktop/ETMIPC/')
     os.chdir('/media/daniel/ExtraDrive1/Results/ETMIPC/ClusteringDistanceAndLinkage/')
     df = pandas.read_csv('ClusteringDistanceAUCs.txt',
                          delimiter='\t', header=0)
