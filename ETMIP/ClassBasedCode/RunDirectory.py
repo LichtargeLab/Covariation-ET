@@ -49,6 +49,9 @@ def parseArguments():
     parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
                         default=False,
                         help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
+    parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
+                        default=False,
+                        help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1,
