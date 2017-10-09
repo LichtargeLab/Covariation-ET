@@ -259,7 +259,7 @@ class SeqAlignment(object):
                 check = self.alignmentMatrix - self.alignmentMatrix[i]
                 valueMatrix[i] = np.sum(check == 0, axis=1)
 #                 valueMatrix[i] = np.sum(check != 0, axis=1)
-            valueMatrix[np.arange(self.size), np.arange(self.size)] = 0
+#             valueMatrix[np.arange(self.size), np.arange(self.size)] = 0
             valueMatrix /= self.seqLength
             if(saveFile is not None):
                 np.savez(saveFile, X=valueMatrix)
