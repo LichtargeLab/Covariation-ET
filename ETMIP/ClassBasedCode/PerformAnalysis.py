@@ -47,7 +47,7 @@ def parseArguments():
                         default=[2, 3, 5, 7, 10, 25],
                         help='The clustering constants to use when performing this analysis.')
     parser.add_argument('--combineKs', metavar='C', type=str, nargs='?',
-                        default='average', choices=['additive', 'average'],
+                        default='average', choices=['sum', 'average'],
                         help='')
     parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?',
                         default='evidence_vs_size',
