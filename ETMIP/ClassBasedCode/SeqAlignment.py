@@ -300,7 +300,6 @@ class SeqAlignment(object):
         else:
             pass
 
-#     def aggClustering(self, nCluster, cacheDir, precomputed=True):
     def aggClustering(self, nCluster, cacheDir, precomputed=False):
         '''
         Agglomerative clustering
@@ -328,13 +327,13 @@ class SeqAlignment(object):
             A unique sorted set of the cluster values.
         '''
         start = time()
-        if(precomputed):
-            affinity = 'precomputed'
-            linkage = 'complete'
+#         if(precomputed):
+#             affinity = 'precomputed'
+#             linkage = 'complete'
 #             linkage = 'average'
-        else:
-            affinity = 'euclidean'
-            linkage = 'ward'
+#         else:
+        affinity = 'euclidean'
+        linkage = 'ward'
         model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
                                         n_clusters=nCluster, memory=cacheDir,
                                         compute_full_tree=True)
