@@ -23,35 +23,37 @@ class ETMIPResult(object):
         self.size = None
 
     def importData(self):
-        self.data = read_csv(self.path, delimiter=' ', header=1)
-        self.data.sort_values(by=['Position1', 'Position2'],
+        self.data = read_csv(self.path, delim_whitespace=True, skiprows=1,
+                             names=['Sort', 'ResI', 'i(AA)', 'ResJ', 'j(AA)',
+                                    'sorted', 'cvg(sort)', 'interface',
+                                    'contact', 'number', 'AveContact'])
+        self.data.sort_values(by=['ResI', 'ResJ'],
                               ascending=[True, True], inplace=True)
-        self.positions = sorted(set(self.data['Position1'].unique()) |
-                                set(self.data['Position2'].unique()))
+        self.positions = sorted(set(self.data['ResI'].unique()) |
+                                set(self.data['ResJ'].unique()))
         self.size = self.data.shape[0]
 
     def checkAccuracy(self, pdbRef, chain, threshold=8.0):
         pdbRef.findDistance()
-
         df = self.data.copy(deep=True)
-        df['Index1'] = df[['Position1']].apply(lambda x: x - 1, axis=1)
-        df['Index2'] = df[['Position2']].apply(lambda x: x - 1, axis=1)
+        df['Index1'] = df[['ResI']].apply(lambda x: x - 1, axis=1)
+        df['Index2'] = df[['ResJ']].apply(lambda x: x - 1, axis=1)
         df['Distance'] = pdbRef.residueDists[chain][df['Index1'].values,
                                                     df['Index2'].values]
         df['Truth'] = np.where(df['Distance'] <= threshold, 1, 0)
         fpr, tpr, _thresholds = roc_curve(df['Truth'].values,
-                                          df['Score'].values,
+                                          df['sorted'].values,
                                           pos_label=1)
         roc_auc = auc(fpr, tpr)
         return roc_auc
 
 
 if __name__ == '__main__':
-    test = '/cedar/atri/projects/DannySymposiumData/DCA-results/1a26A-03-11-2017_DCAresults.txt'
-    dcaRes = DCAResult(test)
-    dcaRes.importData()
+    test = '/cedar/atri/projects/DannySymposiumData/ETMIP-AW/1a26A.tree_mip_sorted'
+    etmipRes = ETMIPResult(test)
+    etmipRes.importData()
     from ClassBasedCode.PDBReference import PDBReference
     test2 = '../Input/23TestGenes/query_1a26A.pdb'
     pdbRef = PDBReference(test2)
     pdbRef.importPDB()
-    print dcaRes.checkAccuracy(pdbRef, 'A')
+    print etmipRes.checkAccuracy(pdbRef, 'A')
