@@ -3,7 +3,9 @@ Created on Oct 18, 2017
 
 @author: daniel
 '''
+import sys
 import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import re
 from IPython import embed
 import seaborn as sns
@@ -51,7 +53,8 @@ def parseETMIPCResult(filename):
 
 if __name__ == '__main__':
     # Results directory
-    resDir = '/media/daniel/ExtraDrive1/Results/ETMIPC/MethodComparisons/'
+    resDir = '/Users/dmkonecki/Desktop/ETMIPC/MethodComparisons/'
+#     resDir = '/media/daniel/ExtraDrive1/Results/ETMIPC/MethodComparisons/'
     # Location of pdbs
     pdbDir = os.path.abspath('../Input/23TestGenes/') + '/'
     # Location of DCA results
@@ -133,16 +136,16 @@ if __name__ == '__main__':
             queries += [q] * 3
             alignmentSize += [alignSize] * 3
             sequenceLength += [protLen] * 3
-            methods += ['DCA', 'ET-MIp', 'ET-MIp-C']
+            methods += ['DCA', 'ET-MIp', 'cET-MIp']
             currTimes = ([ETMIPTimes[q]] + [timeData[x]
                                             for x in sorted(timeData.keys())] +
                          [sum(timeData.values())])
             queries2 += [q] * len(currTimes)
             alignmentSize2 += [alignSize] * len(currTimes)
             sequenceLength2 += [protLen] * len(currTimes)
-            methods2 += (['ET-MIp'] + ['ET-MIp-C:{}'.format(x)
+            methods2 += (['ET-MIp'] + ['cET-MIp:{}'.format(x)
                                        for x in sorted(timeData.keys())] +
-                         ['ET-MIp-C:Combined'])
+                         ['cET-MIp:Combined'])
             times += currTimes
         df['Protein'] = Series(queries)
         df['SequenceLength'] = Series(sequenceLength)
@@ -166,7 +169,7 @@ if __name__ == '__main__':
         by='AlignmentSize', ascending=True).Protein.unique()
     sns.set_style('whitegrid')
     barplot(data=df, hue='Method', x='Protein', y='AUC',
-            order=protein_order, hue_order=['DCA', 'ET-MIp', 'ET-MIp-C'],
+            order=protein_order, hue_order=['DCA', 'ET-MIp', 'cET-MIp'],
             ci=None)
     plt.xticks(rotation=45)
     plt.ylim([0.5, 1.0])
@@ -177,18 +180,25 @@ if __name__ == '__main__':
                 bbox_extra_artists=[lgd])
     plt.close()
     ###########################################################################
-    embed()
+#     embed()
     df2['Time(%ET-MIp)'] = Series([])
-
+    grp = df2['Time(sec)'].groupby(df2['Method'])
+    base = grp.get_group('ET-MIp')
+    for m in df2['Method'].unique():
+        print m
+        currG = grp.get_group(m)
+        print currG
+        indices = currG.index
+        df2.at[indices, 'Time(%ET-MIp)'] = currG.values / base.values
+#     embed()
     sns.set_style('whitegrid')
-    barplot(data=df2, hue='Method', x='Protein', y='Time(sec)', ci=None,
-            order=protein_order, hue_order=['ET-MIp', 'ET-MIp-C:2',
-                                            'ET-MIp-C:3', 'ET-MIp-C:5',
-                                            'ET-MIp-C:7', 'ET-MIp-C:10',
-                                            'ET-MIp-C:25', 'ET-MIp-C:Combined'])
+    barplot(data=df2.loc[df2['Method'] != 'ET-MIp'], hue='Method', x='Protein',
+            y='Time(%ET-MIp)', ci=None, order=protein_order,
+            hue_order=['cET-MIp:2', 'cET-MIp:3', 'cET-MIp:5', 'cET-MIp:7',
+                       'cET-MIp:10', 'cET-MIp:25', 'cET-MIp:Combined'])
     plt.xticks(rotation=45)
-#     plt.ylim([0.5, 1.0])
-    plt.ylabel('Time(sec)')
+    plt.ylim([0.0, 1.0])
+    plt.ylabel('Time(%ET-MIp)')
     plt.tight_layout()
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig('Method_Time_Comparison.pdf', dpi=150, bbox_inches='tight',
