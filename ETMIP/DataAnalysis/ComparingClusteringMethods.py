@@ -28,8 +28,9 @@ def computeWilcoxonRankSum(df, name):
 
 
 def plotBoxPlot(df, name, x='Method', y='AUC', hue=None, orient="v"):
-    sns.set_style('whitegrid')
-    sns.set_context('poster')
+    #     sns.set_style('whitegrid')
+    #     sns.set_context('poster')
+    sns.set(font_scale=1.5, style='whitegrid', context='poster')
     if(hue):
         boxplot(data=df, x=x, y=y, hue=hue, orient=orient)
         lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))

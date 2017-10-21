@@ -51,6 +51,54 @@ def parseETMIPCResult(filename):
     return proteinLength, alignmentSize, aucData, timeData
 
 
+def collectFiles(pdbDir, dcaDir, etmipcDir):
+    fileDict = {}
+    for f in os.listdir(pdbDir):
+        match = re.match(r'.*(\d[a-z|\d]{3}[A-Z]?).*.pdb', f)
+        if(match):
+            query = match.group(1)
+            fileDict[query] = {}
+            fileDict[query]['PDB'] = f
+        else:
+            continue
+    for f in os.listdir(dcaDir):
+        query = re.match(r'(\d[a-z|\d]{3}[A-Z]?).*.txt', f).group(1)
+        fileDict[query]['DCA'] = f
+    for f in os.listdir(etmipDir):
+        query = re.match(
+            r'^(\d[a-z|\d]{3}[A-Z]?).tree_mip_sorted$', f)
+        if(query):
+            fileDict[query.group(1)]['ETMIP'] = f
+        else:
+            print f
+            continue
+    for d in os.listdir(etmipcDir):
+        fName = d + '/'
+        if(not os.path.isdir(etmipcDir + fName)):
+            continue
+        for f in os.listdir(etmipcDir + fName):
+            if(re.match(r'(\d[a-z|\d]{3}[A-Z]?).*_results.txt', f)):
+                fName += f
+                fileDict[d]['ETMIPC'] = fName
+                break
+            else:
+                continue
+    return fileDict
+
+
+def calculateRelativeTimes(dataFrame):
+    dataFrame['Time(%ET-MIp)'] = Series([])
+    grp = dataFrame['Time(sec)'].groupby(dataFrame['Method'])
+    base = grp.get_group('ET-MIp')
+    for m in dataFrame['Method'].unique():
+        print m
+        currG = grp.get_group(m)
+        print currG
+        indices = currG.index
+        dataFrame.at[indices, 'Time(%ET-MIp)'] = currG.values / base.values
+    return
+
+
 if __name__ == '__main__':
     # Results directory
     resDir = '/Users/dmkonecki/Desktop/ETMIPC/MethodComparisons/'
@@ -58,11 +106,14 @@ if __name__ == '__main__':
     # Location of pdbs
     pdbDir = os.path.abspath('../Input/23TestGenes/') + '/'
     # Location of DCA results
-    dcaDir = '/cedar/atri/projects/Coupling/DannySymposiumData/DCA-results/'
+#     dcaDir = '/cedar/atri/projects/Coupling/DannySymposiumData/DCA-results/'
+    dcaDir = '/Users/dmkonecki/Desktop/ETMIPC/DCA-Results/'
     # Location of ETMIP results
-    etmipDir = '/cedar/atri/projects/Coupling/DannySymposiumData/ETMIP-AW/'
+#     etmipDir = '/cedar/atri/projects/Coupling/DannySymposiumData/ETMIP-AW/'
+    etmipDir = '/Users/dmkonecki/Desktop/ETMIPC/ETMIP-Results/'
     # Location of ETMIPC Results
-    etmipcDir = '/media/daniel/ExtraDrive1/Results/ETMIPC/KAndClusterIntegration/SumKsSumClusters/'
+#     etmipcDir = '/media/daniel/ExtraDrive1/Results/ETMIPC/KAndClusterIntegration/SumKsSumClusters/'
+    etmipcDir = '/Users/dmkonecki/Desktop/ETMIPC/KAndClusterIntegration/SumKsSumClusters/'
     # DataFrame to store results
     df = DataFrame(index=range(23 * 3), columns=['Protein', 'SequenceLength',
                                                  'AlignmentSize', 'Method',
@@ -73,32 +124,9 @@ if __name__ == '__main__':
     # Finding relevant result files
     os.chdir(resDir)
     if(not os.path.exists('Method_AUC_Results.csv')):
+        fileDict = collectFiles(pdbDir, dcaDir, etmipcDir)
         ETMIPTimes = parseETMIPTimeFile('ETMIP-times.txt')
-        fileDict = {}
-        for f in os.listdir(pdbDir):
-            match = re.match(r'.*(\d[a-z|\d]{3}[A-Z]?).*.pdb', f)
-            if(match):
-                query = match.group(1)
-                fileDict[query] = {}
-                fileDict[query]['PDB'] = f
-            else:
-                continue
-        for f in os.listdir(dcaDir):
-            query = re.match(r'(\d[a-z|\d]{3}[A-Z]?).*.txt', f).group(1)
-            fileDict[query]['DCA'] = f
-        for f in os.listdir(etmipDir):
-            query = re.match(
-                r'(\d[a-z|\d]{3}[A-Z]?).tree_mip_sorted', f).group(1)
-            fileDict[query]['ETMIP'] = f
-        for d in os.listdir(etmipcDir):
-            fName = d + '/'
-            for f in os.listdir(etmipcDir + fName):
-                if(re.match(r'(\d[a-z|\d]{3}[A-Z]?).*_results.txt', f)):
-                    fName += f
-                    fileDict[d]['ETMIPC'] = fName
-                    break
-                else:
-                    continue
+        embed()
         queries = []
         alignmentSize = []
         sequenceLength = []
@@ -165,42 +193,57 @@ if __name__ == '__main__':
     else:
         df = read_csv('Method_AUC_Results.csv', header=0, sep='\t')
         df2 = read_csv('Method_Time_Results.csv', header=0, sep='\t')
+    ###########################################################################
+#     sns.set_palette(["#e8546c", "#95e34d", "#de5dc7", "#60df92", "#8d79ea",
+#                      "#d3c144", "#df7731", "#69a83d"])
+#     sns.set_palette(sns.xkcd_palette(["blue", "red", "electric green",
+#                                       "bright purple", "amber", "cyan",
+#                                       "magenta", "black"]))
+#     sns.set_palette("bright", 7)
+    sns.set_palette("hls", 7)
+    sns.set_style('whitegrid')
+    ###########################################################################
     protein_order = df.sort_values(
         by='AlignmentSize', ascending=True).Protein.unique()
-    sns.set_style('whitegrid')
     barplot(data=df, hue='Method', x='Protein', y='AUC',
             order=protein_order, hue_order=['DCA', 'ET-MIp', 'cET-MIp'],
-            ci=None)
+            ci=None, palette=sns.color_palette("bright", 8))
     plt.xticks(rotation=45)
-    plt.ylim([0.5, 1.0])
+    plt.ylim([0.5, 0.85])
     plt.ylabel('AUC')
     plt.tight_layout()
-    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    lgd = plt.legend(loc=1)
     plt.savefig('Method_Accuracy_Comparison.pdf', dpi=150, bbox_inches='tight',
                 bbox_extra_artists=[lgd])
     plt.close()
     ###########################################################################
-#     embed()
-    df2['Time(%ET-MIp)'] = Series([])
-    grp = df2['Time(sec)'].groupby(df2['Method'])
-    base = grp.get_group('ET-MIp')
-    for m in df2['Method'].unique():
-        print m
-        currG = grp.get_group(m)
-        print currG
-        indices = currG.index
-        df2.at[indices, 'Time(%ET-MIp)'] = currG.values / base.values
-#     embed()
+    calculateRelativeTimes(df2)
+    ###########################################################################
+    barplot(data=df2.loc[df2['Method'] != 'cET-MIp:Combined'], hue='Method',
+            x='Protein', y='Time(sec)', ci=None, order=protein_order,
+            hue_order=['ET-MIp', 'cET-MIp:K=2', 'cET-MIp:K=3', 'cET-MIp:K=5',
+                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25'])
+    plt.xticks(rotation=45)
+    plt.yscale('log')
+    plt.ylabel('Time(sec)')
+    plt.tight_layout()
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig('Method_Time_Sec_Comparison.pdf', dpi=150, bbox_inches='tight',
+                bbox_extra_artists=[lgd])
+    plt.close()
+    ###########################################################################
     sns.set_style('whitegrid')
     barplot(data=df2.loc[df2['Method'] != 'ET-MIp'], hue='Method', x='Protein',
             y='Time(%ET-MIp)', ci=None, order=protein_order,
-            hue_order=['cET-MIp:2', 'cET-MIp:3', 'cET-MIp:5', 'cET-MIp:7',
-                       'cET-MIp:10', 'cET-MIp:25', 'cET-MIp:Combined'])
+            hue_order=['cET-MIp:K=2', 'cET-MIp:K=3', 'cET-MIp:K=5',
+                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25',
+                       'cET-MIp:Combined'])
     plt.xticks(rotation=45)
     plt.ylim([0.0, 1.0])
     plt.ylabel('Time(%ET-MIp)')
     plt.tight_layout()
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig('Method_Time_Comparison.pdf', dpi=150, bbox_inches='tight',
+    plt.savefig('Method_Time_Perc_Comparison.pdf', dpi=150, bbox_inches='tight',
                 bbox_extra_artists=[lgd])
     plt.close()
+    ###########################################################################

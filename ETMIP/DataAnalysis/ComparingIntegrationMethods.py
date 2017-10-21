@@ -52,35 +52,37 @@ if __name__ == '__main__':
 #     os.chdir('/media/daniel/ExtraDrive1/Results/ETMIPC/KAndClusterIntegration/')
     df = pandas.read_csv('KAndClusteringIntegrationAUCs.csv',
                          delimiter='\t', header=0)
-#     df = df.loc[df['K_Integration'] == 'Sum']
-#     df = df.loc[df['K'] == 25]
-#     protein_order = df.sort_values(
-#         by='AlignmentSize', ascending=True).Protein.unique()
-#     clus_int_order = df.Cluster_Integration.unique()
-#     sns.set_style('whitegrid')
-#     barplot(data=df, hue='Cluster_Integration', x='Protein', y='AUC',
-#             order=protein_order, hue_order=clus_int_order, ci=None)
-#     plt.xticks(rotation=45)
-#     plt.ylim([0.5, 1.0])
-#     plt.ylabel('AUC')
-#     plt.tight_layout()
+    sns.set_palette("bright", 8)
+    df = df.loc[df['K_Integration'] == 'Sum']
+    df = df.loc[df['K'] == 25]
+    protein_order = df.sort_values(
+        by='AlignmentSize', ascending=True).Protein.unique()
+    clus_int_order = df.Cluster_Integration.unique()
+    sns.set_style('whitegrid')
+    barplot(data=df, hue='Cluster_Integration', x='Protein', y='AUC',
+            order=protein_order, hue_order=clus_int_order, ci=None)
+    plt.xticks(rotation=45)
+    plt.ylim([0.5, 0.85])
+    plt.ylabel('AUC')
+    plt.tight_layout()
 #     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-#     for t in lgd.texts:
-#         if(t.get_text() == 'Sum'):
-#             continue
-#         elif(t.get_text() == 'Average'):
-#             t.set_text('1/# Clusters')
-#         elif(t.get_text() == 'Size_Weighted'):
-#             t.set_text('1/|Cluster|')
-#         elif(t.get_text() == 'Evidence_Weighted'):
-#             t.set_text('1/Ungapped Seq.')
-#         elif(t.get_text() == 'Evidence_Vs_Size'):
-#             t.set_text('Ungapped Seq./|Cluster|')
-#         else:
-#             pass
-#     plt.savefig('KIntSum_K25_ProteinByClusInt.pdf', dpi=150, bbox_inches='tight',
-#                 bbox_extra_artists=[lgd])
-#     exit()
+    lgd = plt.legend(loc=2)
+    for t in lgd.texts:
+        if(t.get_text() == 'Sum'):
+            continue
+        elif(t.get_text() == 'Average'):
+            t.set_text('1/# Clusters')
+        elif(t.get_text() == 'Size_Weighted'):
+            t.set_text('1/|Cluster|')
+        elif(t.get_text() == 'Evidence_Weighted'):
+            t.set_text('1/Ungapped Seq.')
+        elif(t.get_text() == 'Evidence_Vs_Size'):
+            t.set_text('Ungapped Seq./|Cluster|')
+        else:
+            pass
+    plt.savefig('KIntSum_K25_ProteinByClusInt.pdf', dpi=150, bbox_inches='tight',
+                bbox_extra_artists=[lgd])
+    exit()
     ##########################################################################
     # Add a column for methods
     ##########################################################################
