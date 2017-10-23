@@ -126,7 +126,6 @@ if __name__ == '__main__':
     if(not os.path.exists('Method_AUC_Results.csv')):
         fileDict = collectFiles(pdbDir, dcaDir, etmipcDir)
         ETMIPTimes = parseETMIPTimeFile('ETMIP-times.txt')
-        embed()
         queries = []
         alignmentSize = []
         sequenceLength = []
@@ -196,18 +195,20 @@ if __name__ == '__main__':
     ###########################################################################
 #     sns.set_palette(["#e8546c", "#95e34d", "#de5dc7", "#60df92", "#8d79ea",
 #                      "#d3c144", "#df7731", "#69a83d"])
+    colors = ["#292934", "#FF2626", "#2c8c99", "#f28c26", "#cb48b7", "#1ac8ed",
+              "#a0bc03"]
 #     sns.set_palette(sns.xkcd_palette(["blue", "red", "electric green",
 #                                       "bright purple", "amber", "cyan",
 #                                       "magenta", "black"]))
 #     sns.set_palette("bright", 7)
-    sns.set_palette("hls", 7)
+#     sns.set_palette("hls", 7)
     sns.set_style('whitegrid')
     ###########################################################################
     protein_order = df.sort_values(
         by='AlignmentSize', ascending=True).Protein.unique()
     barplot(data=df, hue='Method', x='Protein', y='AUC',
             order=protein_order, hue_order=['DCA', 'ET-MIp', 'cET-MIp'],
-            ci=None, palette=sns.color_palette("bright", 8))
+            ci=None, palette=sns.color_palette(colors[4:], 3))
     plt.xticks(rotation=45)
     plt.ylim([0.5, 0.85])
     plt.ylabel('AUC')
@@ -222,7 +223,8 @@ if __name__ == '__main__':
     barplot(data=df2.loc[df2['Method'] != 'cET-MIp:Combined'], hue='Method',
             x='Protein', y='Time(sec)', ci=None, order=protein_order,
             hue_order=['ET-MIp', 'cET-MIp:K=2', 'cET-MIp:K=3', 'cET-MIp:K=5',
-                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25'])
+                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25'],
+            palette=sns.color_palette(colors, 7))
     plt.xticks(rotation=45)
     plt.yscale('log')
     plt.ylabel('Time(sec)')
@@ -233,11 +235,13 @@ if __name__ == '__main__':
     plt.close()
     ###########################################################################
     sns.set_style('whitegrid')
-    barplot(data=df2.loc[df2['Method'] != 'ET-MIp'], hue='Method', x='Protein',
+    barplot(data=df2.loc[(df2['Method'] != 'ET-MIp') &
+                         (df2['Method'] != 'cET-MIp:Combined')],
+            hue='Method', x='Protein',
             y='Time(%ET-MIp)', ci=None, order=protein_order,
             hue_order=['cET-MIp:K=2', 'cET-MIp:K=3', 'cET-MIp:K=5',
-                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25',
-                       'cET-MIp:Combined'])
+                       'cET-MIp:K=7', 'cET-MIp:K=10', 'cET-MIp:K=25'],
+            palette=sns.color_palette(colors[1:], 6))
     plt.xticks(rotation=45)
     plt.ylim([0.0, 1.0])
     plt.ylabel('Time(%ET-MIp)')
