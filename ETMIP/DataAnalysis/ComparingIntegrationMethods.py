@@ -60,7 +60,9 @@ if __name__ == '__main__':
     clus_int_order = df.Cluster_Integration.unique()
     sns.set_style('whitegrid')
     barplot(data=df, hue='Cluster_Integration', x='Protein', y='AUC',
-            order=protein_order, hue_order=clus_int_order, ci=None)
+            order=protein_order, hue_order=clus_int_order, ci=None,
+            palette=sns.color_palette(["#FF2626", "#2c8c99", "#f28c26",
+                                       "#cb48b7", "#1ac8ed", ], 5))
     plt.xticks(rotation=45)
     plt.ylim([0.5, 0.85])
     plt.ylabel('AUC')
