@@ -46,9 +46,6 @@ def parseArguments():
                         choices=['sum', 'average', 'size_weighted',
                                  'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering constant.')
-    parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
-                        default=False,
-                        help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
     parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
                         default=False,
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')

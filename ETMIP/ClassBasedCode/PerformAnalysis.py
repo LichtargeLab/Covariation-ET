@@ -54,9 +54,6 @@ def parseArguments():
                         choices=['sum', 'average', 'size_weighted',
                                  'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering constant.')
-    parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
-                        default=False,
-                        help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
     parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
                         default=False,
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
@@ -163,12 +160,10 @@ def AnalyzeAlignment(args):
     etmipObj = ETMIPC(queryAlignment, args['clusters'], queryStructure,
                       createFolder, args['processes'])
     # Calculate the MI scores for all residues across all sequences
-    etmipObj.determineWholeMIP('evidence' in args['combineClusters'],
-                               args['alterInput'])
+    etmipObj.determineWholeMIP('evidence' in args['combineClusters'])
     # Calculate the the ETMIPC scores for various clustering constants.
     etmipObj.calculateClusteredMIPScores(aaDict=aaDict,
-                                         wCC=args['combineClusters'],
-                                         alterInput=args['alterInput'])
+                                         wCC=args['combineClusters'])
     # Combine the clustering results across all clustering constants tested.
     etmipObj.combineClusteringResults(combination=args['combineKs'])
     # Compute normalized scores for ETMIPC and evaluate against PDB if
