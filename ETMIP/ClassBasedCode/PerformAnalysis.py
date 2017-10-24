@@ -110,12 +110,10 @@ def AnalyzeAlignment(args):
     queryAlignment.importAlignment(saveFile='alignment_dict.pkl')
     # Check if alignment meets analysis criteria:
     if((not args['ignoreAlignmentSize']) and (queryAlignment.size < 125)):
-        print('The multiple sequence alignment is smaller than recommended for performing this analysis ({} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please call the code again using the --ignoreAlignmentSize option.'.format(queryAlignment.size))
-        exit()
+        raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis ({} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please call the code again using the --ignoreAlignmentSize option.'.format(queryAlignment.size))
     if(queryAlignment.size < max(args['clusters'])):
-        print('The analysis could not be performed because the alignment has fewer sequences than the requested number of clusters ({} < {}), please provide an alignment with more sequences or change the clusters requested by using the --clusters option when using this software.'.format(
+        raise ValueError('The analysis could not be performed because the alignment has fewer sequences than the requested number of clusters ({} < {}), please provide an alignment with more sequences or change the clusters requested by using the --clusters option when using this software.'.format(
             queryAlignment.size, max(args['clusters'])))
-        exit()
     # Remove gaps from aligned query sequences
     queryAlignment.removeGaps(saveFile='ungapped_alignment.pkl')
     # Create matrix converting sequences of amino acids to sequences of integers
