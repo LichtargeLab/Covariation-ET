@@ -268,8 +268,7 @@ class SeqAlignment(object):
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
 
-#     def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=True):
-    def setTreeOrdering(self, tOrder=None, cacheDir=None, precomputed=False):
+    def setTreeOrdering(self, tOrder=None, cacheDir=None):
         '''
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -280,10 +279,6 @@ class SeqAlignment(object):
         cacheDir : str
             The path to the directory where the clustering model can be stored
             for access later when identifying different numbers of clusters.
-        precomputed: boolean
-            Whether or not to use the distances from X as the distances to
-            cluster on, the alternative is to compute a new distance matrix
-            based on X using Euclidean distance.
         '''
         if(tOrder is not None):
             self.treeOrder = [x for x in tOrder if x in self.seqOrder]
@@ -300,7 +295,7 @@ class SeqAlignment(object):
         else:
             pass
 
-    def aggClustering(self, nCluster, cacheDir, precomputed=False):
+    def aggClustering(self, nCluster, cacheDir):
         '''
         Agglomerative clustering
 
@@ -314,10 +309,6 @@ class SeqAlignment(object):
         cacheDir : str
             The path to the directory where the clustering model can be stored
             for access later when identifying different numbers of clusters.
-        precomputed: boolean
-            Whether or not to use the distances from X as the distances to
-            cluster on, the alternative is to compute a new distance matrix
-            based on X using Euclidean distance.
         Returns:
         --------
         dict
@@ -327,11 +318,6 @@ class SeqAlignment(object):
             A unique sorted set of the cluster values.
         '''
         start = time()
-#         if(precomputed):
-#             affinity = 'precomputed'
-#             linkage = 'complete'
-#             linkage = 'average'
-#         else:
         affinity = 'euclidean'
         linkage = 'ward'
         model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
