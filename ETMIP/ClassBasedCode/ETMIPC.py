@@ -772,11 +772,9 @@ def etMIPWorkerTemp(inTup):
     print('Current alignment has {} sequences'.format(newAlignment.size))
     start = time()
     if('evidence' in withinClusterCombi):
-        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True,
-                                                        alterMIInput)
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True)
     else:
-        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False,
-                                                        alterMIInput)
+        clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False)
     end = time()
     timeElapsed = end - start
     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
