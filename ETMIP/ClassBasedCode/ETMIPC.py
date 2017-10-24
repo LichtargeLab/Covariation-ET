@@ -109,7 +109,7 @@ class ETMIPC(object):
                          for c in self.clusters}
         self.aucs = {}
 
-    def determineWholeMIP(self, evidence, alterInput):
+    def determineWholeMIP(self, evidence):
         '''
         determineWholeMIP
 
@@ -117,22 +117,17 @@ class ETMIPC(object):
         evidence : bool
             Whether or not to normalize using the evidence using the evidence
             counts computed while performing the coupling scoring.
-        alterInput: bool
-            Whether or not to restrict the input to the mutual information
-            computation to only those sequences which have gaps in neither of
-            the considered positions.
 
         This method performs the wholeAnalysis method on all sequences in the
         sequence alignment. This method updates the wholeMIPMatrix and
         wholeEvidenceMatrix class variables.
         '''
         mipMatrix, evidenceCounts = wholeAnalysis(self.alignment, evidence,
-                                                  alterInput,
                                                   saveFile='wholeMIP')
         self.wholeMIPMatrix = mipMatrix
         self.wholeEvidenceMatrix = evidenceCounts
 
-    def calculateClusteredMIPScores(self, aaDict, wCC, alterInput):
+    def calculateClusteredMIPScores(self, aaDict, wCC):
         '''
         Calculate Clustered MIP Scores
 
@@ -149,10 +144,6 @@ class ETMIPC(object):
             Method by which to combine individual matrices from one round of
             clustering. The options supported now are: sum, average,
             size_weighted, evidence_weighted, and evidence_vs_size.
-        alter: bool
-            Whether or not to restrict the input to the mutual information
-            computation to only those sequences which have gaps in neither of
-            the considered positions.
         '''
         # Generate clusters and jobs to perform
         inputs = []
@@ -162,7 +153,6 @@ class ETMIPC(object):
             clusterSizes[c] = {}
             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
                                                              cacheDir=self.outputDir)
-#             clusDict, clusDet = self.alignment.randomAssignment(nCluster=c)
             treeOrdering = []
             for sub in clusDet:
                 newAlignment = self.alignment.generateSubAlignment(
@@ -179,14 +169,14 @@ class ETMIPC(object):
             self.resultTimes[c] += end - start
         # Perform jobs
         if(self.processes == 1):
-            poolInitTemp(wCC, alterInput)
+            poolInitTemp(wCC)
             res1 = []
             for i in inputs:
                 res = etMIPWorkerTemp(i)
                 res1.append(res)
         else:
             pool = Pool(processes=self.processes, initializer=poolInitTemp,
-                        initargs=(wCC, alterInput))
+                        initargs=(wCC,))
             res1 = pool.map_async(etMIPWorkerTemp, inputs)
             pool.close()
             pool.join()
@@ -647,7 +637,7 @@ class ETMIPC(object):
 ###############################################################################
 
 
-def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
+def wholeAnalysis(alignment, evidence, saveFile=None):
     '''
     Whole Analysis
 
@@ -661,10 +651,6 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
     evidence : bool
         Whether or not to normalize using the evidence using the evidence
         counts computed while performing the coupling scoring.
-    alterInput: bool
-        Whether or not to restrict the input to the mutual information
-        computation to only those sequences which have gaps in neither of
-        the considered positions.
     saveFile: str
         File path to a previously stored MIP matrix (.npz should be excluded as
         it will be added automatically).
@@ -695,34 +681,19 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
         # and overallMMI
         for i in range(alignment.seqLength):
             for j in range(i + 1, alignment.seqLength):
-                if(evidence or alterInput):
-                    colSubI, colSubJ, _pos, ev = alignment.identifyComparableSequences(
+                if(evidence):
+                    _I, _J, _pos, ev = alignment.identifyComparableSequences(
                         i, j)
                 else:
                     ev = 0
-                if(alterInput):
-                    colI = colSubI
-                    colJ = colSubJ
-                else:
-                    colI = alignment.alignmentMatrix[:, i]
-                    colJ = alignment.alignmentMatrix[:, j]
+                colI = alignment.alignmentMatrix[:, i]
+                colJ = alignment.alignmentMatrix[:, j]
                 try:
                     currMIS = mutual_info_score(colI, colJ, contingency=None)
                 except:
                     print colI
                     print colJ
                     exit()
-#                 if(((alterInput) and (ev == 0)) or
-#                    ((ratioCutOff is not None) and (r >= 0.8))):
-#                     currMIS = 0
-#                 else:
-#                     try:
-#                         currMIS = mutual_info_score(
-#                             colI, colJ, contingency=None)
-#                     except:
-#                         print 'wholeAnalysis'
-#                         embed()
-#                         exit()
                 # AW: divides by individual entropies to normalize.
                 miMatrix[i, j] = miMatrix[j, i] = currMIS
                 evidenceMatrix[i, j] = evidenceMatrix[j, i] = ev
@@ -749,7 +720,7 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
     return mipMatrix, evidenceMatrix
 
 
-def poolInitTemp(wCC, alterInput):
+def poolInitTemp(wCC):
     '''
     poolInit
 
@@ -763,15 +734,9 @@ def poolInitTemp(wCC, alterInput):
         Method by which to combine individual matrices from one round of
         clustering. The options supported now are: sum, average, size_weighted,
         and evidence_weighted.
-    alterInput: bool
-        Whether or not to restrict the input to the mutual information
-        computation to only those sequences which have gaps in neither of
-        the considered positions.
     '''
     global withinClusterCombi
     withinClusterCombi = wCC
-    global alterMIInput
-    alterMIInput = alterInput
 
 
 def etMIPWorkerTemp(inTup):
