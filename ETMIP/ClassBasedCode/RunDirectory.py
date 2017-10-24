@@ -77,7 +77,8 @@ if __name__ == '__main__':
     inputFiles = []
     for inDir in args['inputDir']:
         files = os.listdir(inDir)
-        inputFiles += map(lambda fileName: inDir + fileName, files)
+        inputFiles += map(lambda fileName: os.path.abspath(inDir) + '/' +
+                          fileName, files)
     inputFiles.sort(key=lambda f: os.path.splitext(f)[1])
     inputDict = {}
     for f in inputFiles:
@@ -98,10 +99,14 @@ if __name__ == '__main__':
     counter = 0
     for query in inputDict:
         if inputDict[query][0] is not None:
+            print('Performing analysis for: {}'.format(query))
             counter += 1
             args['query'] = [inputDict[query][0]]
             args['alignment'] = [inputDict[query][1]]
             args['pdb'] = inputDict[query][2]
-            AnalyzeAlignment(args)
-            print('Completed successfully: {}'.format(query))
+            try:
+                AnalyzeAlignment(args)
+                print('Completed successfully: {}'.format(query))
+            except(ValueError):
+                print('Analysis for {} incomplete!'.format(query))
     print('{} analyses performed'.format(counter))
