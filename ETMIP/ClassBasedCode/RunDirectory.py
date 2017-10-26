@@ -5,9 +5,11 @@ Created on Sep 15, 2017
 '''
 from PerformAnalysis import AnalyzeAlignment
 from multiprocessing import cpu_count
+import datetime
 import argparse
 import os
 import re
+from IPython import embed
 
 
 def parseArguments():
@@ -53,6 +55,8 @@ def parseArguments():
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1,
                         nargs='?', choices=[1, 2, 3, 4], help='How many figures to produce.\n1 = ROC Curves, ETMIP Coverage file, and final AUC and Timing file\n2 = files with all scores at each clustering\n3 = sub-alignment files and plots\n4 = surface plots and heatmaps of ETMIP raw and coverage scores.')
+    parser.add_argument('--skipPreAnalyzed', metavar='S', type=bool, default=True, nargs='?',
+                        help='Whether or not to skip proteins for which there is already a results folder present in the output location')
     # Clean command line input
     args = parser.parse_args()
     args = vars(args)
@@ -73,6 +77,7 @@ def parseID(faFile):
 
 
 if __name__ == '__main__':
+    today = str(datetime.date.today())
     args = parseArguments()
     inputFiles = []
     for inDir in args['inputDir']:
@@ -97,10 +102,16 @@ if __name__ == '__main__':
         else:
             pass
     counter = 0
+    incomplete = []
     for query in inputDict:
         if inputDict[query][0] is not None:
-            print('Performing analysis for: {}'.format(query))
             counter += 1
+            createFolder = (args['output'] + str(today) + "/" +
+                            inputDict[query][0])
+            if(os.path.isdir(os.path.abspath(createFolder)) and
+               args['skipPreAnalyzed']):
+                continue
+            print('Performing analysis for: {}'.format(query))
             args['query'] = [inputDict[query][0]]
             args['alignment'] = [inputDict[query][1]]
             args['pdb'] = inputDict[query][2]
@@ -109,4 +120,6 @@ if __name__ == '__main__':
                 print('Completed successfully: {}'.format(query))
             except(ValueError):
                 print('Analysis for {} incomplete!'.format(query))
+                incomplete.append(query)
     print('{} analyses performed'.format(counter))
+    print('Incomplete analyses for:\n' + '\n'.join(incomplete))
