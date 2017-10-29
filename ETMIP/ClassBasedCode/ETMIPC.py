@@ -335,7 +335,7 @@ class ETMIPC(object):
                     self.subAlignments[c][sub].setTreeOrdering(
                         tOrder=self.alignment.treeOrder)
                     self.subAlignments[c][sub].heatmapPlot(
-                        name='Aligment For K {} {}'.format(c, sub))
+                        name='Alignment For K {} {}'.format(c, sub))
             if(verbosity >= 4):
                 self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
                                  normalized=False, cluster=c)
