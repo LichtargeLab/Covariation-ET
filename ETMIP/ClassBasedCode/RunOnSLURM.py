@@ -3,8 +3,8 @@ Created on Sep 15, 2017
 
 @author: daniel
 '''
-from PerformAnalysis import AnalyzeAlignment
 from multiprocessing import cpu_count
+from subprocess import call
 import argparse
 import os
 import re
@@ -72,6 +72,60 @@ def parseID(faFile):
             continue
 
 
+def writeOutSBATCHScript(topDir, args):
+    sbFN = topDir + 'ETMIP_{}.sh'.format(args['query'][0])
+    fileHandle = open(sbFN, 'wb')
+    fileHandle.write("#!/usr/bin/bash\n")
+    fileHandle.write("#SBATCH --output={}{}.out\n".format(
+        args['output'], args['query'][0]))
+    fileHandle.write("#SBATCH -e {}{}.err\n".format(args['output'],
+                                                    args['query'][0]))
+    fileHandle.write("#SBATCH --mem=40960\n")
+    fileHandle.write("#SBATCH -c 12\n")
+    fileHandle.write("#SBATCH -n 1\n")
+    fileHandle.write("#SBATCH -N 1\n")
+    fileHandle.write("#SBATCH --job-name={}_ETMIP\n".format(args['query'][0]))
+    fileHandle.write("\n")
+    fileHandle.write("echo 'Switching to file directory'\n")
+    fileHandle.write("\n")
+    fileHandle.write(
+        "cd /storage/lichtarge/home/konecki/GIT/ETMIP/ETMIP/ClassBasedCode/\n")
+    fileHandle.write("\n")
+    fileHandle.write("echo 'Activating Python Environment'\n")
+    fileHandle.write("\n")
+    fileHandle.write("source activate pyETMIPC\n")
+    fileHandle.write("\n")
+    fileHandle.write("Starting {} ETMIPC Analysis\n".format(args['query'][0]))
+    fileHandle.write("\n")
+    callString = "python PerformAnalysis.py"
+    for key in args:
+        if(key == 'alterInput' and not args[key]):
+            continue
+        else:
+            callString += " --{} ".format(key)
+        if(key == 'query'):
+            callString += "'{}'".format(args[key][0])
+        else:
+            if(type(args[key]) == list):
+                callString += " ".join(map(str, args[key]))
+            else:
+                callString += str(args[key])
+#     fileHandle.write(
+#         "python PerformAnalysis.py --verbosity 4 --processes 11 --alignment {} --pdb {} --query {} --output {}")
+    callString += '\n'
+    fileHandle.write(callString)
+    fileHandle.write("\n")
+    fileHandle.write("echo '{} Analysis Complete\n".format(args['query'][0]))
+    fileHandle.write("\n")
+    fileHandle.write("echo 'Deactivating Python Environment\n")
+    fileHandle.write("\n")
+    fileHandle.write("source deactivate\n")
+    fileHandle.write("\n")
+    fileHandle.write("Job Completed")
+    fileHandle.close()
+    return sbFN
+
+
 if __name__ == '__main__':
     args = parseArguments()
     inputFiles = []
@@ -95,6 +149,12 @@ if __name__ == '__main__':
             inputDict[query][2] = f
         else:
             pass
+    del(args['inputDir'])
+    outputDir = os.path.abspath(args['output'])
+    if(not outputDir.endswith('/')):
+        outputDir += '/'
+    if(not os.path.exists(outputDir)):
+        os.mkdir(outputDir)
     counter = 0
     for query in inputDict:
         if inputDict[query][0] is not None:
@@ -102,6 +162,11 @@ if __name__ == '__main__':
             args['query'] = [inputDict[query][0]]
             args['alignment'] = [inputDict[query][1]]
             args['pdb'] = inputDict[query][2]
-            AnalyzeAlignment(args)
-            print('Completed successfully: {}'.format(query))
-    print('{} analyses performed'.format(counter))
+            args['output'] = outputDir + '{}/'.format(query)
+            if(not os.path.exists(args['output'])):
+                os.mkdir(args['output'])
+            currFN = writeOutSBATCHScript(outputDir, args)
+            print currFN
+            status = call(['sbatch', currFN])
+            print('{} return status: {}'.format(query, status))
+    print('{} analyses submitted'.format(counter))

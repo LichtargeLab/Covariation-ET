@@ -1,0 +1,28 @@
+name: pyETMIPC
+channels:
+- defaults
+dependencies:
+- biopython=1.69=np113py27_0
+- ipykernel=4.6.1=py27_0
+- ipython=5.1.0=py27_0
+- ipython_genutils=0.2.0=py27_0
+- jupyter=1.0.0=py27_3
+- jupyter_client=5.1.0=py27_0
+- jupyter_console=5.2.0=py27_0
+- jupyter_core=4.3.0=py27_0
+- matplotlib=2.0.2=np113py27_0
+- numpy=1.13.1=py27_0
+- pandas=0.20.3=py27_0
+- pip=9.0.1=py27_1
+- python=2.7.12=1
+- scikit-learn=0.19.0=np113py27_0
+- scipy=0.19.1=np113py27_0
+- seaborn=0.7.1=py27_0
+- pip:
+  - ipython-genutils==0.2.0
+  - jupyter-client==5.1.0
+  - jupyter-console==5.2.0
+  - jupyter-core==4.3.0
+  - prompt-toolkit==1.0.15
+prefix: /home/daniel/anaconda2/envs/pyETMIPC
+

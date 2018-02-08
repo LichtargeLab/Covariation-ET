@@ -16,7 +16,6 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import pylab as pl
 from seaborn import heatmap
 from multiprocessing import Pool
-# from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
 
@@ -556,6 +555,10 @@ class ETMIPC(object):
                   'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
                   'Cluster']
         etMIPWriter.writerow(header)
+        if(self.pdb):
+            mappedChain = self.pdb.fastaToPDBMapping[0]
+        else:
+            mappedChain = None
         for i in range(0, self.alignment.seqLength):
             for j in range(i + 1, self.alignment.seqLength):
                 if(self.pdb is None):
@@ -564,24 +567,28 @@ class ETMIPC(object):
                     r = '-'
                     dist = '-'
                 else:
-                    if((i in self.pdb.fastaToPDBMapping) or
-                       (j in self.pdb.fastaToPDBMapping)):
-                        if(i in self.pdb.fastaToPDBMapping):
-                            mapped1 = self.pdb.fastaToPDBMapping[i]
-                            res1 = self.pdb.pdbResidueList[mapped1]
+                    if((i in self.pdb.fastaToPDBMapping[1]) or
+                       (j in self.pdb.fastaToPDBMapping[1])):
+                        if(i in self.pdb.fastaToPDBMapping[1]):
+                            mapped1 = self.pdb.fastaToPDBMapping[1][i]
+                            res1 = self.pdb.pdbResidueList[mappedChain][mapped1]
                         else:
                             res1 = '-'
-                        if(j in self.pdb.fastaToPDBMapping):
-                            mapped2 = self.pdb.fastaToPDBMapping[j]
-                            res2 = self.pdb.pdbResidueList[mapped2]
+                        if(j in self.pdb.fastaToPDBMapping[1]):
+                            mapped2 = self.pdb.fastaToPDBMapping[1][j]
+                            res2 = self.pdb.pdbResidueList[mappedChain][mapped2]
                         else:
                             res2 = '-'
-                        if((i in self.pdb.fastaToPDBMapping) and
-                           (j in self.pdb.fastaToPDBMapping)):
+                        if((i in self.pdb.fastaToPDBMapping[1]) and
+                           (j in self.pdb.fastaToPDBMapping[1])):
                             dist = round(
-                                self.pdb.residueDists[mapped1, mapped2], 4)
+                                self.pdb.residueDists[mappedChain][mapped1, mapped2], 4)
                         else:
                             dist = float('NaN')
+                    else:
+                        res1 = '-'
+                        res2 = '-'
+                        dist = float('NaN')
                     if(dist <= cutoff):
                         r = 1
                     elif(np.isnan(dist)):
@@ -699,7 +706,12 @@ def wholeAnalysis(alignment, evidence, alterInput, saveFile=None):
                 else:
                     colI = alignment.alignmentMatrix[:, i]
                     colJ = alignment.alignmentMatrix[:, j]
-                currMIS = mutual_info_score(colI, colJ, contingency=None)
+                try:
+                    currMIS = mutual_info_score(colI, colJ, contingency=None)
+                except:
+                    print colI
+                    print colJ
+                    exit()
 #                 if(((alterInput) and (ev == 0)) or
 #                    ((ratioCutOff is not None) and (r >= 0.8))):
 #                     currMIS = 0
@@ -792,6 +804,7 @@ def etMIPWorkerTemp(inTup):
         The time in seconds which it took to perform clustering.
     '''
     clus, sub, newAlignment = inTup
+    print('Current alignment has {} sequences'.format(newAlignment.size))
     start = time()
     if('evidence' in withinClusterCombi):
         clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True,
@@ -830,14 +843,18 @@ def poolInit2(c, qAlignment, qStructure):
     global pdbResidueList
     global pdbDist
     global seqToPDB
+    global pdbStructure
     if(qStructure is None):
         pdbResidueList = None
         pdbDist = None
         seqToPDB = None
+        pdbStructure = None
     else:
-        pdbResidueList = qStructure.pdbResidueList
-        pdbDist = qStructure.residueDists
-        seqToPDB = qStructure.fastaToPDBMapping
+        mappedChain = qStructure.fastaToPDBMapping[0]
+        pdbResidueList = qStructure.pdbResidueList[mappedChain]
+        pdbDist = qStructure.residueDists[mappedChain]
+        seqToPDB = qStructure.fastaToPDBMapping[1]
+        pdbStructure = qStructure
 
 
 def etMIPWorker2(inTup):
@@ -897,7 +914,9 @@ def etMIPWorker2(inTup):
     # Mapping indices used for ETMIPC coverage list so that it can be used to
     # retrieve correct distances from PDB distances matrix.
     if(seqToPDB is not None):
-        replace = np.array([list(seqToPDB.keys()), list(seqToPDB.values())])
+        keys = sorted(seqToPDB.keys())
+        values = [seqToPDB[k] for k in keys]
+        replace = np.array([keys, values])
         mask1 = np.in1d(indices[0], replace[0, :])
         indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
                                                        indices[0][mask1])]

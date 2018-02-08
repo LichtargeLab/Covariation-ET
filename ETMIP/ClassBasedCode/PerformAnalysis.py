@@ -57,6 +57,9 @@ def parseArguments():
     parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
                         default=False,
                         help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
+    parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
+                        default=False,
+                        help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1,
@@ -68,6 +71,7 @@ def parseArguments():
     pCount = cpu_count()
     if(args['processes'] > pCount):
         args['processes'] = pCount
+#     print args
 #     embed()
 #     exit()
     return args
@@ -109,6 +113,14 @@ def AnalyzeAlignment(args):
                                       queryID=args['query'][0])
     # Import alignment information from file.
     queryAlignment.importAlignment(saveFile='alignment_dict.pkl')
+    # Check if alignment meets analysis criteria:
+    if((not args['ignoreAlignmentSize']) and (queryAlignment.size < 125)):
+        print('The multiple sequence alignment is smaller than recommended for performing this analysis ({} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please call the code again using the --ignoreAlignmentSize option.'.format(queryAlignment.size))
+        exit()
+    if(queryAlignment.size < max(args['clusters'])):
+        print('The analysis could not be performed because the alignment has fewer sequences than the requested number of clusters ({} < {}), please provide an alignment with more sequences or change the clusters requested by using the --clusters option when using this software.'.format(
+            queryAlignment.size, max(args['clusters'])))
+        exit()
     # Remove gaps from aligned query sequences
     queryAlignment.removeGaps(saveFile='ungapped_alignment.pkl')
     # Create matrix converting sequences of amino acids to sequences of integers
@@ -142,7 +154,7 @@ def AnalyzeAlignment(args):
 #                                     saveFile='PDBdistances')
         queryStructure.findDistance(saveFile='PDBdistances')
         print('PDB Sequence')
-        print(queryStructure.seq)
+        print(queryStructure.seq[queryStructure.fastaToPDBMapping[0]])
     else:
         queryStructure = None
     ###########################################################################

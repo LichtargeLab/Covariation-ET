@@ -11,7 +11,6 @@ import numpy as np
 import os
 import re
 import matplotlib
-from Bio.SearchIO import index
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
