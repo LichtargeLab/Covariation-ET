@@ -95,7 +95,11 @@ class PDBReference(object):
                 res = re.match(pdbPattern, line)
                 if not res:
                     continue
-                resName = convertAA[res.group(3)]
+                try:
+                    resName = convertAA[res.group(3)]
+                except KeyError:
+                    print(
+                        'Skipping the following line in the PDB, unsupported AA:\n{}'.format(line))
                 resChain = res.group(4)
                 resNum = int(res.group(5))
                 resAtomList = np.asarray([float(res.group(6)),

@@ -39,16 +39,13 @@ def parseArguments():
                         default=[2, 3, 5, 7, 10, 25],
                         help='The clustering constants to use when performing this analysis.')
     parser.add_argument('--combineKs', metavar='C', type=str, nargs='?',
-                        default='average', choices=['sum', 'average'],
+                        default='sum', choices=['sum', 'average'],
                         help='')
     parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?',
-                        default='evidence_vs_size',
+                        default='sum',
                         choices=['sum', 'average', 'size_weighted',
                                  'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering constant.')
-    parser.add_argument('--alterInput', metavar='a', type=bool, nargs='?',
-                        default=False,
-                        help='If the input to the MI calculation should be altered to only those sequences in which both residues are not gaps.')
     parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
                         default=False,
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
@@ -102,10 +99,7 @@ def writeOutSBATCHScript(topDir, args):
     fileHandle.write("\n")
     callString = "python PerformAnalysis.py"
     for key in args:
-        if(key == 'alterInput' and not args[key]):
-            continue
-        else:
-            callString += " --{} ".format(key)
+        callString += " --{} ".format(key)
         if(key == 'query'):
             callString += "'{}'".format(args[key][0])
         else:
