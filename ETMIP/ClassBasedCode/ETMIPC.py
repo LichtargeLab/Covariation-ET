@@ -176,7 +176,7 @@ class ETMIPC(object):
                 res1.append(res)
         else:
             pool = Pool(processes=self.processes, initializer=poolInitTemp,
-                        initargs=(wCC))
+                        initargs=(wCC,))
             res1 = pool.map_async(etMIPWorkerTemp, inputs)
             pool.close()
             pool.join()
