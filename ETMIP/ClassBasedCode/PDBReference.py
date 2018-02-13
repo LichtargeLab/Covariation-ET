@@ -140,8 +140,6 @@ class PDBReference(object):
             if(saveFile is not None):
                 pickle.dump((residue3D, pdbResidueList, residuePos, seq, chains),
                             open(saveFile, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-#         if((chains is None) or (chains == set())):
-#             chains = ['A']
         self.chains = chains
         self.residue3D = residue3D
         self.pdbResidueList = pdbResidueList
