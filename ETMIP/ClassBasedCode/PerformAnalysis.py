@@ -143,8 +143,6 @@ def AnalyzeAlignment(args):
         # Map between the query sequence in the alignment and the structure.
         queryStructure.mapAlignmentToPDBSeq(queryAlignment.querySequence)
         # Determine the shortest distance between residue pairs.
-#         queryStructure.findDistance(queryAlignment.querySequence,
-#                                     saveFile='PDBdistances')
         queryStructure.findDistance(saveFile='PDBdistances')
         print('PDB Sequence')
         print(queryStructure.seq[queryStructure.fastaToPDBMapping[0]])
