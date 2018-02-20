@@ -268,7 +268,7 @@ class SeqAlignment(object):
             (end - start) / 60.0))
         self.distanceMatrix = valueMatrix
 
-    def setTreeOrdering(self, tOrder=None, cacheDir=None):
+    def setTreeOrdering(self, tOrder=None):
         '''
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -276,9 +276,6 @@ class SeqAlignment(object):
         tOrder : list
             An ordered list of sequence IDs which contains at least the
             sequence IDs represented in this SeqAlignment.
-        cacheDir : str
-            The path to the directory where the clustering model can be stored
-            for access later when identifying different numbers of clusters.
         '''
         if(tOrder is not None):
             self.treeOrder = [x for x in tOrder if x in self.seqOrder]
