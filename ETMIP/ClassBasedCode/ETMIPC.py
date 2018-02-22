@@ -156,6 +156,7 @@ class ETMIPC(object):
             poolInitTemp(aaDict, wCC, self.alignment, self.outputDir, kQueue,
                          subAlignmentQueue, resQueue)
             clusterSizes, subAlignments, clusterTimes = etMIPWorkerTemp((1, 1))
+            print subAlignmentQueue.qsize()
             self.resultTimes = clusterTimes
             self.subAlignments = subAlignments
         else:
@@ -901,7 +902,10 @@ def etMIPWorkerTemp(inTup):
     clusterSizes = {}
     clusterTimes = {}
     subAlignments = {}
+    print 'Initialized worker resources'
     while((not queue1.empty()) or (not queue2.empty())):
+        print queue1.qsize()
+        print queue2.qsize()
         try:
             print('Processes {}:{} acquiring sub alignment!'.format(
                 currProcess, totalProcesses))
@@ -953,9 +957,9 @@ def etMIPWorkerTemp(inTup):
             initialAlignment.setTreeOrdering(tOrder=treeOrdering)
             end = time()
             if(c in clusterTimes):
-                clusterTimes[c] += end - start
+                clusterTimes[c] += (end - start)
             else:
-                clusterTimes[c] += end - start
+                clusterTimes[c] = (end - start)
 
             print('Processes {}:{} pushing new sub-alignment!'.format(
                 currProcess, totalProcesses))

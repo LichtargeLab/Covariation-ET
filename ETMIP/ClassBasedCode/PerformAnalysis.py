@@ -125,7 +125,7 @@ def AnalyzeAlignment(args):
     queryAlignment.computeDistanceMatrix(saveFile='X')
     # Determine the full clustering tree for the alignment and the ordering of
     # its sequences.
-    queryAlignment.setTreeOrdering(cacheDir=createFolder)
+    queryAlignment.setTreeOrdering()
     print('Query Sequence:')
     print(queryAlignment.querySequence)
     ###########################################################################
