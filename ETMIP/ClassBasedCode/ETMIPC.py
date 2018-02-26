@@ -6,6 +6,7 @@ Created on Aug 21, 2017
 import os
 import csv
 import sys
+import Queue
 import numpy as np
 from time import time
 import matplotlib
@@ -15,7 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import pylab as pl
 from seaborn import heatmap
-from multiprocessing import Pool
+from multiprocessing import Manager, Pool
 from sklearn.metrics import mutual_info_score, auc, roc_curve
 from IPython import embed
 
@@ -145,25 +146,26 @@ class ETMIPC(object):
             clustering. The options supported now are: sum, average,
             size_weighted, evidence_weighted, and evidence_vs_size.
         '''
-        from multiprocessing import Manager
         cetmipManager = Manager()
         kQueue = cetmipManager.Queue()
         subAlignmentQueue = cetmipManager.Queue()
         resQueue = cetmipManager.Queue()
+        alignmentLock = cetmipManager.Lock()
         for k in self.clusters:
             kQueue.put(k)
         if(self.processes == 1):
-            poolInitTemp(aaDict, wCC, self.alignment, self.outputDir, kQueue,
-                         subAlignmentQueue, resQueue)
-            clusterSizes, subAlignments, clusterTimes = etMIPWorkerTemp((1, 1))
+            poolInit1(aaDict, wCC, self.alignment, self.outputDir,
+                      alignmentLock, kQueue, subAlignmentQueue, resQueue)
+            clusterSizes, subAlignments, clusterTimes = etMIPWorker1((1, 1))
             print subAlignmentQueue.qsize()
             self.resultTimes = clusterTimes
             self.subAlignments = subAlignments
         else:
-            pool = Pool(processes=self.processes, initializer=poolInitTemp,
+            pool = Pool(processes=self.processes, initializer=poolInit1,
                         initargs=(aaDict, wCC, self.alignment, self.outputDir,
-                                  kQueue, subAlignmentQueue, resQueue))
-            poolRes = pool.map_async(etMIPWorkerTemp,
+                                  alignmentLock, kQueue, subAlignmentQueue,
+                                  resQueue))
+            poolRes = pool.map_async(etMIPWorker1,
                                      [(x + 1, self.processes)
                                       for x in range(self.processes)])
             pool.close()
@@ -219,98 +221,6 @@ class ETMIPC(object):
             self.resultMatrices[c] = resMatrix
             end = time()
             self.resultTimes[c] += end - start
-
-#     def calculateClusteredMIPScores(self, aaDict, wCC):
-#         '''
-#         Calculate Clustered MIP Scores
-#
-#         This method calculates the coupling scores for subsets of sequences
-#         from the alignment as determined by hierarchical clustering on the
-#         distance matrix between sequences of the alignment. This method updates
-#         the resultMatrices, resultTimes, and rawScores class variables.
-#
-#         Parameters:
-#         -----------
-#         aaDict : dict
-#             A dictionary mapping amino acids to numerical representations.
-#         wCC : str
-#             Method by which to combine individual matrices from one round of
-#             clustering. The options supported now are: sum, average,
-#             size_weighted, evidence_weighted, and evidence_vs_size.
-#         '''
-#         # Generate clusters and jobs to perform
-#         inputs = []
-#         clusterSizes = {}
-#         for c in self.clusters:
-#             start = time()
-#             clusterSizes[c] = {}
-#             clusDict, clusDet = self.alignment.aggClustering(nCluster=c,
-#                                                              cacheDir=self.outputDir)
-#             treeOrdering = []
-#             for sub in clusDet:
-#                 newAlignment = self.alignment.generateSubAlignment(
-#                     clusDict[sub])
-#                 clusterSizes[c][sub] = newAlignment.size
-#                 # Create matrix converting sequences of amino acids to sequences of
-#                 # integers representing sequences of amino acids
-#                 newAlignment.alignment2num(aaDict)
-#                 inputs.append((c, sub, newAlignment))
-#                 treeOrdering += newAlignment.treeOrder
-#                 self.subAlignments[c][sub] = newAlignment
-#             self.alignment.setTreeOrdering(tOrder=treeOrdering)
-#             end = time()
-#             self.resultTimes[c] += end - start
-#         # Perform jobs
-#         if(self.processes == 1):
-#             poolInitTemp(wCC)
-#             res1 = []
-#             for i in inputs:
-#                 res = etMIPWorkerTemp(i)
-#                 res1.append(res)
-#         else:
-#             pool = Pool(processes=self.processes, initializer=poolInitTemp,
-#                         initargs=(wCC,))
-#             res1 = pool.map_async(etMIPWorkerTemp, inputs)
-#             pool.close()
-#             pool.join()
-#             res1 = res1.get()
-#         # Retrieve results
-#         for r in res1:
-#             self.rawScores[r[0]][r[1]] = r[2]
-#             self.evidenceCounts[r[0]][r[1]] = r[3]
-#             self.resultTimes[r[0]] += r[4]
-#         # Combine results
-#         for c in self.clusters:
-#             start = time()
-#             # Additive clusters
-#             if(wCC == 'sum'):
-#                 resMatrix = np.sum(self.rawScores[c], axis=0)
-#             # Normal average over clusters
-#             elif(wCC == 'average'):
-#                 resMatrix = np.mean(self.rawScores[c], axis=0)
-#             # Weighted average over clusters based on cluster sizes
-#             elif(wCC == 'size_weighted'):
-#                 weighting = np.array([clusterSizes[c][s]
-#                                       for s in sorted(clusterSizes[c].keys())])
-#                 resMatrix = weighting[:, None, None] * self.rawScores[c]
-#                 resMatrix = np.sum(resMatrix, axis=0) / self.alignment.size
-#             # Weighted average over clusters based on evidence counts at each
-#             # pair vs. the number of sequences with evidence for that pairing.
-#             elif(wCC == 'evidence_weighted'):
-#                 resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
-#                                     axis=0) / np.sum(self.evidenceCounts[c], axis=0))
-#             # Weighted average over clusters based on evidence counts at each
-#             # pair vs. the entire size of the alignment.
-#             elif(wCC == 'evidence_vs_size'):
-#                 resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
-#                                     axis=0) / float(self.alignment.size))
-#             else:
-#                 print 'Combination method not yet implemented'
-#                 raise NotImplementedError()
-#             resMatrix[np.isnan(resMatrix)] = 0.0
-#             self.resultMatrices[c] = resMatrix
-#             end = time()
-#             self.resultTimes[c] += end - start
 
     def combineClusteringResults(self, combination):
         '''
@@ -813,8 +723,8 @@ def wholeAnalysis(alignment, evidence, saveFile=None):
     return mipMatrix, evidenceMatrix
 
 
-def poolInitTemp(aaReference, wCC, originalAlignment, saveDir, kQueue,
-                 subAlignmentQueue, resQueue):
+def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
+              kQueue, subAlignmentQueue, resQueue):
     '''
     poolInit
 
@@ -835,6 +745,9 @@ def poolInitTemp(aaReference, wCC, originalAlignment, saveDir, kQueue,
     saveDir : str
         The caching directory used to save results from agglomerative
         clustering.
+    alignLock : multiprocessing.Manager.Lock()
+        Lock used to regulate access to the alignment object for the purpose
+        of setting the tree order.
     kQueue : multiprocessing.Manager.Queue()
         Queue used for tracking the k's for which clustering still needs to be
         performed.
@@ -852,6 +765,8 @@ def poolInitTemp(aaReference, wCC, originalAlignment, saveDir, kQueue,
     initialAlignment = originalAlignment
     global cacheDir
     cacheDir = saveDir
+    global kLock
+    kLock = alignLock
     global queue1
     queue1 = kQueue
     global queue2
@@ -860,26 +775,7 @@ def poolInitTemp(aaReference, wCC, originalAlignment, saveDir, kQueue,
     queue3 = resQueue
 
 
-# def poolInitTemp(wCC):
-#     '''
-#     poolInit
-#
-#     A function which initializes processes spawned in a worker pool performing
-#     the etMIPWorker function.  This provides a set of variables to all working
-#     processes which are shared.
-#
-#     Parameters:
-#     -----------
-#     wCC : str
-#         Method by which to combine individual matrices from one round of
-#         clustering. The options supported now are: sum, average, size_weighted,
-#         and evidence_weighted.
-#     '''
-#     global withinClusterCombi
-#     withinClusterCombi = wCC
-
-
-def etMIPWorkerTemp(inTup):
+def etMIPWorker1(inTup):
     '''
     ETMIP Worker
 
@@ -897,15 +793,11 @@ def etMIPWorkerTemp(inTup):
     dict
         Mapping of k, to sub-cluster, to size of sub-cluster.
     '''
-    import Queue
     currProcess, totalProcesses = inTup
     clusterSizes = {}
     clusterTimes = {}
     subAlignments = {}
-    print 'Initialized worker resources'
     while((not queue1.empty()) or (not queue2.empty())):
-        print queue1.qsize()
-        print queue2.qsize()
         try:
             print('Processes {}:{} acquiring sub alignment!'.format(
                 currProcess, totalProcesses))
@@ -923,7 +815,7 @@ def etMIPWorkerTemp(inTup):
             if(clus in clusterTimes):
                 clusterTimes[clus] += timeElapsed
             else:
-                clusterTimes = timeElapsed
+                clusterTimes[clus] = timeElapsed
             print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
             queue3.put((clus, sub, clusteredMIPMatrix, evidenceMat))
             print('Processes {}:{} pushing cET-MIp scores!'.format(
@@ -936,8 +828,10 @@ def etMIPWorkerTemp(inTup):
         try:
             print('Processes {}:{} acquiring k to generate clusters!'.format(
                 currProcess, totalProcesses))
+            kLock.acquire()
+            print('Lock acquired by: {}'.format(currProcess))
             c = queue1.get_nowait()
-
+            print('K: {} acquired setting tree'.format(c))
             start = time()
             clusterSizes[c] = {}
             clusDict, clusDet = initialAlignment.aggClustering(nCluster=c,
@@ -956,61 +850,21 @@ def etMIPWorkerTemp(inTup):
                 subAlignments[c][sub] = newAlignment
             initialAlignment.setTreeOrdering(tOrder=treeOrdering)
             end = time()
+            kLock.release()
             if(c in clusterTimes):
                 clusterTimes[c] += (end - start)
             else:
                 clusterTimes[c] = (end - start)
-
             print('Processes {}:{} pushing new sub-alignment!'.format(
                 currProcess, totalProcesses))
             continue
         except Queue.Empty:
+            kLock.release()
             print('Processes {}:{} failed to acquire k!'.format(
                 currProcess, totalProcesses))
             pass
+    print('Process: {} completed and returning!'.format(currProcess))
     return clusterSizes, subAlignments, clusterTimes
-
-
-# def etMIPWorkerTemp(inTup):
-#     '''
-#     ETMIP Worker
-#
-#     Performs clustering and calculation of cluster dependent sequence distances.
-#     This function requires initialization of threads with poolInit, or setting
-#     of global variables as described in that function.
-#
-#     Parameters:
-#     -----------
-#     inTup: tuple
-#         Tuple containing the number of clusters to form during agglomerative
-#         clustering.
-#     Returns:
-#     --------
-#     int
-#         The clustering constant K.
-#     int
-#         The subalignment analyzed in this alignment.
-#     numpy.array
-#         A matrix of pairwise distances between sequences based on subalignments
-#         formed during clustering.
-#     numpy.array
-#         A matrix containing not only the overall clustering scores for the
-#         specified clustering constants, but all of the scores computed in the
-#         subalignments identified by the hierarchical clustering.
-#     float
-#         The time in seconds which it took to perform clustering.
-#     '''
-#     clus, sub, newAlignment = inTup
-#     print('Current alignment has {} sequences'.format(newAlignment.size))
-#     start = time()
-#     if('evidence' in withinClusterCombi):
-#         clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, True)
-#     else:
-#         clusteredMIPMatrix, evidenceMat = wholeAnalysis(newAlignment, False)
-#     end = time()
-#     timeElapsed = end - start
-#     print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
-#     return clus, sub, clusteredMIPMatrix, evidenceMat, timeElapsed
 
 
 def poolInit2(c, qAlignment, qStructure):
