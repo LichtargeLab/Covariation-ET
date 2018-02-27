@@ -137,7 +137,7 @@ class SeqAlignment(object):
         end = time()
         print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
-    def heatmapPlot(self, name):
+    def heatmapPlot(self, name, outDir=None):
         '''
         Heatmap Plot
 
@@ -161,7 +161,10 @@ class SeqAlignment(object):
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
         plt.title(name)
-        plt.savefig(name.replace(' ', '_') + '.pdf')
+        fileName = name.replace(' ', '_') + '.pdf'
+        if(outDir):
+            fileName = outDir + fileName
+        plt.savefig(fileName)
         plt.clf()
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
