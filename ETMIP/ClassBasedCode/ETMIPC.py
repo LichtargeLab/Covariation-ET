@@ -314,291 +314,37 @@ class ETMIPC(object):
             and heatmaps of ETMIP raw and coverage scores.'
         '''
         begin = time()
-        self.alignment.heatmapPlot('Overall Alignment')
+        qName = self.alignment.queryID.split('_')[1]
+        poolManager = Manager()
+        clusterQueue = poolManager.Queue()
+        outputQueue = poolManager.Queue()
         for c in self.clusters:
-            clusterDir = '{}/'.format(c)
-            if(not os.path.exists(clusterDir)):
-                os.mkdir(clusterDir)
-            os.chdir(clusterDir)
-            qName = self.alignment.queryID.split('_')[1]
-            if(verbosity >= 1):
-                start = time()
-                self.writeOutClusteringResults(today, qName, cutOff, c)
-                end = time()
-                timeElapsed = end - start
-                self.resultTimes[c] += timeElapsed
-                if(self.pdb):
-                    self.plotAUC(qName, c, today, cutOff)
-            if(verbosity >= 2):
-                self.writeOutClusterScoring(today, qName, c)
-            if(verbosity >= 3):
-                for sub in self.subAlignments[c].keys():
-                    self.subAlignments[c][sub].writeOutAlignment(
-                        fileName='AlignmentForK{}_{}.fa'.format(c, sub))
-                    self.subAlignments[c][sub].setTreeOrdering(
-                        tOrder=self.alignment.treeOrder)
-                    self.subAlignments[c][sub].heatmapPlot(
-                        name='Alignment For K {} {}'.format(c, sub))
-            if(verbosity >= 4):
-                self.heatmapPlot('Raw Score Heatmap K {}'.format(c),
-                                 normalized=False, cluster=c)
-                self.surfacePlot('Raw Score Surface K {}'.format(c),
-                                 normalized=False, cluster=c)
-                self.heatmapPlot('Coverage Heatmap K {}'.format(c), normalized=True,
-                                 cluster=c)
-                self.surfacePlot('Coverage Surface K {}'.format(c), normalized=True,
-                                 cluster=c)
-            os.chdir('..')
+            clusterQueue.put_nowait(c)
+        if(self.processes == 1):
+            poolInit3(clusterQueue, outputQueue, qName, today, cutOff,
+                      verbosity, self.wholeMIPMatrix, self.rawScores,
+                      self.resultMatrices, self.coverage, self.summaryMatrices,
+                      self.subAlignments, self.alignment, self.aucs, self.pdb,
+                      self.outputDir)
+            etMIPWorker3((1, 1))
+        else:
+            pool = Pool(processes=self.processes, initializer=poolInit3,
+                        initargs=(clusterQueue, outputQueue, qName, today,
+                                  cutOff, verbosity, self.wholeMIPMatrix,
+                                  self.rawScores,  self.resultMatrices,
+                                  self.coverage, self.summaryMatrices,
+                                  self.subAlignments, self.alignment,
+                                  self.aucs, self.pdb, self.outputDir))
+            res = pool.map_async(etMIPWorker3, [(x + 1, self.processes)
+                                                for x in range(self.processes)])
+            pool.close()
+            pool.join()
+            for times in res.get():
+                for c in times:
+                    self.resultTimes[c] += times[c]
         finish = time()
         print('Producing final figures took {} min'.format(
             (finish - begin) / 60.0))
-
-    def plotAUC(self, qName, clus, today, cutoff):
-        '''
-        Plot AUC
-
-        This function plots and saves the AUCROC.  The image will be stored in
-        the eps format with dpi=1000 using a name specified by the query name,
-        cutoff, clustering constant, and date.
-
-        Parameters:
-        -----------
-        qName: str
-            Name of the query protein
-        clus: int
-            Number of clusters created
-        today: date
-            The days date
-        cutoff: int
-            The distance used for proximity cutoff in the PDB structure.
-        '''
-        start = time()
-        pl.plot(self.aucs[clus][0], self.aucs[clus][1],
-                label='(AUC = {0:.2f})'.format(self.aucs[clus][2]))
-        pl.plot([0, 1], [0, 1], 'k--')
-        pl.xlim([0.0, 1.0])
-        pl.ylim([0.0, 1.0])
-        pl.xlabel('False Positive Rate')
-        pl.ylabel('True Positive Rate')
-        title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(
-            qName, clus)
-        pl.title(title)
-        pl.legend(loc="lower right")
-        imagename = '{}{}A_C{}_{}roc.eps'.format(
-            qName, cutoff, clus, today)
-        pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
-        pl.close()
-        end = time()
-        print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
-
-    def heatmapPlot(self, name, normalized, cluster):
-        '''
-        Heatmap Plot
-
-        This method creates a heatmap using the Seaborn plotting package. The
-        data used can come from the summaryMatrices or coverage data.
-
-        Parameters:
-        -----------
-        name : str
-            Name used as the title of the plot and the filename for the saved
-            figure.
-        normalized : bool
-            Whether or not to use the coverage data or not. If not the summary
-            Matrices data will be used.
-        cluster : int
-            The clustering constant for which to create a heatmap.
-        '''
-        start = time()
-        if(normalized):
-            relData = self.coverage
-        else:
-            relData = self.summaryMatrices
-        dataMat = relData[cluster]
-        dmMax = np.max(dataMat)
-        dmMin = np.min(dataMat)
-        plotMax = max([dmMax, abs(dmMin)])
-        heatmap(data=dataMat, cmap='jet', center=0.0, vmin=-1 * plotMax,
-                vmax=plotMax, cbar=True, square=True)
-        plt.title(name)
-        plt.savefig(name.replace(' ', '_') + '.pdf')
-        plt.clf()
-        end = time()
-        print('Plotting ETMIp-C heatmap took {} min'.format((end - start) / 60.0))
-
-    def surfacePlot(self, name, normalized, cluster):
-        '''
-        Surface Plot
-
-        This method creates a surface plot using the matplotlib plotting
-        package. The data used can come from the summaryMatrices or coverage
-        data.
-
-        Parameters:
-        -----------
-        name : str
-            Name used as the title of the plot and the filename for the saved
-            figure.
-        normalized : bool
-            Whether or not to use the coverage data or not. If not the summary
-            Matrices data will be used.
-        cluster : int
-            The clustering constant for which to create a heatmap.
-        '''
-        start = time()
-        if(normalized):
-            relData = self.coverage
-        else:
-            relData = self.summaryMatrices
-        dataMat = relData[cluster]
-        dmMax = np.max(dataMat)
-        dmMin = np.min(dataMat)
-        plotMax = max([dmMax, abs(dmMin)])
-        X = Y = np.arange(max(dataMat.shape))
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        X, Y = np.meshgrid(X, Y)
-        surf = ax.plot_surface(X, Y, dataMat, cmap='jet',  # cm.jet,
-                               linewidth=0, antialiased=False)
-        ax.set_zlim(-1 * plotMax, plotMax)
-        ax.zaxis.set_major_locator(LinearLocator(10))
-        ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-        fig.colorbar(surf, shrink=0.5, aspect=5)
-        plt.savefig(name.replace(' ', '_') + '.pdf')
-        plt.clf()
-        end = time()
-        print('Plotting ETMIp-C surface plot took {} min'.format((end - start) / 60.0))
-
-    def writeOutClusterScoring(self, today, qName, clus):
-        '''
-        Write out clustering scoring results
-
-        This method writes the results of the clustering to file.
-
-        Parameters:
-        today: date
-            Todays date.
-        qName: str
-            The name of the query protein
-        clus: int
-            The number of clusters created
-        '''
-        start = time()
-        convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
-                     'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
-                     'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
-                     'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
-                     'Y': 'TYR', 'V': 'VAL'}
-        e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
-        etMIPOutFile = open(e, "wb")
-        etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
-        etMIPWriter.writerow(['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore'] +
-                             ['C.' + i for i in map(str, range(1, clus + 1))] +
-                             ['Cluster_Score', 'Summed_Score', 'ETMIp_Coverage'])
-        for i in range(0, self.alignment.seqLength):
-            for j in range(i + 1, self.alignment.seqLength):
-                res1 = i + 1
-                res2 = j + 1
-                rowP1 = [res1, convertAA[self.alignment.querySequence[i]], res2,
-                         convertAA[self.alignment.querySequence[j]],
-                         round(self.wholeMIPMatrix[i, j], 4)]
-                rowP2 = [round(self.rawScores[clus][c, i, j], 4)
-                         for c in range(clus)]
-                rowP3 = [round(self.resultMatrices[clus][i, j], 4),
-                         round(self.summaryMatrices[clus][i, j], 4),
-                         round(self.coverage[clus][i, j], 4)]
-                etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
-        etMIPOutFile.close()
-        end = time()
-        print('Writing the ETMIP worker data to file took {} min'.format(
-            (end - start) / 60.0))
-
-    def writeOutClusteringResults(self, today, qName, cutoff, clus):
-        '''
-        Write out clustering results
-
-        This method writes the results of the clustering to file.
-
-        Parameters:
-        today: date
-            Todays date.
-        qName: str
-            The name of the query protein
-        cutoff : float
-            The distance used for proximity cutoff in the PDB structure.
-        clus: int
-            The number of clusters created
-        pdb: PDBReference
-            Object representing the pdb structure used in the current
-            analysis.  This object is passed in to enable access to the
-            sortedPDBDist variable.
-        sortedPDBDist: numpy nd array
-            Array of the distances between sequences, sorted by sequence indices.
-        '''
-        start = time()
-        convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
-                     'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
-                     'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
-                     'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
-                     'Y': 'TYR', 'V': 'VAL'}
-        e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
-        etMIPOutFile = open(e, "w+")
-        etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
-        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
-                  'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
-                  'Cluster']
-        etMIPWriter.writerow(header)
-        if(self.pdb):
-            mappedChain = self.pdb.fastaToPDBMapping[0]
-        else:
-            mappedChain = None
-        for i in range(0, self.alignment.seqLength):
-            for j in range(i + 1, self.alignment.seqLength):
-                if(self.pdb is None):
-                    res1 = i + 1
-                    res2 = j + 1
-                    r = '-'
-                    dist = '-'
-                else:
-                    if((i in self.pdb.fastaToPDBMapping[1]) or
-                       (j in self.pdb.fastaToPDBMapping[1])):
-                        if(i in self.pdb.fastaToPDBMapping[1]):
-                            mapped1 = self.pdb.fastaToPDBMapping[1][i]
-                            res1 = self.pdb.pdbResidueList[mappedChain][mapped1]
-                        else:
-                            res1 = '-'
-                        if(j in self.pdb.fastaToPDBMapping[1]):
-                            mapped2 = self.pdb.fastaToPDBMapping[1][j]
-                            res2 = self.pdb.pdbResidueList[mappedChain][mapped2]
-                        else:
-                            res2 = '-'
-                        if((i in self.pdb.fastaToPDBMapping[1]) and
-                           (j in self.pdb.fastaToPDBMapping[1])):
-                            dist = round(
-                                self.pdb.residueDists[mappedChain][mapped1, mapped2], 4)
-                        else:
-                            dist = float('NaN')
-                    else:
-                        res1 = '-'
-                        res2 = '-'
-                        dist = float('NaN')
-                    if(dist <= cutoff):
-                        r = 1
-                    elif(np.isnan(dist)):
-                        r = '-'
-                    else:
-                        r = 0
-                etMIPOutputLine = [res1, '({})'.format(
-                    convertAA[self.alignment.querySequence[i]]),
-                    res2, '({})'.format(
-                    convertAA[self.alignment.querySequence[j]]),
-                    round(self.summaryMatrices[clus][i, j], 4),
-                    round(self.coverage[clus][i, j], 4), dist, r, clus]
-                etMIPWriter.writerow(etMIPOutputLine)
-        etMIPOutFile.close()
-        end = time()
-        print('Writing the ETMIP worker data to file took {} min'.format(
-            (end - start) / 60.0))
 
     def writeFinalResults(self, today, cutoff):
         '''
@@ -721,6 +467,275 @@ def wholeAnalysis(alignment, evidence, saveFile=None):
     end = time()
     print('Whole analysis took {} min'.format((end - start) / 60.0))
     return mipMatrix, evidenceMatrix
+
+
+def plotAUC(qName, clus, today, cutoff, aucs, outputDir=None):
+    '''
+    Plot AUC
+
+    This function plots and saves the AUCROC.  The image will be stored in
+    the eps format with dpi=1000 using a name specified by the query name,
+    cutoff, clustering constant, and date.
+
+    Parameters:
+    -----------
+    qName: str
+        Name of the query protein
+    clus: int
+        Number of clusters created
+    today: date
+        The days date
+    cutoff: int
+        The distance used for proximity cutoff in the PDB structure.
+    '''
+    start = time()
+    pl.plot(aucs[clus][0], aucs[clus][1],
+            label='(AUC = {0:.2f})'.format(aucs[clus][2]))
+    pl.plot([0, 1], [0, 1], 'k--')
+    pl.xlim([0.0, 1.0])
+    pl.ylim([0.0, 1.0])
+    pl.xlabel('False Positive Rate')
+    pl.ylabel('True Positive Rate')
+    title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(
+        qName, clus)
+    pl.title(title)
+    pl.legend(loc="lower right")
+    imagename = '{0}{1}A_C{2}_{3}roc.eps'.format(
+        qName, cutoff, clus, today)
+    if(outputDir):
+        imagename = outputDir + imagename
+    pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
+    pl.close()
+    end = time()
+    print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
+
+
+def heatmapPlot(name, relData, cluster, outputDir=None):
+    '''
+    Heatmap Plot
+
+    This method creates a heatmap using the Seaborn plotting package. The
+    data used can come from the summaryMatrices or coverage data.
+
+    Parameters:
+    -----------
+    name : str
+        Name used as the title of the plot and the filename for the saved
+        figure.
+    relData : dict
+        A dictionary of integers (k) mapped to matrices (scores). This input
+        should either be the coverage or summaryMatrices from the ETMIPC class.
+    cluster : int
+        The clustering constant for which to create a heatmap.
+    '''
+    start = time()
+    dataMat = relData[cluster]
+    dmMax = np.max(dataMat)
+    dmMin = np.min(dataMat)
+    plotMax = max([dmMax, abs(dmMin)])
+    heatmap(data=dataMat, cmap='jet', center=0.0, vmin=-1 * plotMax,
+            vmax=plotMax, cbar=True, square=True)
+    plt.title(name)
+    imageName = name.replace(' ', '_') + '.pdf'
+    if(outputDir):
+        imageName = outputDir + imageName
+    plt.savefig(imageName)
+    plt.clf()
+    end = time()
+    print('Plotting ETMIp-C heatmap took {} min'.format((end - start) / 60.0))
+
+
+def surfacePlot(name, relData, cluster, outputDir):
+    '''
+    Surface Plot
+
+    This method creates a surface plot using the matplotlib plotting
+    package. The data used can come from the summaryMatrices or coverage
+    data.
+
+    Parameters:
+    -----------
+    name : str
+        Name used as the title of the plot and the filename for the saved
+        figure.
+    relData : dict
+        A dictionary of integers (k) mapped to matrices (scores). This input
+        should either be the coverage or summaryMatrices from the ETMIPC class.
+    cluster : int
+        The clustering constant for which to create a heatmap.
+    '''
+    start = time()
+    dataMat = relData[cluster]
+    dmMax = np.max(dataMat)
+    dmMin = np.min(dataMat)
+    plotMax = max([dmMax, abs(dmMin)])
+    X = Y = np.arange(max(dataMat.shape))
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    X, Y = np.meshgrid(X, Y)
+    surf = ax.plot_surface(X, Y, dataMat, cmap='jet', linewidth=0,
+                           antialiased=False)
+    ax.set_zlim(-1 * plotMax, plotMax)
+    ax.zaxis.set_major_locator(LinearLocator(10))
+    ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+    imageName = name.replace(' ', '_') + '.pdf'
+    if(outputDir):
+        imageName = outputDir + imageName
+    plt.savefig(imageName)
+    plt.clf()
+    end = time()
+    print('Plotting ETMIp-C surface plot took {} min'.format((end - start) / 60.0))
+
+
+def writeOutClusteringResults(today, qName, cutoff, clus, alignment, pdb,
+                              summary, coverage, outputDir):
+    '''
+    Write out clustering results
+
+    This method writes the results of the clustering to file.
+
+    Parameters:
+    today: date
+        Todays date.
+    qName: str
+        The name of the query protein
+    cutoff : float
+        The distance used for proximity cutoff in the PDB structure.
+    clus: int
+        The number of clusters created
+    pdb: PDBReference
+        Object representing the pdb structure used in the current
+        analysis.  This object is passed in to enable access to the
+        sortedPDBDist variable.
+    sortedPDBDist: numpy nd array
+        Array of the distances between sequences, sorted by sequence indices.
+    '''
+    start = time()
+    convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
+                 'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
+                 'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
+                 'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
+                 'Y': 'TYR', 'V': 'VAL'}
+    e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
+    if(outputDir):
+        e = outputDir + e
+    etMIPOutFile = open(e, "w+")
+    etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
+    header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
+              'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
+              'Cluster']
+    etMIPWriter.writerow(header)
+    if(pdb):
+        mappedChain = pdb.fastaToPDBMapping[0]
+    else:
+        mappedChain = None
+    for i in range(0, alignment.seqLength):
+        for j in range(i + 1, alignment.seqLength):
+            if(pdb is None):
+                res1 = i + 1
+                res2 = j + 1
+                r = '-'
+                dist = '-'
+            else:
+                if((i in pdb.fastaToPDBMapping[1]) or
+                   (j in pdb.fastaToPDBMapping[1])):
+                    if(i in pdb.fastaToPDBMapping[1]):
+                        mapped1 = pdb.fastaToPDBMapping[1][i]
+                        res1 = pdb.pdbResidueList[mappedChain][mapped1]
+                    else:
+                        res1 = '-'
+                    if(j in pdb.fastaToPDBMapping[1]):
+                        mapped2 = pdb.fastaToPDBMapping[1][j]
+                        res2 = pdb.pdbResidueList[mappedChain][mapped2]
+                    else:
+                        res2 = '-'
+                    if((i in pdb.fastaToPDBMapping[1]) and
+                       (j in pdb.fastaToPDBMapping[1])):
+                        dist = round(
+                            pdb.residueDists[mappedChain][mapped1, mapped2], 4)
+                    else:
+                        dist = float('NaN')
+                else:
+                    res1 = '-'
+                    res2 = '-'
+                    dist = float('NaN')
+                if(dist <= cutoff):
+                    r = 1
+                elif(np.isnan(dist)):
+                    r = '-'
+                else:
+                    r = 0
+            etMIPOutputLine = [res1, '({})'.format(
+                convertAA[alignment.querySequence[i]]),
+                res2, '({})'.format(
+                convertAA[alignment.querySequence[j]]),
+                round(summary[clus][i, j], 4),
+                round(coverage[clus][i, j], 4), dist, r, clus]
+            etMIPWriter.writerow(etMIPOutputLine)
+    etMIPOutFile.close()
+    end = time()
+    print('Writing the ETMIP worker data to file took {} min'.format(
+        (end - start) / 60.0))
+
+
+def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
+                           resMat, coverage, summary, outputDir):
+    '''
+    Write out clustering scoring results
+
+    This method writes the results of the clustering to file.
+
+    Parameters:
+    today: date
+        Todays date.
+    qName: str
+        The name of the query protein
+    clus: int
+        The number of clusters created
+    alignment : SeqAlignment
+        The SeqAlignment object containing relevant information for this
+        ETMIPC analysis.
+    coverage : dict
+        This dictionary maps clustering constants to a matrix of normalized
+        coupling scores between 0 and 100, computed from the
+        summaryMatrices.
+    summary : dict
+        This dictionary maps clustering constants to a matrix which combines
+        the scores from the wholeMIPMatrix, all lower clustering constants,
+        and this clustering constant.
+    '''
+    start = time()
+    convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
+                 'C': 'CYS', 'E': 'GLU', 'Q': 'GLN', 'Z': 'GLX', 'G': 'GLY',
+                 'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
+                 'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
+                 'Y': 'TYR', 'V': 'VAL'}
+    e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
+    if(outputDir):
+        e = outputDir + e
+    etMIPOutFile = open(e, "wb")
+    etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
+    etMIPWriter.writerow(['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore'] +
+                         ['C.' + i for i in map(str, range(1, clus + 1))] +
+                         ['Cluster_Score', 'Summed_Score', 'ETMIp_Coverage'])
+    for i in range(0, alignment.seqLength):
+        for j in range(i + 1, alignment.seqLength):
+            res1 = i + 1
+            res2 = j + 1
+            rowP1 = [res1, convertAA[alignment.querySequence[i]], res2,
+                     convertAA[alignment.querySequence[j]],
+                     round(mipMatrix[i, j], 4)]
+            rowP2 = [round(rawScores[clus][c, i, j], 4)
+                     for c in range(clus)]
+            rowP3 = [round(resMat[clus][i, j], 4),
+                     round(summary[clus][i, j], 4),
+                     round(coverage[clus][i, j], 4)]
+            etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
+    etMIPOutFile.close()
+    end = time()
+    print('Writing the ETMIP worker data to file took {} min'.format(
+        (end - start) / 60.0))
 
 
 def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
@@ -993,3 +1008,150 @@ def etMIPWorker2(inTup):
     timeElapsed = end - start
     print('ETMIP worker 2 took {} min'.format(timeElapsed / 60.0))
     return (clus, coverage, timeElapsed, fpr, tpr, roc_auc)
+
+
+def poolInit3(clusterQueue, outputQueue, qName, today, cutOff, verbosity,
+              classMIPMatrix, classRawScores, classResultMatrices,
+              classCoverage, classSummary, classSubalignments, classAlignment,
+              classAUCs, classPDB, outputDir):
+    '''
+    poolInit3
+
+    A function which initializes processes spawned in a worker pool performing
+    the etMIPWorker3 function.  This provides a set of variables to all working
+    processes which are shared.
+
+    Parameters:
+    -----------
+    kQueue : multiprocessing.Manager.Queue()
+        Queue used for tracking the k's for which output still needs to be
+        generated.
+    outputQueue : multiprocessing.Manager.Queue()
+        Queue used for tracking the types of output to be generated and the
+        inputs for the dependent methods.
+    qName : str
+        The name of the query string.
+    today : str
+        The current date which will be used for identifying the proper directory
+        to store files in.
+    cutOff : float
+        Distance in Angstroms between residues considered as a preliminary
+        positive set of coupled residues based on spatial positions in the PDB
+        file if provided.
+    verbosity : int
+        How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+        and final AUC and Timing file. 2 = files with all scores at each
+        clustering. 3 = sub-alignment files and plots. 4 = surface plots
+        and heatmaps of ETMIP raw and coverage scores.'
+    classCoverage : dict
+        This dictionary maps clustering constants to a matrix of normalized
+        coupling scores between 0 and 100, computed from the
+        summaryMatrices.
+    classSummary : dict
+        This dictionary maps clustering constants to a matrix which combines
+        the scores from the wholeMIPMatrix, all lower clustering constants,
+        and this clustering constant.
+    classSubalignments
+    classTreeOrder
+    '''
+    global queue1
+    queue1 = clusterQueue
+    global queue2
+    queue2 = outputQueue
+    global queryN
+    queryN = qName
+    global date
+    date = today
+    global threshold
+    threshold = cutOff
+    global ver
+    ver = verbosity
+    global mipMatrix
+    mipMatrix = classMIPMatrix
+    global rawScores
+    rawScores = classRawScores
+    global resMat
+    resMat = classResultMatrices
+    global subAlignments
+    subAlignments = classSubalignments
+    global alignment
+    alignment = classAlignment
+    global coverage
+    coverage = classCoverage
+    global summary
+    summary = classSummary
+    global aucs
+    aucs = classAUCs
+    global pdb
+    pdb = classPDB
+    global outDir
+    outDir = outputDir
+
+
+def etMIPWorker3(inputTuple):
+    currProcess, totalProcesses = inputTuple
+    times = {}
+    functionDict = {'heatmap': heatmapPlot, 'surfacePlot': surfacePlot,
+                    'writeClusterResults': writeOutClusteringResults,
+                    'writeClusterScoring': writeOutClusterScoring,
+                    'plotAUC': plotAUC, 'subAlignment': None}
+    while((not queue1.empty()) or (not queue2.empty())):
+        try:
+            qFunc, qParam = queue2.get_nowait()
+            print('Calling: {} in processes {}:{}'.format(qFunc, currProcess,
+                                                          totalProcesses))
+            if(qFunc == 'subAlignment'):
+                c, sub, curOutDir = qParam
+                subAlignments[c][sub].setTreeOrdering(alignment.treeOrder)
+                subAlignments[c][sub].writeOutAlignment(
+                    curOutDir + 'AlignmentForK{}_{}.fa'.format(c, sub))
+                subAlignments[c][sub].heatmapPlot(
+                    'Alignment For K {} {}'.format(c, sub), curOutDir)
+            else:
+                start = time()
+                functionDict[qFunc](*qParam)
+                end = time()
+                if(qFunc == 'writeClusterResults'):
+                    timeElapsed = end - start
+                    c = qParam[3]
+                    if(c not in times):
+                        times[c] = timeElapsed
+                    else:
+                        times[c] += timeElapsed
+        except Queue.Empty:
+            pass
+        try:
+            c = queue1.get_nowait()
+            currOutDir = '{}/{}/'.format(outDir, c)
+            if(not os.path.exists(currOutDir)):
+                os.mkdir(currOutDir)
+            if(ver >= 1):
+                queue2.put_nowait(('writeClusterResults',
+                                   (date, queryN, threshold, c, alignment,
+                                    pdb, summary, coverage,
+                                    currOutDir)))
+                if(pdb):
+                    queue2.put_nowait(('plotAUC',
+                                       (queryN, c, date, threshold, aucs,
+                                        currOutDir)))
+            if(ver >= 2):
+                queue2.put_nowait(
+                    ('writeClusterScoring',
+                     (date, queryN, c, alignment, mipMatrix, rawScores, resMat,
+                      coverage, summary, currOutDir)))
+            if(ver >= 3):
+                for sub in range(c):
+                    queue2.put_nowait(('subAlignment', (c, sub, currOutDir)))
+            if(ver >= 4):
+                queue2.put_nowait(
+                    ('heatmap', ('Raw Score Heatmap K {}'.format(c), summary, c, currOutDir)))
+                queue2.put_nowait(
+                    ('heatmap', ('Coverage Heatmap K {}'.format(c), coverage, c, currOutDir)))
+                queue2.put_nowait(
+                    ('surfacePlot', ('Raw Score Surface K {}'.format(c), summary, c, currOutDir)))
+                queue2.put_nowait(
+                    ('surfacePlot', ('Coverage Surface K {}'.format(c), coverage, c, currOutDir)))
+        except Queue.Empty:
+            pass
+    print('Function completed by {}:{}'.format(currProcess, totalProcesses))
+    return times
