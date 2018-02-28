@@ -38,6 +38,10 @@ class ETMIPC(object):
             ETMIPC analysis.
         clusters : list
             The k's for which to create different clusterings.
+        subAlignments : dict
+            A dictionary mapping a clustering constant (k) to another dictionary
+            which maps a cluster label (0 to k-1) to a SeqAlignment object
+            containing only the sequences for that specific cluster.
         pdb : PDBReference
             The PDBReference object containing relevant information for this
             ETMIPC analysis.
@@ -487,6 +491,12 @@ def plotAUC(qName, clus, today, cutoff, aucs, outputDir=None):
         The days date
     cutoff: int
         The distance used for proximity cutoff in the PDB structure.
+    aucs : dictionary
+        AUC values stored in the ETMIPC class, used to identify the specific
+        values for the specified clustering constant (clus).
+    outputDir : str
+        The full path to where the AUC plot image should be stored. If None
+        (default) the plot will be stored in the current working directory.
     '''
     start = time()
     pl.plot(aucs[clus][0], aucs[clus][1],
@@ -527,6 +537,9 @@ def heatmapPlot(name, relData, cluster, outputDir=None):
         should either be the coverage or summaryMatrices from the ETMIPC class.
     cluster : int
         The clustering constant for which to create a heatmap.
+    outputDir : str
+        The full path to where the heatmap plot image should be stored. If None
+        (default) the plot will be stored in the current working directory.
     '''
     start = time()
     dataMat = relData[cluster]
@@ -545,7 +558,7 @@ def heatmapPlot(name, relData, cluster, outputDir=None):
     print('Plotting ETMIp-C heatmap took {} min'.format((end - start) / 60.0))
 
 
-def surfacePlot(name, relData, cluster, outputDir):
+def surfacePlot(name, relData, cluster, outputDir=None):
     '''
     Surface Plot
 
@@ -563,6 +576,9 @@ def surfacePlot(name, relData, cluster, outputDir):
         should either be the coverage or summaryMatrices from the ETMIPC class.
     cluster : int
         The clustering constant for which to create a heatmap.
+    outputDir : str
+        The full path to where the AUC plot image should be stored. If None
+        (default) the plot will be stored in the current working directory.
     '''
     start = time()
     dataMat = relData[cluster]
@@ -604,12 +620,24 @@ def writeOutClusteringResults(today, qName, cutoff, clus, alignment, pdb,
         The distance used for proximity cutoff in the PDB structure.
     clus: int
         The number of clusters created
+    alignment: SeqAlignment
+        The sequence alignment object associated with the ETMIPC instance
+        calling this method.
     pdb: PDBReference
         Object representing the pdb structure used in the current
         analysis.  This object is passed in to enable access to the
         sortedPDBDist variable.
-    sortedPDBDist: numpy nd array
-        Array of the distances between sequences, sorted by sequence indices.
+    summary : dict
+        A dictionary of the clustering constants mapped to a matrix of the raw
+        values from the whole MIp matrix through all clustering constants <=
+        clus. See ETMIPC class description.
+    coverage : dict
+        A dictionary of the clustering constants mapped to a matrix of the
+        coverage values computed on the summary matrices. See ETMIPC class
+        description.
+    outputDir : str
+        The full path to where the output file should be stored. If None
+        (default) the plot will be stored in the current working directory.
     '''
     start = time()
     convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
@@ -696,6 +724,17 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
     alignment : SeqAlignment
         The SeqAlignment object containing relevant information for this
         ETMIPC analysis.
+    mipMatrix : np.ndarray
+        Matrix scoring the coupling between all positions in the query
+        sequence, as computed over all sequences in the input alignment.
+    rawScores : dict
+        The dictionary mapping clustering constant to coupling scores for all
+        positions in the query sequences at the specified clustering constant
+        created by hierarchical clustering.
+    resMat : dict
+        A dictionary mapping clustering constants to matrices which represent
+        the integration of coupling scores across all clusters defined at that
+        clustering constant.
     coverage : dict
         This dictionary maps clustering constants to a matrix of normalized
         coupling scores between 0 and 100, computed from the
@@ -704,6 +743,9 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
         This dictionary maps clustering constants to a matrix which combines
         the scores from the wholeMIPMatrix, all lower clustering constants,
         and this clustering constant.
+    outputDir : str
+        The full path to where the output file should be stored. If None
+        (default) the plot will be stored in the current working directory.
     '''
     start = time()
     convertAA = {'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'B': 'ASX',
@@ -749,7 +791,7 @@ def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
 
     Parameters:
     -----------
-    aaDict : dict
+    aaReference : dict
         Dictionary mapping amino acid abbreviations.
     wCC : str
         Method by which to combine individual matrices from one round of
@@ -807,6 +849,12 @@ def etMIPWorker1(inTup):
     --------
     dict
         Mapping of k, to sub-cluster, to size of sub-cluster.
+    dict
+        Mapping of k, to sub-cluster, to the SeqAlignment object reprsenting
+        the sequence IDs present in that sub-cluster.
+    dict
+        Mapping of k to the time spent working on data from that k by this
+        process.
     '''
     currProcess, totalProcesses = inTup
     clusterSizes = {}
@@ -897,7 +945,7 @@ def poolInit2(c, qAlignment, qStructure):
         with one another.
     qAlignment: SeqAlignment
         Object containing the sequence alignment for this analysis.
-    aStructure: PDBReference
+    qStructure: PDBReference
         Object containing the PDB information for this analysis.
     '''
     global cutoff
@@ -1023,7 +1071,7 @@ def poolInit3(clusterQueue, outputQueue, qName, today, cutOff, verbosity,
 
     Parameters:
     -----------
-    kQueue : multiprocessing.Manager.Queue()
+    clusterQueue : multiprocessing.Manager.Queue()
         Queue used for tracking the k's for which output still needs to be
         generated.
     outputQueue : multiprocessing.Manager.Queue()
@@ -1043,6 +1091,17 @@ def poolInit3(clusterQueue, outputQueue, qName, today, cutOff, verbosity,
         and final AUC and Timing file. 2 = files with all scores at each
         clustering. 3 = sub-alignment files and plots. 4 = surface plots
         and heatmaps of ETMIP raw and coverage scores.'
+    classMIPMatrix : np.ndarray
+        Matrix scoring the coupling between all positions in the query
+        sequence, as computed over all sequences in the input alignment.
+    classRawScores : dict
+        The dictionary mapping clustering constant to coupling scores for all
+        positions in the query sequences at the specified clustering constant
+        created by hierarchical clustering.
+    classResultMatrices : dict
+        A dictionary mapping clustering constants to matrices which represent
+        the integration of coupling scores across all clusters defined at that
+        clustering constant.
     classCoverage : dict
         This dictionary maps clustering constants to a matrix of normalized
         coupling scores between 0 and 100, computed from the
@@ -1051,8 +1110,23 @@ def poolInit3(clusterQueue, outputQueue, qName, today, cutOff, verbosity,
         This dictionary maps clustering constants to a matrix which combines
         the scores from the wholeMIPMatrix, all lower clustering constants,
         and this clustering constant.
-    classSubalignments
-    classTreeOrder
+    classSubalignments : dict
+            A dictionary mapping a clustering constant (k) to another dictionary
+            which maps a cluster label (0 to k-1) to a SeqAlignment object
+            containing only the sequences for that specific cluster.
+    classAlignment : SeqAlignment
+        The SeqAlignment object containing relevant information for this
+        ETMIPC analysis.
+    classAUCs : dictionary
+        AUC values stored in the ETMIPC class, used to identify the specific
+        values for the specified clustering constant (clus).
+    classPDB : PDBReference
+        Object representing the pdb structure used in the current
+        analysis.
+    outputDir : str
+        The full path to where the output generated by this process should be
+        stored. If None (default) the plot will be stored in the current working
+        directory.
     '''
     global queue1
     queue1 = clusterQueue
@@ -1089,6 +1163,29 @@ def poolInit3(clusterQueue, outputQueue, qName, today, cutOff, verbosity,
 
 
 def etMIPWorker3(inputTuple):
+    '''
+    ETMIP Worker 3
+
+    This method uses queues to generate the jobs necessary to create the final
+    output of the ETMIPC class ProduceFinalFigures method (figures and 
+    output files). One queue is used to hold the clustering constants to be
+    processed (producer) while another queue is used to hold the functions
+    to call and the input data to provide (producer). This method directs a
+    process to preferentially pull jobs from the second queue, unless none are
+    available, in which case it directs the process to generate additional jobs
+    using queue 1. If both queues are empty the method terminates.
+
+    Parameters:
+    -----------
+    inTup: tuple
+        Tuple containing the one int specifying which process this is,
+        and a second int specifying the number of active processes.
+    Returns:
+    --------
+    dict
+        Mapping of k to the time spent working on data from that k by this
+        process.
+    '''
     currProcess, totalProcesses = inputTuple
     times = {}
     functionDict = {'heatmap': heatmapPlot, 'surfacePlot': surfacePlot,

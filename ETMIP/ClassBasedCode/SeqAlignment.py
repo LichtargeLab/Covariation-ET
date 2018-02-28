@@ -34,27 +34,31 @@ class SeqAlignment(object):
         queryID: str
             The provided queryID prepended with >query_, which should be the
             identifier for query sequence in the alignment file.
-        size: int
-            The number of sequences in the alignment represented by this object.
-        seqOrder: list
-            List of sequence ids in the order in which they were parsed from the
-            alignment file.
-        seqLength: int
-            The length of the query sequence.
-        querySequence: str
-            The sequence matching the sequence identifier give by the queryID
-            variable.
         alignmentDict: dict
             A dictionary mapping sequence IDs with their sequences as parsed
             from the alignment file.
+        seqOrder: list
+            List of sequence ids in the order in which they were parsed from the
+            alignment file.
+        querySequence: str
+            The sequence matching the sequence identifier give by the queryID
+            variable.
         alignmentMatrix: np.array
             A numerical representation of alignment, every amino acid has been
             assigned a numerical representation as has the gap symbol.  All
             rows are different sequences as described in seqOrder, while each
             column in the matrix is a position in the sequence.
+        seqLength: int
+            The length of the query sequence.
+        size: int
+            The number of sequences in the alignment represented by this object.
         distanceMatrix: np.array
             A matrix with the identity scores between sequences in the
             alignment.
+        treeOrder: list
+            A list of query IDs ordered as they should be for sequence writing
+            to file. This should reflect some purposeful ordering of the
+            sequences such as sequence clustering/phylogeny.
         '''
         self.fileName = fileName
         self.queryID = '>query_' + queryID
@@ -149,8 +153,10 @@ class SeqAlignment(object):
         name : str
             Name used as the title of the plot and the filename for the saved
             figure.
-        cluster : int
-            The clustering constant for which to create a heatmap.
+        outDir : str
+            Path to directory where the heatmap image file should be saved. If
+            None (default) then the image will be stored in the current working
+            directory.
         '''
         start = time()
         df = pd.DataFrame(self.alignmentMatrix, index=self.seqOrder,
@@ -215,19 +221,9 @@ class SeqAlignment(object):
 
         Parameters:
         -----------
-        key_list: list
-            Ordered set of sequence ids which specifies the ordering of the
-            sequences along the row dimension of the resulting matrix.
         aa_dict: dict
             Dictionary mapping characters which can appear in the alignment to
             digits for representation.
-        Returns:
-        --------
-        numpy ndarray
-            A matrix of values which represents the alignment numerically. The
-            first dimension (rows) will iterate over sequences (as ordered by
-            key_list) while the second dimension (columns) will iterate over
-            positions in the sequence (0 to seq_length).
         '''
         start = time()
         alignment2Num = np.zeros((self.size, self.seqLength))
@@ -353,6 +349,27 @@ class SeqAlignment(object):
         return clusterDict2, clusterLabels
 
     def randomAssignment(self, nCluster):
+        '''
+        randomAssignment
+
+        Randomly assigns sequence IDs to groups totaling the specified
+        nClusters. Sequences are split as evenly as possible with all clusters
+        getting the same number of sequences if self.size % nClusters = 0 and
+        with self.size % nClusters groups getting one additional sequence
+        otherwise.
+
+        Parameters:
+        -----------
+        nClusters : int
+            The number of clusters to produce by random assignment.
+        Returns:
+        --------
+        dict
+            A dictionary mapping a cluster labels (0 to nClusters -1) to a list
+            of sequence IDs assigned to that cluster.
+        set
+            The set of labels used for clustering (0 to nClusters -1).
+        '''
         start = time()
         clusterSizes = np.ones(nCluster, dtype=np.int64)
         minSize = self.size / nCluster

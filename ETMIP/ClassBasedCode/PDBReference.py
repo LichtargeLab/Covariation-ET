@@ -159,9 +159,6 @@ class PDBReference(object):
         fastaSeq: str
             A string providing the amino acid (single letter abbreviations)
             sequence for the protein.
-        pdbSeq: str
-            A string providing the amino acid (single letter abbreviations)
-            sequence for the protein.
         '''
         start = time()
         chain = None
@@ -208,7 +205,6 @@ class PDBReference(object):
         saveFile: str
             File name and/or location of file containing a previously computed set
             of distance data for a PDB structure.
-        --------
         '''
         start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
