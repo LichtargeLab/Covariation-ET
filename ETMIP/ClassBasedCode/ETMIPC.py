@@ -26,7 +26,8 @@ class ETMIPC(object):
     classdocs
     '''
 
-    def __init__(self, alignment, clusters, pdb, outputDir, processes):
+    def __init__(self, alignment, clusters, pdb, outputDir, processes,
+                 lowMemoryMode=False):
         '''
         Constructor
 
@@ -99,9 +100,12 @@ class ETMIPC(object):
         self.wholeMIPMatrix = None
         self.wholeEvidenceMatrix = None
         self.resultTimes = {c: 0.0 for c in self.clusters}
-        self.rawScores = {c: np.zeros((c, self.alignment.seqLength,
-                                       self.alignment.seqLength))
-                          for c in self.clusters}
+        if(lowMemoryMode):
+            self.rawScores = None
+        else:
+            self.rawScores = {c: np.zeros((c, self.alignment.seqLength,
+                                           self.alignment.seqLength))
+                              for c in self.clusters}
         self.resultMatrices = {c: None for c in self.clusters}
         self.evidenceCounts = {c: np.zeros((c, self.alignment.seqLength,
                                             self.alignment.seqLength))
@@ -190,7 +194,15 @@ class ETMIPC(object):
         # Retrieve results
         while(not resQueue.empty()):
             r = resQueue.get_nowait()
-            self.rawScores[r[0]][r[1]] = r[2]
+            if(self.rawScores):
+                self.rawScores[r[0]][r[1]] = r[2]
+            else:
+                cOutDir = os.path.join(self.outputDir, r[0])
+                if(not os.path.exists(cOutDir)):
+                    os.mkdir(cOutDir)
+                np.savez(
+                    os.path.join(cOutDir, 'K{}_Sub{}.npz'.format(r[0], r[1])),
+                    mat=r[2])
             self.evidenceCounts[r[0]][r[1]] = r[3]
 #             self.resultTimes[r[0]] += r[4]
         # Combine results
