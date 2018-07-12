@@ -90,6 +90,13 @@ class ETMIPC(object):
             This dictionary maps clustering constants to a tuple containing the
             auc, tpr, and fpr for comparing the coupled scores to the PDB
             reference (if provided) at a specified distance threshold.
+        lowMemoryMode: bool
+            This boolean specifies whether or not to run in low memory mode. If
+            True is specified a majority of the class variables are set to None
+            and the data is saved to disk at run time and loaded when needed for
+            downstream analysis. The intermediate files generated in this way
+            can be removed using clearIntermediateFiles. The default value is
+            False, in which case all variables are kept in memory.
         '''
         self.alignment = alignment
         self.clusters = clusters
@@ -104,6 +111,8 @@ class ETMIPC(object):
             self.rawScores = None
             self.evidenceCounts = None
             self.resultMatrices = None
+            self.summaryMatrices = None
+            self.coverage = None
         else:
             self.rawScores = {c: np.zeros((c, self.alignment.seqLength,
                                            self.alignment.seqLength))
@@ -112,12 +121,12 @@ class ETMIPC(object):
                                                 self.alignment.seqLength))
                                    for c in self.clusters}
             self.resultMatrices = {c: None for c in self.clusters}
-        self.summaryMatrices = {c: np.zeros((self.alignment.seqLength,
-                                             self.alignment.seqLength))
-                                for c in self.clusters}
-        self.coverage = {c: np.zeros((self.alignment.seqLength,
-                                      self.alignment.seqLength))
-                         for c in self.clusters}
+            self.summaryMatrices = {c: np.zeros((self.alignment.seqLength,
+                                                 self.alignment.seqLength))
+                                    for c in self.clusters}
+            self.coverage = {c: np.zeros((self.alignment.seqLength,
+                                          self.alignment.seqLength))
+                             for c in self.clusters}
         self.aucs = {}
         self.lowMem = lowMemoryMode
 
@@ -237,7 +246,7 @@ class ETMIPC(object):
                 raise NotImplementedError()
             resMatrix[np.isnan(resMatrix)] = 0.0
             if(self.lowMem):
-                saveResultMatrix(k, resMatrix, self.outputDir)
+                saveSingleMatrix('Result', c, resMatrix, self.outputDir)
             else:
                 self.resultMatrices[c] = resMatrix
             end = time()
@@ -262,15 +271,23 @@ class ETMIPC(object):
         start = time()
         for i in range(len(self.clusters)):
             currClus = self.clusters[i]
-            self.summaryMatrices[currClus] += self.wholeMIPMatrix
+            if(self.lowMem):
+                currSummary = np.zeros((self.alignment.seqLength,
+                                        self.alignment.seqLength))
+            else:
+                currSummary = self.summaryMatrices[currClus]
+            currSummary += self.wholeMIPMatrix
             for j in [c for c in self.clusters if c <= currClus]:
                 if(self.lowMem):
-                    self.summaryMatrices[currClus] += loadResultMatrix(
-                        j, self.outputDir)
+                    currSummary += loadSingleMatrix('Result',
+                                                    j, self.outputDir)
                 else:
-                    self.summaryMatrices[currClus] += self.resultMatrices[j]
+                    currSummary += self.resultMatrices[j]
             if(combination == 'average'):
-                self.summaryMatrices[currClus] /= (i + 2)
+                currSummary /= (i + 2)
+            if(self.lowMem):
+                saveSingleMatrix('Summary', currClus, currSummary,
+                                 self.outputDir)
         end = time()
         print('Combining data across clusters took {} min'.format(
             (end - start) / 60.0))
@@ -296,20 +313,22 @@ class ETMIPC(object):
         if(self.processes == 1):
             res2 = []
             for clus in self.clusters:
-                poolInit2(threshold, self.alignment, self.pdb)
-                r = etMIPWorker2((clus, self.summaryMatrices[clus]))
+                poolInit2(threshold, self.alignment, self.pdb, self.outputDir)
+                r = etMIPWorker2((clus, self.summaryMatrices))
                 res2.append(r)
         else:
             pool2 = Pool(processes=self.processes, initializer=poolInit2,
-                         initargs=(threshold, self.alignment, self.pdb))
+                         initargs=(threshold, self.alignment, self.pdb,
+                                   self.outputDir))
             res2 = pool2.map_async(etMIPWorker2,
-                                   [(clus, self.summaryMatrices[clus])
+                                   [(clus, self.summaryMatrices)
                                     for clus in self.clusters])
             pool2.close()
             pool2.join()
             res2 = res2.get()
         for r in res2:
-            self.coverage[r[0]] = r[1]
+            if(not self.lowMem):
+                self.coverage[r[0]] = r[1]
             self.resultTimes[r[0]] += r[2]
             self.aucs[r[0]] = r[3:]
         end = time()
@@ -408,10 +427,24 @@ class ETMIPC(object):
         print('Writing final results took {} min'.format((end - start) / 60.0))
 
     def clearIntermediateFiles(self):
+        '''
+        Clear Intermediate Files
+
+        This method is intended to be used only if the ETMIPC lowMem variable is
+        set to True. If this is the case and the complete analysis has been
+        performed then this function will remove all intermediate file generated
+        during execution.
+        '''
         for k in self.clusters:
             resPath = os.path.join(self.outputDir, str(k),
                                    'K{}_Result.npz'.format(k))
             os.remove(resPath)
+            summaryPath = os.path.join(self.outputDir, str(k),
+                                       'K{}_Summary.npz'.format(k))
+            os.remove(summaryPath)
+            coveragePath = os.path.join(self.outputDir, str(k),
+                                        'K{}_Coverage.npz'.format(k))
+            os.remove(coveragePath)
             for sub in range(k):
                 currPath = os.path.join(self.outputDir, str(k),
                                         'K{}_Sub{}.npz'.format(k, sub))
@@ -422,6 +455,28 @@ class ETMIPC(object):
 
 
 def saveRawScoreMatrix(k, sub, mat, evidence, outDir):
+    '''
+    Save Raw Score Matrix
+
+    This function can be used to save the rawScore and evidenceCounts matrices
+    which need to be saved to disk in order to reduce the memory footprint when
+    the ETMIPC variable lowMem is set to true.
+
+    Parameters:
+    -----------
+    k : int
+        An integer specifying which clustering constant to load data for.
+    sub : int
+        An integer specifying the the cluster for which to save data (expected
+        values are in range(0, k)).
+    mat : np.array
+        The array for the rawScore data to save for the specified cluster.
+    evidence : np.array
+        The array for the evidenceCounts data to save for the specified cluster.
+    outDir : str
+        The top level directory where data are being stored, where directories
+        for each k can be found.
+    '''
     cOutDir = os.path.join(outDir, str(k))
     if(not os.path.exists(cOutDir)):
         os.mkdir(cOutDir)
@@ -430,6 +485,30 @@ def saveRawScoreMatrix(k, sub, mat, evidence, outDir):
 
 
 def loadRawScoreMatrix(seqLen, k, outDir):
+    '''
+    Load Raw Score Matrix
+
+    This function can be used to load the rawScore and evidenceCounts matrices
+    which need to be saved to disk in order to reduce the memory footprint when
+    the ETMIPC variable lowMem is set to true.
+
+    Parameters:
+    -----------
+    k : int
+        An integer specifying which clustering constant to load data for.
+    sub : int
+        An integer specifying the the cluster for which to save data (expected
+        values are in range(0, k)).
+    outDir : str
+        The top level directory where data are being stored, where directories
+        for each k can be found.
+    Returns:
+    --------
+    np.array
+        The array for the rawScore data to save for the specified cluster.
+    np.array
+        The array for the evidenceCounts data to save for the specified cluster.
+    '''
     mat = np.zeros((k, seqLen, seqLen))
     evidence = np.zeros((k, seqLen, seqLen))
     for sub in range(k):
@@ -442,15 +521,63 @@ def loadRawScoreMatrix(seqLen, k, outDir):
     return mat, evidence
 
 
-def saveResultMatrix(k, mat, outDir):
+def saveSingleMatrix(name, k, mat, outDir):
+    '''
+    Save Single Matrix
+
+    This function can be used to save any of the several matrices which need to
+    be saved to disk in order to reduce the memory footprint when the ETMIPC
+    variable lowMem is set to true.
+
+    Parameters:
+    -----------
+    name : str
+        A string specifying what kind of data is being stored, expected values
+        include:
+            Result
+            Summary
+            Coverage
+    k : int
+        An integer specifying which clustering constant to load data for.
+    mat : np.array
+        The array for the given type of data to save for the specified cluster.
+    outDir : str
+        The top level directory where data are being stored, where directories
+        for each k can be found.
+    '''
     cOutDir = os.path.join(outDir, str(k))
     if(not os.path.exists(cOutDir)):
         os.mkdir(cOutDir)
-    np.savez(os.path.join(cOutDir, 'K{}_Result.npz'.format(k)), mat=mat)
+    np.savez(os.path.join(cOutDir, 'K{}_{}.npz'.format(k, name)), mat=mat)
 
 
-def loadResultMatrix(k, outDir):
-    data = np.load(os.path.join(outDir, str(k), 'K{}_Result.npz'.format(k)))
+def loadSingleMatrix(name, k, outDir):
+    '''
+    Load Single Matrix
+
+    This function can be used to load any of the several matrices which are
+    saved to disk in order to reduce the memory footprint when the ETMIPC
+    variable lowMem is set to true.
+
+    Parameters:
+    -----------
+    name : str
+        A string specifying what kind of data is being stored, expected values
+        include:
+            Result
+            Summary
+            Coverage
+    k : int
+        An integer specifying which clustering constant to load data for.
+    outDir : str
+        The top level directory where data are being stored, where directories
+        for each k can be found.
+    Returns:
+    --------
+    np.array
+        The array for the given type of data loaded for the specified cluster.
+    '''
+    data = np.load(os.path.join(outDir, str(k), 'K{}_{}.npz'.format(k, name)))
     return data['mat']
 
 
@@ -606,7 +733,13 @@ def heatmapPlot(name, relData, cluster, outputDir=None):
         (default) the plot will be stored in the current working directory.
     '''
     start = time()
-    dataMat = relData[cluster]
+    if(relData):
+        dataMat = relData[cluster]
+    else:
+        if('Coverage' in name):
+            dataMat = loadSingleMatrix('Coverage', cluster, outputDir)
+        else:
+            dataMat = loadSingleMatrix('Summary', cluster, outputDir)
     dmMax = np.max(dataMat)
     dmMin = np.min(dataMat)
     plotMax = max([dmMax, abs(dmMin)])
@@ -615,7 +748,7 @@ def heatmapPlot(name, relData, cluster, outputDir=None):
     plt.title(name)
     imageName = name.replace(' ', '_') + '.pdf'
     if(outputDir):
-        imageName = outputDir + imageName
+        imageName = os.path.join(outputDir, str(cluster), imageName)
     plt.savefig(imageName)
     plt.clf()
     end = time()
@@ -645,7 +778,13 @@ def surfacePlot(name, relData, cluster, outputDir=None):
         (default) the plot will be stored in the current working directory.
     '''
     start = time()
-    dataMat = relData[cluster]
+    if(relData):
+        dataMat = relData[cluster]
+    else:
+        if('Coverage' in name):
+            dataMat = loadSingleMatrix('Coverage', cluster, outputDir)
+        else:
+            dataMat = loadSingleMatrix('Summary', cluster, outputDir)
     dmMax = np.max(dataMat)
     dmMin = np.min(dataMat)
     plotMax = max([dmMax, abs(dmMin)])
@@ -661,7 +800,7 @@ def surfacePlot(name, relData, cluster, outputDir=None):
     fig.colorbar(surf, shrink=0.5, aspect=5)
     imageName = name.replace(' ', '_') + '.pdf'
     if(outputDir):
-        imageName = outputDir + imageName
+        imageName = os.path.join(outputDir, str(cluster), imageName)
     plt.savefig(imageName)
     plt.clf()
     end = time()
@@ -710,8 +849,14 @@ def writeOutClusteringResults(today, qName, cutoff, clus, alignment, pdb,
                  'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
                  'Y': 'TYR', 'V': 'VAL'}
     e = "{}_{}_{}.etmipCVG.clustered.txt".format(today, qName, clus)
+    if(summary and coverage):
+        cSummary = summary[clus]
+        cCoverage = coverage[clus]
+    else:
+        cSummary = loadSingleMatrix('Summary', clus, outputDir)
+        cCoverage = loadSingleMatrix('Coverage', clus, outputDir)
     if(outputDir):
-        e = outputDir + e
+        e = os.path.join(outputDir, str(clus) + e)
     etMIPOutFile = open(e, "w+")
     etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
@@ -762,8 +907,8 @@ def writeOutClusteringResults(today, qName, cutoff, clus, alignment, pdb,
                 convertAA[alignment.querySequence[i]]),
                 res2, '({})'.format(
                 convertAA[alignment.querySequence[j]]),
-                round(summary[clus][i, j], 4),
-                round(coverage[clus][i, j], 4), dist, r, clus]
+                round(cSummary[i, j], 4),
+                round(cCoverage[i, j], 4), dist, r, clus]
             etMIPWriter.writerow(etMIPOutputLine)
     etMIPOutFile.close()
     end = time()
@@ -817,13 +962,17 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
                  'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
                  'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
                  'Y': 'TYR', 'V': 'VAL'}
-    if(rawScores and resMat):
+    if(rawScores and resMat and summary and coverage):
         cRawScores = rawScores[clus]
         cResMat = resMat[clus]
+        cSummary = summary[clus]
+        cCoverage = coverage[clus]
     else:
         cRawScores, _ = loadRawScoreMatrix(
             alignment.seqLength, clus, outputDir)
-        cResMat = loadResultMatrix(clus, outputDir)
+        cResMat = loadSingleMatrix('Result', clus, outputDir)
+        cSummary = loadSingleMatrix('Summary', clus, outputDir)
+        cCoverage = loadSingleMatrix('Coverage', clus, outputDir)
     e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
     if(outputDir):
         e = os.path.join(outputDir, str(clus), e)
@@ -842,8 +991,8 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
             rowP2 = [round(cRawScores[c, i, j], 4)
                      for c in range(clus)]
             rowP3 = [round(cResMat[i, j], 4),
-                     round(summary[clus][i, j], 4),
-                     round(coverage[clus][i, j], 4)]
+                     round(cSummary[i, j], 4),
+                     round(cCoverage[i, j], 4)]
             etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
     etMIPOutFile.close()
     end = time()
@@ -1009,7 +1158,7 @@ def etMIPWorker1(inTup):
     return clusterSizes, subAlignments, clusterTimes
 
 
-def poolInit2(c, qAlignment, qStructure):
+def poolInit2(c, qAlignment, qStructure, outDir):
     '''
     poolInit2
 
@@ -1046,6 +1195,8 @@ def poolInit2(c, qAlignment, qStructure):
         pdbDist = qStructure.residueDists[mappedChain]
         seqToPDB = qStructure.fastaToPDBMapping[1]
         pdbStructure = qStructure
+    global w2OutDir
+    w2OutDir = outDir
 
 
 def etMIPWorker2(inTup):
@@ -1078,7 +1229,11 @@ def etMIPWorker2(inTup):
     float
         The ROCAUC value for this clustering.
     '''
-    clus, summedMatrix = inTup
+    clus, allSummedMatrix = inTup
+    if(allSummedMatrix):
+        summedMatrix = allSummedMatrix[clus]
+    else:
+        summedMatrix = loadSingleMatrix('Summary', clus, w2OutDir)
     start = time()
     coverage = np.zeros(summedMatrix.shape)
     testMat = np.triu(summedMatrix)
@@ -1134,6 +1289,9 @@ def etMIPWorker2(inTup):
     end = time()
     timeElapsed = end - start
     print('ETMIP worker 2 took {} min'.format(timeElapsed / 60.0))
+    if(allSummedMatrix == None):
+        saveSingleMatrix('Coverage', clus, coverage, w2OutDir)
+        coverage = None
     return (clus, coverage, timeElapsed, fpr, tpr, roc_auc)
 
 
@@ -1305,7 +1463,7 @@ def etMIPWorker3(inputTuple):
                 queue2.put_nowait(('writeClusterResults',
                                    (date, queryN, threshold, c, alignment,
                                     pdb, summary, coverage,
-                                    currOutDir)))
+                                    outDir)))
                 if(pdb):
                     queue2.put_nowait(('plotAUC',
                                        (queryN, c, date, threshold, aucs,
@@ -1320,13 +1478,13 @@ def etMIPWorker3(inputTuple):
                     queue2.put_nowait(('subAlignment', (c, sub, currOutDir)))
             if(ver >= 4):
                 queue2.put_nowait(
-                    ('heatmap', ('Raw Score Heatmap K {}'.format(c), summary, c, currOutDir)))
+                    ('heatmap', ('Raw Score Heatmap K {}'.format(c), summary, c, outDir)))
                 queue2.put_nowait(
-                    ('heatmap', ('Coverage Heatmap K {}'.format(c), coverage, c, currOutDir)))
+                    ('heatmap', ('Coverage Heatmap K {}'.format(c), coverage, c, outDir)))
                 queue2.put_nowait(
-                    ('surfacePlot', ('Raw Score Surface K {}'.format(c), summary, c, currOutDir)))
+                    ('surfacePlot', ('Raw Score Surface K {}'.format(c), summary, c, outDir)))
                 queue2.put_nowait(
-                    ('surfacePlot', ('Coverage Surface K {}'.format(c), coverage, c, currOutDir)))
+                    ('surfacePlot', ('Coverage Surface K {}'.format(c), coverage, c, outDir)))
         except Queue.Empty:
             pass
     print('Function completed by {}:{}'.format(currProcess, totalProcesses))
