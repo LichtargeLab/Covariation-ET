@@ -102,14 +102,15 @@ class ETMIPC(object):
         self.resultTimes = {c: 0.0 for c in self.clusters}
         if(lowMemoryMode):
             self.rawScores = None
+            self.evidenceCounts = None
         else:
             self.rawScores = {c: np.zeros((c, self.alignment.seqLength,
                                            self.alignment.seqLength))
                               for c in self.clusters}
+            self.evidenceCounts = {c: np.zeros((c, self.alignment.seqLength,
+                                                self.alignment.seqLength))
+                                   for c in self.clusters}
         self.resultMatrices = {c: None for c in self.clusters}
-        self.evidenceCounts = {c: np.zeros((c, self.alignment.seqLength,
-                                            self.alignment.seqLength))
-                               for c in self.clusters}
         self.summaryMatrices = {c: np.zeros((self.alignment.seqLength,
                                              self.alignment.seqLength))
                                 for c in self.clusters}
@@ -117,6 +118,7 @@ class ETMIPC(object):
                                       self.alignment.seqLength))
                          for c in self.clusters}
         self.aucs = {}
+        self.lowMem = lowMemoryMode
 
     def determineWholeMIP(self, evidence):
         '''
@@ -163,7 +165,8 @@ class ETMIPC(object):
             kQueue.put(k)
         if(self.processes == 1):
             poolInit1(aaDict, wCC, self.alignment, self.outputDir,
-                      alignmentLock, kQueue, subAlignmentQueue, resQueue)
+                      alignmentLock, kQueue, subAlignmentQueue, resQueue,
+                      self.lowMem)
             clusterSizes, subAlignments, clusterTimes = etMIPWorker1((1, 1))
             print subAlignmentQueue.qsize()
             self.resultTimes = clusterTimes
@@ -172,7 +175,7 @@ class ETMIPC(object):
             pool = Pool(processes=self.processes, initializer=poolInit1,
                         initargs=(aaDict, wCC, self.alignment, self.outputDir,
                                   alignmentLock, kQueue, subAlignmentQueue,
-                                  resQueue))
+                                  resQueue, self.lowMem))
             poolRes = pool.map_async(etMIPWorker1,
                                      [(x + 1, self.processes)
                                       for x in range(self.processes)])
@@ -192,43 +195,41 @@ class ETMIPC(object):
                 for c in cD[2]:
                     self.resultTimes[c] += cD[2][c]
         # Retrieve results
-        while(not resQueue.empty()):
+        while((not self.lowMem) and (not resQueue.empty())):
             r = resQueue.get_nowait()
-            if(self.rawScores):
-                self.rawScores[r[0]][r[1]] = r[2]
-            else:
-                cOutDir = os.path.join(self.outputDir, r[0])
-                if(not os.path.exists(cOutDir)):
-                    os.mkdir(cOutDir)
-                np.savez(
-                    os.path.join(cOutDir, 'K{}_Sub{}.npz'.format(r[0], r[1])),
-                    mat=r[2])
+            self.rawScores[r[0]][r[1]] = r[2]
             self.evidenceCounts[r[0]][r[1]] = r[3]
 #             self.resultTimes[r[0]] += r[4]
         # Combine results
         for c in self.clusters:
+            if(self.lowMem):
+                currRawScores, currEvidence = loadRawScoreMatrix(
+                    self.alignment.seqLength, c, self.outputDir)
+            else:
+                currRawScores = self.rawScores[c]
+                currEvidence = self.evidenceCounts[c]
             start = time()
             # Additive clusters
             if(wCC == 'sum'):
-                resMatrix = np.sum(self.rawScores[c], axis=0)
+                resMatrix = np.sum(currRawScores, axis=0)
             # Normal average over clusters
             elif(wCC == 'average'):
-                resMatrix = np.mean(self.rawScores[c], axis=0)
+                resMatrix = np.mean(currRawScores, axis=0)
             # Weighted average over clusters based on cluster sizes
             elif(wCC == 'size_weighted'):
                 weighting = np.array([clusterSizes[c][s]
                                       for s in sorted(clusterSizes[c].keys())])
-                resMatrix = weighting[:, None, None] * self.rawScores[c]
+                resMatrix = weighting[:, None, None] * currRawScores
                 resMatrix = np.sum(resMatrix, axis=0) / self.alignment.size
             # Weighted average over clusters based on evidence counts at each
             # pair vs. the number of sequences with evidence for that pairing.
             elif(wCC == 'evidence_weighted'):
-                resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
-                                    axis=0) / np.sum(self.evidenceCounts[c], axis=0))
+                resMatrix = (np.sum(currRawScores * currEvidence,
+                                    axis=0) / np.sum(currEvidence, axis=0))
             # Weighted average over clusters based on evidence counts at each
             # pair vs. the entire size of the alignment.
             elif(wCC == 'evidence_vs_size'):
-                resMatrix = (np.sum(self.rawScores[c] * self.evidenceCounts[c],
+                resMatrix = (np.sum(currRawScores * currEvidence,
                                     axis=0) / float(self.alignment.size))
             else:
                 print 'Combination method not yet implemented'
@@ -397,9 +398,37 @@ class ETMIPC(object):
                     round(self.resultTimes[c], 4)))
         end = time()
         print('Writing final results took {} min'.format((end - start) / 60.0))
+
+    def clearIntermediateFiles(self):
+        for k in self.clusters:
+            for sub in range(k):
+                currPath = os.path.join(self.outputDir, str(k),
+                                        'K{}_Sub{}.npz'.format(k, sub))
+                os.remove(currPath)
 ###############################################################################
 #
 ###############################################################################
+
+
+def saveRawScoreMatrix(k, sub, mat, evidence, outDir):
+    cOutDir = os.path.join(outDir, str(k))
+    if(not os.path.exists(cOutDir)):
+        os.mkdir(cOutDir)
+    np.savez(os.path.join(cOutDir, 'K{}_Sub{}.npz'.format(k, sub)), mat=mat,
+             evidence=evidence)
+
+
+def loadRawScoreMatrix(seqLen, k, outDir):
+    mat = np.zeros((k, seqLen, seqLen))
+    evidence = np.zeros((k, seqLen, seqLen))
+    for sub in range(k):
+        loadPath = os.path.join(outDir, str(k), 'K{}_Sub{}.npz'.format(k, sub))
+        data = np.load(loadPath)
+        cMat = data['mat']
+        eMat = data['evidence']
+        mat[sub] = cMat
+        evidence[sub] = eMat
+    return mat, evidence
 
 
 def wholeAnalysis(alignment, evidence, saveFile=None):
@@ -765,9 +794,14 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
                  'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
                  'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
                  'Y': 'TYR', 'V': 'VAL'}
+    if(rawScores):
+        cRawScores = rawScores[clus]
+    else:
+        cRawScores, _ = loadRawScoreMatrix(
+            alignment.seqLength, clus, outputDir)
     e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
     if(outputDir):
-        e = outputDir + e
+        e = os.path.join(outputDir, str(clus), e)
     etMIPOutFile = open(e, "wb")
     etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
     etMIPWriter.writerow(['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore'] +
@@ -780,7 +814,7 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
             rowP1 = [res1, convertAA[alignment.querySequence[i]], res2,
                      convertAA[alignment.querySequence[j]],
                      round(mipMatrix[i, j], 4)]
-            rowP2 = [round(rawScores[clus][c, i, j], 4)
+            rowP2 = [round(cRawScores[c, i, j], 4)
                      for c in range(clus)]
             rowP3 = [round(resMat[clus][i, j], 4),
                      round(summary[clus][i, j], 4),
@@ -793,7 +827,7 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
 
 
 def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
-              kQueue, subAlignmentQueue, resQueue):
+              kQueue, subAlignmentQueue, resQueue, lowMem):
     '''
     poolInit
 
@@ -825,6 +859,8 @@ def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
         the k's in the kQueue.
     resQueue : multiprocessing.Manager.Queue()
         Queue used to track final results generated by this method.
+    lowMem : bool
+        Whether or not low memory mode should be used.
     '''
     global aaDict
     aaDict = aaReference
@@ -842,6 +878,8 @@ def poolInit1(aaReference, wCC, originalAlignment, saveDir, alignLock,
     queue2 = subAlignmentQueue
     global queue3
     queue3 = resQueue
+    global pool1MemMode
+    pool1MemMode = lowMem
 
 
 def etMIPWorker1(inTup):
@@ -892,7 +930,11 @@ def etMIPWorker1(inTup):
             else:
                 clusterTimes[clus] = timeElapsed
             print('ETMIP worker took {} min'.format(timeElapsed / 60.0))
-            queue3.put((clus, sub, clusteredMIPMatrix, evidenceMat))
+            if(pool1MemMode):
+                saveRawScoreMatrix(clus, sub, clusteredMIPMatrix, evidenceMat,
+                                   cacheDir)
+            else:
+                queue3.put((clus, sub, clusteredMIPMatrix, evidenceMat))
             print('Processes {}:{} pushing cET-MIp scores!'.format(
                 currProcess, totalProcesses))
             continue
@@ -1247,7 +1289,7 @@ def etMIPWorker3(inputTuple):
                 queue2.put_nowait(
                     ('writeClusterScoring',
                      (date, queryN, c, alignment, mipMatrix, rawScores, resMat,
-                      coverage, summary, currOutDir)))
+                      coverage, summary, outDir)))
             if(ver >= 3):
                 for sub in range(c):
                     queue2.put_nowait(('subAlignment', (c, sub, currOutDir)))
