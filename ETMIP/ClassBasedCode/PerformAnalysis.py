@@ -57,6 +57,8 @@ def parseArguments():
     parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
                         default=False,
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
+    parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?',
+                        default=False, help='Whether to use low memory mode or not. If low memory mode is engaged intermediate values in the ETMIPC class will be written to file instead of stored in memory. This will reduce the memory footprint but may increase the time to run. Only recommended for very large analyses.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1,
@@ -154,7 +156,7 @@ def AnalyzeAlignment(args):
     print 'Starting ETMIP'
     # Create ETMIPC object to represent the analysis being performed.
     etmipObj = ETMIPC(queryAlignment, args['clusters'], queryStructure,
-                      createFolder, args['processes'])
+                      createFolder, args['processes'], args['lowMemoryMode'])
     # Calculate the MI scores for all residues across all sequences
     etmipObj.determineWholeMIP('evidence' in args['combineClusters'])
     # Calculate the the ETMIPC scores for various clustering constants.
@@ -171,6 +173,9 @@ def AnalyzeAlignment(args):
     # Write out the AUCs and final times for the different clustering constants
     # tested.
     etmipObj.writeFinalResults(today, args['threshold'])
+    # If low memory mode was used clear out intermediate files saved in this
+    # process.
+    etmipObj.clearIntermediateFiles()
     print "Generated results in: ", createFolder
     os.chdir(startDir)
     end = time.time()
