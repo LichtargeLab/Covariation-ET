@@ -103,6 +103,7 @@ class ETMIPC(object):
         if(lowMemoryMode):
             self.rawScores = None
             self.evidenceCounts = None
+            self.resultMatrices = None
         else:
             self.rawScores = {c: np.zeros((c, self.alignment.seqLength,
                                            self.alignment.seqLength))
@@ -110,7 +111,7 @@ class ETMIPC(object):
             self.evidenceCounts = {c: np.zeros((c, self.alignment.seqLength,
                                                 self.alignment.seqLength))
                                    for c in self.clusters}
-        self.resultMatrices = {c: None for c in self.clusters}
+            self.resultMatrices = {c: None for c in self.clusters}
         self.summaryMatrices = {c: np.zeros((self.alignment.seqLength,
                                              self.alignment.seqLength))
                                 for c in self.clusters}
@@ -235,7 +236,10 @@ class ETMIPC(object):
                 print 'Combination method not yet implemented'
                 raise NotImplementedError()
             resMatrix[np.isnan(resMatrix)] = 0.0
-            self.resultMatrices[c] = resMatrix
+            if(self.lowMem):
+                saveResultMatrix(k, resMatrix, self.outputDir)
+            else:
+                self.resultMatrices[c] = resMatrix
             end = time()
             self.resultTimes[c] += end - start
 
@@ -260,7 +264,11 @@ class ETMIPC(object):
             currClus = self.clusters[i]
             self.summaryMatrices[currClus] += self.wholeMIPMatrix
             for j in [c for c in self.clusters if c <= currClus]:
-                self.summaryMatrices[currClus] += self.resultMatrices[j]
+                if(self.lowMem):
+                    self.summaryMatrices[currClus] += loadResultMatrix(
+                        j, self.outputDir)
+                else:
+                    self.summaryMatrices[currClus] += self.resultMatrices[j]
             if(combination == 'average'):
                 self.summaryMatrices[currClus] /= (i + 2)
         end = time()
@@ -401,6 +409,9 @@ class ETMIPC(object):
 
     def clearIntermediateFiles(self):
         for k in self.clusters:
+            resPath = os.path.join(self.outputDir, str(k),
+                                   'K{}_Result.npz'.format(k))
+            os.remove(resPath)
             for sub in range(k):
                 currPath = os.path.join(self.outputDir, str(k),
                                         'K{}_Sub{}.npz'.format(k, sub))
@@ -429,6 +440,18 @@ def loadRawScoreMatrix(seqLen, k, outDir):
         mat[sub] = cMat
         evidence[sub] = eMat
     return mat, evidence
+
+
+def saveResultMatrix(k, mat, outDir):
+    cOutDir = os.path.join(outDir, str(k))
+    if(not os.path.exists(cOutDir)):
+        os.mkdir(cOutDir)
+    np.savez(os.path.join(cOutDir, 'K{}_Result.npz'.format(k)), mat=mat)
+
+
+def loadResultMatrix(k, outDir):
+    data = np.load(os.path.join(outDir, str(k), 'K{}_Result.npz'.format(k)))
+    return data['mat']
 
 
 def wholeAnalysis(alignment, evidence, saveFile=None):
@@ -794,11 +817,13 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
                  'H': 'HIS', 'I': 'ILE', 'L': 'LEU', 'K': 'LYS', 'M': 'MET',
                  'F': 'PHE', 'P': 'PRO', 'S': 'SER', 'T': 'THR', 'W': 'TRP',
                  'Y': 'TYR', 'V': 'VAL'}
-    if(rawScores):
+    if(rawScores and resMat):
         cRawScores = rawScores[clus]
+        cResMat = resMat[clus]
     else:
         cRawScores, _ = loadRawScoreMatrix(
             alignment.seqLength, clus, outputDir)
+        cResMat = loadResultMatrix(clus, outputDir)
     e = "{}_{}_{}.all_scores.txt".format(today, qName, clus)
     if(outputDir):
         e = os.path.join(outputDir, str(clus), e)
@@ -816,7 +841,7 @@ def writeOutClusterScoring(today, qName, clus, alignment, mipMatrix, rawScores,
                      round(mipMatrix[i, j], 4)]
             rowP2 = [round(cRawScores[c, i, j], 4)
                      for c in range(clus)]
-            rowP3 = [round(resMat[clus][i, j], 4),
+            rowP3 = [round(cResMat[i, j], 4),
                      round(summary[clus][i, j], 4),
                      round(coverage[clus][i, j], 4)]
             etMIPWriter.writerow(rowP1 + rowP2 + rowP3)
