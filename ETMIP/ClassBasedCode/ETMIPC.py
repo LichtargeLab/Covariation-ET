@@ -856,7 +856,7 @@ def writeOutClusteringResults(today, qName, cutoff, clus, alignment, pdb,
         cSummary = loadSingleMatrix('Summary', clus, outputDir)
         cCoverage = loadSingleMatrix('Coverage', clus, outputDir)
     if(outputDir):
-        e = os.path.join(outputDir, str(clus) + e)
+        e = os.path.join(outputDir, str(clus), e)
     etMIPOutFile = open(e, "w+")
     etMIPWriter = csv.writer(etMIPOutFile, delimiter='\t')
     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'ETMIp_Score',
