@@ -1437,8 +1437,8 @@ def etMIPWorker3(inputTuple):
             if(qFunc == 'subAlignment'):
                 c, sub, curOutDir = qParam
                 subAlignments[c][sub].setTreeOrdering(alignment.treeOrder)
-                subAlignments[c][sub].writeOutAlignment(
-                    curOutDir + 'AlignmentForK{}_{}.fa'.format(c, sub))
+                subAlignments[c][sub].writeOutAlignment(os.path.join(
+                    curOutDir, 'AlignmentForK{}_{}.fa'.format(c, sub)))
                 subAlignments[c][sub].heatmapPlot(
                     'Alignment For K {} {}'.format(c, sub), curOutDir)
             else:
