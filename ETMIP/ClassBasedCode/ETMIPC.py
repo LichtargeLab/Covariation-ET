@@ -129,6 +129,10 @@ class ETMIPC(object):
                              for c in self.clusters}
         self.aucs = {}
         self.lowMem = lowMemoryMode
+        for k in self.clusters:
+            cOutDir = os.path.join(self.outputDir, str(k))
+            if(not os.path.exists(cOutDir)):
+                os.mkdir(cOutDir)
 
     def determineWholeMIP(self, evidence):
         '''
@@ -478,8 +482,6 @@ def saveRawScoreMatrix(k, sub, mat, evidence, outDir):
         for each k can be found.
     '''
     cOutDir = os.path.join(outDir, str(k))
-    if(not os.path.exists(cOutDir)):
-        os.mkdir(cOutDir)
     np.savez(os.path.join(cOutDir, 'K{}_Sub{}.npz'.format(k, sub)), mat=mat,
              evidence=evidence)
 
@@ -546,8 +548,6 @@ def saveSingleMatrix(name, k, mat, outDir):
         for each k can be found.
     '''
     cOutDir = os.path.join(outDir, str(k))
-    if(not os.path.exists(cOutDir)):
-        os.mkdir(cOutDir)
     np.savez(os.path.join(cOutDir, 'K{}_{}.npz'.format(k, name)), mat=mat)
 
 
@@ -704,7 +704,7 @@ def plotAUC(qName, clus, today, cutoff, aucs, outputDir=None):
     imagename = '{0}{1}A_C{2}_{3}roc.eps'.format(
         qName, cutoff, clus, today)
     if(outputDir):
-        imagename = outputDir + imagename
+        imagename = os.path.join(outputDir, imagename)
     pl.savefig(imagename, format='eps', dpi=1000, fontsize=8)
     pl.close()
     end = time()
@@ -1456,9 +1456,7 @@ def etMIPWorker3(inputTuple):
             pass
         try:
             c = queue1.get_nowait()
-            currOutDir = '{}/{}/'.format(outDir, c)
-            if(not os.path.exists(currOutDir)):
-                os.mkdir(currOutDir)
+            currOutDir = os.path.join(outDir, str(c))
             if(ver >= 1):
                 queue2.put_nowait(('writeClusterResults',
                                    (date, queryN, threshold, c, alignment,

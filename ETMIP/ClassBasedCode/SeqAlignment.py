@@ -169,7 +169,7 @@ class SeqAlignment(object):
         plt.title(name)
         fileName = name.replace(' ', '_') + '.pdf'
         if(outDir):
-            fileName = outDir + fileName
+            fileName = os.path.join(outDir, fileName)
         plt.savefig(fileName)
         plt.clf()
         end = time()
@@ -191,8 +191,7 @@ class SeqAlignment(object):
         '''
         start = time()
         if((saveFile is not None) and os.path.exists(saveFile)):
-            newAlignment = pickle.load(
-                open(saveFile, 'rb'))
+            newAlignment = pickle.load(open(saveFile, 'rb'))
         else:
             queryArr = np.array(list(self.querySequence))
             queryUngappedInd = np.where(queryArr != '-')[0]

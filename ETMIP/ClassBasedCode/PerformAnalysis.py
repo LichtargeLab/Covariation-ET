@@ -90,7 +90,7 @@ def AnalyzeAlignment(args):
     ###########################################################################
     startDir = os.getcwd()
     print startDir
-    createFolder = (args['output'] + str(today) + "/" + args['query'][0])
+    createFolder = os.path.join(args['output'], str(today), args['query'][0])
     if not os.path.exists(createFolder):
         os.makedirs(createFolder)
         print "Creating output folder"
@@ -102,9 +102,8 @@ def AnalyzeAlignment(args):
     print 'Importing alignment'
     # Create SeqAlignment object to represent the alignment for this analysis.
     if(args['alignment'][0].startswith('..')):
-        queryAlignment = SeqAlignment(fileName=(startDir + '/' +
-                                                args['alignment'][0]),
-                                      queryID=args['query'][0])
+        queryAlignment = SeqAlignment(queryID=args['query'][0],
+                                      fileName=(os.path.join(startDir, args['alignment'][0])))
     else:
         queryAlignment = SeqAlignment(fileName=args['alignment'][0],
                                       queryID=args['query'][0])
@@ -137,7 +136,7 @@ def AnalyzeAlignment(args):
         # Create PDBReference object to represent the structure for this
         # analysis.
         if(args['pdb'].startswith('..')):
-            queryStructure = PDBReference(startDir + '/' + args['pdb'])
+            queryStructure = PDBReference(os.path.join(startDir, args['pdb']))
         else:
             queryStructure = PDBReference(args['pdb'])
         # Import the structure information from the file.
@@ -175,7 +174,8 @@ def AnalyzeAlignment(args):
     etmipObj.writeFinalResults(today, args['threshold'])
     # If low memory mode was used clear out intermediate files saved in this
     # process.
-    etmipObj.clearIntermediateFiles()
+    if(args['lowMemoryMode']):
+        etmipObj.clearIntermediateFiles()
     print "Generated results in: ", createFolder
     os.chdir(startDir)
     end = time.time()
