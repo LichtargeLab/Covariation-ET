@@ -8,9 +8,9 @@ import datetime
 import argparse
 import time
 import os
-from SeqAlignment import SeqAlignment
-from PDBReference import PDBReference
-from ETMIPC import ETMIPC
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.ETMIPC import ETMIPC
 from IPython import embed
 
 
