@@ -53,6 +53,8 @@ def parseArguments():
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by PMID:16159918.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
+    parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?',
+                        default=False, help='Whether to use low memory mode or not. If low memory mode is engaged intermediate values in the ETMIPC class will be written to file instead of stored in memory. This will reduce the memory footprint but may increase the time to run. Only recommended for very large analyses.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1,
                         nargs='?', choices=[1, 2, 3, 4], help='How many figures to produce.\n1 = ROC Curves, ETMIP Coverage file, and final AUC and Timing file\n2 = files with all scores at each clustering\n3 = sub-alignment files and plots\n4 = surface plots and heatmaps of ETMIP raw and coverage scores.')
     parser.add_argument('--skipPreAnalyzed', metavar='S', type=bool, default=True, nargs='?',
