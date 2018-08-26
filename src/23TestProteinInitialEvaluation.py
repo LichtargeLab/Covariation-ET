@@ -3,7 +3,7 @@ Created on Sep 15, 2017
 
 @author: daniel
 """
-from PerformAnalysis import AnalyzeAlignment
+from PerformAnalysis import analyze_alignment
 from multiprocessing import cpu_count
 import datetime
 import argparse
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     input_dict = {}
     for f in input_files:
         print f
-        check = re.search(r'(\d[\d|A-Z|a-z]{3}[A-Z]?)', f.split('/')[-1])
+        check = re.search(r'(\d[\d|A-Za-z]{3}[A-Z]?)', f.split('/')[-1])
         if not check:
             continue
         query = check.group(1).lower()
@@ -107,7 +107,7 @@ if __name__ == '__main__':
             arguments['alignment'] = [input_dict[query][1]]
             arguments['pdb'] = input_dict[query][2]
             try:
-                AnalyzeAlignment(arguments)
+                analyze_alignment(arguments)
                 print('Completed successfully: {}'.format(query))
             except ValueError:
                 print('Analysis for {} incomplete!'.format(query))

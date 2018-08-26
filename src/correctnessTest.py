@@ -180,9 +180,9 @@ class Test(unittest.TestCase):
                     i, j, MM1[i, j], MM2[i, j], (MM1[i, j] - MM2[i, j])))
 
     #     def testImportPDB(self):
-    #         fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
-    #         pdbData1 = import_pdb(fileName)
-    #         pdbData2 = importPDB(open(fileName, 'rb'))
+    #         file_name = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
+    #         pdbData1 = import_pdb(file_name)
+    #         pdbData2 = import_pdb(open(file_name, 'rb'))
     #         self.assertEqual(len(pdbData1), len(pdbData2), 'Num elements mismatch')
     #         for i in range(len(pdbData1)):
     #             row1 = pdbData1[i]
@@ -208,14 +208,14 @@ class Test(unittest.TestCase):
     #                                  i, resatomlisttemp1, resatomlisttemp2))
 
     #     def testComputePDBDist(self):
-    #         fileName = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
-    #         distancedict, PDBresidueList, ResidueDict = find_distance(fileName)
-    #         #pdbData2 = importPDB(open(fileName, 'rb'))
-    #         residuedictionary, PDBresidueList2, ResidueDict2 = importPDB(
-    #             open(fileName, 'rb'))
-    # #         PDBresidueList2, ResidueDict2, sortedPDBDist2 = findDistance(
+    #         file_name = '/Users/dmkonecki/git/ETMIP/ETMIP/Input/query_1c17A.pdb'
+    #         distancedict, PDBresidueList, ResidueDict = find_distance(file_name)
+    #         #pdbData2 = import_pdb(open(file_name, 'rb'))
+    #         residuedictionary, PDBresidueList2, ResidueDict2 = import_pdb(
+    #             open(file_name, 'rb'))
+    # #         PDBresidueList2, ResidueDict2, sortedPDBDist2 = find_distance(
     # #             pdbData2)
-    #         sortedPDBDist2 = findDistance(residuedictionary, PDBresidueList2)
+    #         sortedPDBDist2 = find_distance(residuedictionary, PDBresidueList2)
     #         sortedPDBDist = []
     #         sorted_res_list = []
     #
