@@ -1,4 +1,4 @@
 .pydevproject
 .project
-Input/*
-Output/*
+.idea
+*.pyc
