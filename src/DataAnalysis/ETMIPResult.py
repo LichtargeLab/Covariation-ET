@@ -34,7 +34,7 @@ class ETMIPResult(object):
         self.size = self.data.shape[0]
 
     def checkAccuracy(self, pdbRef, chain, threshold=8.0):
-        pdbRef.findDistance()
+        pdbRef.find_distance()
         df = self.data.copy(deep=True)
         df['Index1'] = df[['ResI']].apply(lambda x: x - 1, axis=1)
         df['Index2'] = df[['ResJ']].apply(lambda x: x - 1, axis=1)
@@ -55,5 +55,5 @@ if __name__ == '__main__':
     from ClassBasedCode.PDBReference import PDBReference
     test2 = '../Input/23TestGenes/query_1a26A.pdb'
     pdbRef = PDBReference(test2)
-    pdbRef.importPDB()
+    pdbRef.import_pdb()
     print etmipRes.checkAccuracy(pdbRef, 'A')
