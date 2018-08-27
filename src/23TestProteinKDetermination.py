@@ -12,6 +12,7 @@ import numpy as np
 import os
 import re
 import sys
+from IPython import embed
 
 
 def parse_arguments():
@@ -116,8 +117,7 @@ if __name__ == '__main__':
     for query in sorted(input_dict, key=lambda k: input_dict[k][4]):
         if input_dict[query][0] is not None:
             counter += 1
-            create_folder = (arguments['output'] + str(today) + "/" +
-                             input_dict[query][0])
+            create_folder = os.path.join(arguments['output'],str(today), input_dict[query][0])
             if(os.path.isdir(os.path.abspath(create_folder)) and
                arguments['skipPreAnalyzed']):
                 continue
