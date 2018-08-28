@@ -8,6 +8,7 @@ import datetime
 import os
 import time
 from multiprocessing import cpu_count
+from IPython import embed
 
 from SupportingClasses.ETMIPC import ETMIPC
 from SupportingClasses.PDBReference import PDBReference
@@ -99,7 +100,7 @@ def analyze_alignment(args):
     # Set up output location
     ###########################################################################
     start_dir = os.getcwd()
-    print start_dir
+    print(start_dir)
     create_folder = os.path.join(args['output'], str(today), args['query'][0])
     if not os.path.exists(create_folder):
         os.makedirs(create_folder)
@@ -116,7 +117,7 @@ def analyze_alignment(args):
     else:
         query_alignment = SeqAlignment(file_name=args['alignment'][0], query_id=args['query'][0])
     # Import alignment information from file.
-    query_alignment.import_alignment(save_file='alignment_dict.pkl')
+    query_alignment.import_alignment(save_file='alignment.pkl')
     # Check if alignment meets analysis criteria:
     if (not args['ignoreAlignmentSize']) and (query_alignment.size < 125):
         raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis ({'

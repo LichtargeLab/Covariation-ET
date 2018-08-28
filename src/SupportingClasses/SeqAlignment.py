@@ -3,8 +3,11 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
+from Bio.Phylo.TreeConstruction import DistanceCalculator
 from sklearn.cluster import AgglomerativeClustering
+from Bio.Align import MultipleSeqAlignment
 import cPickle as pickle
+from Bio import AlignIO
 from time import time
 import pandas as pd
 import numpy as np
@@ -15,6 +18,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
+from IPython import embed
 
 
 class SeqAlignment(object):
@@ -34,7 +38,7 @@ class SeqAlignment(object):
         query_id: str
             The provided query_id prepended with >query_, which should be the
             identifier for query sequence in the alignment file.
-        alignment_dict: dict
+        alignment: dict
             A dictionary mapping sequence IDs with their sequences as parsed
             from the alignment file.
         seq_order: list
@@ -62,7 +66,7 @@ class SeqAlignment(object):
         """
         self.file_name = file_name
         self.query_id = '>query_' + query_id
-        self.alignment_dict = None
+        self.alignment = None
         self.seq_order = None
         self.query_sequence = None
         self.alignment_matrix = None
@@ -77,7 +81,7 @@ class SeqAlignment(object):
 
         This method imports the alignments into the class and forces all
         non-amino acids to take on the standard gap character "-".  This
-        updates the alignment_dict, seq_order, query_sequence, seq_length, and size
+        updates the alignment, seq_order, query_sequence, seq_length, and size
         class variables.
 
         Parameters:
@@ -87,28 +91,24 @@ class SeqAlignment(object):
         """
         start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
-            alignment, seq_order = pickle.load(open(save_file, 'rb'))
+            alignment, seq_order, query_sequence = pickle.load(open(save_file, 'rb'))
         else:
-            fa_file = open(self.file_name, 'rb')
-            alignment = {}
+            alignment = AlignIO.read(self.file_name, 'fasta')
             seq_order = []
-            for line in fa_file:
-                if line.startswith(">"):
-                    key = line.rstrip()
-                    alignment[key] = ''
-                    seq_order.append(key)
-                else:
-                    alignment[key] += re.sub(r'[^a-zA-Z]', '-', line.rstrip())
-            fa_file.close()
+            for record in alignment:
+                seq_order.append(record.id)
+                if record.id == self.query_id[1:]:
+                    query_sequence = record.seq
             if save_file is not None:
-                pickle.dump((alignment, seq_order), open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'wb'),
+                            protocol=pickle.HIGHEST_PROTOCOL)
         end = time()
         print('Importing alignment took {} min'.format((end - start) / 60.0))
-        self.alignment_dict = alignment
+        self.alignment = alignment
         self.seq_order = seq_order
-        self.query_sequence = self.alignment_dict[self.query_id]
+        self.query_sequence = query_sequence
         self.seq_length = len(self.query_sequence)
-        self.size = len(self.alignment_dict)
+        self.size = len(self.alignment)
 
     def write_out_alignment(self, file_name):
         """
@@ -121,58 +121,46 @@ class SeqAlignment(object):
             Path to file where the alignment should be written.
         """
         start = time()
-        out_file = open(file_name, 'wb')
-        for seq_id in self.seq_order:
-            if seq_id in self.alignment_dict:
-                out_file.write(seq_id + '\n')
-                seq_len = len(self.alignment_dict[seq_id])
-                breaks = seq_len / 60
-                if (seq_len % 60) != 0:
-                    breaks += 1
-                for i in range(breaks):
-                    start_pos = 0 + i * 60
-                    end_pos = 60 + i * 60
-                    out_file.write(
-                        self.alignment_dict[seq_id][start_pos: end_pos] + '\n')
-            else:
-                pass
-        out_file.close()
+        AlignIO.write(self.alignment, file_name, "fasta")
         end = time()
         print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
-    def heatmap_plot(self, name, out_dir=None):
+    def _subset_columns(self, indices_to_keep):
         """
-        Heatmap Plot
+        Subset Columns
 
-        This method creates a heatmap using the Seaborn plotting package. The
-        data used can come from the summary_matrices or coverage data.
+        This is private method meant to subset an alignment to a specified set of positions, using the Bio.Align slicing
+        syntax.
 
-        Parameters:
-        -----------
-        name : str
-            Name used as the title of the plot and the filename for the saved
-            figure.
-        out_dir : str
-            Path to directory where the heatmap image file should be saved. If
-            None (default) then the image will be stored in the current working
-            directory.
+        Args:
+            indices_to_keep (list, numpy.array, or iterable in sorted order): The indices to keep when creating a new
+            alignment.
+        Returns:
+            Bio.Align. A new alignment which is a subset of self.alignment, specified by the passed in list or array.
+
+        Example Usage:
+        >>> self._subset_columns(query_ungapped_ind)
         """
-        start = time()
-        df = pd.DataFrame(self.alignment_matrix, index=self.seq_order,
-                          columns=list(self.query_sequence))
-        df = df.loc[self.tree_order]
-        hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
-                     cbar=True, square=False)
-        hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
-        hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
-        plt.title(name)
-        file_name = name.replace(' ', '_') + '.pdf'
-        if out_dir:
-            file_name = os.path.join(out_dir, file_name)
-        plt.savefig(file_name)
-        plt.clf()
-        end = time()
-        print('Plotting alignment took {} min'.format((end - start) / 60.0))
+        new_alignment = None
+        start = None
+        for i in range(self.seq_length):
+            if start is None:
+                if i in indices_to_keep:
+                    start = i
+            else:
+                if i not in indices_to_keep:
+                    if new_alignment is None:
+                        new_alignment = self.alignment[:, start:i]
+                    else:
+                        new_alignment += self.alignment[:, start:i]
+                    start = None
+        if start is not None:
+            if new_alignment is None:
+                new_alignment = self.alignment[:, start:]
+            else:
+                new_alignment += self.alignment[:, start:]
+        return new_alignment
+
 
     def remove_gaps(self, save_file=None):
         """
@@ -180,7 +168,7 @@ class SeqAlignment(object):
 
         Removes all gaps from the query sequence and removes characters at the
         corresponding positions in all other sequences. This method updates the
-        class variables alignment_dict, query_sequence, and seq_length.
+        class variables alignment, query_sequence, and seq_length.
 
         Parameters:
         -----------
@@ -195,16 +183,13 @@ class SeqAlignment(object):
             query_arr = np.array(list(self.query_sequence))
             query_ungapped_ind = np.where(query_arr != '-')[0]
             if len(query_ungapped_ind) > 0:
-                new_alignment = {}
-                for key, value in self.alignment_dict.iteritems():
-                    curr_arr = np.array(list(value))[query_ungapped_ind]
-                    new_alignment[key] = curr_arr.tostring()
+                new_alignment = self._subset_columns(query_ungapped_ind)
             else:
                 pass
             if save_file is not None:
                 pickle.dump(new_alignment, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-        self.alignment_dict = new_alignment
-        self.query_sequence = self.alignment_dict[self.query_id]
+        self.alignment = new_alignment
+        self.query_sequence = self.alignment[self.seq_order.index(self.query_id[1:])].seq
         self.seq_length = len(self.query_sequence)
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
@@ -226,11 +211,12 @@ class SeqAlignment(object):
         alignment_to_num = np.zeros((self.size, self.seq_length))
         for i in range(self.size):
             for j in range(self.seq_length):
-                curr_seq = self.alignment_dict[self.seq_order[i]]
+                curr_seq = self.alignment[i] # self.seq_order[i]]
                 alignment_to_num[i, j] = aa_dict[curr_seq[j]]
         self.alignment_matrix = alignment_to_num
         end = time()
         print('Converting alignment took {} min'.format((end - start) / 60.0))
+
 
     def compute_distance_matrix(self, save_file=None):
         """
@@ -250,13 +236,16 @@ class SeqAlignment(object):
         if (save_file is not None) and os.path.exists(save_file + '.npz'):
             value_matrix = np.load(save_file + '.npz')['X']
         else:
-            value_matrix = np.zeros([self.size, self.size])
-            for i in range(self.size):
-                check = self.alignment_matrix - self.alignment_matrix[i]
-                value_matrix[i] = np.sum(check == 0, axis=1)
-            #                 value_matrix[i] = np.sum(check != 0, axis=1)
-            value_matrix[np.arange(self.size), np.arange(self.size)] = 0
-            value_matrix /= self.seq_length
+            calculator = DistanceCalculator('identity')
+            value_matrix = 1 - np.array(calculator.get_distance(self.alignment))
+            value_matrix[range(value_matrix.shape[0]), range(value_matrix.shape[1])] = 0
+            # value_matrix = np.zeros([self.size, self.size])
+            # for i in range(self.size):
+            #     check = self.alignment_matrix - self.alignment_matrix[i]
+            #     value_matrix[i] = np.sum(check == 0, axis=1)
+            # #                 value_matrix[i] = np.sum(check != 0, axis=1)
+            # value_matrix[np.arange(self.size), np.arange(self.size)] = 0
+            # value_matrix /= self.seq_length
             if save_file is not None:
                 np.savez(save_file, X=value_matrix)
         end = time()
@@ -419,7 +408,7 @@ class SeqAlignment(object):
             seq_length, and query sequence.  The seq_order will be updated to
             only those passed in ids which are also in the current alignment,
             preserving their ordering from the current SeqAlignment object.
-            The alignment_dict will contain only the subset of sequences
+            The alignment will contain only the subset of sequences
             represented by ids which are present in the new seq_order.  The size
             is set to the length of the new seq_order.
         """
@@ -428,8 +417,9 @@ class SeqAlignment(object):
         new_alignment.query_id = self.query_id
         new_alignment.query_sequence = self.query_sequence
         new_alignment.seq_length = self.seq_length
-        new_alignment.seq_order = [x for x in self.seq_order if x in sequence_ids]
-        new_alignment.alignment_dict = {x: self.alignment_dict[x] for x in new_alignment.seq_order}
+        sub_records = [rec for rec in self.alignment if rec.id in sequence_ids]
+        new_alignment.seq_order = [x.id for x in sub_records]
+        new_alignment.alignment = MultipleSeqAlignment(sub_records)
         new_alignment.size = len(new_alignment.seq_order)
         new_alignment.tree_order = [x for x in self.tree_order if x in sequence_ids]
         end = time()
@@ -495,3 +485,37 @@ class SeqAlignment(object):
         indices2 = (column_j != 20.0) * 1
         check = np.where((indices1 + indices2) == 2)[0]
         return column_i[check], column_j[check], check, check.shape[0]
+
+    def heatmap_plot(self, name, out_dir=None):
+        """
+        Heatmap Plot
+
+        This method creates a heatmap using the Seaborn plotting package. The
+        data used can come from the summary_matrices or coverage data.
+
+        Parameters:
+        -----------
+        name : str
+            Name used as the title of the plot and the filename for the saved
+            figure.
+        out_dir : str
+            Path to directory where the heatmap image file should be saved. If
+            None (default) then the image will be stored in the current working
+            directory.
+        """
+        start = time()
+        df = pd.DataFrame(self.alignment_matrix, index=self.seq_order,
+                          columns=list(self.query_sequence))
+        df = df.loc[self.tree_order]
+        hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
+                     cbar=True, square=False)
+        hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
+        hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
+        plt.title(name)
+        file_name = name.replace(' ', '_') + '.pdf'
+        if out_dir:
+            file_name = os.path.join(out_dir, file_name)
+        plt.savefig(file_name)
+        plt.clf()
+        end = time()
+        print('Plotting alignment took {} min'.format((end - start) / 60.0))
