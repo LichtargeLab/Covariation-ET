@@ -5,12 +5,14 @@ Created on Aug 17, 2017
 """
 import cPickle as pickle
 import os
-import re
 from time import time
 
 import numpy as np
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.Polypeptide import three_to_one
+from Bio.PDB.Polypeptide import is_aa
 
 
 class PDBReference(object):
@@ -57,8 +59,9 @@ class PDBReference(object):
         self.residue_dists = None
         self.chains = None
         self.size = 0
+        self.structure = None
 
-    def import_pdb(self, save_file=None):
+    def import_pdb(self, structure_id, save_file=None):
         """
         import_pdb
 
@@ -73,73 +76,51 @@ class PDBReference(object):
             The file path to a previously stored PDB file data structure.
         """
         start = time()
-        convert_aa = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'ASX': 'B', 'CYS': 'C', 'GLU': 'E', 'GLN': 'Q',
-                      'GLX': 'Z', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LEU': 'L', 'LYS': 'K', 'MET': 'M', 'PHE': 'F',
-                      'PRO': 'P', 'SER': 'S', 'THR': 'T', 'TRP': 'W', 'TYR': 'Y', 'VAL': 'V'}
         if (save_file is not None) and os.path.exists(save_file):
-            residue_3d, pdb_residue_list, residue_pos, seq, chains = pickle.load(open(save_file, 'rb'))
+            structure, seq, chains, pdb_residue_list, residue_3d, residue_pos = pickle.load(open(save_file, 'rb'))
         else:
-            pdb_file = open(self.file_name, 'rb')
-            chains = set()
-            residue_3d = {}
-            pdb_residue_list = {}
-            residue_pos = {}
+            parser = PDBParser(PERMISSIVE=0)  # strict
+            parser = PDBParser(PERMISSIVE=1)  # corrective
+            structure = parser.get_structure(structure_id, self.file_name)
             seq = {}
-            prev_res = None
-            prev_chain = None
-            pdb_pattern = r'ATOM\s*(\d+)\s*(\w*)\s*([A-Z]{3})\s*([A-Z])\s*(\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)\s*([A-Z])'
-            for line in pdb_file:
-                res = re.match(pdb_pattern, line)
-                if not res:
-                    continue
-                try:
-                    res_name = convert_aa[res.group(3)]
-                except KeyError:
-                    print('Skipping the following line in the PDB, unsupported AA:\n{}'.format(line))
-                res_chain = res.group(4)
-                res_num = int(res.group(5))
-                res_atom_list = np.asarray([float(res.group(6)), float(res.group(7)), float(res.group(8))])
-                # New conditional to manage prev res and prev chain
-                if prev_res != res_num:
-                    if prev_chain != res_chain:
-                        if prev_chain is not None:
-                            residue_3d[prev_chain][prev_res] = np.vstack(
-                                residue_3d[prev_chain][prev_res])
-                        prev_chain = res_chain
-                        chains.add(res_chain)
-                        residue_3d[res_chain] = {}
-                        pdb_residue_list[res_chain] = []
-                        residue_pos[res_chain] = {}
-                        seq[res_chain] = []
-                    elif prev_res is not None:
-                        residue_3d[res_chain][prev_res] = np.vstack(
-                            residue_3d[res_chain][prev_res])
-                    else:
-                        pass
-                    prev_res = res_num
-                    residue_3d[res_chain][res_num] = [res_atom_list]
-                    pdb_residue_list[res_chain].append(res_num)
-                    residue_pos[res_chain][res_num] = res_name
-                    seq[res_chain].append(res_name)
-                else:
-                    residue_3d[res_chain][res_num].append(res_atom_list)
-            residue_3d[prev_chain][prev_res] = np.vstack(residue_3d[prev_chain][prev_res])
-            # list of sorted residues - necessary for those where res1 is not 1
-            for chain in chains:
-                pdb_residue_list[chain] = sorted(pdb_residue_list[chain])
-                seq[chain] = ''.join(seq[chain])
-            pdb_file.close()
+            chains = set([])
+            pdb_residue_list = {}
+            residue_3d = {}
+            residue_pos = {}
+            for model in structure:
+                for chain in model:
+                    chains.add(chain.id)
+                    pdb_residue_list[chain.id] = []
+                    seq[chain.id] = ''
+                    residue_3d[chain.id] = {}
+                    residue_pos[chain.id] = {}
+                    for residue in chain:
+                        if is_aa(residue.get_resname(), standard=True):
+                            res_name = three_to_one(residue.get_resname())
+                        else:
+                            res_name = 'X'
+                        seq[chain.id] += res_name
+                        res_num = residue.get_id()[1]
+                        residue_pos[chain.id][res_num] = res_name
+                        pdb_residue_list[chain.id].append(res_num)
+                        coords = []
+                        for atom in residue:
+                            coords.append(atom.get_coord())
+                        residue_3d[chain.id][res_num] = np.vstack(coords)
+            print(seq)
             if save_file is not None:
-                pickle.dump((residue_3d, pdb_residue_list, residue_pos, seq, chains),
-                            open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump((structure, seq, chains, pdb_residue_list, residue_3d, residue_pos), open(save_file, 'wb'),
+                            protocol=pickle.HIGHEST_PROTOCOL)
+        self.structure = structure
         self.chains = chains
-        self.residue_3d = residue_3d
-        self.pdb_residue_list = pdb_residue_list
-        self.residue_pos = residue_pos
         self.seq = seq
+        self.pdb_residue_list = pdb_residue_list
+        self.residue_3d = residue_3d
+        self.residue_pos = residue_pos
         self.size = {chain: len(seq[chain]) for chain in self.chains}
         end = time()
         print('Importing the PDB file took {} min'.format((end - start) / 60.0))
+
 
     def map_alignment_to_pdb_seq(self, fasta_seq):
         """

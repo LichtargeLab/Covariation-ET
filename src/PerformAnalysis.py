@@ -153,7 +153,7 @@ def analyze_alignment(args):
         else:
             query_structure = PDBReference(args['pdb'])
         # Import the structure information from the file.
-        query_structure.import_pdb(save_file='pdbData.pkl')
+        query_structure.import_pdb(args['query'][0], save_file='pdbData.pkl')
         # Map between the query sequence in the alignment and the structure.
         query_structure.map_alignment_to_pdb_seq(query_alignment.query_sequence)
         # Determine the shortest distance between residue pairs.
