@@ -3,16 +3,16 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
-import argparse
-import datetime
 import os
 import time
+import argparse
+import datetime
 from multiprocessing import cpu_count
-from IPython import embed
 
 from SupportingClasses.ETMIPC import ETMIPC
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.ContactScorer import ContactScorer
 
 
 def parse_arguments():
@@ -113,7 +113,8 @@ def analyze_alignment(args):
     print 'Importing alignment'
     # Create SeqAlignment object to represent the alignment for this analysis.
     if args['alignment'][0].startswith('..'):
-        query_alignment = SeqAlignment(query_id=args['query'][0], file_name=(os.path.join(start_dir, args['alignment'][0])))
+        query_alignment = SeqAlignment(query_id=args['query'][0], file_name=(os.path.join(start_dir,
+                                                                                          args['alignment'][0])))
     else:
         query_alignment = SeqAlignment(file_name=args['alignment'][0], query_id=args['query'][0])
     # Import alignment information from file.
@@ -143,7 +144,7 @@ def analyze_alignment(args):
     print('Query Sequence:')
     print(query_alignment.query_sequence)
     ###########################################################################
-    # Import the PDB if provided.
+    # Import the PDB if provided and Create scoring object and initialize it
     ###########################################################################
     if args['pdb']:
         # Create PDBReference object to represent the structure for this
@@ -154,21 +155,19 @@ def analyze_alignment(args):
             query_structure = PDBReference(args['pdb'])
         # Import the structure information from the file.
         query_structure.import_pdb(args['query'][0], save_file='pdbData.pkl')
-        # Map between the query sequence in the alignment and the structure.
-        query_structure.map_alignment_to_pdb_seq(query_alignment.query_sequence)
-        # Determine the shortest distance between residue pairs.
-        query_structure.find_distance(save_file='PDBdistances')
-        print('PDB Sequence')
-        print(query_structure.seq[query_structure.fasta_to_pdb_mapping[0]])
+        scorer = ContactScorer(query_alignment, query_structure, args['threshold'])
+        scorer.fit()
+        scorer.measure_distance(save_file='PDBdistances')
     else:
         query_structure = None
+        scorer = None
     ###########################################################################
     # Perform multiprocessing of clustering method
     ###########################################################################
     print 'Starting ETMIP'
     # Create ETMIPC object to represent the analysis being performed.
     etmip_obj = ETMIPC(query_alignment, args['clusters'], query_structure,
-                      create_folder, args['processes'], args['lowMemoryMode'])
+                       create_folder, args['processes'], args['lowMemoryMode'])
     # Calculate the MI scores for all residues across all sequences
     etmip_obj.determine_whole_mip('evidence' in args['combineClusters'])
     # Calculate the the ETMIPC scores for various clustering constants.
@@ -177,9 +176,10 @@ def analyze_alignment(args):
     etmip_obj.combine_clustering_results(combination=args['combineKs'])
     # Compute normalized scores for ETMIPC and evaluate against PDB if
     # provided.
-    etmip_obj.compute_coverage_and_auc(threshold=args['threshold'])
+    etmip_obj.compute_coverage_and_auc(contact_scorer=scorer)#othreshold=args['threshold'])
     # Write out cluster specific scores and produce figures.
-    etmip_obj.produce_final_figures(today, cut_off=args['threshold'], verbosity=args['verbosity'])
+    # etmip_obj.produce_final_figures(today, cut_off=args['threshold'], verbosity=args['verbosity'])
+    etmip_obj.produce_final_figures(today, scorer=scorer, verbosity=args['verbosity'])
     # Write out the AUCs and final times for the different clustering constants
     # tested.
     etmip_obj.write_final_results(today, args['threshold'])

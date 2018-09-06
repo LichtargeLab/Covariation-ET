@@ -3,15 +3,13 @@ Created on Aug 21, 2017
 
 @author: dmkonecki
 """
-import Queue
-import csv
 import os
-import sys
+import csv
+import Queue
+import numpy as np
 from time import time
 
 import matplotlib
-import numpy as np
-
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
@@ -19,7 +17,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import pylab as pl
 from seaborn import heatmap
 from multiprocessing import Manager, Pool
-from sklearn.metrics import mutual_info_score, auc, roc_curve
+from sklearn.metrics import mutual_info_score
 
 
 class ETMIPC(object):
@@ -284,7 +282,7 @@ class ETMIPC(object):
         print('Combining data across clusters took {} min'.format(
             (end - start) / 60.0))
 
-    def compute_coverage_and_auc(self, threshold):
+    def compute_coverage_and_auc(self, contact_scorer):#threshold):
         """
         Compute Coverage And AUC
 
@@ -305,13 +303,11 @@ class ETMIPC(object):
         if self.processes == 1:
             res2 = []
             for clus in self.clusters:
-                pool_init2(threshold, self.alignment, self.pdb, self.output_dir)
+                pool_init2(contact_scorer, self.output_dir)
                 r = et_mip_worker2((clus, self.summary_matrices))
                 res2.append(r)
         else:
-            pool2 = Pool(processes=self.processes, initializer=pool_init2,
-                         initargs=(threshold, self.alignment, self.pdb,
-                                   self.output_dir))
+            pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(contact_scorer, self.output_dir))
             res2 = pool2.map_async(et_mip_worker2,
                                    [(clus, self.summary_matrices)
                                     for clus in self.clusters])
@@ -326,7 +322,7 @@ class ETMIPC(object):
         end = time()
         print('Computing coverage and AUC took {} min'.format((end - start) / 60.0))
 
-    def produce_final_figures(self, today, cut_off, verbosity):
+    def produce_final_figures(self, today, scorer, verbosity):
         """
         Produce Final Figures
 
@@ -357,20 +353,15 @@ class ETMIPC(object):
         for c in self.clusters:
             cluster_queue.put_nowait(c)
         if self.processes == 1:
-            pool_init3(cluster_queue, output_queue, q_name, today, cut_off,
-                       verbosity, self.whole_mip_matrix, self.raw_scores,
-                       self.result_matrices, self.coverage, self.summary_matrices,
-                       self.sub_alignments, self.alignment, self.aucs, self.pdb,
-                       self.output_dir)
+            pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
+                       self.result_matrices, self.coverage, self.summary_matrices, self.sub_alignments, self.alignment,
+                       self.aucs, scorer, self.output_dir)
             et_mip_worker3((1, 1))
         else:
             pool = Pool(processes=self.processes, initializer=pool_init3,
-                        initargs=(cluster_queue, output_queue, q_name, today,
-                                  cut_off, verbosity, self.whole_mip_matrix,
-                                  self.raw_scores, self.result_matrices,
-                                  self.coverage, self.summary_matrices,
-                                  self.sub_alignments, self.alignment,
-                                  self.aucs, self.pdb, self.output_dir))
+                        initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
+                                  self.raw_scores, self.result_matrices, self.coverage, self.summary_matrices,
+                                  self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
             res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
                                                   for x in range(self.processes)])
             pool.close()
@@ -408,13 +399,9 @@ class ETMIPC(object):
         outfile.write("#OfClusters\tAUC\tRunTime\n")
         for c in self.clusters:
             if self.pdb:
-                outfile.write("\t{0}\t{1}\t{2}\n".format(
-                    c, round(self.aucs[c][2], 4),
-                    round(self.result_times[c], 4)))
+                outfile.write("\t{0}\t{1}\t{2}\n".format(c, round(self.aucs[c][2], 4), round(self.result_times[c], 4)))
             else:
-                outfile.write("\t{0}\t{1}\t{2}\n".format(
-                    c, '-',
-                    round(self.result_times[c], 4)))
+                outfile.write("\t{0}\t{1}\t{2}\n".format(c, '-', round(self.result_times[c], 4)))
         end = time()
         print('Writing final results took {} min'.format((end - start) / 60.0))
 
@@ -785,7 +772,7 @@ def surface_plot(name, rel_data, cluster, output_dir=None):
     print('Plotting ETMIp-C surface plot took {} min'.format((end - start) / 60.0))
 
 
-def write_out_clustering_results(today, q_name, cutoff, clus, alignment, pdb, summary, coverage, output_dir):
+def write_out_clustering_results(today, q_name, clus, alignment, summary, coverage, scorer, output_dir):
     """
     Write out clustering results
 
@@ -838,40 +825,35 @@ def write_out_clustering_results(today, q_name, cutoff, clus, alignment, pdb, su
               'ETMIp_Coverage', 'Residue_Dist', 'Within_Threshold',
               'Cluster']
     et_mip_writer.writerow(header)
-    if pdb:
-        mapped_chain = pdb.fasta_to_pdb_mapping[0]
-    else:
-        mapped_chain = None
+    mapped_chain = scorer.best_chain
     for i in range(0, alignment.seq_length):
         for j in range(i + 1, alignment.seq_length):
-            if pdb is None:
+            if scorer is None:
                 res1 = i + 1
                 res2 = j + 1
                 r = '-'
                 dist = '-'
             else:
-                if((i in pdb.fasta_to_pdb_mapping[1]) or
-                   (j in pdb.fasta_to_pdb_mapping[1])):
-                    if i in pdb.fasta_to_pdb_mapping[1]:
-                        mapped1 = pdb.fasta_to_pdb_mapping[1][i]
-                        res1 = pdb.pdb_residue_list[mapped_chain][mapped1]
+                if (i in scorer.query_pdb_mapping) or (j in scorer.query_pdb_mapping):
+                    if i in scorer.query_pdb_mapping:
+                        mapped1 = scorer.query_pdb_mapping[i]
+                        res1 = scorer.query_structure.pdb_residue_list[mapped_chain][mapped1]
                     else:
                         res1 = '-'
-                    if j in pdb.fasta_to_pdb_mapping[1]:
-                        mapped2 = pdb.fasta_to_pdb_mapping[1][j]
-                        res2 = pdb.pdb_residue_list[mapped_chain][mapped2]
+                    if j in scorer.query_pdb_mapping:
+                        mapped2 = scorer.query_pdb_mapping[j]
+                        res2 = scorer.query_structure.pdb_residue_list[mapped_chain][mapped2]
                     else:
                         res2 = '-'
-                    if((i in pdb.fasta_to_pdb_mapping[1]) and
-                       (j in pdb.fasta_to_pdb_mapping[1])):
-                        dist = round(pdb.residue_dists[mapped_chain][mapped1, mapped2], 4)
+                    if (i in scorer.query_pdb_mapping) and (j in scorer.query_pdb_mapping):
+                        dist = round(scorer.distances[mapped1, mapped2], 4)
                     else:
                         dist = float('NaN')
                 else:
                     res1 = '-'
                     res2 = '-'
                     dist = float('NaN')
-                if dist <= cutoff:
+                if dist <= scorer.cutoff:
                     r = 1
                 elif np.isnan(dist):
                     r = '-'
@@ -1116,7 +1098,7 @@ def et_mip_worker1(in_tup):
     return cluster_sizes, sub_alignments, cluster_times
 
 
-def pool_init2(c, q_alignment, q_structure, out_dir):
+def pool_init2(q_scorer, out_dir):
     """
     pool_init2
 
@@ -1134,27 +1116,10 @@ def pool_init2(c, q_alignment, q_structure, out_dir):
     q_structure: PDBReference
         Object containing the PDB information for this analysis.
     """
-    global cutoff
-    cutoff = c
-    global seq_len
-    seq_len = q_alignment.seq_length
-    global pdb_residue_list
-    global pdb_dist
-    global seq_to_pdb
-    global pdb_structure
-    if q_structure is None:
-        pdb_residue_list = None
-        pdb_dist = None
-        seq_to_pdb = None
-        pdb_structure = None
-    else:
-        mapped_chain = q_structure.fasta_to_pdb_mapping[0]
-        pdb_residue_list = q_structure.pdb_residue_list[mapped_chain]
-        pdb_dist = q_structure.residue_dists[mapped_chain]
-        seq_to_pdb = q_structure.fasta_to_pdb_mapping[1]
-        pdb_structure = q_structure
     global w2_out_dir
     w2_out_dir = out_dir
+    global scorer
+    scorer = q_scorer
 
 
 def et_mip_worker2(in_tup):
@@ -1193,7 +1158,7 @@ def et_mip_worker2(in_tup):
     else:
         summed_matrix = load_single_matrix('Summary', clus, w2_out_dir)
     start = time()
-    coverage = np.zeros(summed_matrix.shape)
+    curr_coverage = np.zeros(summed_matrix.shape)
     test_mat = np.triu(summed_matrix)
     mask = np.triu(np.ones(summed_matrix.shape), k=1)
     normalization = ((summed_matrix.shape[0]**2 - summed_matrix.shape[0]) / 2.0)
@@ -1202,60 +1167,20 @@ def et_mip_worker2(in_tup):
             bool_mat = (test_mat[i, j] >= test_mat) * 1.0
             corrected_mat = bool_mat * mask
             compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
-            coverage[i, j] = coverage[j, i] = compute_coverage2
-    # Defining which of the values which there are ETMIPC scores for have
-    # distance measurements in the PDB Structure
-    indices = np.triu_indices(summed_matrix.shape[0], 1)
-    if seq_to_pdb is not None:
-        mappable_pos = np.array(seq_to_pdb.keys())
-        x_mappable = np.in1d(indices[0], mappable_pos)
-        y_mappable = np.in1d(indices[1], mappable_pos)
-        final_mappable = x_mappable & y_mappable
-        indices = (indices[0][final_mappable], indices[1][final_mappable])
-#     etmiplist_coverage = coverage[np.triu_indices(summed_matrix.shape[0], 1)]
-    etmiplist_coverage = coverage[indices]
-    # Mapping indices used for ETMIPC coverage list so that it can be used to
-    # retrieve correct distances from PDB distances matrix.
-    if seq_to_pdb is not None:
-        keys = sorted(seq_to_pdb.keys())
-        values = [seq_to_pdb[k] for k in keys]
-        replace = np.array([keys, values])
-        mask1 = np.in1d(indices[0], replace[0, :])
-        indices[0][mask1] = replace[1, np.searchsorted(replace[0, :],
-                                                       indices[0][mask1])]
-        mask2 = np.in1d(indices[1], replace[0, :])
-        indices[1][mask2] = replace[1, np.searchsorted(replace[0, :],
-                                                       indices[1][mask2])]
-        sorted_pdb_dist = pdb_dist[indices]
-    else:
-        sorted_pdb_dist = None
-    # AUC computation
-    if((sorted_pdb_dist is not None) and
-       (len(etmiplist_coverage) != len(sorted_pdb_dist))):
-        print "lengths do not match"
-        sys.exit()
-    if sorted_pdb_dist is not None:
-        y_true1 = ((sorted_pdb_dist <= cutoff) * 1)
-        fpr, tpr, _thresholds = roc_curve(y_true1, etmiplist_coverage,
-                                          pos_label=1)
-        roc_auc = auc(fpr, tpr)
-    else:
-        fpr = None
-        tpr = None
-        roc_auc = None
+            curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
+    tpr, fpr, roc_auc = scorer.score_auc(curr_coverage)
     end = time()
     time_elapsed = end - start
     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
     if all_summed_matrix is None:
-        save_single_matrix('Coverage', clus, coverage, w2_out_dir)
-        coverage = None
-    return clus, coverage, time_elapsed, fpr, tpr, roc_auc
+        save_single_matrix('Coverage', clus, curr_coverage, w2_out_dir)
+        curr_coverage = None
+    return clus, curr_coverage, time_elapsed, fpr, tpr, roc_auc
 
 
-def pool_init3(cluster_queue, output_queue, q_name, today, cut_off, verbosity,
-               class_mip_matrix, class_raw_scores, class_result_matrices,
-               class_coverage, class_summary, class_subalignments, class_alignment,
-               class_aucs, class_pdb, output_dir):
+def pool_init3(cluster_queue, output_queue, q_name, today, verbosity, class_mip_matrix, class_raw_scores,
+               class_result_matrices, class_coverage, class_summary, class_subalignments, class_alignment, class_aucs,
+               class_scorer, output_dir):
     """
     pool_init3
 
@@ -1330,8 +1255,6 @@ def pool_init3(cluster_queue, output_queue, q_name, today, cut_off, verbosity,
     query_n = q_name
     global date
     date = today
-    global threshold
-    threshold = cut_off
     global ver
     ver = verbosity
     global mip_matrix
@@ -1350,8 +1273,8 @@ def pool_init3(cluster_queue, output_queue, q_name, today, cut_off, verbosity,
     summary = class_summary
     global aucs
     aucs = class_aucs
-    global pdb
-    pdb = class_pdb
+    global scorer
+    scorer = class_scorer
     global out_dir
     out_dir = output_dir
 
@@ -1393,10 +1316,9 @@ def et_mip_worker3(input_tuple):
             if q_func == 'subAlignment':
                 c, sub, cur_out_dir = q_param
                 sub_alignments[c][sub].set_tree_ordering(alignment.tree_order)
-                sub_alignments[c][sub].write_out_alignment(os.path.join(
-                    cur_out_dir, 'AlignmentForK{}_{}.fa'.format(c, sub)))
-                sub_alignments[c][sub].heatmap_plot(
-                    'Alignment For K {} {}'.format(c, sub), cur_out_dir)
+                sub_alignments[c][sub].write_out_alignment(os.path.join(cur_out_dir,
+                                                                        'AlignmentForK{}_{}.fa'.format(c, sub)))
+                sub_alignments[c][sub].heatmap_plot('Alignment For K {} {}'.format(c, sub), cur_out_dir)
             else:
                 start = time()
                 function_dict[q_func](*q_param)
@@ -1414,14 +1336,10 @@ def et_mip_worker3(input_tuple):
             c = queue1.get_nowait()
             curr_out_dir = os.path.join(out_dir, str(c))
             if ver >= 1:
-                queue2.put_nowait(('writeClusterResults',
-                                   (date, query_n, threshold, c, alignment,
-                                    pdb, summary, coverage,
-                                    out_dir)))
-                if pdb:
-                    queue2.put_nowait(('plot_auc',
-                                       (query_n, c, date, threshold, aucs,
-                                        curr_out_dir)))
+                queue2.put_nowait(('writeClusterResults', (date, query_n, c, alignment, summary, coverage, scorer,
+                                                           out_dir)))
+                if scorer:
+                    queue2.put_nowait(('plot_auc', (query_n, c, date, scorer.cutoff, aucs, curr_out_dir)))
             if ver >= 2:
                 queue2.put_nowait(('writeClusterScoring', (date, query_n, c, alignment, mip_matrix, raw_scores, res_mat,
                                                            coverage, summary, out_dir)))
@@ -1429,14 +1347,10 @@ def et_mip_worker3(input_tuple):
                 for sub in range(c):
                     queue2.put_nowait(('subAlignment', (c, sub, curr_out_dir)))
             if ver >= 4:
-                queue2.put_nowait(
-                    ('heatmap', ('Raw Score Heatmap K {}'.format(c), summary, c, out_dir)))
-                queue2.put_nowait(
-                    ('heatmap', ('Coverage Heatmap K {}'.format(c), coverage, c, out_dir)))
-                queue2.put_nowait(
-                    ('surface_plot', ('Raw Score Surface K {}'.format(c), summary, c, out_dir)))
-                queue2.put_nowait(
-                    ('surface_plot', ('Coverage Surface K {}'.format(c), coverage, c, out_dir)))
+                queue2.put_nowait(('heatmap', ('Raw Score Heatmap K {}'.format(c), summary, c, out_dir)))
+                queue2.put_nowait(('heatmap', ('Coverage Heatmap K {}'.format(c), coverage, c, out_dir)))
+                queue2.put_nowait(('surface_plot', ('Raw Score Surface K {}'.format(c), summary, c, out_dir)))
+                queue2.put_nowait(('surface_plot', ('Coverage Surface K {}'.format(c), coverage, c, out_dir)))
         except Queue.Empty:
             pass
     print('Function completed by {}:{}'.format(curr_process, total_processes))
