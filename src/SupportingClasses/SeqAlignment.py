@@ -3,22 +3,20 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
-from Bio.Phylo.TreeConstruction import DistanceCalculator
-from sklearn.cluster import AgglomerativeClustering
-from Bio.Align import MultipleSeqAlignment
-import cPickle as pickle
-from Bio import AlignIO
-from time import time
-import pandas as pd
-import numpy as np
-import os
-import re
 import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
-from IPython import embed
+from Bio import AlignIO
+from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.TreeConstruction import DistanceCalculator
+from sklearn.cluster import AgglomerativeClustering
+import cPickle as pickle
+from time import time
+import pandas as pd
+import numpy as np
+import os
 
 
 class SeqAlignment(object):
@@ -161,7 +159,6 @@ class SeqAlignment(object):
                 new_alignment += self.alignment[:, start:]
         return new_alignment
 
-
     def remove_gaps(self, save_file=None):
         """
         Remove Gaps
@@ -211,12 +208,11 @@ class SeqAlignment(object):
         alignment_to_num = np.zeros((self.size, self.seq_length))
         for i in range(self.size):
             for j in range(self.seq_length):
-                curr_seq = self.alignment[i] # self.seq_order[i]]
+                curr_seq = self.alignment[i]
                 alignment_to_num[i, j] = aa_dict[curr_seq[j]]
         self.alignment_matrix = alignment_to_num
         end = time()
         print('Converting alignment took {} min'.format((end - start) / 60.0))
-
 
     def compute_distance_matrix(self, save_file=None):
         """

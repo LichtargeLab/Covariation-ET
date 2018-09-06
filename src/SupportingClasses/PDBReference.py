@@ -88,7 +88,6 @@ class PDBReference(object):
                     chains.add(chain.id)
                     pdb_residue_list[chain.id] = []
                     seq[chain.id] = ''
-                    # residue_3d[chain.id] = {}
                     residue_pos[chain.id] = {}
                     for residue in chain:
                         if is_aa(residue.get_resname(), standard=True):
