@@ -103,6 +103,42 @@ class ContactScorer(object):
         self.best_chain = best_chain
         self.query_pdb_mapping = f_to_p_map
 
+    def find_pairs_by_separation(self, category='Any'):
+        """
+        Find Pairs By Separation
+
+        This method returns all pairs of residues falling into a given category of sequence separation. At the moment
+        the following categories are supported:
+            Neighbors : Residues 1 to 5 sequence positions apart.
+            Short : Residues 6 to 12 sequences positions apart.
+            Medium : Residues 13 to 24 sequences positions apart.
+            Long : Residues more than 24 sequence positions apart.
+            Any : Any/All pairs of residues.
+
+        Args:
+            category (str): The category (described above) for which to return residue pairs.
+        Returns:
+            list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
+        """
+        pairs = []
+        for i in range(self.query_alignment.seq_length):
+            for j in range(i + 1, self.query_alignment.seq_length):
+                separation = j - i
+                if category == 'Neighbors' and (separation < 1 or separation >= 6):
+                    continue
+                elif category == 'Short' and (separation < 6 or separation >=13):
+                    continue
+                elif category == 'Medium' and (separation < 13 or separation >= 24):
+                    continue
+                elif category == 'Long' and separation < 24:
+                    continue
+                elif category == 'Any':
+                    pass
+                else:
+                    raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', 'Any'".format(category))
+                pairs.append((i, j))
+        return pairs
+
     @staticmethod
     def _get_all_coords(residue):
         """
