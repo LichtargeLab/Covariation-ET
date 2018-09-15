@@ -103,7 +103,7 @@ class ContactScorer(object):
         self.best_chain = best_chain
         self.query_pdb_mapping = f_to_p_map
 
-    def find_pairs_by_separation(self, category='Any'):
+    def find_pairs_by_separation(self, category='Any', mappable_only=False):
         """
         Find Pairs By Separation
 
@@ -117,12 +117,18 @@ class ContactScorer(object):
 
         Args:
             category (str): The category (described above) for which to return residue pairs.
+            mappable_only (boolean): If True only pairs which are mappable to the PDB structure provided to the scorer
+            will be returned.
         Returns:
             list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
         """
         pairs = []
         for i in range(self.query_alignment.seq_length):
+            if mappable_only and (i not in self.query_pdb_mapping):
+                continue
             for j in range(i + 1, self.query_alignment.seq_length):
+                if mappable_only and (j not in self.query_pdb_mapping):
+                    continue
                 separation = j - i
                 if category == 'Neighbors' and (separation < 1 or separation >= 6):
                     continue
@@ -278,7 +284,7 @@ class ContactScorer(object):
         print('Computing the distance matrix based on the PDB file took {} min'.format((end - start) / 60.0))
         self.distances = dists
 
-    def _map_predictions_to_pdb(self, predictions):
+    def _map_predictions_to_pdb(self, predictions, category='Any'):
         """
         Map Predictions To PDB
 
@@ -312,6 +318,14 @@ class ContactScorer(object):
         mask2 = np.in1d(indices[1], replace[0, :])
         indices[1][mask2] = replace[1, np.searchsorted(replace[0, :], indices[1][mask2])]
         mapped_distances = self.distances[indices]
+        # Keep only data for the specified category
+        pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
+        indices_to_keep = ([], [])
+        for pair in pairs:
+            indices_to_keep[0].append(indices[0].index(pair[0]))
+            indices_to_keep[1].append(indices[1].index(pair[1]))
+        mapped_predictions = mapped_predictions[indices_to_keep]
+        mapped_distances = mapped_distances[indices_to_keep]
         return mapped_predictions, mapped_distances
 
     def score_auc(self, predictions):
