@@ -73,7 +73,7 @@ def importAlignment(faFile, saveFile=None):
     --------
     alignment_dict: dict    
         Dictionary which will be used to store alignments from the file.
-    seqOrder: list
+    seq_order: list
         List of sequence ids in the order in which they were parsed from the
         alignment file.
     '''
@@ -217,7 +217,7 @@ def distanceMatrix(alignment, aaDict, saveFiles=None):
         Dictionary of aligned sequences. This is meant to be a corrected
         dictionary where all gaps have been removed from the query sequence,
         and the same positions have been removed from other sequences.
-    aaDict: dict
+    aa_dict: dict
         Dictionary mapping amino acids and other possible characters from an
         alignment to integer representations.
     saveFiles: tuple
@@ -235,7 +235,7 @@ def distanceMatrix(alignment, aaDict, saveFiles=None):
         List of the sequence identifiers in the order in which they appear in
         the matrix.
     '''
-    # Generate distanceMatrix: Calculating Sequence Identity
+    # Generate distance_matrix: Calculating Sequence Identity
     start = time.time()
     if((saveFiles is not None) and os.path.exists(saveFiles[0]) and
        os.path.exists(saveFiles[1])):
@@ -329,7 +329,7 @@ def wholeAnalysis(alignment, aaDict, saveFile=None):
         Dictionary of aligned sequences. This is meant to be a corrected
         dictionary where all gaps have been removed from the query sequence,
         and the same positions have been removed from other sequences.
-    aaDict: list
+    aa_dict: list
         Dictionary of amino acids and other characters possible in an alignment
         mapping to integer representations.
     saveFile: str
@@ -387,7 +387,7 @@ def wholeAnalysis(alignment, aaDict, saveFile=None):
 
 def importPDB(pdbFile, saveFile=None):
     '''
-    importPDB
+    import_pdb
 
     This method imports a PDB files information generating a list of lists. Each
     list contains the Amino Acid 3-letter abbreviation, residue number, x, y,
@@ -506,17 +506,17 @@ def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
 
     Parameters:
     -----------
-    querySequence: str
+    query_sequence: str
         A string providing the amino acid (single letter abbreviations)
         sequence for the protein.
     qToPMap: dict
         A structure mapping the index of the positions in the fasta sequence
         which align to positions in the PDB sequence based on a local alignment
         with no mismatches allowed.
-    residue3D: dictionary
+    residue_3d: dictionary
         A dictionary mapping a residue position from the PDB file to its three
         dimensional position.
-    pdbResidueList: list
+    pdb_residue_list: list
         A sorted list of residue numbers from the PDB file.
     saveFile: str
         File name and/or location of file containing a previously computed set
@@ -524,7 +524,7 @@ def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
     Returns:
     list
         List of minimum distances between residues, sorted by the ordering of
-        residues in pdbResidueList.
+        residues in pdb_residue_list.
     --------
     '''
     start = time.time()
@@ -534,16 +534,16 @@ def findDistance(querySequence, qToPMap, residue3D, pdbResidueList,
         qLen = len(querySequence)
         sortedPDBDist = []
         # Loop over all residues in the pdb
-#         for i in range(len(pdbResidueList)):
+#         for i in range(len(pdb_residue_list)):
         for i in range(qLen):
             # Loop over residues to calculate distance between all residues i
             # and j
-            #             for j in range(i + 1, len(pdbResidueList)):
+            #             for j in range(i + 1, len(pdb_residue_list)):
             for j in range(i + 1, qLen):
                 # Getting the 3d coordinates for every atom in each residue.
                 # iterating over all pairs to find all distances
-                #                 key1 = pdbResidueList[i]
-                #                 key2 = pdbResidueList[j]
+                #                 key1 = pdb_residue_list[i]
+                #                 key2 = pdb_residue_list[j]
                 try:
                     key1 = pdbResidueList[qToPMap[i]]
                     key2 = pdbResidueList[qToPMap[j]]
@@ -654,10 +654,10 @@ def etMIPWorker(inTup):
 
 def poolInit2(c, seqL, PDBRL, sPDBD):
     '''
-    poolInit2
+    pool_init2
 
     A function which initializes processes spawned in a worker pool performing
-    the etMIPWorker2 function.  This provides a set of variables to all working
+    the et_mip_worker2 function.  This provides a set of variables to all working
     processes which are shared.
 
     Parameters:
@@ -675,7 +675,7 @@ def poolInit2(c, seqL, PDBRL, sPDBD):
     cutoff = c
     global seqLen
     seqLen = seqL
-    global pdbResidueList
+    global pdb_residue_list
     pdbResidueList = PDBRL
     global sortedPDBDist
     sortedPDBDist = sPDBD
@@ -948,7 +948,7 @@ def writeFinalResults(qName, today, sequenceOrder, seqLength, cutoff, outDict):
         The current date in string format.
     sequenceOrder: list
         A list of the sequence ids used in the alignment in sorted order.
-    seqLength: int
+    seq_length: int
         The length of the gap removed sequences from the alignment.
     cutoff: float
         The distance threshold for interaction between two residues in a
@@ -1072,14 +1072,14 @@ if __name__ == '__main__':
         os.chdir(startDir)
         pdbfilename = open(args['pdb'], 'rb')
         os.chdir(createFolder)
-        residuedictionary, pdbResidueList, ResidueDict, pdbSeq = importPDB(
+        residuedictionary, pdb_residue_list, ResidueDict, pdbSeq = importPDB(
             pdbfilename, 'pdbData.pkl')
         mapAToP = mapAlignmentToPDBSeq(query_sequence, pdbSeq)
         sortedPDBDist = findDistance(query_sequence, mapAToP,
-                                     residuedictionary, pdbResidueList,
+                                     residuedictionary, pdb_residue_list,
                                      'PDBdistances')
     else:
-        pdbResidueList = None
+        pdb_residue_list = None
         ResidueDict = None
         sortedPDBDist = None
         pdbSeq = None
@@ -1135,10 +1135,10 @@ if __name__ == '__main__':
     if(processes == 1):
         #         for i in range(len(clusters)):
         for clus in clusters:
-            poolInit2(args['threshold'], seq_length, pdbResidueList,
+            poolInit2(args['threshold'], seq_length, pdb_residue_list,
                       sortedPDBDist)
             r = etMIPWorker2((clus, summedMatrices[clus]))
-#             r = etMIPWorker2((clusters[i], summedMatrices[i]))
+#             r = et_mip_worker2((clusters[i], summedMatrices[i]))
             resRawScore[r[0]] = r[1]
             resCoverage[r[0]] = r[2]
             resScorePos[r[0]] = r[3]
@@ -1147,10 +1147,10 @@ if __name__ == '__main__':
     else:
         pool2 = Pool(processes=processes, initializer=poolInit2,
                      initargs=(args['threshold'], seq_length,
-                               pdbResidueList, sortedPDBDist))
+                               pdb_residue_list, sortedPDBDist))
         res2 = pool2.map_async(etMIPWorker2, [(clus, summedMatrices[clus])
                                               for clus in clusters])
-#         res2 = pool2.map_async(etMIPWorker2, [(clusters[i], summedMatrices[i])
+#         res2 = pool2.map_async(et_mip_worker2, [(clusters[i], summedMatrices[i])
 #                                               for i in range(len(clusters))])
         pool2.close()
         pool2.join()
@@ -1180,13 +1180,13 @@ if __name__ == '__main__':
                                summedMatrices[c])
         heatmapPlot('Raw Score Heatmap K {}'.format(c), summedMatrices[c])
         surfacePlot('Raw Score Surface K {}'.format(c), summedMatrices[c])
-#         heatmapPlot('Coverage Heatmap K {}'.format(c), resCoverage[c])
-#         surfacePlot('Coverage Surface K {}'.format(c), resCoverage[c])
+#         heatmap_plot('Coverage Heatmap K {}'.format(c), resCoverage[c])
+#         surface_plot('Coverage Surface K {}'.format(c), resCoverage[c])
         writeOutClusteringResults(today, args['query'][0],
                                   args['threshold'], c, resScorePos[c],
                                   resRawScore[c], resCoverage[c],
                                   query_sequence, sortedPDBDist,
-                                  pdbResidueList)
+                                  pdb_residue_list)
         cEnd = time.time()
         timeElapsed = cEnd - cStart
         resTimes[c] += timeElapsed

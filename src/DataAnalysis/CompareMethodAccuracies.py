@@ -139,7 +139,7 @@ if __name__ == '__main__':
         for q in fileDict:
             print q
             currPDB = PDBReference(pdbDir + fileDict[q]['PDB'])
-            currPDB.importPDB()
+            currPDB.import_pdb()
             currDCA = DCAResult(dcaDir + fileDict[q]['DCA'])
             currDCA.importData()
             try:

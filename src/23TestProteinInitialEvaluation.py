@@ -1,9 +1,9 @@
-'''
+"""
 Created on Sep 15, 2017
 
 @author: daniel
-'''
-from PerformAnalysis import AnalyzeAlignment
+"""
+from PerformAnalysis import analyze_alignment
 from multiprocessing import cpu_count
 import datetime
 import argparse
@@ -12,8 +12,8 @@ import re
 import sys
 
 
-def parseArguments():
-    '''
+def parse_arguments():
+    """
     parse arguments
 
     This method provides a nice interface for parsing command line arguments
@@ -24,7 +24,7 @@ def parseArguments():
     dict:
         A dictionary containing the arguments parsed from the command line and
         their arguments.
-    '''
+    """
     # Create input parser
     parser = argparse.ArgumentParser(description='Process some integers.')
     # Set up all optional variables to be parsed from the command line
@@ -54,63 +54,62 @@ def parseArguments():
     args['combineClusters'] = 'sum'
     args['ignoreAlignmentSize'] = True
     args['skipPreAnalyzed'] = True
-    pCount = cpu_count()
-    if(args['processes'] > pCount):
-        args['processes'] = pCount
+    processor_count = cpu_count()
+    if args['processes'] > processor_count:
+        args['processes'] = processor_count
     return args
 
 
-def parseID(faFile):
-    for line in open(faFile, 'rb'):
-        check = re.match(r'^>query_(.*)\s?$', line)
-        if(check):
-            return check.group(1)
+def parse_id(fa_file):
+    for line in open(fa_file, 'rb'):
+        id_check = re.match(r'^>query_(.*)\s?$', line)
+        if id_check:
+            return id_check.group(1)
         else:
             continue
 
 
 if __name__ == '__main__':
     today = str(datetime.date.today())
-    args = parseArguments()
-    inputFiles = []
-    files = os.listdir(args['inputDir'])
-    inputFiles += map(lambda fileName: os.path.abspath(args['inputDir']) + '/' +
-                      fileName, files)
-    inputFiles.sort(key=lambda f: os.path.splitext(f)[1])
-    inputDict = {}
-    for f in inputFiles:
+    arguments = parse_arguments()
+    input_files = []
+    files = os.listdir(arguments['inputDir'])
+    input_files += map(lambda file_name: os.path.abspath(arguments['inputDir']) + '/' + file_name, files)
+    input_files.sort(key=lambda f: os.path.splitext(f)[1])
+    input_dict = {}
+    for f in input_files:
         print f
-        check = re.search(r'(\d[\d|A-Z|a-z]{3}[A-Z]?)', f.split('/')[-1])
+        check = re.search(r'(\d[\d|A-Za-z]{3}[A-Z]?)', f.split('/')[-1])
         if not check:
             continue
         query = check.group(1).lower()
-        if(query not in inputDict):
-            inputDict[query] = [None, None, None]
-        if(f.endswith('fa')):
-            inputDict[query][0] = parseID(f)
-            inputDict[query][1] = f
-        elif(f.endswith('pdb')):
-            inputDict[query][2] = f
+        if query not in input_dict:
+            input_dict[query] = [None, None, None]
+        if f.endswith('fa'):
+            input_dict[query][0] = parse_id(f)
+            input_dict[query][1] = f
+        elif f.endswith('pdb'):
+            input_dict[query][2] = f
         else:
             pass
     counter = 0
     incomplete = []
-    for query in inputDict:
-        if inputDict[query][0] is not None:
+    for query in input_dict:
+        if input_dict[query][0] is not None:
             counter += 1
-            createFolder = (args['output'] + str(today) + "/" +
-                            inputDict[query][0])
+            createFolder = (arguments['output'] + str(today) + "/" +
+                            input_dict[query][0])
             if(os.path.isdir(os.path.abspath(createFolder)) and
-               args['skipPreAnalyzed']):
+               arguments['skipPreAnalyzed']):
                 continue
             print('Performing analysis for: {}'.format(query))
-            args['query'] = [inputDict[query][0]]
-            args['alignment'] = [inputDict[query][1]]
-            args['pdb'] = inputDict[query][2]
+            arguments['query'] = [input_dict[query][0]]
+            arguments['alignment'] = [input_dict[query][1]]
+            arguments['pdb'] = input_dict[query][2]
             try:
-                AnalyzeAlignment(args)
+                analyze_alignment(arguments)
                 print('Completed successfully: {}'.format(query))
-            except(ValueError):
+            except ValueError:
                 print('Analysis for {} incomplete!'.format(query))
                 incomplete.append(query)
     print('{} analyses performed'.format(counter))

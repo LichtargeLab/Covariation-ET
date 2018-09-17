@@ -1,5 +1,7 @@
 .pydevproject
 .project
+.idea
 .idea/*
+*.pyc
 Input/*
 Output/*
