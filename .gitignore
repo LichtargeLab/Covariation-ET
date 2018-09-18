@@ -2,6 +2,7 @@
 .project
 .idea
 .idea/*
+.env
 *.pyc
 Input/*
 Output/*

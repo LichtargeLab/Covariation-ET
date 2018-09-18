@@ -1,6 +1,7 @@
 name: pyETMIPC
 channels:
 - defaults
+- conda-forge
 dependencies:
 - biopython=1.69=np113py27_0
 - ipykernel=4.6.1=py27_0
@@ -18,6 +19,7 @@ dependencies:
 - scikit-learn=0.19.0=np113py27_0
 - scipy=0.19.1=np113py27_0
 - seaborn=0.7.1=py27_0
+- python-dotenv=0.8.2=py_1
 - pip:
   - ipython-genutils==0.2.0
   - jupyter-client==5.1.0
