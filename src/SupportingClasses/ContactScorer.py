@@ -4,6 +4,7 @@ Created on Sep 1, 2018
 @author: dmkonecki
 """
 import os
+import math
 import numpy as np
 import pandas as pd
 from time import time
@@ -438,12 +439,104 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    def clustering_z_score(self):
-        """
-
-        :return:
-        """
+    def score_clustering_of_contact_predictions(self):
         raise NotImplemented()
+
+    def _clustering_z_score(self, reslist, bias=1, cutoff=4.0):
+        """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
+        z_S = (w-<w>_S)/sigma_S
+        The steps are:
+        1. Calculate Selection Clustering Weight (SCW) 'w'
+        2. Calculate mean SCW (<w>_S) in the ensemble of random
+        selections of len(reslist) residues
+        3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
+        Reference: Mihalek, Res, Yao, Lichtarge (2003)
+
+        reslist - a list of int's of protein residue numbers, e.g. ET residues  --> selected residues
+        l - length of protein  # Eunna comment
+        A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
+        bias - option to calculate with bias or nobias (j-i factor)
+        m - length of selected residue # Eunna comment
+
+        This method adapted from code written by Rhonald Lua in Python (Reference 1) which was adapted from code written
+        by Angela Wilkins (Reference 2)
+
+        References:
+            1. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
+            protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
+            2. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
+            Protein Structure Evaluation, Journal of Molecular Biology, Volume 331, Issue 1, 2003, Pages 263-279,
+            ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
+            (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
+        """
+        # Check that there is a valid bias values
+        if bias != 1 and bias != 0:
+            raise ValueError('Bias term may be 1 or 0, but {} was provided'.format(bias))
+        # Make sure a query_pdb_mapping exists
+        if self.query_pdb_mapping is None:
+            self.fit()
+        # Make sure all residues in reslist are mapped to the PDB structure in use
+        if not all(res in self.query_pdb_mapping for res in reslist):
+            print('At least one residue of interest is not present in the PDB provided')
+            return 'NA'
+        # Calculate w
+        w = 0
+        for res_i in reslist:
+            for res_j in reslist:
+                if res_i < res_j:
+                    # A(i,j)==1
+                    if self.distances[self.query_pdb_mapping[res_i]][self.query_pdb_mapping[res_i]] < cutoff:
+                        if bias:
+                            w += (res_j - res_i)
+                        else:
+                            w += 1
+                    else:
+                        pass
+        # Calculate <w>_S and <w^2>_S.
+        # Use expressions (3),(4),(5),(6) in Reference.
+        m = len(reslist)
+        l = self.query_alignment.seq_length
+        pi1 = m * (m-1.0) / (l * (l - 1.0))
+        pi2 = pi1 * (m-2.0) / (l - 2.0)
+        pi3 = pi2 * (m-3.0) / (l - 3.0)
+        w_ave = 0
+        w2_ave = 0
+        for res_i in range(self.distances.shape[0]):
+            for res_j in range(res_i + 1, self.distances.shape[1]):
+                if self.distances[res_i][res_i] >= cutoff:
+                    continue
+                if bias:
+                    w_ave += (res_j - res_i)
+                else:
+                    w_ave += 1
+                for res_k in range(self.distances.shape[0]):
+                    for res_l in range(res_k + 1, self.distances.shape[1]):
+                        if self.distances[res_k][res_l] >= cutoff:
+                            continue
+                        if (res_i == res_k and res_j == res_l) or (res_i == res_l and res_j == res_k):
+                            if bias:
+                                w2_ave += pi1 * (res_j - res_i) * (res_l - res_k)
+                            else:
+                                w2_ave += pi1
+                        elif (res_i == res_k) or (res_j == res_l) or (res_i == res_l) or (res_j == res_k):
+                            if bias:
+                                w2_ave += pi2 * (res_j - res_i) * (res_l - res_k)
+                            else:
+                                w2_ave += pi2
+                        else:
+                            if bias:
+                                w2_ave += pi3 * (res_j - res_i) * (res_l - res_k)
+                            else:
+                                w2_ave += pi3
+        w_ave = w_ave * pi1
+        sigma = math.sqrt(w2_ave - w_ave * w_ave)
+        # Response to Bioinformatics reviewer 08/24/10
+        if sigma==0:
+            return 'NA'
+        z_score = (w - w_ave) / sigma
+        print 'reslist: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join(reslist), m, z_score, w, w_ave,
+                                                                            sigma)
+        return z_score
 
     def write_out_contact_scoring(self, today, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
                                   c_integrated_scores=None, file_name=None, output_dir=None):
