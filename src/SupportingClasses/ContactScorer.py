@@ -439,27 +439,67 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    def score_clustering_of_contact_predictions(self):
-        raise NotImplemented()
+    def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0):
+        """
+        Score Clustering Of Contact Predictions
 
-    def _clustering_z_score(self, reslist, bias=1, cutoff=4.0):
-        """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
+        This method employs the _clustering_z_score method to score all pairs for which predictions are made. A z-score
+        of '-' means either that the pair did not map to the provided PDB while 'NA' means that the sigma computed for
+        that pair was equal to 0. The residues belonging to each pair are added
+
+        Args:
+            predictions (numpy.array):
+            bias (int or bool): option to calculate z_scores with bias or nobias (j-i factor)
+            cutoff (float): the distance cutoff at which to consider residues in contact/clustered.
+        Returns:
+            list. A list of residues sorted order by the prediction score.
+            list. A list of z-scores matching the
+        """
+        scores = []
+        residues = []
+        for i in range(predictions.shape[0]):
+            for j in range(i + 1, predictions.shape[1]):
+                scores.append(predictions[i, j])
+                residues.append((i, j))
+        scores_and_residues = zip(scores, residues)
+        sorted_scores_and_residues = sorted(scores_and_residues)
+        sorted_residues = zip(*sorted_scores_and_residues)[1]
+        residues_of_interest = {}
+        z_scores = []
+        for pair in sorted_residues:
+            new_res = []
+            if pair[0] not in residues_of_interest:
+                new_res.append(pair[0])
+            if pair[1] not in residues_of_interest:
+                new_res.append(pair[1])
+            residues_of_interest.update(new_res)
+            z_score = self._clustering_z_score(residues_of_interest, bias=bias, cutoff=cutoff)
+            z_scores.append(z_score)
+            if z_score == '-':
+                residues_of_interest.difference_update(new_res)
+        return sorted_residues, z_scores
+
+    def _clustering_z_score(self, res_list, bias=True, cutoff=4.0):
+        """
+        Clustering Z Score
+
+        Calculate z-score (z_S) for residue selection res_list=[1,2,...]
         z_S = (w-<w>_S)/sigma_S
         The steps are:
         1. Calculate Selection Clustering Weight (SCW) 'w'
-        2. Calculate mean SCW (<w>_S) in the ensemble of random
-        selections of len(reslist) residues
+        2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
         3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
-        Reference: Mihalek, Res, Yao, Lichtarge (2003)
+        Reference 2
 
-        reslist - a list of int's of protein residue numbers, e.g. ET residues  --> selected residues
-        l - length of protein  # Eunna comment
-        A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
-        bias - option to calculate with bias or nobias (j-i factor)
-        m - length of selected residue # Eunna comment
+        Args:
+            res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
+            bias (int or bool): option to calculate with bias or nobias (j-i factor)
+            cutoff (float): the distance cutoff at which to consider residues in contact/clustered.
+        Returns:
+            float. The z-score calculated for the resiudes of interest for the PDB provided with this ContactScorer.
 
         This method adapted from code written by Rhonald Lua in Python (Reference 1) which was adapted from code written
-        by Angela Wilkins (Reference 2)
+        by Angela Wilkins (Reference 2).
 
         References:
             1. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
@@ -475,14 +515,14 @@ class ContactScorer(object):
         # Make sure a query_pdb_mapping exists
         if self.query_pdb_mapping is None:
             self.fit()
-        # Make sure all residues in reslist are mapped to the PDB structure in use
-        if not all(res in self.query_pdb_mapping for res in reslist):
+        # Make sure all residues in res_list are mapped to the PDB structure in use
+        if not all(res in self.query_pdb_mapping for res in res_list):
             print('At least one residue of interest is not present in the PDB provided')
-            return 'NA'
+            return '-'
         # Calculate w
         w = 0
-        for res_i in reslist:
-            for res_j in reslist:
+        for res_i in res_list:
+            for res_j in res_list:
                 if res_i < res_j:
                     # A(i,j)==1
                     if self.distances[self.query_pdb_mapping[res_i]][self.query_pdb_mapping[res_i]] < cutoff:
@@ -494,7 +534,7 @@ class ContactScorer(object):
                         pass
         # Calculate <w>_S and <w^2>_S.
         # Use expressions (3),(4),(5),(6) in Reference.
-        m = len(reslist)
+        m = len(res_list)
         l = self.query_alignment.seq_length
         pi1 = m * (m-1.0) / (l * (l - 1.0))
         pi2 = pi1 * (m-2.0) / (l - 2.0)
@@ -534,7 +574,7 @@ class ContactScorer(object):
         if sigma==0:
             return 'NA'
         z_score = (w - w_ave) / sigma
-        print 'reslist: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join(reslist), m, z_score, w, w_ave,
+        print 'res_list: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join(res_list), m, z_score, w, w_ave,
                                                                             sigma)
         return z_score
 
