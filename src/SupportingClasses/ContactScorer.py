@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from math import floor
+from scipy.stats import rankdata
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.PDB.Polypeptide import one_to_three
@@ -103,48 +104,6 @@ class ContactScorer(object):
         print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
         self.best_chain = best_chain
         self.query_pdb_mapping = f_to_p_map
-
-    def find_pairs_by_separation(self, category='Any', mappable_only=False):
-        """
-        Find Pairs By Separation
-
-        This method returns all pairs of residues falling into a given category of sequence separation. At the moment
-        the following categories are supported:
-            Neighbors : Residues 1 to 5 sequence positions apart.
-            Short : Residues 6 to 12 sequences positions apart.
-            Medium : Residues 13 to 24 sequences positions apart.
-            Long : Residues more than 24 sequence positions apart.
-            Any : Any/All pairs of residues.
-
-        Args:
-            category (str): The category (described above) for which to return residue pairs.
-            mappable_only (boolean): If True only pairs which are mappable to the PDB structure provided to the scorer
-            will be returned.
-        Returns:
-            list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
-        """
-        pairs = []
-        for i in range(self.query_alignment.seq_length):
-            if mappable_only and (i not in self.query_pdb_mapping):
-                continue
-            for j in range(i + 1, self.query_alignment.seq_length):
-                if mappable_only and (j not in self.query_pdb_mapping):
-                    continue
-                separation = j - i
-                if category == 'Neighbors' and (separation < 1 or separation >= 6):
-                    continue
-                elif category == 'Short' and (separation < 6 or separation >=13):
-                    continue
-                elif category == 'Medium' and (separation < 13 or separation >= 24):
-                    continue
-                elif category == 'Long' and separation < 24:
-                    continue
-                elif category == 'Any':
-                    pass
-                else:
-                    raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', 'Any'".format(category))
-                pairs.append((i, j))
-        return pairs
 
     @staticmethod
     def _get_all_coords(residue):
@@ -285,6 +244,49 @@ class ContactScorer(object):
         print('Computing the distance matrix based on the PDB file took {} min'.format((end - start) / 60.0))
         self.distances = dists
 
+    def find_pairs_by_separation(self, category='Any', mappable_only=False):
+        """
+        Find Pairs By Separation
+
+        This method returns all pairs of residues falling into a given category of sequence separation. At the moment
+        the following categories are supported:
+            Neighbors : Residues 1 to 5 sequence positions apart.
+            Short : Residues 6 to 12 sequences positions apart.
+            Medium : Residues 13 to 24 sequences positions apart.
+            Long : Residues more than 24 sequence positions apart.
+            Any : Any/All pairs of residues.
+
+        Args:
+            category (str): The category (described above) for which to return residue pairs.
+            mappable_only (boolean): If True only pairs which are mappable to the PDB structure provided to the scorer
+            will be returned.
+        Returns:
+            list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
+        """
+        if category not in {'Neighbors', 'Short', 'Medium', 'Long', 'Any'}:
+            raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', 'Any'".format(
+                    category))
+        pairs = []
+        for i in range(self.query_alignment.seq_length):
+            if mappable_only and (i not in self.query_pdb_mapping):
+                continue
+            for j in range(i + 1, self.query_alignment.seq_length):
+                if mappable_only and (j not in self.query_pdb_mapping):
+                    continue
+                separation = j - i
+                if category == 'Neighbors' and (separation < 1 or separation >= 6):
+                    continue
+                elif category == 'Short' and (separation < 6 or separation >=13):
+                    continue
+                elif category == 'Medium' and (separation < 13 or separation >= 24):
+                    continue
+                elif category == 'Long' and separation < 24:
+                    continue
+                else:
+                    pass
+                pairs.append((i, j))
+        return pairs
+
     def _map_predictions_to_pdb(self, predictions, category='Any'):
         """
         Map Predictions To PDB
@@ -329,11 +331,11 @@ class ContactScorer(object):
             if len(overlap) != 1:
                 raise ValueError('Something went wrong while computing overlaps.')
             indices_to_keep.append(overlap[0])
-        mapped_predictions = mapped_predictions[indices_to_keep]
-        mapped_distances = mapped_distances[indices_to_keep]
+        mapped_predictions = np.array(mapped_predictions[indices_to_keep])
+        mapped_distances = np.array(mapped_distances[indices_to_keep])
         return mapped_predictions, mapped_distances
 
-    def score_auc(self, predictions):
+    def score_auc(self, predictions, category='Any'):
         """
         Score AUC
 
@@ -345,13 +347,19 @@ class ContactScorer(object):
         Args:
             predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
             is the length of the query sequence used when initializing the ContactScorer.
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
         Returns:
             np.array. The list of true positive rate values calculated when computing the roc curve.
             np.array. The list of false positive rate value calculated when computing the roc curve.
             float. The auroc determined for the roc curve.
         """
         if self.query_pdb_mapping is not None:
-            mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions)
+            mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
             # AUC computation
             if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
                 raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
@@ -407,7 +415,7 @@ class ContactScorer(object):
         end = time()
         print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
 
-    def score_precision(self, predictions, k, n):
+    def score_precision(self, predictions, k=None, n=None, category='Any'):
         """
         Score Precision
 
@@ -427,18 +435,24 @@ class ContactScorer(object):
             the query sequence, will be divided by to give the number of predictions to test.
             n (int): This value should only be specified if k is not specified. This is the number of predictions to
             test.
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
         Returns:
         """
         if (k is not None) and (n is not None):
             raise ValueError('Both k and n were set for score_precision which is not a valid option.')
         else:
-            n = floor(self.query_alignment.seq_length / float(k))
-        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions)
-        sorted_predictions, sorted_distances = zip(sorted(zip(mapped_predictions, mapped_distances),
-                                                          key=lambda pair: pair[0]))
-        top_predictions = sorted_predictions[:n]
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        ind = np.where(ranks <= n)
+        top_predictions = mapped_predictions[ind]
         y_pred1 = ((top_predictions > 0.0) * 1)
-        top_distances = sorted_distances[:n]
+        top_distances = mapped_distances[ind]
         y_true1 = ((top_distances <= self.cutoff) * 1)
         precision = precision_score(y_true1, y_pred1)
         return precision
@@ -464,11 +478,14 @@ class ContactScorer(object):
         for i in range(predictions.shape[0]):
             for j in range(i + 1, predictions.shape[1]):
                 scores.append(predictions[i, j])
-                residues.append((i, j))
-        scores_and_residues = zip(scores, residues)
-        sorted_scores_and_residues = sorted(scores_and_residues)
-        sorted_residues = zip(*sorted_scores_and_residues)[1]
-        residues_of_interest = {}
+                residues.append((i + 1, j + 1))
+        # scores_and_residues = zip(scores, residues)
+        # sorted_scores_and_residues = zip(*sorted(zip(scores, residues), reverse=True))
+        # sorted_scores, sorted_residues = zip(*sorted_scores_and_residues)
+        sorted_scores, sorted_residues = zip(*sorted(zip(scores, residues), reverse=True))
+        for i in range(len(sorted_scores)):
+            print('{}<-{},{}'.format(sorted_scores[i], sorted_residues[i][0], sorted_residues[i][1]))
+        residues_of_interest = set([])
         z_scores = []
         for pair in sorted_residues:
             new_res = []
@@ -476,8 +493,12 @@ class ContactScorer(object):
                 new_res.append(pair[0])
             if pair[1] not in residues_of_interest:
                 new_res.append(pair[1])
+            print(sorted_scores[0])
+            print(residues_of_interest)
+            print(pair)
+            print(new_res)
             residues_of_interest.update(new_res)
-            z_score = self._clustering_z_score(residues_of_interest, bias=bias, cutoff=cutoff)
+            z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, cutoff=cutoff)
             z_scores.append(z_score)
             if z_score == '-':
                 residues_of_interest.difference_update(new_res)
@@ -573,6 +594,11 @@ class ContactScorer(object):
                             else:
                                 w2_ave += pi3
         w_ave = w_ave * pi1
+        print(w)
+        print(w_ave)
+        print(w2_ave)
+        print(w2_ave - w_ave * w_ave)
+        exit()
         sigma = math.sqrt(w2_ave - w_ave * w_ave)
         # Response to Bioinformatics reviewer 08/24/10
         if sigma==0:
