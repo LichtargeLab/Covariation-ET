@@ -321,10 +321,14 @@ class ContactScorer(object):
         mapped_distances = self.distances[indices]
         # Keep only data for the specified category
         pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
-        indices_to_keep = ([], [])
+        indices_to_keep = []
         for pair in pairs:
-            indices_to_keep[0].append(indices[0].index(pair[0]))
-            indices_to_keep[1].append(indices[1].index(pair[1]))
+            pair_i = np.where(indices[0] == pair[0])
+            pair_j = np.where(indices[1] == pair[1])
+            overlap = np.intersect1d(pair_i, pair_j)
+            if len(overlap) != 1:
+                raise ValueError('Something went wrong while computing overlaps.')
+            indices_to_keep.append(overlap[0])
         mapped_predictions = mapped_predictions[indices_to_keep]
         mapped_distances = mapped_distances[indices_to_keep]
         return mapped_predictions, mapped_distances
