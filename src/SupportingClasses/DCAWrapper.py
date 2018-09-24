@@ -14,7 +14,7 @@ print(dotenv_path)
 load_dotenv(dotenv_path)
 
 
-class ETMIPWrapper(object):
+class DCAWrapper(object):
     """
     This class is intended as a wrapper for the DCA julia code distributed through github for the following citation:
         (GITHUB)
@@ -81,6 +81,8 @@ class ETMIPWrapper(object):
             out_path (str): The path to the file where the DCA scores should be written.
             delete_file (boolean): If True the file written out by calling this method will be deleted after importing
             the relevant data, if False the file will be left at the specified out_path.
+        Returns:
+            float. Time in seconds.
         Raises:
             ValueError: If the file does not exist, or if the file expected to be created by this method is not
             found in that directory.
@@ -101,3 +103,4 @@ class ETMIPWrapper(object):
         self.import_covariance_scores(out_path=out_path)
         if delete_file:
             os.remove(out_path)
+        return end - start
