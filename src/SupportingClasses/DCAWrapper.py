@@ -9,9 +9,14 @@ import pandas as pd
 from time import time
 from subprocess import Popen, PIPE
 from dotenv import find_dotenv, load_dotenv
-dotenv_path = find_dotenv(raise_error_if_not_found=True)
-print(dotenv_path)
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
+# dotenv_path = find_dotenv(raise_error_if_not_found=True)
+# print(dotenv_path)
+# load_dotenv(dotenv_path)
 
 
 class DCAWrapper(object):
@@ -59,7 +64,7 @@ class DCAWrapper(object):
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
         """
-        if not os.path.isdir(out_path):
+        if not os.path.isfile(out_path):
             raise ValueError('Provided file does not exist: {}!'.format(out_path))
         data = pd.read_csv(out_path, header=None, sep='\s+', names=['Res_i', 'Res_j' , 'Scores'])
         self.dca_scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
@@ -87,10 +92,10 @@ class DCAWrapper(object):
             ValueError: If the file does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
-        julia_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src', 'SupportingClasses', 'cmd_lin_GauseDCA.jl')
+        julia_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src', 'SupportingClasses', 'cmd_line_GausDCA.jl')
         start = time()
         # Call julia code
-        p = Popen(['julia', julia_path, self.alignment.filename, out_path], stdout=PIPE, stderr=PIPE)
+        p = Popen(['julia', julia_path, self.alignment.file_name, out_path], stdout=PIPE, stderr=PIPE)
         # Retrieve communications from julia call
         out, error = p.communicate()
         end = time()
@@ -103,4 +108,4 @@ class DCAWrapper(object):
         self.import_covariance_scores(out_path=out_path)
         if delete_file:
             os.remove(out_path)
-        return end - start
+        return self.time
