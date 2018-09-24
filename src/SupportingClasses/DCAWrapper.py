@@ -91,7 +91,7 @@ class DCAWrapper(object):
         start = time()
         # Call julia code
         p = Popen(['julia', julia_path, self.alignment.filename, out_path], stdout=PIPE, stderr=PIPE)
-        # Retrieve communications from binary call
+        # Retrieve communications from julia call
         out, error = p.communicate()
         end = time()
         self.time = end - start
