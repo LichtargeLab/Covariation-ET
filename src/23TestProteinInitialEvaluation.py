@@ -111,7 +111,7 @@ if __name__ == '__main__':
     times = {'query': [], 'method': [], 'time(s)': []}
     aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
     precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
-    for query in input_dict:
+    for query in sorted(input_dict.keys()):
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
@@ -126,7 +126,7 @@ if __name__ == '__main__':
         contact_beta = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
         contact_beta.fit()
         contact_beta.measure_distance(method='CB')
-        for method in methods:
+        for method in sorted(methods.keys()):
             if 'dir' not in methods[method]:
                 method_dir = os.path.join(arguments['output'], method)
                 methods[method]['dir'] = method_dir

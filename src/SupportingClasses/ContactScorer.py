@@ -504,6 +504,114 @@ class ContactScorer(object):
                 residues_of_interest.difference_update(new_res)
         return sorted_residues, z_scores
 
+
+    ####################################################################################################################
+    def _et_calcDist(self, atoms1, atoms2):
+        """return smallest distance (squared) between two groups of atoms"""
+        # (not distant by more than ~100 A)
+        # mind2=CONTACT_DISTANCE2+100
+        c1 = atoms1[0]  # atoms must not be empty
+        c2 = atoms2[0]
+        mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                (c1[2] - c2[2]) * (c1[2] - c2[2])
+        for c1 in atoms1:
+            for c2 in atoms2:
+                d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                     (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                     (c1[2] - c2[2]) * (c1[2] - c2[2])
+                if d2 < mind2:
+                    mind2 = d2
+        return mind2  # Square of distance between most proximate atoms
+
+
+    def _et_computeAdjacency(self, cutoff=4.0):
+        """Compute the pairs of contacting residues
+        A(i,j) implemented as a hash of hash of residue numbers"""
+        # self.adjacencyOK=False
+        model = self.query_structure.structure[0][self.best_chain]
+
+        # try:
+        #     model = cmd.get_model(structurename)
+        # except Exception:
+        #     print "Structure \'%s\' does not exist!" % structurename
+        #     return None, None
+
+        three2one = {
+            "ALA": 'A',
+            "ARG": 'R',
+            "ASN": 'N',
+            "ASP": 'D',
+            "CYS": 'C',
+            "GLN": 'Q',
+            "GLU": 'E',
+            "GLY": 'G',
+            "HIS": 'H',
+            "ILE": 'I',
+            "LEU": 'L',
+            "LYS": 'K',
+            "MET": 'M',
+            "PHE": 'F',
+            "PRO": 'P',
+            "SER": 'S',
+            "THR": 'T',
+            "TRP": 'W',
+            "TYR": 'Y',
+            "VAL": 'V',
+            "A": "A",
+            "G": "G",
+            "T": "T",
+            "U": "U",
+            "C": "C", }
+
+        ResAtoms = {}  # List of atom coordinates indexed by residue number
+        # atom.resi is a string, convert it to int
+        for residue in model:
+            res_num = residue.get_id()[1]
+            ResAtoms[res_num] = []
+            for atom in residue:
+                ResAtoms[res_num].append(atom.get_coord())
+        # for i in range(len(model.atom)):
+        #     atom = model.atom[i]
+        #     try:
+        #         # 07/12/10 Test for standard amino acids
+        #         aa = three2one[atom.resn]
+        #     except KeyError:
+        #         continue
+        #     try:
+        #         ResAtoms[int(atom.resi)].append(atom.coord)
+        #     except KeyError:
+        #         ResAtoms[int(atom.resi)] = [atom.coord]
+
+        A = {}
+        A_recip = {}
+        for resi in ResAtoms.keys():
+            for resj in ResAtoms.keys():
+                if resi < resj:
+                    # print(resi)
+                    # print(resj)
+                    # print(self._et_calcDist(ResAtoms[resi], ResAtoms[resj]))
+                    # print(self.distances[resi-1, resj-1])
+                    # Turns out they are using the squre of the distance not the actual distance!!!
+                    # exit()
+                    if (self._et_calcDist(ResAtoms[resi],
+                                      ResAtoms[resj]) < cutoff):
+                        try:
+                            A[resi][resj] = 1
+                        except KeyError:
+                            A[resi] = {resj: 1}
+                        # 12/21/11 This addition should not break anything(?). 07/24/12 It did, the z-scores will be wrong.
+                        try:
+                            A_recip[resj][resi] = 1
+                        except KeyError:
+                            A_recip[resj] = {resi: 1}
+
+        # self._A=A
+        # self.adjacencyOK=True
+        return A, ResAtoms, A_recip
+    ####################################################################################################################
+
+
     def _clustering_z_score(self, res_list, bias=True, cutoff=4.0):
         """
         Clustering Z Score
@@ -561,23 +669,80 @@ class ContactScorer(object):
         # Use expressions (3),(4),(5),(6) in Reference.
         m = len(res_list)
         l = self.query_alignment.seq_length
+        ################################################################################################################
+        # A, _, _ = self._et_computeAdjacency(cutoff=cutoff)
+        # pi1 = m * (m - 1.0) / (l * (l - 1.0))
+        # pi2 = pi1 * (m - 2.0) / (l - 2.0)
+        # pi3 = pi2 * (m - 3.0) / (l - 3.0)
+        # w_ave = 0
+        # w2_ave = 0
+        # for resi, neighborsj in A.items():
+        #     # print('resi ', resi)
+        #     # print(neighborsj)
+        #     # a2 = np.power(self.distances, 2) < cutoff
+        #     # all_neighbors = np.nonzero(a2[resi])[0]
+        #     # print(all_neighbors)
+        #     # actual_neighbors = all_neighbors[np.where(all_neighbors > resi)]
+        #     # print(actual_neighbors)
+        #     # exit()
+        #     if bias == 0:
+        #         w_ave += len(neighborsj)
+        #     for resj in neighborsj:
+        #         if bias == 1:
+        #             w_ave += (resj - resi)
+        #         for resk, neighborsl in A.items():
+        #             for resl in neighborsl:
+        #                 if (resi == resk and resj == resl) or \
+        #                         (resi == resl and resj == resk):
+        #                     if bias == 1:
+        #                         w2_ave += pi1 * (resj - resi) * (resl - resk)
+        #                     else:
+        #                         w2_ave += pi1
+        #                 elif (resi == resk) or (resj == resl) or \
+        #                         (resi == resl) or (resj == resk):
+        #                     if bias == 1:
+        #                         w2_ave += pi2 * (resj - resi) * (resl - resk)
+        #                     else:
+        #                         w2_ave += pi2
+        #                 else:
+        #                     if bias == 1:
+        #                         w2_ave += pi3 * (resj - resi) * (resl - resk)
+        #                     else:
+        #                         w2_ave += pi3
+        # w_ave = w_ave * pi1
+        # sigma = math.sqrt(w2_ave - w_ave * w_ave)
+        # print(w)
+        # print(w_ave)
+        # print(w2_ave)
+        # print(w2_ave - w_ave * w_ave)
+        # print(sigma)
+        # exit()
+        ################################################################################################################
         pi1 = m * (m-1.0) / (l * (l - 1.0))
         pi2 = pi1 * (m-2.0) / (l - 2.0)
         pi3 = pi2 * (m-3.0) / (l - 3.0)
         w_ave = 0
         w2_ave = 0
+        # Turns out they are using the square of the distance not the actual distance!!! But why???
+        a2 = np.power(self.distances, 2) < cutoff
         for res_i in range(self.distances.shape[0]):
-            for res_j in range(res_i + 1, self.distances.shape[1]):
-                if self.distances[res_i][res_i] >= cutoff:
-                    continue
+            all_neighbors = np.nonzero(a2[res_i])[0]
+            actual_neighbors = all_neighbors[np.where(all_neighbors > res_i)]
+            for res_j in actual_neighbors:
+            # for res_j in range(res_i + 1, self.distances.shape[1]):
+            #     if self.distances[res_i][res_i] >= cutoff:
+            #         continue
                 if bias:
                     w_ave += (res_j - res_i)
                 else:
                     w_ave += 1
                 for res_k in range(self.distances.shape[0]):
-                    for res_l in range(res_k + 1, self.distances.shape[1]):
-                        if self.distances[res_k][res_l] >= cutoff:
-                            continue
+                    all_neighbors2 = np.nonzero(a2[res_k])[0]
+                    actual_neighbors2 = all_neighbors2[np.where(all_neighbors2 > res_k)]
+                    for res_l in actual_neighbors2:
+                    # for res_l in range(res_k + 1, self.distances.shape[1]):
+                    #     if self.distances[res_k][res_l] >= cutoff:
+                    #         continue
                         if (res_i == res_k and res_j == res_l) or (res_i == res_l and res_j == res_k):
                             if bias:
                                 w2_ave += pi1 * (res_j - res_i) * (res_l - res_k)
@@ -594,18 +759,19 @@ class ContactScorer(object):
                             else:
                                 w2_ave += pi3
         w_ave = w_ave * pi1
-        print(w)
-        print(w_ave)
-        print(w2_ave)
-        print(w2_ave - w_ave * w_ave)
-        exit()
+        # print(w)
+        # print(w_ave)
+        # print(w2_ave)
+        # print(w2_ave - w_ave * w_ave)
         sigma = math.sqrt(w2_ave - w_ave * w_ave)
+        # print(sigma)
+        # exit()
         # Response to Bioinformatics reviewer 08/24/10
         if sigma==0:
             return 'NA'
         z_score = (w - w_ave) / sigma
-        print 'res_list: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join(res_list), m, z_score, w, w_ave,
-                                                                            sigma)
+        print 'res_list: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join([str(x) for x in res_list]), m,
+                                                                             z_score, w, w_ave, sigma)
         return z_score
 
     def write_out_contact_scoring(self, today, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
