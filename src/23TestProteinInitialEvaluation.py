@@ -112,6 +112,9 @@ if __name__ == '__main__':
     aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
     precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
     for query in sorted(input_dict.keys()):
+        if query != '206la':
+            print(query)
+            continue
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
@@ -144,6 +147,16 @@ if __name__ == '__main__':
             times['query'].append(query)
             times['method'].append(method)
             times['time(s)'].append(curr_time)
+            # Score Prediction Clustering
+            z_score_any_biased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
+                                                                                     bias=True, cutoff=4.0)
+                                                                                     # bias=True, cutoff=8.0)
+            z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
+                                                                                       bias=False, cutoff=8.0)
+            z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
+                                                                                       bias=True, cutoff=8.0)
+            z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
+                                                                                         bias=False, cutoff=8.0)
             # Evaluating scores
             for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
                 # AUC Evaluation
@@ -165,15 +178,6 @@ if __name__ == '__main__':
                 contact_any.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
                                      file_name='AUROC Evaluation_{}_{}'.format('Beta', separation),
                                      output_dir=protein_dir)
-                # Score Prediction Clustering
-                z_score_any_biased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                                                                                         bias=True, cutoff=8.0)
-                # z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                #                                                                            bias=False, cutoff=8.0)
-                # z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                #                                                                            bias=True, cutoff=8.0)
-                # z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                #                                                                              bias=False, cutoff=8.0)
                 # Precision Evaluation
                 for k in range(1, 11):
                     precision_any = contact_any.score_precision(predictions=dca_predictions.dca_scores, k=k,
