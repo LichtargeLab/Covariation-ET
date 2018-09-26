@@ -19,7 +19,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
-from seaborn import heatmap
+from seaborn import heatmap, scatterplot
+from IPython import embed
 
 
 class ContactScorer(object):
@@ -457,7 +458,7 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0):
+    def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0, file_path='./z_score.tsv'):
         """
         Score Clustering Of Contact Predictions
 
@@ -469,25 +470,22 @@ class ContactScorer(object):
             predictions (numpy.array):
             bias (int or bool): option to calculate z_scores with bias or nobias (j-i factor)
             cutoff (float): the distance cutoff at which to consider residues in contact/clustered.
+            file_path (str): path where the z-scoring results should be written to.
         Returns:
             list. A list of residues sorted order by the prediction score.
             list. A list of z-scores matching the
         """
         scores = []
         residues = []
-        # print('Seq Length: {}'.format(self.query_alignment.seq_length))
-        # print('Pred dims: {} X {}'.format(*predictions.shape))
-        # print('Alignments length: {}'.format(self.query_alignment.size))
-        # print('Mapping size: {}'.format(len(self.query_pdb_mapping)))
-        # exit()
         for i in range(predictions.shape[0]):
             for j in range(i + 1, predictions.shape[1]):
                 scores.append(predictions[i, j])
-                residues.append((i + 1, j + 1))
+                residues.append((i, j))
         sorted_scores, sorted_residues = zip(*sorted(zip(scores, residues), reverse=True))
         residues_of_interest = set([])
-        z_scores = []
-        sizes = []
+        data = {'Res_i': [x[0] for x in sorted_residues], 'Res_j': [x[1] for x in sorted_residues],
+                'Covariance_Score': sorted_scores, 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [],
+                'Num_Residues': []}
         prev_z_score = None
         w2_ave_sub = None
         for pair in sorted_residues:
@@ -507,217 +505,216 @@ class ContactScorer(object):
                 prev_z_score = z_score
             else:
                 z_score = prev_z_score
-            print(z_score)
-            print('###################################################################################################')
-            z_scores.append(z_score)
-            sizes.append(len(residues_of_interest))
-        f_open = open('/home/daniel/Desktop/Z_scores.tsv', 'wb')
-        from csv import writer
-        z_writer = writer(f_open, delimiter='\t')
-        z_writer.writerow(['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'W_Ave2', 'Sigma',
-                           'Length Of List'])
-        for i in range(len(sorted_residues)):
-            curr_row = list(sorted_residues[i]) + [sorted_scores[i]] + list(z_scores[i]) + [sizes[i]]
-            z_writer.writerow(curr_row)
-        f_open.close()
-        exit()
-        return sorted_residues, z_scores
+            data['Z-Score'].append(z_score[0])
+            data['W'].append(z_score[1])
+            data['W_Ave'].append(z_score[2])
+            data['W2_Ave'].append(z_score[3])
+            data['Sigma'].append(z_score[4])
+            data['Num_Residues'].append(len(residues_of_interest))
+        df = pd.DataFrame(data)
+        df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
+        return df
 
 ########################################################################################################################
-    def cal_dis(self, PDBfile, pathtosave, CONTACT_DISTANCE2=4):
-        minvalue = 10000000000
-        # file=open("1axb.pdb")
-
-        rows = []
-        for line in PDBfile:  # for a line in the pdb
-            if line[0:5] == 'ATOM ':
-                try:
-                    rows.append(line)
-                except Exception:
-                    rows = line
-        PDBfile.close()
-
-        # loop1var=rows[-1][23:26].strip()
-
-        #####create dictionary of every atom in each individual residue. 3 Dimensional coordinates of each residue position
-        resnumarray = []
-        from collections import defaultdict
-        residuedictionary = defaultdict(list)
-        pdb_reslist = set()
-        for line in rows:
-            # parts=i.strip('\n').split(' ')
-            # print(line)
-            resnum = str(line[23:26].strip())
-            chain = str(line[21:22].strip())
-            xvalue = float(line[31:38].strip())
-            yvalue = float(line[39:46].strip())
-            zvalue = float(line[47:55].strip())
-            corrarray = [xvalue, yvalue, zvalue]
-            # print(resnum,chain,xvalue,yvalue,zvalue)
-            index = '%s-%s' % (chain, resnum)
-            pdb_reslist.add(int(resnum))
-            if index not in resnumarray:
-                resnumarray.append(index)
-            residuedictionary[index].append(corrarray)  # residue#: x,y,z
-
-        goodname1 = ['A']  # Which chains are of interest, need to change
-        #####Loops for comparing one residues atoms to a second list of atoms in seperate residue
-        # print(residuedictionary)
-        outfile = open(pathtosave + 'Adjacencymatrix_mGluR5_corr_from_SCW_on_cETMIP.txt', 'w')  # modify output
-
-        A = {}
-        outercounter = 0
-        starttime = clock()
-        for i in resnumarray:  # Loop over all residues in pdb
-            nameparts1 = i.split('-')
-            resi = int(nameparts1[1])
-            # print(outercounter,i,round(clock()-starttime,2))
-
-            for j in resnumarray:  # Loop over residues to calculate distance between all residues i and j
-                nameparts2 = j.split('-')
-                resj = int(nameparts2[1])
-                if i != j and nameparts1[0] in goodname1 and nameparts2[0] in goodname1:
-                    matvalue = []
-                    tempvalue = ()
-
-                    breakcheck = False
-                    # print(residuedictionary[i])
-                    # print(residuedictionary[j])
-                    for k in range(0, len(residuedictionary[i])):
-                        for m in range(0, len(residuedictionary[
-                                                  j])):  # Getting the 3d coordinates for every atom in each residue. iterating over all pairs to find all distances
-                            # print("k equals", k)
-                            # print("m equals", m)            print ('cETMIP', res1,res2)
-                            rix = residuedictionary[i][k][0]
-                            riy = residuedictionary[i][k][1]
-                            riz = residuedictionary[i][k][2]
-                            rjx = residuedictionary[j][m][0]
-                            rjy = residuedictionary[j][m][1]
-                            rjz = residuedictionary[j][m][2]
-                            tempvalue = float(math.sqrt((rix - rjx) ** 2 + (riy - rjy) ** 2 + (
-                                        riz - rjz) ** 2))  # Calculate Atomic distance using x,y,z coordinate
-                            if tempvalue > 100:
-                                matvalue = float(tempvalue)
-                                breakcheck = True
-                                break
-                            try:
-                                matvalue.append(float(tempvalue))
-                            except:
-                                matvalue = [float(tempvalue), ]
-                            #############  Adapt from pyETV code  ################
-                            if tempvalue < CONTACT_DISTANCE2:
-                                try:
-                                    A[resi][resj] = 1
-                                except KeyError:
-                                    A[resi] = {resj: 1}
-
-                    # print('matvalue',matvalue)
-                    if breakcheck == True:
-                        minvalue = '>100'
-                    else:
-                        minvalue = float(min(matvalue))  ##finding the minimum value from the distance array
-
-                    namei = i.split('-')
-                    namej = j.split('-')
-                    # print('names',namei,namej)
-                    distancevalue = int(namej[1]) - int(namei[1])
-                    chaincheck = False
-                    if namei[0] == namej[0]:
-                        chaincheck = True
-                    if minvalue != '>20' and minvalue < 100:
-                        outfile.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
-                        namei[1], namej[1], namei[0], namej[0], chaincheck, distancevalue, minvalue))
-            outercounter += 1
-            resnumarray = resnumarray[1:]
-
-        return A, list(pdb_reslist)
+    # def cal_dis(self, PDBfile, pathtosave, CONTACT_DISTANCE2=4):
+    #     minvalue = 10000000000
+    #     # file=open("1axb.pdb")
+    #
+    #     rows = []
+    #     for line in PDBfile:  # for a line in the pdb
+    #         if line[0:5] == 'ATOM ':
+    #             try:
+    #                 rows.append(line)
+    #             except Exception:
+    #                 rows = line
+    #     PDBfile.close()
+    #
+    #     # loop1var=rows[-1][23:26].strip()
+    #
+    #     #####create dictionary of every atom in each individual residue. 3 Dimensional coordinates of each residue position
+    #     resnumarray = []
+    #     from collections import defaultdict
+    #     residuedictionary = defaultdict(list)
+    #     pdb_reslist = set()
+    #     for line in rows:
+    #         # parts=i.strip('\n').split(' ')
+    #         # print(line)
+    #         resnum = str(line[23:26].strip())
+    #         chain = str(line[21:22].strip())
+    #         xvalue = float(line[31:38].strip())
+    #         yvalue = float(line[39:46].strip())
+    #         zvalue = float(line[47:55].strip())
+    #         corrarray = [xvalue, yvalue, zvalue]
+    #         # print(resnum,chain,xvalue,yvalue,zvalue)
+    #         index = '%s-%s' % (chain, resnum)
+    #         pdb_reslist.add(int(resnum))
+    #         if index not in resnumarray:
+    #             resnumarray.append(index)
+    #         residuedictionary[index].append(corrarray)  # residue#: x,y,z
+    #
+    #     goodname1 = ['A']  # Which chains are of interest, need to change
+    #     #####Loops for comparing one residues atoms to a second list of atoms in seperate residue
+    #     # print(residuedictionary)
+    #     outfile = open(pathtosave + 'Adjacencymatrix_mGluR5_corr_from_SCW_on_cETMIP.txt', 'w')  # modify output
+    #
+    #     A = {}
+    #     outercounter = 0
+    #     starttime = clock()
+    #     for i in resnumarray:  # Loop over all residues in pdb
+    #         nameparts1 = i.split('-')
+    #         resi = int(nameparts1[1])
+    #         # print(outercounter,i,round(clock()-starttime,2))
+    #
+    #         for j in resnumarray:  # Loop over residues to calculate distance between all residues i and j
+    #             nameparts2 = j.split('-')
+    #             resj = int(nameparts2[1])
+    #             if i != j and nameparts1[0] in goodname1 and nameparts2[0] in goodname1:
+    #                 matvalue = []
+    #                 tempvalue = ()
+    #
+    #                 breakcheck = False
+    #                 # print(residuedictionary[i])
+    #                 # print(residuedictionary[j])
+    #                 for k in range(0, len(residuedictionary[i])):
+    #                     for m in range(0, len(residuedictionary[
+    #                                               j])):  # Getting the 3d coordinates for every atom in each residue. iterating over all pairs to find all distances
+    #                         # print("k equals", k)
+    #                         # print("m equals", m)            print ('cETMIP', res1,res2)
+    #                         rix = residuedictionary[i][k][0]
+    #                         riy = residuedictionary[i][k][1]
+    #                         riz = residuedictionary[i][k][2]
+    #                         rjx = residuedictionary[j][m][0]
+    #                         rjy = residuedictionary[j][m][1]
+    #                         rjz = residuedictionary[j][m][2]
+    #                         tempvalue = float(math.sqrt((rix - rjx) ** 2 + (riy - rjy) ** 2 + (
+    #                                     riz - rjz) ** 2))  # Calculate Atomic distance using x,y,z coordinate
+    #                         if tempvalue > 100:
+    #                             matvalue = float(tempvalue)
+    #                             breakcheck = True
+    #                             break
+    #                         try:
+    #                             matvalue.append(float(tempvalue))
+    #                         except:
+    #                             matvalue = [float(tempvalue), ]
+    #                         #############  Adapt from pyETV code  ################
+    #                         if tempvalue < CONTACT_DISTANCE2:
+    #                             try:
+    #                                 A[resi][resj] = 1
+    #                             except KeyError:
+    #                                 A[resi] = {resj: 1}
+    #
+    #                 # print('matvalue',matvalue)
+    #                 if breakcheck == True:
+    #                     minvalue = '>100'
+    #                 else:
+    #                     minvalue = float(min(matvalue))  ##finding the minimum value from the distance array
+    #
+    #                 namei = i.split('-')
+    #                 namej = j.split('-')
+    #                 # print('names',namei,namej)
+    #                 distancevalue = int(namej[1]) - int(namei[1])
+    #                 chaincheck = False
+    #                 if namei[0] == namej[0]:
+    #                     chaincheck = True
+    #                 if minvalue != '>20' and minvalue < 100:
+    #                     outfile.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
+    #                     namei[1], namej[1], namei[0], namej[0], chaincheck, distancevalue, minvalue))
+    #         outercounter += 1
+    #         resnumarray = resnumarray[1:]
+    #
+    #     return A, list(pdb_reslist)
 ########################################################################################################################
-    def calcZScore(self, reslist, A, L, bias=1):
-        """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
-        z_S = (w-<w>_S)/sigma_S
-        The steps are:
-        1. Calculate Selection Clustering Weight (SCW) 'w'
-        2. Calculate mean SCW (<w>_S) in the ensemble of random
-        selections of len(reslist) residues
-        3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
-        Reference: Mihalek, Res, Yao, Lichtarge (2003)
-
-        reslist - a list of int's of protein residue numbers, e.g. ET residues  --> selected residues
-        L - length of protein  # Eunna comment
-        A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
-        bias - option to calculate with bias or nobias (j-i factor)
-        M - length of selected residue # Eunna comment """
-        # A=self._A
-        # Calculate w
-
-        w = 0
-        if bias == 1:
-            for resi in reslist:
-                for resj in reslist:
-                    if resi < resj:
-                        try:
-                            Aij = A[resi][resj]  # A(i,j)==1
-                            w += (resj - resi)
-                        except KeyError:
-                            pass
-        elif bias == 0:
-            for resi in reslist:
-                for resj in reslist:
-                    if resi < resj:
-                        try:
-                            Aij = A[resi][resj]  # A(i,j)==1
-                            w += 1
-                        except KeyError:
-                            pass
-
-        # Calculate <w>_S and <w^2>_S.
-        # Use expressions (3),(4),(5),(6) in Reference.
-        M = len(reslist)
-        # L=self.ranksObj1.getSize()
-        pi1 = M * (M - 1.0) / (L * (L - 1.0))
-        pi2 = pi1 * (M - 2.0) / (L - 2.0)
-        pi3 = pi2 * (M - 3.0) / (L - 3.0)
-        w_ave = 0
-        w2_ave = 0
-        if bias == 1:
-            for resi, neighborsj in A.items():
-                for resj in neighborsj:
-                    w_ave += (resj - resi)
-                    for resk, neighborsl in A.items():
-                        for resl in neighborsl:
-                            if (resi == resk and resj == resl) or \
-                                    (resi == resl and resj == resk):
-                                w2_ave += pi1 * (resj - resi) * (resl - resk)
-                            elif (resi == resk) or (resj == resl) or \
-                                    (resi == resl) or (resj == resk):
-                                w2_ave += pi2 * (resj - resi) * (resl - resk)
-                            else:
-                                w2_ave += pi3 * (resj - resi) * (resl - resk)
-        elif bias == 0:
-            for resi, neighborsj in A.items():
-                w_ave += len(neighborsj)
-                for resj in neighborsj:
-                    # w_ave+=1
-                    for resk, neighborsl in A.items():
-                        for resl in neighborsl:
-                            if (resi == resk and resj == resl) or \
-                                    (resi == resl and resj == resk):
-                                w2_ave += pi1
-                            elif (resi == resk) or (resj == resl) or \
-                                    (resi == resl) or (resj == resk):
-                                w2_ave += pi2
-                            else:
-                                w2_ave += pi3
-        w_ave = w_ave * pi1
-        # print "w_ave", w_ave
-        sigma = math.sqrt(w2_ave - w_ave * w_ave)
-        # print "sigma", sigma
-
-        if sigma == 0:  # Response to Bioinformatics reviewer 08/24/10
-            return 'NA'
-        print 'reslist', reslist, len(reslist), ' Zscore: ', (
-                                                                         w - w_ave) / sigma, ' W: ', w, ' w_ave: ', w_ave, ' sigma: ', sigma
-        return (w - w_ave) / sigma, w, w_ave, w2_ave, sigma
+    # def calcZScore(self, reslist, A, L, bias=1):
+    #     """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
+    #     z_S = (w-<w>_S)/sigma_S
+    #     The steps are:
+    #     1. Calculate Selection Clustering Weight (SCW) 'w'
+    #     2. Calculate mean SCW (<w>_S) in the ensemble of random
+    #     selections of len(reslist) residues
+    #     3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
+    #     Reference: Mihalek, Res, Yao, Lichtarge (2003)
+    #
+    #     reslist - a list of int's of protein residue numbers, e.g. ET residues  --> selected residues
+    #     L - length of protein  # Eunna comment
+    #     A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
+    #     bias - option to calculate with bias or nobias (j-i factor)
+    #     M - length of selected residue # Eunna comment """
+    #     # A=self._A
+    #     # Calculate w
+    #
+    #     w = 0
+    #     count = 0
+    #     if bias == 1:
+    #         for resi in reslist:
+    #             for resj in reslist:
+    #                 if resi < resj:
+    #                     count += 1
+    #                     try:
+    #                         Aij = A[resi][resj]  # A(i,j)==1
+    #                         w += (resj - resi)
+    #                     except KeyError:
+    #                         pass
+    #     elif bias == 0:
+    #         for resi in reslist:
+    #             for resj in reslist:
+    #                 if resi < resj:
+    #                     count += 1
+    #                     try:
+    #                         Aij = A[resi][resj]  # A(i,j)==1
+    #                         w += 1
+    #                     except KeyError:
+    #                         pass
+    #     print('#' * 80)
+    #     print(count)
+    #     print('#' * 80)
+    #     # Calculate <w>_S and <w^2>_S.
+    #     # Use expressions (3),(4),(5),(6) in Reference.
+    #     M = len(reslist)
+    #     # L=self.ranksObj1.getSize()
+    #     pi1 = M * (M - 1.0) / (L * (L - 1.0))
+    #     pi2 = pi1 * (M - 2.0) / (L - 2.0)
+    #     pi3 = pi2 * (M - 3.0) / (L - 3.0)
+    #     w_ave = 0
+    #     w2_ave = 0
+    #     if bias == 1:
+    #         for resi, neighborsj in A.items():
+    #             for resj in neighborsj:
+    #                 w_ave += (resj - resi)
+    #                 for resk, neighborsl in A.items():
+    #                     for resl in neighborsl:
+    #                         if (resi == resk and resj == resl) or \
+    #                                 (resi == resl and resj == resk):
+    #                             w2_ave += pi1 * (resj - resi) * (resl - resk)
+    #                         elif (resi == resk) or (resj == resl) or \
+    #                                 (resi == resl) or (resj == resk):
+    #                             w2_ave += pi2 * (resj - resi) * (resl - resk)
+    #                         else:
+    #                             w2_ave += pi3 * (resj - resi) * (resl - resk)
+    #     elif bias == 0:
+    #         for resi, neighborsj in A.items():
+    #             w_ave += len(neighborsj)
+    #             for resj in neighborsj:
+    #                 # w_ave+=1
+    #                 for resk, neighborsl in A.items():
+    #                     for resl in neighborsl:
+    #                         if (resi == resk and resj == resl) or \
+    #                                 (resi == resl and resj == resk):
+    #                             w2_ave += pi1
+    #                         elif (resi == resk) or (resj == resl) or \
+    #                                 (resi == resl) or (resj == resk):
+    #                             w2_ave += pi2
+    #                         else:
+    #                             w2_ave += pi3
+    #     w_ave = w_ave * pi1
+    #     # print "w_ave", w_ave
+    #     sigma = math.sqrt(w2_ave - w_ave * w_ave)
+    #     # print "sigma", sigma
+    #
+    #     if sigma == 0:  # Response to Bioinformatics reviewer 08/24/10
+    #         return 'NA'
+    #     print 'reslist', reslist, len(reslist), ' Zscore: ', (
+    #                                                                      w - w_ave) / sigma, ' W: ', w, ' w_ave: ', w_ave, ' sigma: ', sigma
+    #     return (w - w_ave) / sigma, w, w_ave, w2_ave, sigma
 ########################################################################################################################
 
     def _clustering_z_score(self, res_list, bias=True, cutoff=4.0, w2_ave_sub=None):
@@ -751,40 +748,25 @@ class ContactScorer(object):
             (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
         """
         # Check that there is a valid bias values
-        if bias != 1 and bias != 0:
-            raise ValueError('Bias term may be 1 or 0, but {} was provided'.format(bias))
+        if bias is not True and bias is not False:
+            raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
         # Make sure a query_pdb_mapping exists
         if self.query_pdb_mapping is None:
             self.fit()
         # Make sure all residues in res_list are mapped to the PDB structure in use
         if not all(res in self.query_pdb_mapping for res in res_list):
             print('At least one residue of interest is not present in the PDB provided')
-            return '-'
-        ################################################################################################################
-        # A, _pdb_reslist = self.cal_dis(open(self.query_structure.file_name, 'rb'), '/home/daniel/Desktop/')
-        ################################################################################################################
-        a = self.distances < cutoff
-        ################################################################################################################
-        # a_dict = {}
-        # for res_i in range(self.distances.shape[0]):
-        #     for res_j in range(res_i + 1, self.distances.shape[1]):
-        #         if self.distances[res_i][res_j] >= cutoff:
-        #             continue
-        #         try:
-        #             a_dict[res_i + 1][res_j + 1] = 1
-        #         except KeyError:
-        #             a_dict[res_i + 1] = {res_j + 1: 1}
-        # from IPython import embed
-        # embed()
-        # exit()
-        ################################################################################################################
+            print(', '.join([str(x) for x in res_list]))
+            print(', '.join([str(x) for x in self.query_pdb_mapping.keys()]))
+            return '-', None, None, None, None, None
         positions = range(self.distances.shape[0])
-        residues = range(1, self.distances.shape[0] + 1)
-        s_i = np.in1d(residues, res_list)
+        a = self.distances < cutoff
+        a[positions, positions] = 0
+        s_i = np.in1d(positions, res_list)
         s_ij = np.outer(s_i, s_i)
         s_ij[positions, positions] = 0
         if bias:
-            bias_ij = np.subtract.outer(residues, residues)
+            bias_ij = np.subtract.outer(positions, positions)
         else:
             bias_ij = np.ones(s_ij.shape)
         w = np.sum(np.tril(a * s_ij * bias_ij))
@@ -798,56 +780,59 @@ class ContactScorer(object):
         w_ave = np.sum(np.tril(a * bias_ij)) * pi1
         if w2_ave_sub is None:
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
-            update = True
-        else:
-            update = False
-        w2_ave = 0
-        for res_i in range(self.distances.shape[0]):
-            for res_j in range(res_i + 1, self.distances.shape[1]):
-                if self.distances[res_i][res_j] >= cutoff:
-                    continue
-                if bias:
-                    s_ij = res_j - res_i
-                else:
-                    s_ij = 1
-                for res_x in range(self.distances.shape[0]):
-                    for res_y in range(res_x + 1, self.distances.shape[1]):
-                        if self.distances[res_x][res_y] >= cutoff:
-                            continue
-                        if bias:
-                            s_xy = (res_y - res_x)
-                        else:
-                            s_xy = 1
-                        if (res_i == res_x and res_j == res_y) or (res_i == res_y and res_j == res_x):
-                            currCase = 'Case1'
-                            w2_ave += pi1 * s_ij * s_xy
-                        elif (res_i == res_x) or (res_j == res_y) or (res_i == res_y) or (res_j == res_x):
-                            currCase = 'Case2'
-                            w2_ave += pi2 * s_ij * s_xy
-                        else:
-                            currCase = 'Case3'
-                            w2_ave += pi3 * s_ij * s_xy
-                        if update:
-                            w2_ave_sub[currCase] += s_ij * s_xy
-
-        w2_ave_test = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
-        print(w2_ave, w2_ave_test, w2_ave == w2_ave_test)
-        ################################################################################################################
+            for res_i in range(self.distances.shape[0]):
+                for res_j in range(res_i + 1, self.distances.shape[1]):
+                    if self.distances[res_i][res_j] >= cutoff:
+                        continue
+                    if bias:
+                        s_ij = res_j - res_i
+                    else:
+                        s_ij = 1
+                    for res_x in range(self.distances.shape[0]):
+                        for res_y in range(res_x + 1, self.distances.shape[1]):
+                            if self.distances[res_x][res_y] >= cutoff:
+                                continue
+                            if bias:
+                                s_xy = (res_y - res_x)
+                            else:
+                                s_xy = 1
+                            if (res_i == res_x and res_j == res_y) or (res_i == res_y and res_j == res_x):
+                                curr_case = 'Case1'
+                            elif (res_i == res_x) or (res_j == res_y) or (res_i == res_y) or (res_j == res_x):
+                                curr_case = 'Case2'
+                            else:
+                                curr_case = 'Case3'
+                            w2_ave_sub[curr_case] += s_ij * s_xy
+        w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
         sigma = math.sqrt(w2_ave - w_ave * w_ave)
         # Response to Bioinformatics reviewer 08/24/10
         if sigma == 0:
-            return 'NA'
+            return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
         z_score = (w - w_ave) / sigma
         print 'res_list: {}, {} Zscore: {} W: {} w_ave: {} sigma: {}'.format(','.join([str(x) for x in res_list]), m,
                                                                              z_score, w, w_ave, sigma)
-        ################################################################################################################
-        # eunna_res = self.calcZScore(reslist=res_list, A=A, L=l, bias=bias)
-        # print(z_score)
-        # print(eunna_res)
-        # embed()
-        # exit()
-        ################################################################################################################
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
+
+    def plot_z_scores(self, df, file_path=None):
+        """
+        Plot Z-Scores
+
+        This method accepts a dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
+        running the score_clustering_of_contact_predictions method. These are used to plot a scatter plot.
+
+        Args:
+            df (Pandas.DataFrame): Dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
+            running the score_clustering_of_contact_predictions method
+            file_path (str): Path at which to save the plot produced by this call.
+        """
+        plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
+        scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
+        if file_path is None:
+            file_path = './zscore_plot.pdf'
+        plt.savefig(file_path)
+        plt.clf()
+
+
 
     def write_out_contact_scoring(self, today, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
                                   c_integrated_scores=None, file_name=None, output_dir=None):

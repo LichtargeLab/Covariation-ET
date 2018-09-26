@@ -148,15 +148,26 @@ if __name__ == '__main__':
             times['method'].append(method)
             times['time(s)'].append(curr_time)
             # Score Prediction Clustering
-            z_score_any_biased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                                                                                     bias=True, cutoff=4.0)
+            z_score_any_biased = contact_any.score_clustering_of_contact_predictions(
+                dca_predictions.dca_scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
+                                                                                          'DistAny_Biased_ZScores.tsv'))
                                                                                      # bias=True, cutoff=8.0)
-            z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                                                                                       bias=False, cutoff=8.0)
-            z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                                                                                       bias=True, cutoff=8.0)
-            z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(dca_predictions.dca_scores,
-                                                                                         bias=False, cutoff=8.0)
+            contact_any.plot_z_scores(z_score_any_biased, os.path.join(protein_dir, 'DistAny_Biased_ZScores.eps'))
+            z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(
+                dca_predictions.dca_scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
+                                                                                          'DistAny_Unbiased_ZScores.tsv'))
+                                                                                       # bias=False, cutoff=8.0)
+            contact_any.plot_z_scores(z_score_any_unbiased, os.path.join(protein_dir, 'DistAny_Unbiased_ZScores.eps'))
+            z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(
+                dca_predictions.dca_scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
+                                                                                          'DistBeta_Biased_ZScores.tsv'))
+                                                                                       # bias=True, cutoff=8.0)
+            contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Biased_ZScores.eps'))
+            z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(
+                dca_predictions.dca_scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
+                                                                                          'DistBeta_Unbiased_ZScores.tsv'))
+                                                                                         # bias=False, cutoff=8.0)
+            contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Unbiased_ZScores.eps'))
             # Evaluating scores
             for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
                 # AUC Evaluation
