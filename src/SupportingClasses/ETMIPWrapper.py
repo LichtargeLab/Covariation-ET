@@ -132,31 +132,36 @@ class ETMIPWrapper(object):
             ValueError: If the directory does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
-        # from IPython import embed
-        # embed()
-        self.check_alignment()
-        # embed()
-        # exit()
-        binary_path = os.environ.get('WETC_PATH')
-        start = time()
-        current_dir = os.getcwd()
-        os.chdir(out_dir)
-        # Call binary
-        p = Popen([binary_path, '-p', self.msf_path, '-x', self.alignment.query_id[1:], '-allpairs'], stdout=PIPE,
-                  stderr=PIPE)
-        # Retrieve communications from binary call
-        out, error = p.communicate()
-        end = time()
-        self.time = end - start
-        print('Output:')
-        print(out)
-        print('Error:')
-        print(error)
+        serialized_path = os.path.join(out_dir, 'DCA.npz')
+        if os.path.isfile(serialized_path):
+            loaded_data = np.load(serialized_path)
+            self.scores = loaded_data['scores']
+            self.coverage_scores = loaded_data['coverage']
+            self.time = loaded_data['time']
+        else:
+            self.check_alignment()
+            binary_path = os.environ.get('WETC_PATH')
+            start = time()
+            current_dir = os.getcwd()
+            os.chdir(out_dir)
+            # Call binary
+            p = Popen([binary_path, '-p', self.msf_path, '-x', self.alignment.query_id[1:], '-allpairs'], stdout=PIPE,
+                      stderr=PIPE)
+            # Retrieve communications from binary call
+            out, error = p.communicate()
+            end = time()
+            self.time = end - start
+            print('Output:')
+            print(out)
+            print('Error:')
+            print(error)
+            os.chdir(current_dir)
+            self.import_covariance_scores(out_dir=out_dir)
+            if delete_files:
+                self.remove_ouptut(out_dir=out_dir)
+            np.savez(serialized_path, time=self.time, scores=self.scores, coverage=self.coverage_scores)
         print(self.time)
-        os.chdir(current_dir)
-        self.import_covariance_scores(out_dir=out_dir)
-        if delete_files:
-            self.remove_ouptut(out_dir=out_dir)
+        return self.time
 
     @staticmethod
     def remove_ouptut(out_dir):

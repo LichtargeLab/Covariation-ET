@@ -89,21 +89,28 @@ class DCAWrapper(object):
             ValueError: If the file does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
-        julia_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src', 'SupportingClasses', 'cmd_line_GausDCA.jl')
-        out_path = os.path.join(out_dir, 'DCA_predictions.tsv')
-        start = time()
-        # Call julia code
-        p = Popen(['julia', julia_path, self.alignment.file_name, out_path], stdout=PIPE, stderr=PIPE)
-        # Retrieve communications from julia call
-        out, error = p.communicate()
-        end = time()
-        self.time = end - start
-        print('Output:')
-        print(out)
-        print('Error:')
-        print(error)
+        serialized_path = os.path.join(out_dir, 'DCA.npz')
+        if os.path.isfile(serialized_path):
+            loaded_data = np.load(serialized_path)
+            self.scores = loaded_data['scores']
+            self.time = loaded_data['time']
+        else:
+            julia_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src', 'SupportingClasses', 'cmd_line_GausDCA.jl')
+            out_path = os.path.join(out_dir, 'DCA_predictions.tsv')
+            start = time()
+            # Call julia code
+            p = Popen(['julia', julia_path, self.alignment.file_name, out_path], stdout=PIPE, stderr=PIPE)
+            # Retrieve communications from julia call
+            out, error = p.communicate()
+            end = time()
+            self.time = end - start
+            print('Output:')
+            print(out)
+            print('Error:')
+            print(error)
+            self.import_covariance_scores(out_path=out_path)
+            if delete_file:
+                os.remove(out_path)
+            np.savez(serialized_path, scores=self.scores, time=self.time)
         print(self.time)
-        self.import_covariance_scores(out_path=out_path)
-        if delete_file:
-            os.remove(out_path)
         return self.time
