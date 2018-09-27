@@ -10,9 +10,14 @@ from time import time
 from subprocess import Popen, PIPE
 from Bio.Align.Applications import MuscleCommandline
 from dotenv import find_dotenv, load_dotenv
-dotenv_path = find_dotenv(raise_error_if_not_found=True)
-print(dotenv_path)
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
+# dotenv_path = find_dotenv(raise_error_if_not_found=True)
+# print(dotenv_path)
+# load_dotenv(dotenv_path)
 
 
 class ETMIPWrapper(object):
@@ -55,7 +60,8 @@ class ETMIPWrapper(object):
         """
         self.alignment = alignment
         self.msf_path = None
-        self.raw_scores = None
+        self.scores = None
+        # self.raw_scores = None
         self.coverage_scores = None
         self.time = None
 
@@ -86,7 +92,7 @@ class ETMIPWrapper(object):
         Import Covaraince Scores
 
         This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
-        and written to file. This file is then imported using Pandas and is then used to fill in the raw_scores and
+        and written to file. This file is then imported using Pandas and is then used to fill in the scores and
         coverage_scores matrices.
 
         Args:
@@ -102,15 +108,15 @@ class ETMIPWrapper(object):
         data = pd.read_csv(file_path, comment='%', sep='\s+', names=['Sort', 'Res_i', 'i(AA)', 'Res_j', 'j(AA)',
                                                                      'Raw_Scores', 'Coverage_Scores', 'Interface',
                                                                      'Contact', 'Number', 'Average_Contact'])
-        self.raw_scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        self.scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
         self.coverage_scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
         for ind in data.index:
             i = data.loc[ind, 'Res_i'] - 1
             j = data.loc[ind, 'Res_j'] - 1
-            self.raw_scores[i, j] = self.raw_scores[j, i] = data.loc[ind, 'Raw_Scores']
+            self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
             self.coverage_scores[i, j] = self.coverage_scores[j, i] = data.loc[ind, 'Coverage_Scores']
 
-    def calculate_etmip_scores(self, out_dir, delete_files=True):
+    def calculate_scores(self, out_dir, delete_files=True):
         """
         Calculated ET-MIp Scores
 
@@ -126,6 +132,11 @@ class ETMIPWrapper(object):
             ValueError: If the directory does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
+        # from IPython import embed
+        # embed()
+        self.check_alignment()
+        # embed()
+        # exit()
         binary_path = os.environ.get('WETC_PATH')
         start = time()
         current_dir = os.getcwd()
@@ -147,7 +158,8 @@ class ETMIPWrapper(object):
         if delete_files:
             self.remove_ouptut(out_dir=out_dir)
 
-    def remove_ouptut(self, out_dir):
+    @staticmethod
+    def remove_ouptut(out_dir):
         """
         Remove Output
 

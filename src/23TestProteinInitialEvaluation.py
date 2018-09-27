@@ -7,6 +7,7 @@ from PerformAnalysis import analyze_alignment
 from SupportingClasses.ContactScorer import ContactScorer
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.ETMIPWrapper import ETMIPWrapper
 from SupportingClasses.DCAWrapper import DCAWrapper
 from multiprocessing import cpu_count
 import datetime
@@ -103,7 +104,8 @@ if __name__ == '__main__':
             pass
     ####################################################################################################################
     ####################################################################################################################
-    methods = {'DCA': {}} # , 'ET-MIp': {}, 'cET-MIp': {}}
+    methods = {'DCA': {'class': DCAWrapper, 'args': {'delete_file': False}},
+               'ET-MIp': {'class': ETMIPWrapper, 'args': {'delete_files': False}}} #, 'cET-MIp': {}}
     if not os.path.isdir(arguments['output']):
         os.mkdir(arguments['output'])
     ####################################################################################################################
@@ -112,6 +114,9 @@ if __name__ == '__main__':
     aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
     precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
     for query in sorted(input_dict.keys()):
+        # if query != '7hvpa':
+        #     print(query)
+        #     continue
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
@@ -137,38 +142,37 @@ if __name__ == '__main__':
             protein_dir = os.path.join(method_dir, query)
             if not os.path.isdir(protein_dir):
                 os.mkdir(protein_dir)
-            dca_predictions = DCAWrapper(query_aln)
+            predictor = methods[method]['class'](query_aln)
             print(protein_dir, '{}_predictions.tsv'.format(method))
-            curr_time = dca_predictions.calculate_dca_scores(
-                out_path=os.path.join(protein_dir, '{}_predictions.tsv'.format(method)), delete_file=False)
+            curr_time = predictor.calculate_scores(out_dir=protein_dir, **methods[method]['args'])
             times['query'].append(query)
             times['method'].append(method)
             times['time(s)'].append(curr_time)
             # Score Prediction Clustering
             z_score_any_biased = contact_any.score_clustering_of_contact_predictions(
-                dca_predictions.dca_scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
+                predictor.scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
                                                                                           'DistAny_Biased_ZScores.tsv'))
                                                                                      # bias=True, cutoff=8.0)
             contact_any.plot_z_scores(z_score_any_biased, os.path.join(protein_dir, 'DistAny_Biased_ZScores.eps'))
             z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(
-                dca_predictions.dca_scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
+                predictor.scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
                                                                                           'DistAny_Unbiased_ZScores.tsv'))
                                                                                        # bias=False, cutoff=8.0)
             contact_any.plot_z_scores(z_score_any_unbiased, os.path.join(protein_dir, 'DistAny_Unbiased_ZScores.eps'))
             z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(
-                dca_predictions.dca_scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
+                predictor.scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
                                                                                           'DistBeta_Biased_ZScores.tsv'))
                                                                                        # bias=True, cutoff=8.0)
             contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Biased_ZScores.eps'))
             z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(
-                dca_predictions.dca_scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
+                predictor.scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
                                                                                           'DistBeta_Unbiased_ZScores.tsv'))
                                                                                          # bias=False, cutoff=8.0)
             contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Unbiased_ZScores.eps'))
             # Evaluating scores
             for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
                 # AUC Evaluation
-                auc_roc_any = contact_any.score_auc(dca_predictions.dca_scores, category=separation)
+                auc_roc_any = contact_any.score_auc(predictor.scores, category=separation)
                 aucs['query'].append(query)
                 aucs['method'].append(method)
                 aucs['score'].append(auc_roc_any[2])
@@ -177,7 +181,7 @@ if __name__ == '__main__':
                 contact_any.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
                                      file_name='AUROC Evaluation_{}_{}'.format('Any', separation),
                                      output_dir=protein_dir)
-                auc_roc_beta = contact_beta.score_auc(dca_predictions.dca_scores, category=separation)
+                auc_roc_beta = contact_beta.score_auc(predictor.scores, category=separation)
                 aucs['query'].append(query)
                 aucs['method'].append(method)
                 aucs['score'].append(auc_roc_beta[2])
@@ -188,7 +192,7 @@ if __name__ == '__main__':
                                      output_dir=protein_dir)
                 # Precision Evaluation
                 for k in range(1, 11):
-                    precision_any = contact_any.score_precision(predictions=dca_predictions.dca_scores, k=k,
+                    precision_any = contact_any.score_precision(predictions=predictor.scores, k=k,
                                                                 category=separation)
                     precisions['query'].append(query)
                     precisions['method'].append(method)
@@ -196,7 +200,7 @@ if __name__ == '__main__':
                     precisions['distance'].append('Any')
                     precisions['sequence_separation'].append(separation)
                     precisions['k'].append(k)
-                    precision_beta = contact_beta.score_precision(predictions=dca_predictions.dca_scores, k=k,
+                    precision_beta = contact_beta.score_precision(predictions=predictor.scores, k=k,
                                                                 category=separation)
                     precisions['query'].append(query)
                     precisions['method'].append(method)
