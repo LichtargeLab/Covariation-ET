@@ -112,9 +112,6 @@ if __name__ == '__main__':
     aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
     precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
     for query in sorted(input_dict.keys()):
-        if query != '206la':
-            print(query)
-            continue
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
@@ -207,28 +204,3 @@ if __name__ == '__main__':
                     precisions['distance'].append('Beta')
                     precisions['sequence_separation'].append(separation)
                     precisions['k'].append(k)
-            exit()
-    ####################################################################################################################
-    ####################################################################################################################
-    # counter = 0
-    # incomplete = []
-    # for query in input_dict:
-    #     if input_dict[query][0] is not None:
-    #         counter += 1
-    #         createFolder = (arguments['output'] + str(today) + "/" +
-    #                         input_dict[query][0])
-    #         if(os.path.isdir(os.path.abspath(createFolder)) and
-    #            arguments['skipPreAnalyzed']):
-    #             continue
-    #         print('Performing analysis for: {}'.format(query))
-    #         arguments['query'] = [input_dict[query][0]]
-    #         arguments['alignment'] = [input_dict[query][1]]
-    #         arguments['pdb'] = input_dict[query][2]
-    #         try:
-    #             analyze_alignment(arguments)
-    #             print('Completed successfully: {}'.format(query))
-    #         except ValueError:
-    #             print('Analysis for {} incomplete!'.format(query))
-    #             incomplete.append(query)
-    # print('{} analyses performed'.format(counter))
-    # print('Incomplete analyses for:\n' + '\n'.join(incomplete))
