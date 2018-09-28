@@ -62,6 +62,8 @@ class SeqAlignment(object):
             to file. This should reflect some purposeful ordering of the
             sequences such as sequence clustering/phylogeny.
         """
+        if file_name.startswith('..'):
+            file_name = os.path.abspath(os.path.join(os.getcwd(), file_name))
         self.file_name = file_name
         self.query_id = '>query_' + query_id
         self.alignment = None
