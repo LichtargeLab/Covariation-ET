@@ -132,7 +132,7 @@ class ETMIPWrapper(object):
             ValueError: If the directory does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
-        serialized_path = os.path.join(out_dir, 'DCA.npz')
+        serialized_path = os.path.join(out_dir, 'ET-MIp.npz')
         if os.path.isfile(serialized_path):
             loaded_data = np.load(serialized_path)
             self.scores = loaded_data['scores']
