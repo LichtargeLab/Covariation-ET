@@ -628,76 +628,6 @@ class ContactScorer(object):
         plt.savefig(file_path)
         plt.clf()
 
-
-
-    def write_out_contact_scoring(self, today, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
-                                  c_integrated_scores=None, file_name=None, output_dir=None):
-        """
-        Write out clustering scoring results
-
-        This method writes the results of covariation scoring to file.
-
-        Parameters:
-        today: date
-            Todays date.
-        mip_matrix : np.ndarray
-            Matrix scoring the coupling between all positions in the query
-            sequence, as computed over all sequences in the input alignment.
-        c_raw_sub_scores : numpy.array
-            The coupling scores for all positions in the query sequences at the specified clustering constant created by
-            hierarchical clustering.
-        c_raw_scores : numpy.array
-            A matrix which represents the integration of coupling scores across all clusters defined at that clustering
-            constant.
-        c_integrated_scores : numpy.array
-            This dictionary maps clustering constants to a matrix which combines
-            the scores from the whole_mip_matrix, all lower clustering constants,
-            and this clustering constant.
-        c_coverage : numpy.array
-            This dictionary maps clustering constants to a matrix of normalized
-            coupling scores between 0 and 100, computed from the
-            summary_matrices.
-        file_name : str
-            The name with which to save the file. If None the following string template will be used:
-            "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
-        output_dir : str
-            The full path to where the output file should be stored. If None
-            (default) the plot will be stored in the current working directory.
-        """
-        start = time()
-        header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
-        if c_raw_sub_scores is not None:
-            header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
-        if c_integrated_scores is not None:
-            header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
-        else:
-            header += ['Raw_Score', 'Coverage_Score']
-        file_dict = {key: [] for key in header}
-        for i in range(0, self.query_alignment.seq_length):
-            for j in range(i + 1, self.query_alignment.seq_length):
-                res1 = i + 1
-                res2 = j + 1
-                file_dict['Pos1'].append(res1)
-                file_dict['AA1'].append(one_to_three(self.query_alignment.query_sequence[i]))
-                file_dict['Pos2'].append(res2)
-                file_dict['AA2'].append(one_to_three(self.query_alignment.query_sequence[j]))
-                file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
-                if c_raw_sub_scores is not None:
-                    for c in range(c_raw_sub_scores.shape[0]):
-                        file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c, i, j], 4))
-                file_dict['Raw_Score'].append(round(c_raw_scores[i, j], 4))
-                if c_integrated_scores is not None:
-                    file_dict['Integrated_Score'].append(round(c_integrated_scores[i, j], 4))
-                file_dict['Coverage_Score'].append(round(c_coverage[i, j], 4))
-        if file_name is None:
-            file_name = "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
-        if output_dir:
-            file_name = os.path.join(output_dir, file_name)
-        df = pd.DataFrame(file_dict)
-        df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
-        end = time()
-        print('Writing the contact prediction scores to file took {} min'.format((end - start) / 60.0))
-
     def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
         """
         Write out clustering results
@@ -784,6 +714,76 @@ class ContactScorer(object):
         end = time()
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
+
+
+def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
+                              c_integrated_scores=None, file_name=None, output_dir=None):
+    """
+    Write out clustering scoring results
+
+    This method writes the results of covariation scoring to file.
+
+    Parameters:
+    today: date
+        Todays date.
+    alignment (SeqAlignment): Alignment associated with the scores being written to file.
+    mip_matrix : np.ndarray
+        Matrix scoring the coupling between all positions in the query
+        sequence, as computed over all sequences in the input alignment.
+    c_raw_sub_scores : numpy.array
+        The coupling scores for all positions in the query sequences at the specified clustering constant created by
+        hierarchical clustering.
+    c_raw_scores : numpy.array
+        A matrix which represents the integration of coupling scores across all clusters defined at that clustering
+        constant.
+    c_integrated_scores : numpy.array
+        This dictionary maps clustering constants to a matrix which combines
+        the scores from the whole_mip_matrix, all lower clustering constants,
+        and this clustering constant.
+    c_coverage : numpy.array
+        This dictionary maps clustering constants to a matrix of normalized
+        coupling scores between 0 and 100, computed from the
+        summary_matrices.
+    file_name : str
+        The name with which to save the file. If None the following string template will be used:
+        "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
+    output_dir : str
+        The full path to where the output file should be stored. If None
+        (default) the plot will be stored in the current working directory.
+    """
+    start = time()
+    header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
+    if c_raw_sub_scores is not None:
+        header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
+    if c_integrated_scores is not None:
+        header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
+    else:
+        header += ['Raw_Score', 'Coverage_Score']
+    file_dict = {key: [] for key in header}
+    for i in range(0, alignment.seq_length):
+        for j in range(i + 1, alignment.seq_length):
+            res1 = i + 1
+            res2 = j + 1
+            file_dict['Pos1'].append(res1)
+            file_dict['AA1'].append(one_to_three(alignment.query_sequence[i]))
+            file_dict['Pos2'].append(res2)
+            file_dict['AA2'].append(one_to_three(alignment.query_sequence[j]))
+            file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
+            if c_raw_sub_scores is not None:
+                for c in range(c_raw_sub_scores.shape[0]):
+                    file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c, i, j], 4))
+            file_dict['Raw_Score'].append(round(c_raw_scores[i, j], 4))
+            if c_integrated_scores is not None:
+                file_dict['Integrated_Score'].append(round(c_integrated_scores[i, j], 4))
+            file_dict['Coverage_Score'].append(round(c_coverage[i, j], 4))
+    if file_name is None:
+        file_name = "{}_{}.all_scores.txt".format(today, alignment.query_id.split('_')[1])
+    if output_dir:
+        file_name = os.path.join(output_dir, file_name)
+    df = pd.DataFrame(file_dict)
+    df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
+    end = time()
+    print('Writing the contact prediction scores to file took {} min'.format((end - start) / 60.0))
 
 
 def heatmap_plot(name, data_mat, output_dir=None):
