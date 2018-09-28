@@ -171,7 +171,7 @@ def analyze_alignment(args):
     # Calculate the MI scores for all residues across all sequences
     etmip_obj.determine_whole_mip('evidence' in args['combineClusters'])
     # Calculate the the ETMIPC scores for various clustering constants.
-    etmip_obj.calculate_clustered_mip_scores(aa_dict=aa_dict, wCC=args['combineClusters'])
+    etmip_obj.calculate_clustered_mip_scores(aa_dict=aa_dict, combine_clusters=args['combineClusters'])
     # Combine the clustering results across all clustering constants tested.
     etmip_obj.combine_clustering_results(combination=args['combineKs'])
     # Compute normalized scores for ETMIPC and evaluate against PDB if
