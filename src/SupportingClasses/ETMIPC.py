@@ -109,7 +109,8 @@ class ETMIPC(object):
         self.raw_scores = None
         self.evidence_counts = None
         self.result_matrices = None
-        self.summary_matrices = None
+        # self.summary_matrices = None
+        self.scores = None
         self.coverage = None
         # else:
         #     self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
@@ -118,6 +119,7 @@ class ETMIPC(object):
         #                             for c in self.clusters}
         #     self.result_matrices = {c: None for c in self.clusters}
         #     self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        #     self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
         #                              for c in self.clusters}
         #     self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
         #                      for c in self.clusters}
@@ -127,7 +129,7 @@ class ETMIPC(object):
         #     if not os.path.exists(c_out_dir):
         #         os.mkdir(c_out_dir)
 
-    def import_alignment(self, query, ignore_alignment_size=False):
+    def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         # This should be moved to top once it works!
         from SeqAlignment import SeqAlignment
         print 'Importing alignment'
@@ -294,7 +296,8 @@ class ETMIPC(object):
             if self.low_mem:
                 curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
             else:
-                curr_summary = self.summary_matrices[curr_clus]
+                # curr_summary = self.summary_matrices[curr_clus]
+                curr_summary = self.scores[curr_clus]
             curr_summary += self.whole_mip_matrix
             for j in [c for c in self.clusters if c <= curr_clus]:
                 if self.low_mem:
@@ -333,12 +336,14 @@ class ETMIPC(object):
             for clus in self.clusters:
                 # pool_init2(contact_scorer, self.output_dir)
                 pool_init2(self.output_dir)
-                r = et_mip_worker2((clus, self.summary_matrices))
+                # r = et_mip_worker2((clus, self.summary_matrices))
+                r = et_mip_worker2((clus, self.scores))
                 res2.append(r)
         else:
             # pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(contact_scorer, self.output_dir))
             pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(self.output_dir))
-            res2 = pool2.map_async(et_mip_worker2, [(clus, self.summary_matrices) for clus in self.clusters])
+            # res2 = pool2.map_async(et_mip_worker2, [(clus, self.summary_matrices) for clus in self.clusters])
+            res2 = pool2.map_async(et_mip_worker2, [(clus, self.scores) for clus in self.clusters])
             pool2.close()
             pool2.join()
             res2 = res2.get()
@@ -363,11 +368,6 @@ class ETMIPC(object):
         today : str
             The current date which will be used for identifying the proper
             directory to store files in.
-        verbosity : int
-            How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
-            and final AUC and Timing file. 2 = files with all scores at each
-            clustering. 3 = sub-alignment files and plots. 4 = surface plots
-            and heatmaps of ETMIP raw and coverage scores.'
         """
         begin = time()
         q_name = self.alignment.query_id.split('_')[1]
@@ -377,12 +377,14 @@ class ETMIPC(object):
             cluster_queue.put_nowait(c)
         if self.processes == 1:
             pool_init_new(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                       self.coverage, self.summary_matrices, self.alignment, self.output_dir)
+                       # self.coverage, self.summary_matrices, self.alignment, self.output_dir)
+                       self.coverage, self.scores, self.alignment, self.output_dir)
             et_mip_worker_new((1, 1))
         else:
             pool = Pool(processes=self.processes, initializer=pool_init_new,
                         initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-                                  self.result_matrices, self.coverage, self.summary_matrices, self.alignment,
+                                  # self.result_matrices, self.coverage, self.summary_matrices, self.alignment,
+                                  self.result_matrices, self.coverage, self.scores, self.alignment,
                                   self.output_dir))
             res = pool.map_async(et_mip_worker_new, [(x + 1, self.processes) for x in range(self.processes)])
             pool.close()
@@ -433,7 +435,8 @@ class ETMIPC(object):
                 self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
                                         for c in self.clusters}
                 self.result_matrices = {c: None for c in self.clusters}
-                self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                # self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                          for c in self.clusters}
                 self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                  for c in self.clusters}
@@ -447,6 +450,8 @@ class ETMIPC(object):
             self.time['Total'] = end - start
             np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
                      res=self.result_matrices, time=self.time)
+            if self.low_mem:
+                self.clear_intermediate_files()
         return self.time
 
     def produce_final_figures(self, today, scorer, verbosity):
@@ -481,13 +486,15 @@ class ETMIPC(object):
             cluster_queue.put_nowait(c)
         if self.processes == 1:
             pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
-                       self.result_matrices, self.coverage, self.summary_matrices, self.sub_alignments, self.alignment,
+                       # self.result_matrices, self.coverage, self.summary_matrices, self.sub_alignments, self.alignment,
+                       self.result_matrices, self.coverage, self.scores, self.sub_alignments, self.alignment,
                        self.aucs, scorer, self.output_dir)
             et_mip_worker3((1, 1))
         else:
             pool = Pool(processes=self.processes, initializer=pool_init3,
                         initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
-                                  self.raw_scores, self.result_matrices, self.coverage, self.summary_matrices,
+                                  # self.raw_scores, self.result_matrices, self.coverage, self.summary_matrices,
+                                  self.raw_scores, self.result_matrices, self.coverage, self.scores,
                                   self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
             res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
                                                   for x in range(self.processes)])
