@@ -715,6 +715,51 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
+    def evaluate_predictions(self, query, predictor, verbosity, cutoff, out_dir, dist='Any'):
+        aucs = {'AUROC': [], 'distance': [], 'sequence_separation': []}
+        precisions = {'Precision': [], 'distance': [], 'sequence_separation': [], 'k': []}
+        if verbosity <2:
+            return None
+        self.fit()
+        self.measure_distance(method=dist)
+        if verbosity >= 2:
+            # Score Prediction Clustering
+            z_score_fn = 'Dist{}_{}_ZScores.tsv'
+            z_score_plot_fn = 'Dist{}_{}_ZScores.eps'
+            z_score_biased = self.score_clustering_of_contact_predictions(
+                predictor.scores, bias=True, cutoff=cutoff, file_path=os.path.join(out_dir,
+                                                                                   z_score_fn.format(dist, 'Biased')))
+            self.plot_z_scores(z_score_biased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Biased')))
+            z_score_unbiased = self.score_clustering_of_contact_predictions(
+                predictor.scores, bias=False, cutoff=cutoff, file_path=os.path.join(out_dir,
+                                                                                    z_score_fn.format(dist, 'Unbiased')))
+            self.plot_z_scores(z_score_unbiased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Unbiased')))
+        if verbosity >= 3:
+            # Evaluating scores
+            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                # AUC Evaluation
+                auc_roc_any = self.score_auc(predictor.scores, category=separation)
+                aucs['AUROC'].append(auc_roc_any[2])
+                aucs['distance'].append('Any')
+                aucs['sequence_separation'].append(separation)
+                self.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
+                              file_name='AUROC Evaluation_{}_{}'.format('Any', separation), output_dir=out_dir)
+                if verbosity >= 4:
+                    # Precision Evaluation
+                    for k in range(1, 11):
+                        precision_any = self.score_precision(predictions=predictor.scores, k=k, category=separation)
+                        precisions['Precision'].append(precision_any)
+                        precisions['distance'].append('Any')
+                        precisions['sequence_separation'].append(separation)
+                        precisions['k'].append(k)
+        if verbosity >= 5:
+            heatmap_plot(name='Raw Score Heatmap', data_mat=predictor.scores, output_dir=out_dir)
+            surface_plot(name='Raw Score Surface', data_mat=predictor.scores, output_dir=out_dir)
+            try:
+                heatmap_plot(name='Coverage Score Heatmap', data_mat=predictor.coverage, output_dir=out_dir)
+                surface_plot(name='Coverage Score Surface', data_mat=predictor.coverage, output_dir=out_dir)
+            except AttributeError:
+                pass
 
 def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
                               c_integrated_scores=None, file_name=None, output_dir=None):
