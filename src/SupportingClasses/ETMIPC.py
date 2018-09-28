@@ -18,7 +18,8 @@ class ETMIPC(object):
     """
 
     # def __init__(self, alignment, clusters, pdb, output_dir, processes, low_memory_mode=False):
-    def __init__(self, alignment):
+    def __init__(self, alignment, clusters=None, pdb=None, output_dir=None, processes=None, low_memory_mode=None):
+    # def __init__(self, alignment):
         """
         Constructor
 
@@ -89,45 +90,95 @@ class ETMIPC(object):
             can be removed using clear_intermediate_files. The default value is
             False, in which case all variables are kept in memory.
         """
+        ################################################################################################################
         self.alignment = alignment
-        # self.output_dir = output_dir
-        self.output_dir = None
-        # self.clusters = clusters
-        self.clusters = None
+        self.output_dir = output_dir
+        # self.output_dir = None
+        self.processes = processes
+        # self.processes = None
+        self.pdb = pdb
+        self.clusters = clusters
+        # self.clusters = None
+        self.low_mem = low_memory_mode
+        # self.low_mem = None
         self.whole_mip_matrix = None
-        # self.low_mem = low_memory_mode
-        self.low_mem = None
-        # self.sub_alignments = {c: {} for c in self.clusters}
-        self.sub_alignments = None
-        # self.pdb = pdb
-        # self.processes = processes
-        self.processes = None
         self.whole_evidence_matrix = None
-        # self.time = {c: 0.0 for c in self.clusters}
-        self.time = None
-        # if low_memory_mode:
-        self.raw_scores = None
-        self.evidence_counts = None
-        self.result_matrices = None
-        # self.summary_matrices = None
-        self.scores = None
-        self.coverage = None
-        # else:
-        #     self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-        #                        for c in self.clusters}
-        #     self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-        #                             for c in self.clusters}
-        #     self.result_matrices = {c: None for c in self.clusters}
-        #     self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        #     self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        #                              for c in self.clusters}
-        #     self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        #                      for c in self.clusters}
-        self.aucs = None
-        # for k in self.clusters:
-        #     c_out_dir = os.path.join(self.output_dir, str(k))
-        #     if not os.path.exists(c_out_dir):
-        #         os.mkdir(c_out_dir)
+        if self.clusters:
+            self.sub_alignments = {c: {} for c in self.clusters}
+            self.time = {c: 0.0 for c in self.clusters}
+            self.aucs = None
+            if low_memory_mode:
+                self.raw_scores = None
+                self.evidence_counts = None
+                self.result_matrices = None
+                # self.summary_matrices = None
+                self.scores = None
+                self.coverage = None
+            else:
+                self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                                   for c in self.clusters}
+                self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                                        for c in self.clusters}
+                self.result_matrices = {c: None for c in self.clusters}
+                # self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                                         for c in self.clusters}
+                self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                                 for c in self.clusters}
+            for k in self.clusters:
+                c_out_dir = os.path.join(self.output_dir, str(k))
+                if not os.path.exists(c_out_dir):
+                    os.mkdir(c_out_dir)
+        else:
+            self.sub_alignments = None
+            self.time = None
+            self.raw_scores = None
+            self.evidence_counts = None
+            self.result_matrices = None
+            # self.summary_matrices = None
+            self.scores = None
+            self.coverage = None
+            self.aucs = None
+        ################################################################################################################
+        # self.alignment = alignment
+        # # self.output_dir = output_dir
+        # self.output_dir = None
+        # # self.clusters = clusters
+        # self.clusters = None
+        # self.whole_mip_matrix = None
+        # # self.low_mem = low_memory_mode
+        # self.low_mem = None
+        # # self.sub_alignments = {c: {} for c in self.clusters}
+        # self.sub_alignments = None
+        # # self.pdb = pdb
+        # # self.processes = processes
+        # self.processes = None
+        # self.whole_evidence_matrix = None
+        # # self.time = {c: 0.0 for c in self.clusters}
+        # self.time = None
+        # # if low_memory_mode:
+        # self.raw_scores = None
+        # self.evidence_counts = None
+        # self.result_matrices = None
+        # # self.summary_matrices = None
+        # self.scores = None
+        # self.coverage = None
+        # # else:
+        # #     self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+        # #                        for c in self.clusters}
+        # #     self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+        # #                             for c in self.clusters}
+        # #     self.result_matrices = {c: None for c in self.clusters}
+        # #     self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        # #     self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        # #                              for c in self.clusters}
+        # #     self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        # #                      for c in self.clusters}
+        # self.aucs = None
+        # # for k in self.clusters:
+        # #     c_out_dir = os.path.join(self.output_dir, str(k))
+        # #     if not os.path.exists(c_out_dir):
+        # #         os.mkdir(c_out_dir)
 
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         # This should be moved to top once it works!
