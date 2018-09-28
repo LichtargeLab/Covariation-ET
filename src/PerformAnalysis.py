@@ -101,24 +101,27 @@ def analyze_alignment(args):
     ###########################################################################
     start_dir = os.getcwd()
     print(start_dir)
+    if args['output'].startswith('..'):
+        args['output'] = os.path.abspath(os.path.join(start_dir, args['output']))
     create_folder = os.path.join(args['output'], str(today), args['query'][0])
     if not os.path.exists(create_folder):
         os.makedirs(create_folder)
         print "Creating output folder"
-    os.chdir(create_folder)
-    create_folder = os.getcwd()
+    # os.chdir(create_folder)
+    # create_folder = os.getcwd()
     ###########################################################################
     # Import alignment
     ###########################################################################
     print 'Importing alignment'
     # Create SeqAlignment object to represent the alignment for this analysis.
-    if args['alignment'][0].startswith('..'):
-        query_alignment = SeqAlignment(query_id=args['query'][0], file_name=(os.path.join(start_dir,
-                                                                                          args['alignment'][0])))
-    else:
-        query_alignment = SeqAlignment(file_name=args['alignment'][0], query_id=args['query'][0])
+    # if args['alignment'][0].startswith('..'):
+    #     args['alignment'][0] = os.path.abspath(os.path.join(start_dir, args['alignment'][0]))
+    #     query_alignment = SeqAlignment(query_id=args['query'][0], file_name=(os.path.join(start_dir,
+    #                                                                                       args['alignment'][0])))
+    # else:
+    query_alignment = SeqAlignment(file_name=args['alignment'][0], query_id=args['query'][0])
     # Import alignment information from file.
-    query_alignment.import_alignment(save_file='alignment.pkl')
+    query_alignment.import_alignment(save_file=os.path.join(create_folder, 'alignment.pkl'))
     # Check if alignment meets analysis criteria:
     if (not args['ignoreAlignmentSize']) and (query_alignment.size < 125):
         raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis ({'
@@ -130,19 +133,26 @@ def analyze_alignment(args):
                          'change the clusters requested by using the --clusters option when using this '
                          'software.'.format(query_alignment.size, max(args['clusters'])))
     # Remove gaps from aligned query sequences
-    query_alignment.remove_gaps(save_file='ungapped_alignment.pkl')
+    query_alignment.remove_gaps(save_file=os.path.join(create_folder, 'ungapped_alignment.pkl'))
     # Create matrix converting sequences of amino acids to sequences of integers
     # representing sequences of amino acids.
     query_alignment.alignment_to_num(aa_dict)
     # Write the ungapped alignment to file.
-    query_alignment.write_out_alignment(file_name='UngappedAlignment.fa')
+    query_alignment.write_out_alignment(file_name=os.path.join(create_folder, 'UngappedAlignment.fa'))
     # Compute distance between all sequences in the alignment
-    query_alignment.compute_distance_matrix(save_file='X')
+    query_alignment.compute_distance_matrix(save_file=os.path.join(create_folder, 'X'))
     # Determine the full clustering tree for the alignment and the ordering of
     # its sequences.
     query_alignment.set_tree_ordering()
     print('Query Sequence:')
     print(query_alignment.query_sequence)
+    test_cetmip = ETMIPC(alignment=args['alignment'][0])
+    test_cetmip.output_dir = args['output']
+    test_cetmip.import_alignment(query=args['query'][0], aa_dict=aa_dict,
+                                 ignore_alignment_size=args['ignoreAlignmentSize'])
+    from IPython import embed
+    embed()
+    exit()
     ###########################################################################
     # Import the PDB if provided and Create scoring object and initialize it
     ###########################################################################
