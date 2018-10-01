@@ -146,13 +146,6 @@ def analyze_alignment(args):
     query_alignment.set_tree_ordering()
     print('Query Sequence:')
     print(query_alignment.query_sequence)
-    test_cetmip = ETMIPC(alignment=args['alignment'][0])
-    test_cetmip.output_dir = args['output']
-    test_cetmip.import_alignment(query=args['query'][0], aa_dict=aa_dict,
-                                 ignore_alignment_size=args['ignoreAlignmentSize'])
-    from IPython import embed
-    embed()
-    exit()
     ###########################################################################
     # Import the PDB if provided and Create scoring object and initialize it
     ###########################################################################
@@ -164,10 +157,10 @@ def analyze_alignment(args):
         else:
             query_structure = PDBReference(args['pdb'])
         # Import the structure information from the file.
-        query_structure.import_pdb(args['query'][0], save_file='pdbData.pkl')
+        query_structure.import_pdb(args['query'][0], save_file=os.path.join(create_folder, 'pdbData.pkl'))
         scorer = ContactScorer(query_alignment, query_structure, args['threshold'])
         scorer.fit()
-        scorer.measure_distance(save_file='PDBdistances')
+        scorer.measure_distance(save_file=os.path.join(create_folder, 'PDBdistances'))
     else:
         query_structure = None
         scorer = None
@@ -176,8 +169,8 @@ def analyze_alignment(args):
     ###########################################################################
     print 'Starting ETMIP'
     # Create ETMIPC object to represent the analysis being performed.
-    etmip_obj = ETMIPC(query_alignment, args['clusters'], query_structure,
-                       create_folder, args['processes'], args['lowMemoryMode'])
+    etmip_obj = ETMIPC(alignment=query_alignment, clusters=args['clusters'], pdb=query_structure,
+                       output_dir=create_folder, processes=args['processes'], low_memory_mode=args['lowMemoryMode'])
     # Calculate the MI scores for all residues across all sequences
     etmip_obj.determine_whole_mip('evidence' in args['combineClusters'])
     # Calculate the the ETMIPC scores for various clustering constants.
@@ -193,6 +186,77 @@ def analyze_alignment(args):
     # Write out the AUCs and final times for the different clustering constants
     # tested.
     etmip_obj.write_final_results(today, args['threshold'])
+    #################################START##############################################################################
+    test_dir = os.path.join(args['output'], 'Test')
+    test_cetmip = ETMIPC(alignment=args['alignment'][0])
+    test_cetmip.calculate_scores(out_dir=test_dir, today=today, query=args['query'][0],
+                                 clusters=args['clusters'], aa_dict=aa_dict,
+                                 combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
+                                 processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
+                                 ignore_alignment_size=args['ignoreAlignmentSize'])
+
+    # test_cetmip.output_dir = args['output']
+    # test_cetmip.import_alignment(query=args['query'][0], aa_dict=aa_dict,
+    #                              ignore_alignment_size=args['ignoreAlignmentSize'])
+    # Comp method
+    def comp_mats(m1, m2):
+        import numpy as np
+        return np.sum(m1 - m2) == 0
+
+    # Compare alignments
+    print('Filenames Equal: {}'.format(query_alignment.file_name == test_cetmip.alignment.file_name))
+    print('IDs equal: {}'.format(query_alignment.query_id == test_cetmip.alignment.query_id))
+    print('Sequence Order Equal: {}'.format(query_alignment.seq_order == test_cetmip.alignment.seq_order))
+    print('Query sequence Equal: {}'.format(query_alignment.query_sequence == test_cetmip.alignment.query_sequence))
+    print('Seq Length Equal: {}'.format(query_alignment.seq_length == test_cetmip.alignment.seq_length))
+    print('Size Equal: {}'.format(query_alignment.size == test_cetmip.alignment.size))
+    print('Tree Order Equal: {}'.format(query_alignment.tree_order == test_cetmip.alignment.tree_order))
+    print('Alignment Matrix Equal: {}'.format(comp_mats(query_alignment.alignment_matrix,
+                                                        test_cetmip.alignment.alignment_matrix)))
+    print('Distance Matrix Equal: {}'.format(comp_mats(query_alignment.distance_matrix,
+                                                       test_cetmip.alignment.distance_matrix)))
+    aln_equal = True
+    for i in range(query_alignment.size):
+        aln_equal &= (str(query_alignment.alignment[i]) == str(test_cetmip.alignment.alignment[i]))
+    print('Alignments Equal: {}'.format(aln_equal))
+    # Compare whole mip matrix
+    print('MIP Matrices Equal: {}'.format(comp_mats(etmip_obj.whole_mip_matrix, test_cetmip.whole_mip_matrix)))
+    # Compare raw cluster matrices
+    print('Comparing Raw Cluster Scores')
+    for c in etmip_obj.raw_scores:
+        print('Raw Cluster K={} Equal: {}'.format(c, comp_mats(etmip_obj.raw_scores[c],
+                                                               test_cetmip.raw_scores[c])))
+    # Compare evidence matrices
+    print('Comparing Evidence Counts')
+    for c in etmip_obj.evidence_counts:
+        print('Evidence Counts K={} Equal: {}'.format(c, comp_mats(etmip_obj.evidence_counts[c],
+                                                                   test_cetmip.evidence_counts[c])))
+    # Compare result/combined cluster matrices
+    print('Comparing Result Matrices')
+    for c in etmip_obj.result_matrices:
+        print('Result Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.result_matrices[c],
+                                                                 test_cetmip.result_matrices[c])))
+    # Compare scores
+    print('Comparing Scores')
+    for c in etmip_obj.scores:
+        print('Score Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.scores[c], test_cetmip.scores[c])))
+    # Compare Coverage scores
+    print('Comparing Coverage')
+    for c in etmip_obj.coverage:
+        print('Coverage Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.coverage[c], test_cetmip.coverage[c])))
+    test_scorer_any = ContactScorer(seq_alignment=query_alignment, pdb_reference=query_structure,
+                                    cutoff=args['threshold'])
+    test_scorer_any.evaluate_predictor(query=args['query'][0], predictor=test_cetmip, verbosity=args['verbosity'],
+                                       out_dir=test_dir, dist='Any')
+    test_scorer_beta = ContactScorer(seq_alignment=query_alignment, pdb_reference=query_structure,
+                                     cutoff=args['threshold'])
+    test_scorer_beta.evaluate_predictor(query=args['query'][0], predictor=test_cetmip, verbosity=args['verbosity'],
+                                        out_dir=test_dir, dist='CB')
+    # from IPython import embed
+    # embed()
+    # exit()
+    exit()
+    ###################################END##############################################################################
     # If low memory mode was used clear out intermediate files saved in this
     # process.
     if args['lowMemoryMode']:

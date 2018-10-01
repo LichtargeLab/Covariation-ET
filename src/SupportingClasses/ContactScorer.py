@@ -715,51 +715,113 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
-    def evaluate_predictions(self, query, predictor, verbosity, cutoff, out_dir, dist='Any'):
-        aucs = {'AUROC': [], 'distance': [], 'sequence_separation': []}
-        precisions = {'Precision': [], 'distance': [], 'sequence_separation': [], 'k': []}
+    def evaluate_predictor(self, query, predictor, verbosity, out_dir, dist='Any'):
+        score_stats = None
+        coverage_stats = None
+        if isinstance(predictor.scores, dict):
+            for c in predictor.scores:
+                score_stats = self.evaluate_predictions(query=query, scores=predictor.scores[c],
+                                                        verbosity=verbosity, out_dir=out_dir, dist=dist,
+                                                        file_prefix='Scores_K-{}_'.format(c), stats=score_stats)
+                if 'K' not in score_stats:
+                    score_stats['K'] = []
+                    score_stats['Time'] = []
+                print('AUROC: {}'.format(len(score_stats['AUROC'])))
+                print('K: {}'.format(len(score_stats['K'])))
+                print(len(score_stats['AUROC']) - len(score_stats['K']))
+                diff_len = len(score_stats['AUROC']) - len(score_stats['K'])
+                c_array = [c] * diff_len
+                time_array = [predictor.time[c]] * diff_len
+                print(c_array)
+                score_stats['K'] += c_array
+                score_stats['Time'] += time_array
+                try:
+                    coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage[c],
+                                                               verbosity=verbosity, out_dir=out_dir, dist=dist,
+                                                               file_prefix='Coverage_K-{}_'.format(c),
+                                                               stats=coverage_stats)
+                    if 'K' not in coverage_stats:
+                        coverage_stats['K'] = []
+                        coverage_stats['Time'] = []
+                    coverage_stats['K'] += c_array
+                    coverage_stats['Time'] += time_array
+                except AttributeError:
+                    pass
+        else:
+            score_stats = self.evaluate_predictions(query=query, scores=predictor.scores, time=predictor.time,
+                                                    verbosity=verbosity, out_dir=out_dir, dist=dist,
+                                                    file_prefix='Scores_', stats=score_stats)
+            if 'Time' not in score_stats:
+                score_stats['Time'] = []
+            diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
+            time_array = [predictor.time] * diff_len
+            score_stats['Time'] += time_array
+            try:
+                coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage, time=predictor.time,
+                                                           verbosity=verbosity, out_dir=out_dir,
+                                                           dist=dist, file_prefix='Coverage_', stats=coverage_stats)
+                if 'K' not in coverage_stats:
+                    coverage_stats['K'] = []
+                    coverage_stats['Time'] = []
+                coverage_stats['Time'] += time_array
+            except AttributeError:
+                pass
+        for k in score_stats:
+            print('{} : {}'.format(k, len(score_stats[k])))
+        pd.DataFrame(score_stats).to_csv(path_or_buf=os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist)),
+                                         columns=sorted(score_stats.keys()), sep='\t', header=True, index=False)
+        if coverage_stats is not None:
+            pd.DataFrame(coverage_stats).to_csv(
+                path_or_buf=os.path.join(out_dir,'Coverage_Evaluation_Dist-{}.txt'.format(dist)),
+                columns=sorted(coverage_stats.keys()), sep='\t', header=True, index=False)
+
+
+    # def evaluate_predictions(self, query, predictor, verbosity, cutoff, out_dir, dist='Any'):
+    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='',
+                             stats=None):
+        if stats is None:
+            stats = {'AUROC': [], 'distance': [], 'sequence_separation': []}
         if verbosity <2:
             return None
         self.fit()
         self.measure_distance(method=dist)
         if verbosity >= 2:
             # Score Prediction Clustering
-            z_score_fn = 'Dist{}_{}_ZScores.tsv'
-            z_score_plot_fn = 'Dist{}_{}_ZScores.eps'
+            z_score_fn = file_prefix + 'Dist-{}_{}_ZScores.tsv'
+            z_score_plot_fn = file_prefix + 'Dist-{}_{}_ZScores.eps'
             z_score_biased = self.score_clustering_of_contact_predictions(
-                predictor.scores, bias=True, cutoff=cutoff, file_path=os.path.join(out_dir,
-                                                                                   z_score_fn.format(dist, 'Biased')))
+                scores, bias=True, cutoff=self.cutoff, file_path=os.path.join(out_dir, z_score_fn.format(dist, 'Biased')))
             self.plot_z_scores(z_score_biased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Biased')))
             z_score_unbiased = self.score_clustering_of_contact_predictions(
-                predictor.scores, bias=False, cutoff=cutoff, file_path=os.path.join(out_dir,
-                                                                                    z_score_fn.format(dist, 'Unbiased')))
+                scores, bias=False, cutoff=self.cutoff, file_path=os.path.join(out_dir, z_score_fn.format(dist, 'Unbiased')))
             self.plot_z_scores(z_score_unbiased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Unbiased')))
         if verbosity >= 3:
             # Evaluating scores
             for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
                 # AUC Evaluation
-                auc_roc_any = self.score_auc(predictor.scores, category=separation)
-                aucs['AUROC'].append(auc_roc_any[2])
-                aucs['distance'].append('Any')
-                aucs['sequence_separation'].append(separation)
-                self.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
-                              file_name='AUROC Evaluation_{}_{}'.format('Any', separation), output_dir=out_dir)
+                auc_roc_any = self.score_auc(scores, category=separation)
+                stats['AUROC'].append(auc_roc_any[2])
+                stats['distance'].append(dist)
+                stats['sequence_separation'].append(separation)
+                self.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation', output_dir=out_dir,
+                              file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
                 if verbosity >= 4:
                     # Precision Evaluation
                     for k in range(1, 11):
-                        precision_any = self.score_precision(predictions=predictor.scores, k=k, category=separation)
-                        precisions['Precision'].append(precision_any)
-                        precisions['distance'].append('Any')
-                        precisions['sequence_separation'].append(separation)
-                        precisions['k'].append(k)
+                        precision_any = self.score_precision(predictions=scores, k=k, category=separation)
+                        if k == 1:
+                            precision_label = 'Precision (L)'
+                        else:
+                            precision_label = 'Precision (L/{})'.format(k)
+                        if precision_label not in stats:
+                            stats[precision_label] = []
+                        stats[precision_label].append(precision_any)
         if verbosity >= 5:
-            heatmap_plot(name='Raw Score Heatmap', data_mat=predictor.scores, output_dir=out_dir)
-            surface_plot(name='Raw Score Surface', data_mat=predictor.scores, output_dir=out_dir)
-            try:
-                heatmap_plot(name='Coverage Score Heatmap', data_mat=predictor.coverage, output_dir=out_dir)
-                surface_plot(name='Coverage Score Surface', data_mat=predictor.coverage, output_dir=out_dir)
-            except AttributeError:
-                pass
+            heatmap_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Heatmap'.format(dist), data_mat=scores,
+                         output_dir=out_dir)
+            surface_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Surface'.format(dist), data_mat=scores,
+                         output_dir=out_dir)
+        return stats
 
 def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
                               c_integrated_scores=None, file_name=None, output_dir=None):
