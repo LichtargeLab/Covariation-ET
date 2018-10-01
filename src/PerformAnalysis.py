@@ -11,7 +11,6 @@ from multiprocessing import cpu_count
 
 from SupportingClasses.ETMIPC import ETMIPC
 from SupportingClasses.PDBReference import PDBReference
-from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.ContactScorer import ContactScorer
 
 
@@ -39,41 +38,36 @@ def parse_arguments():
                         help='The name of the protein being queried in this analysis.')
     parser.add_argument('--output', metavar='O', type=str, nargs='?',
                         default='./', help='File path to a directory where the results can be generated.')
-    # Set up all optional variables to be parsed from the command line
-    # (defaults)
-    parser.add_argument('--threshold', metavar='T', type=float, nargs='?',
-                        default=8.0,
+    # Set up all optional variables to be parsed from the command line (defaults)
+    parser.add_argument('--threshold', metavar='T', type=float, nargs='?', default=8.0,
                         help='The distance within the molecular structure at which two residues are considered '
                              'interacting.')
-    parser.add_argument('--clusters', metavar='K', type=int, nargs='+',
-                        default=[2, 3, 5, 7, 10, 25],
+    parser.add_argument('--clusters', metavar='K', type=int, nargs='+', default=[2, 3, 5, 7, 10, 25],
                         help='The clustering constants to use when performing this analysis.')
-    parser.add_argument('--combineKs', metavar='C', type=str, nargs='?',
-                        default='sum', choices=['sum', 'average'],
-                        help='')
-    parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?',
-                        default='sum',
-                        choices=['sum', 'average', 'size_weighted',
-                                 'evidence_weighted', 'evidence_vs_size'],
+    parser.add_argument('--combineKs', metavar='C', type=str, nargs='?', default='sum', choices=['sum', 'average'],
+                        help='The method to use when combining across the specified clustering constants.')
+    parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?', default='sum',
+                        choices=['sum', 'average', 'size_weighted', 'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering '
                              'constant.')
-    parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?',
-                        default=False,
+    parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?', default=False,
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by '
                              'PMID:16159918.')
-    parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?',
-                        default=False, help='Whether to use low memory mode or not. If low memory mode is engaged '
-                                            'intermediate values in the ETMIPC class will be written to file instead '
-                                            'of stored in memory. This will reduce the memory footprint but may '
-                                            'increase the time to run. Only recommended for very large analyses.')
+    parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?', default=False,
+                        help='Whether to use low memory mode or not. If low memory mode is engaged intermediate values '
+                             'in the ETMIPC class will be written to file instead of stored in memory. This will reduce'
+                             ' the memory footprint but may increase the time to run. Only recommended for very large '
+                             'analyses.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
-    parser.add_argument('--verbosity', metavar='V', type=int, default=1,
-                        nargs='?', choices=[1, 2, 3, 4], help='How many figures to produce.\n1 = ROC Curves, ETMIP '
-                                                              'Coverage file, and final AUC and Timing file\n2 = '
-                                                              'files with all scores at each clustering\n3 = '
-                                                              'sub-alignment files and plots\n4 = surface plots and '
-                                                              'heatmaps of ETMIP raw and coverage scores.')
+    parser.add_argument('--verbosity', metavar='V', type=int, default=1, nargs='?', choices=[1, 2, 3, 4, 5],
+                        help='Which output to generate. 1 writes scores for all tested clustering constants, 2 tests '
+                             'the clustering Z-score of the predictions and writes them to file as well as plotting ' 
+                             'Z-Scores against resiude count, 3 tests the AUROC of contact prediction at different '
+                             'levels of sequence separation and plots the resulting curves to file, 4 tests the '
+                             'precision of  contact prediction at different levels of sequence separation and list '
+                             'lengths (L, L/2 ... L/10). In all cases a file is written out with the final evaluation '
+                             'of the scores, if no PDB is provided, this means only times will be recorded.')
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -81,190 +75,58 @@ def parse_arguments():
     processor_count = cpu_count()
     if arguments['processes'] > processor_count:
         arguments['processes'] = processor_count
-#     print args
-#     embed()
-#     exit()
     return arguments
 
 
 def analyze_alignment(args):
     start = time.time()
-    ###########################################################################
     # Set up global variables
-    ###########################################################################
     today = str(datetime.date.today())
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    ###########################################################################
     # Set up output location
-    ###########################################################################
-    start_dir = os.getcwd()
-    print(start_dir)
-    if args['output'].startswith('..'):
-        args['output'] = os.path.abspath(os.path.join(start_dir, args['output']))
-    create_folder = os.path.join(args['output'], str(today), args['query'][0])
-    if not os.path.exists(create_folder):
-        os.makedirs(create_folder)
-        print "Creating output folder"
-    # os.chdir(create_folder)
-    # create_folder = os.getcwd()
-    ###########################################################################
-    # Import alignment
-    ###########################################################################
-    print 'Importing alignment'
-    # Create SeqAlignment object to represent the alignment for this analysis.
-    # if args['alignment'][0].startswith('..'):
-    #     args['alignment'][0] = os.path.abspath(os.path.join(start_dir, args['alignment'][0]))
-    #     query_alignment = SeqAlignment(query_id=args['query'][0], file_name=(os.path.join(start_dir,
-    #                                                                                       args['alignment'][0])))
-    # else:
-    query_alignment = SeqAlignment(file_name=args['alignment'][0], query_id=args['query'][0])
-    # Import alignment information from file.
-    query_alignment.import_alignment(save_file=os.path.join(create_folder, 'alignment.pkl'))
-    # Check if alignment meets analysis criteria:
-    if (not args['ignoreAlignmentSize']) and (query_alignment.size < 125):
-        raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis ({'
-                         '} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please call '
-                         'the code again using the --ignoreAlignmentSize option.'.format(query_alignment.size))
-    if query_alignment.size < max(args['clusters']):
-        raise ValueError('The analysis could not be performed because the alignment has fewer sequences than the '
-                         'requested number of clusters ({} < {}), please provide an alignment with more sequences or '
-                         'change the clusters requested by using the --clusters option when using this '
-                         'software.'.format(query_alignment.size, max(args['clusters'])))
-    # Remove gaps from aligned query sequences
-    query_alignment.remove_gaps(save_file=os.path.join(create_folder, 'ungapped_alignment.pkl'))
-    # Create matrix converting sequences of amino acids to sequences of integers
-    # representing sequences of amino acids.
-    query_alignment.alignment_to_num(aa_dict)
-    # Write the ungapped alignment to file.
-    query_alignment.write_out_alignment(file_name=os.path.join(create_folder, 'UngappedAlignment.fa'))
-    # Compute distance between all sequences in the alignment
-    query_alignment.compute_distance_matrix(save_file=os.path.join(create_folder, 'X'))
-    # Determine the full clustering tree for the alignment and the ordering of
-    # its sequences.
-    query_alignment.set_tree_ordering()
-    print('Query Sequence:')
-    print(query_alignment.query_sequence)
-    ###########################################################################
-    # Import the PDB if provided and Create scoring object and initialize it
-    ###########################################################################
+    if not os.path.isdir(args['output']):
+        os.mkdir(args['output'])
+    query_dir = os.path.join(args['output'], args['query'][0])
+    if not os.path.isdir(query_dir):
+        os.mkdir(query_dir)
+    print 'Starting cET-MIp'
+    # Create ETMIPC object to represent the analysis being performed.
+    cetmip_obj = ETMIPC(alignment=args['alignment'][0])
+    # Calculate the MI scores for all residues across all sequences
+    # Calculate the the cET-MIp scores for various clustering constants.
+    # Combine the clustering results across all clustering constants tested.
+    # Compute normalized scores for ETMIPC
+    # Write out cluster specific scores
+    cetmip_obj.calculate_scores(out_dir=query_dir, today=today, query=args['query'][0], clusters=args['clusters'],
+                                aa_dict=aa_dict, combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
+                                processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
+                                ignore_alignment_size=args['ignoreAlignmentSize'])
+
+    # Create PDBReference object to represent the structure for this analysis.
     if args['pdb']:
-        # Create PDBReference object to represent the structure for this
-        # analysis.
-        if args['pdb'].startswith('..'):
-            query_structure = PDBReference(os.path.join(start_dir, args['pdb']))
-        else:
-            query_structure = PDBReference(args['pdb'])
+        query_structure = PDBReference(args['pdb'])
         # Import the structure information from the file.
-        query_structure.import_pdb(args['query'][0], save_file=os.path.join(create_folder, 'pdbData.pkl'))
-        scorer = ContactScorer(query_alignment, query_structure, args['threshold'])
-        scorer.fit()
-        scorer.measure_distance(save_file=os.path.join(create_folder, 'PDBdistances'))
+        query_structure.import_pdb(args['query'][0], save_file=os.path.join(query_dir, 'pdbData.pkl'))
     else:
         query_structure = None
-        scorer = None
-    ###########################################################################
-    # Perform multiprocessing of clustering method
-    ###########################################################################
-    print 'Starting ETMIP'
-    # Create ETMIPC object to represent the analysis being performed.
-    etmip_obj = ETMIPC(alignment=query_alignment, clusters=args['clusters'], pdb=query_structure,
-                       output_dir=create_folder, processes=args['processes'], low_memory_mode=args['lowMemoryMode'])
-    # Calculate the MI scores for all residues across all sequences
-    etmip_obj.determine_whole_mip('evidence' in args['combineClusters'])
-    # Calculate the the ETMIPC scores for various clustering constants.
-    etmip_obj.calculate_clustered_mip_scores(aa_dict=aa_dict, combine_clusters=args['combineClusters'])
-    # Combine the clustering results across all clustering constants tested.
-    etmip_obj.combine_clustering_results(combination=args['combineKs'])
-    # Compute normalized scores for ETMIPC and evaluate against PDB if
-    # provided.
-    etmip_obj.compute_coverage_and_auc(contact_scorer=scorer)#othreshold=args['threshold'])
-    # Write out cluster specific scores and produce figures.
-    # etmip_obj.produce_final_figures(today, cut_off=args['threshold'], verbosity=args['verbosity'])
-    etmip_obj.produce_final_figures(today, scorer=scorer, verbosity=args['verbosity'])
-    # Write out the AUCs and final times for the different clustering constants
-    # tested.
-    etmip_obj.write_final_results(today, args['threshold'])
-    #################################START##############################################################################
-    test_dir = os.path.join(args['output'], 'Test')
-    test_cetmip = ETMIPC(alignment=args['alignment'][0])
-    test_cetmip.calculate_scores(out_dir=test_dir, today=today, query=args['query'][0],
-                                 clusters=args['clusters'], aa_dict=aa_dict,
-                                 combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
-                                 processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
-                                 ignore_alignment_size=args['ignoreAlignmentSize'])
-
-    # test_cetmip.output_dir = args['output']
-    # test_cetmip.import_alignment(query=args['query'][0], aa_dict=aa_dict,
-    #                              ignore_alignment_size=args['ignoreAlignmentSize'])
-    # Comp method
-    def comp_mats(m1, m2):
-        import numpy as np
-        return np.sum(m1 - m2) == 0
-
-    # Compare alignments
-    print('Filenames Equal: {}'.format(query_alignment.file_name == test_cetmip.alignment.file_name))
-    print('IDs equal: {}'.format(query_alignment.query_id == test_cetmip.alignment.query_id))
-    print('Sequence Order Equal: {}'.format(query_alignment.seq_order == test_cetmip.alignment.seq_order))
-    print('Query sequence Equal: {}'.format(query_alignment.query_sequence == test_cetmip.alignment.query_sequence))
-    print('Seq Length Equal: {}'.format(query_alignment.seq_length == test_cetmip.alignment.seq_length))
-    print('Size Equal: {}'.format(query_alignment.size == test_cetmip.alignment.size))
-    print('Tree Order Equal: {}'.format(query_alignment.tree_order == test_cetmip.alignment.tree_order))
-    print('Alignment Matrix Equal: {}'.format(comp_mats(query_alignment.alignment_matrix,
-                                                        test_cetmip.alignment.alignment_matrix)))
-    print('Distance Matrix Equal: {}'.format(comp_mats(query_alignment.distance_matrix,
-                                                       test_cetmip.alignment.distance_matrix)))
-    aln_equal = True
-    for i in range(query_alignment.size):
-        aln_equal &= (str(query_alignment.alignment[i]) == str(test_cetmip.alignment.alignment[i]))
-    print('Alignments Equal: {}'.format(aln_equal))
-    # Compare whole mip matrix
-    print('MIP Matrices Equal: {}'.format(comp_mats(etmip_obj.whole_mip_matrix, test_cetmip.whole_mip_matrix)))
-    # Compare raw cluster matrices
-    print('Comparing Raw Cluster Scores')
-    for c in etmip_obj.raw_scores:
-        print('Raw Cluster K={} Equal: {}'.format(c, comp_mats(etmip_obj.raw_scores[c],
-                                                               test_cetmip.raw_scores[c])))
-    # Compare evidence matrices
-    print('Comparing Evidence Counts')
-    for c in etmip_obj.evidence_counts:
-        print('Evidence Counts K={} Equal: {}'.format(c, comp_mats(etmip_obj.evidence_counts[c],
-                                                                   test_cetmip.evidence_counts[c])))
-    # Compare result/combined cluster matrices
-    print('Comparing Result Matrices')
-    for c in etmip_obj.result_matrices:
-        print('Result Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.result_matrices[c],
-                                                                 test_cetmip.result_matrices[c])))
-    # Compare scores
-    print('Comparing Scores')
-    for c in etmip_obj.scores:
-        print('Score Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.scores[c], test_cetmip.scores[c])))
-    # Compare Coverage scores
-    print('Comparing Coverage')
-    for c in etmip_obj.coverage:
-        print('Coverage Matrix K={} Equal: {}'.format(c, comp_mats(etmip_obj.coverage[c], test_cetmip.coverage[c])))
-    test_scorer_any = ContactScorer(seq_alignment=query_alignment, pdb_reference=query_structure,
+    # Evaluate against PDB if provided and produce figures.
+    # Write out the statistics and final times for the different clustering constants tested.
+    test_scorer_any = ContactScorer(seq_alignment=cetmip_obj.alignment, pdb_reference=query_structure,
                                     cutoff=args['threshold'])
-    test_scorer_any.evaluate_predictor(query=args['query'][0], predictor=test_cetmip, verbosity=args['verbosity'],
-                                       out_dir=test_dir, dist='Any')
-    test_scorer_beta = ContactScorer(seq_alignment=query_alignment, pdb_reference=query_structure,
+    test_scorer_any.evaluate_predictor(query=args['query'][0], predictor=cetmip_obj, verbosity=args['verbosity'],
+                                       out_dir=query_dir, dist='Any')
+    test_scorer_beta = ContactScorer(seq_alignment=cetmip_obj.alignment, pdb_reference=query_structure,
                                      cutoff=args['threshold'])
-    test_scorer_beta.evaluate_predictor(query=args['query'][0], predictor=test_cetmip, verbosity=args['verbosity'],
-                                        out_dir=test_dir, dist='CB')
-    # from IPython import embed
-    # embed()
-    # exit()
-    exit()
-    ###################################END##############################################################################
+    test_scorer_beta.evaluate_predictor(query=args['query'][0], predictor=cetmip_obj, verbosity=args['verbosity'],
+                                        out_dir=query_dir, dist='CB')
     # If low memory mode was used clear out intermediate files saved in this
-    # process.
     if args['lowMemoryMode']:
-        etmip_obj.clear_intermediate_files()
-    print "Generated results in: ", create_folder
-    os.chdir(start_dir)
+        cetmip_obj.clear_intermediate_files()
     end = time.time()
     print('ET MIP took {} minutes to run!'.format((end - start) / 60.0))
+    print 'Generated results in: {}'.format(query_dir)
 
 
 if __name__ == '__main__':
