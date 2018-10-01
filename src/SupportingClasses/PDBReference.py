@@ -47,6 +47,8 @@ class PDBReference(object):
         size : int
             The length of the amino acid chain defining this structure.
         """
+        if pdb_file.startswith('..'):
+            pdb_file = os.path.abspath(os.path.join(os.getcwd(), pdb_file))
         self.file_name = pdb_file
         self.pdb_residue_list = None
         self.residue_pos = None
