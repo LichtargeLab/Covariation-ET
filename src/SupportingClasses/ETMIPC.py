@@ -24,48 +24,52 @@ class ETMIPC(object):
 
         Initiates an instance of the ETMIPC class which stores the following data:
 
-        alignment : SeqAlignment
-            The SeqAlignment object containing relevant information for this cET-MIp analysis.
-        clusters : list
-            The k's for which to create clusters and across which to integrate scores.
-        sub_alignments : dict
-            A dictionary mapping a clustering constant (k) to another dictionary which maps a cluster label (0 to k-1)
-            to a SeqAlignment object containing only the sequences for that specific cluster.
-        output_dir : str
-            Directory name or path to directory where results from this analysis should be stored.
-        processes : int
-            The number of processes to spawn for more intense computations performed during this analysis.  If the
-            number is higher than the number of jobs required to quickly perform this analysis the number of jobs is
-            used as the number of processes.  If the number of processes is higher than the number of processors
-            available to the program, the number of processors available is used instead.
-        whole_mip_matrix : np.array
-            Matrix scoring the coupling between all positions in the query sequence, as computed over all sequences in
-            the input alignment.
-        whole_evidence_matrix : np.array
-            Matrix containing the number of sequences which are not gaps in either position used for scoring the
-            whole_mip_matrix.
-        time : dict
-            Dictionary mapping k constant to the amount of time it took to perform analysis for that k constant.
-        raw_scores : dict
-            This dictionary maps clustering constant to an k x m x n matrix. This matrix has coupling scores for all
-            positions in the query sequences for each of the clusters created by hierarchical clustering.
-        result_matrices : dict
-            This dictionary maps clustering constants to a matrix scoring the coupling between all residues in the query
-            sequence over all of the clusters created at that constant.
-        evidence_counts : dict
-            This dictionary maps clustering constants to a matrix which has counts for the number of sequences which are
-            not gaps in either position used for scoring at that position.
-        scores : dict
-            This dictionary maps clustering constants to a matrix which combines the scores from the whole_mip_matrix,
-            all lower clustering constants, and this clustering constant.
-        coverage : dict
-            This dictionary maps clustering constants to a matrix of normalized coupling scores between 0 and 100,
-            computed from the summary_matrices.
-        low_mem: bool
-            This boolean specifies whether or not to run in low memory mode. If True is specified a majority of the
-            class variables are set to None and the data is saved to disk at run time and loaded when needed for
-            downstream analysis. The intermediate files generated in this way can be removed using
-            clear_intermediate_files. The default value is False, in which case all variables are kept in memory.
+        Class Variables:
+            alignment : SeqAlignment
+                The SeqAlignment object containing relevant information for this cET-MIp analysis.
+            clusters : list
+                The k's for which to create clusters and across which to integrate scores.
+            sub_alignments : dict
+                A dictionary mapping a clustering constant (k) to another dictionary which maps a cluster label (0 to k-1)
+                to a SeqAlignment object containing only the sequences for that specific cluster.
+            output_dir : str
+                Directory name or path to directory where results from this analysis should be stored.
+            processes : int
+                The number of processes to spawn for more intense computations performed during this analysis.  If the
+                number is higher than the number of jobs required to quickly perform this analysis the number of jobs is
+                used as the number of processes.  If the number of processes is higher than the number of processors
+                available to the program, the number of processors available is used instead.
+            whole_mip_matrix : np.array
+                Matrix scoring the coupling between all positions in the query sequence, as computed over all sequences in
+                the input alignment.
+            whole_evidence_matrix : np.array
+                Matrix containing the number of sequences which are not gaps in either position used for scoring the
+                whole_mip_matrix.
+            time : dict
+                Dictionary mapping k constant to the amount of time it took to perform analysis for that k constant.
+            raw_scores : dict
+                This dictionary maps clustering constant to an k x m x n matrix. This matrix has coupling scores for all
+                positions in the query sequences for each of the clusters created by hierarchical clustering.
+            result_matrices : dict
+                This dictionary maps clustering constants to a matrix scoring the coupling between all residues in the query
+                sequence over all of the clusters created at that constant.
+            evidence_counts : dict
+                This dictionary maps clustering constants to a matrix which has counts for the number of sequences which are
+                not gaps in either position used for scoring at that position.
+            scores : dict
+                This dictionary maps clustering constants to a matrix which combines the scores from the whole_mip_matrix,
+                all lower clustering constants, and this clustering constant.
+            coverage : dict
+                This dictionary maps clustering constants to a matrix of normalized coupling scores between 0 and 100,
+                computed from the summary_matrices.
+            low_mem: bool
+                This boolean specifies whether or not to run in low memory mode. If True is specified a majority of the
+                class variables are set to None and the data is saved to disk at run time and loaded when needed for
+                downstream analysis. The intermediate files generated in this way can be removed using
+                clear_intermediate_files. The default value is False, in which case all variables are kept in memory.
+
+        Args:
+            alignment (str): The path to an .fa formatted alignment to be used for analysis.
         """
         self.alignment = alignment
         self.output_dir = None
@@ -83,8 +87,23 @@ class ETMIPC(object):
         self.time = None
 
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
-        # This should be moved to top once it works!
+        """
+        Import Alignment
 
+        This method imports an alignment for analysis. The gaps are removed from the alignment such that the query
+        sequence specified by query has no gaps in its sequence. This ungapped alignment is written to file. The
+        alignment variable of this class instance is also updated to the imported SeqAlignment as opposed to the path
+        provided upon initialization.
+
+        Args:
+            query (str): A string specifying the name of the target query in the alignment, '>query_' will be prepended
+            to the provided string to find it in the alignment.
+            aa_dict (dict): A dictionary mapping single letter amino acid codes (inlcuding '-' for the gap character) to
+            integer values. This is used to convert the alignment into a numerical format which is used for quickly
+            computing distances based on sequence identity.
+            ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
+            provided has fewer than 125 sequences a ValueError will be raised.
+        """
         print 'Importing alignment'
         # Create SeqAlignment object to represent the alignment for this analysis.
         query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
@@ -104,8 +123,7 @@ class ETMIPC(object):
         query_alignment.write_out_alignment(file_name=os.path.join(self.output_dir, 'UngappedAlignment.fa'))
         # Compute distance between all sequences in the alignment
         query_alignment.compute_distance_matrix(save_file=os.path.join(self.output_dir, 'X'))
-        # Determine the full clustering tree for the alignment and the ordering of
-        # its sequences.
+        # Determine the full clustering tree for the alignment and the ordering of its sequences.
         query_alignment.set_tree_ordering()
         print('Query Sequence:')
         print(query_alignment.query_sequence)
@@ -113,19 +131,17 @@ class ETMIPC(object):
 
     def determine_whole_mip(self, evidence):
         """
-        determine_whole_mip
+        Determine Whole MIp
 
-        Paramters:
-        evidence : bool
-            Whether or not to normalize using the evidence using the evidence
-            counts computed while performing the coupling scoring.
+        This method performs the whole_analysis method on all sequences in the sequence alignment. This method updates
+        the whole_mip_matrix and whole_evidence_matrix class variables.
 
-        This method performs the whole_analysis method on all sequences in the
-        sequence alignment. This method updates the whole_mip_matrix and
-        whole_evidence_matrix class variables.
+        Args:
+            evidence (bool): Whether or not to normalize using the evidence counts computed while performing the
+            coupling scoring.
         """
-        mip_matrix, evidence_counts = whole_analysis(self.alignment, evidence,
-                                                     save_file=os.path.join(self.output_dir, 'wholeMIP'))
+        mip_matrix, evidence_counts = whole_analysis(self.alignment, evidence, save_file=os.path.join(self.output_dir,
+                                                                                                      'wholeMIP'))
         self.whole_mip_matrix = mip_matrix
         self.whole_evidence_matrix = evidence_counts
 
