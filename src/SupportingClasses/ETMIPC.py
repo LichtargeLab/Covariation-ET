@@ -10,7 +10,7 @@ from time import time
 from multiprocessing import Manager, Pool
 from sklearn.metrics import mutual_info_score
 from SeqAlignment import SeqAlignment
-from ContactScorer import heatmap_plot, surface_plot
+from ContactScorer import write_out_contact_scoring
 
 
 class ETMIPC(object):
@@ -256,7 +256,6 @@ class ETMIPC(object):
             if self.low_mem:
                 curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
             else:
-                # curr_summary = self.summary_matrices[curr_clus]
                 curr_summary = self.scores[curr_clus]
             curr_summary += self.whole_mip_matrix
             for j in [c for c in self.clusters if c <= curr_clus]:
@@ -304,15 +303,10 @@ class ETMIPC(object):
         """
         Produce Final Figures
 
-        This method writes out clustering scores and additional results, as well
-        as plotting heatmaps and surface plots of the coupling data for the
-        query sequence. This method updates the result_times class variable.
+        This method writes out clustering scores. This method updates the time class variable.
 
-        Parameters:
-        -----------
-        today : str
-            The current date which will be used for identifying the proper
-            directory to store files in.
+        Args:
+        today (str): The current date which will be used for identifying the proper directory to store files in.
         """
         begin = time()
         q_name = self.alignment.query_id.split('_')[1]
@@ -321,34 +315,50 @@ class ETMIPC(object):
         for c in self.clusters:
             cluster_queue.put_nowait(c)
         if self.processes == 1:
-            pool_init_new2(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                           # self.coverage, self.summary_matrices, self.alignment, self.output_dir)
-                           self.coverage, self.scores, self.alignment, self.output_dir)
-            et_mip_worker_new2((1, 1))
+            pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
+                       self.coverage, self.scores, self.alignment, self.output_dir)
+            et_mip_worker3((1, 1))
         else:
-            pool = Pool(processes=self.processes, initializer=pool_init_new2,
+            pool = Pool(processes=self.processes, initializer=pool_init3,
                         initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-                                  # self.result_matrices, self.coverage, self.summary_matrices, self.alignment,
-                                  self.result_matrices, self.coverage, self.scores, self.alignment,
-                                  self.output_dir))
-            res = pool.map_async(et_mip_worker_new2, [(x + 1, self.processes) for x in range(self.processes)])
+                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
+            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
             pool.close()
             pool.join()
             for times in res.get():
                 for c in times:
                     self.time[c] += times[c]
         finish = time()
-        print('Producing final figures took {} min'.format(
-            (finish - begin) / 60.0))
+        print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
     def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks,
                          processes=1, low_memory_mode=False, ignore_alignment_size=False):
-        #
-        # This code has not been tested!
-        # Move AUC computation out of this class
-        # Move figure generation out of this class
-        # Mover summary file writing out of this class
-        #
+        """
+        Calculate Scores
+
+        This function initializes the remaining class variables and then computes the cET-MIp scores using the specified
+        parameters.
+
+        Args:
+            out_dir (str): The path to the directory where files should be written during this analysis.
+            today (str): The current date.
+            query (str): The query being analyzed in this analysis.
+            clusters (list): The list of clustering constants to be used in this analysis.
+            aa_dict (dict): A dictionary mapping amino acids to numerical representations.
+            combine_clusters (str): How information should be integrated across clusters resulting from the same
+            clustering constant. Current options: 'sum', 'average', 'size_weighted', 'evidence_weighted', and
+            'evidence_vs_size'.
+            combine_ks (str): The method to use when combining across the specified clustering constants. Current
+            options include: 'sum' and 'average'
+            processes (int): The number of processes to spawn when multiprocessing this analysis.
+            low_memory_mode (bool): Whether to use low memory mode or not. If low memory mode is engaged intermediate
+            values in the cET-MIp class will be written to file instead of stored in memory. This will reduce the memory
+            footprint but may increase the time to run. Only recommended for very large analyses.
+            ignore_alignment_size (bool): Whether or not to allow alignments with fewer than 125 sequences as suggested
+            by PMID:16159918.
+        Returns:
+            float. The time taken to calculate cET-MIp scores in seconds.
+        """
         serialized_path = os.path.join(out_dir, 'cET-MIp.npz')
         if os.path.isfile(serialized_path):
             loaded_data = np.load(serialized_path)
@@ -362,10 +372,10 @@ class ETMIPC(object):
             self.output_dir = out_dir
             self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
             if self.alignment.size < max(clusters):
-                raise ValueError('The analysis could not be performed because the alignment has fewer sequences than the '
-                                 'requested number of clusters ({} < {}), please provide an alignment with more sequences '
-                                 'or change the clusters requested by using the --clusters option when using this '
-                                 'software.'.format(self.alignment.size, max(clusters)))
+                raise ValueError('The analysis could not be performed because the alignment has fewer sequences than '
+                                 'the requested number of clusters ({} < {}), please provide an alignment with more '
+                                 'sequences or change the clusters requested by using the --clusters option when using ' 
+                                 'this software.'.format(self.alignment.size, max(clusters)))
             self.determine_whole_mip(evidence=('evidence' in combine_clusters))
             self.clusters = clusters
             self.sub_alignments = {c: {} for c in self.clusters}
@@ -381,7 +391,6 @@ class ETMIPC(object):
                 self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
                                         for c in self.clusters}
                 self.result_matrices = {c: None for c in self.clusters}
-                # self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                 self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                          for c in self.clusters}
                 self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
@@ -391,162 +400,161 @@ class ETMIPC(object):
             self.combine_clustering_results(combination=combine_ks)
             self.compute_coverage()
             self.write_out_scores(today=today)
-            # end = time()
-            # self.time['Total'] = end - start
-            # np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
-            #          res=self.result_matrices, time=self.time)
-            # if self.low_mem:
-            #     self.clear_intermediate_files()
+            end = time()
+            self.time['Total'] = end - start
+            np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
+                     res=self.result_matrices, time=self.time)
+            if self.low_mem:
+                self.clear_intermediate_files()
         return self.time
 
     ####################################################################################################################
-    def produce_final_figures(self, today, scorer, verbosity):
-        """
-        Produce Final Figures
-
-        This method writes out clustering scores and additional results, as well
-        as plotting heatmaps and surface plots of the coupling data for the
-        query sequence. This method updates the result_times class variable.
-
-        Parameters:
-        -----------
-        today : str
-            The current date which will be used for identifying the proper
-            directory to store files in.
-        cut_off : float
-            Distance in Angstroms between residues considered as a preliminary
-            positive set of coupled residues based on spatial positions in
-            the PDB file if provided.
-        verbosity : int
-            How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
-            and final AUC and Timing file. 2 = files with all scores at each
-            clustering. 3 = sub-alignment files and plots. 4 = surface plots
-            and heatmaps of ETMIP raw and coverage scores.'
-        """
-        begin = time()
-        q_name = self.alignment.query_id.split('_')[1]
-        pool_manager = Manager()
-        cluster_queue = pool_manager.Queue()
-        output_queue = pool_manager.Queue()
-        for c in self.clusters:
-            cluster_queue.put_nowait(c)
-        if self.processes == 1:
-            pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
-                       self.result_matrices, self.coverage, self.scores, self.sub_alignments, self.alignment,
-                       self.aucs, scorer, self.output_dir)
-            res = [et_mip_worker3((1, 1))]
-        else:
-            pool = Pool(processes=self.processes, initializer=pool_init3,
-                        initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
-                                  self.raw_scores, self.result_matrices, self.coverage, self.scores,
-                                  self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
-            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
-                                                  for x in range(self.processes)])
-            pool.close()
-            pool.join()
-            res = res.get()
-        for times in res:
-            for c in times:
-                self.time[c] += times[c]
-        finish = time()
-        print('Producing final figures took {} min'.format(
-            (finish - begin) / 60.0))
+    # def produce_final_figures(self, today, scorer, verbosity):
+    #     """
+    #     Produce Final Figures
+    #
+    #     This method writes out clustering scores and additional results, as well
+    #     as plotting heatmaps and surface plots of the coupling data for the
+    #     query sequence. This method updates the result_times class variable.
+    #
+    #     Parameters:
+    #     -----------
+    #     today : str
+    #         The current date which will be used for identifying the proper
+    #         directory to store files in.
+    #     cut_off : float
+    #         Distance in Angstroms between residues considered as a preliminary
+    #         positive set of coupled residues based on spatial positions in
+    #         the PDB file if provided.
+    #     verbosity : int
+    #         How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+    #         and final AUC and Timing file. 2 = files with all scores at each
+    #         clustering. 3 = sub-alignment files and plots. 4 = surface plots
+    #         and heatmaps of ETMIP raw and coverage scores.'
+    #     """
+    #     begin = time()
+    #     q_name = self.alignment.query_id.split('_')[1]
+    #     pool_manager = Manager()
+    #     cluster_queue = pool_manager.Queue()
+    #     output_queue = pool_manager.Queue()
+    #     for c in self.clusters:
+    #         cluster_queue.put_nowait(c)
+    #     if self.processes == 1:
+    #         pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
+    #                    self.result_matrices, self.coverage, self.scores, self.sub_alignments, self.alignment,
+    #                    self.aucs, scorer, self.output_dir)
+    #         res = [et_mip_worker3((1, 1))]
+    #     else:
+    #         pool = Pool(processes=self.processes, initializer=pool_init3,
+    #                     initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
+    #                               self.raw_scores, self.result_matrices, self.coverage, self.scores,
+    #                               self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
+    #         res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
+    #                                               for x in range(self.processes)])
+    #         pool.close()
+    #         pool.join()
+    #         res = res.get()
+    #     for times in res:
+    #         for c in times:
+    #             self.time[c] += times[c]
+    #     finish = time()
+    #     print('Producing final figures took {} min'.format(
+    #         (finish - begin) / 60.0))
     ####################################################################################################################
 
-    def produce_final_figures_new(self, today, scorer, verbosity):
-        """
-        Produce Final Figures
-
-        This method writes out clustering scores and additional results, as well
-        as plotting heatmaps and surface plots of the coupling data for the
-        query sequence. This method updates the result_times class variable.
-
-        Parameters:
-        -----------
-        today : str
-            The current date which will be used for identifying the proper
-            directory to store files in.
-        cut_off : float
-            Distance in Angstroms between residues considered as a preliminary
-            positive set of coupled residues based on spatial positions in
-            the PDB file if provided.
-        verbosity : int
-            How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
-            and final AUC and Timing file. 2 = files with all scores at each
-            clustering. 3 = sub-alignment files and plots. 4 = surface plots
-            and heatmaps of ETMIP raw and coverage scores.'
-        """
-        begin = time()
-        q_name = self.alignment.query_id.split('_')[1]
-        pool_manager = Manager()
-        cluster_queue = pool_manager.Queue()
-        output_queue = pool_manager.Queue()
-        for c in self.clusters:
-            cluster_queue.put_nowait(c)
-        if self.processes == 1:
-            pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
-                       # self.result_matrices, self.coverage, self.summary_matrices, self.sub_alignments, self.alignment,
-                       self.result_matrices, self.coverage, self.scores, self.sub_alignments, self.alignment,
-                       self.aucs, scorer, self.output_dir)
-            et_mip_worker3((1, 1))
-        else:
-            pool = Pool(processes=self.processes, initializer=pool_init3,
-                        initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
-                                  # self.raw_scores, self.result_matrices, self.coverage, self.summary_matrices,
-                                  self.raw_scores, self.result_matrices, self.coverage, self.scores,
-                                  self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
-            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
-                                                  for x in range(self.processes)])
-            pool.close()
-            pool.join()
-            for times in res.get():
-                for c in times:
-                    self.time[c] += times[c]
-        finish = time()
-        print('Producing final figures took {} min'.format(
-            (finish - begin) / 60.0))
-
-    def write_final_results(self, today, cutoff):
-        """
-        Write final results
-
-        This method writes the final results to file for an analysis.  In this case
-        that consists of the cluster numbers, the resulting AUCs, and the time
-        spent in processing.
-
-        Parameters:
-        -----------
-        today: str
-            The current date in string format.
-        cutoff: float
-            The distance threshold for interaction between two residues in a
-            protein structure.
-        """
-        start = time()
-        q_name = self.alignment.query_id.split('_')[1]
-        o = os.path.join(self.output_dir, '{}_{}etmipAUC_results.txt'.format(q_name, today))
-        outfile = open(o, 'w+')
-        outfile.write(
-            "Protein/id: {} Alignment Size: {} Length of protein: {} Cutoff: {}\n".format(
-                q_name, self.alignment.size, self.alignment.seq_length, cutoff))
-        outfile.write("#OfClusters\tAUC\tRunTime\n")
-        for c in self.clusters:
-            # if self.pdb:
-            if self.aucs:
-                outfile.write("\t{0}\t{1}\t{2}\n".format(c, round(self.aucs[c][2], 4), round(self.time[c], 4)))
-            else:
-                outfile.write("\t{0}\t{1}\t{2}\n".format(c, '-', round(self.time[c], 4)))
-        end = time()
-        print('Writing final results took {} min'.format((end - start) / 60.0))
+    # def produce_final_figures_new(self, today, scorer, verbosity):
+    #     """
+    #     Produce Final Figures
+    #
+    #     This method writes out clustering scores and additional results, as well
+    #     as plotting heatmaps and surface plots of the coupling data for the
+    #     query sequence. This method updates the result_times class variable.
+    #
+    #     Parameters:
+    #     -----------
+    #     today : str
+    #         The current date which will be used for identifying the proper
+    #         directory to store files in.
+    #     cut_off : float
+    #         Distance in Angstroms between residues considered as a preliminary
+    #         positive set of coupled residues based on spatial positions in
+    #         the PDB file if provided.
+    #     verbosity : int
+    #         How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+    #         and final AUC and Timing file. 2 = files with all scores at each
+    #         clustering. 3 = sub-alignment files and plots. 4 = surface plots
+    #         and heatmaps of ETMIP raw and coverage scores.'
+    #     """
+    #     begin = time()
+    #     q_name = self.alignment.query_id.split('_')[1]
+    #     pool_manager = Manager()
+    #     cluster_queue = pool_manager.Queue()
+    #     output_queue = pool_manager.Queue()
+    #     for c in self.clusters:
+    #         cluster_queue.put_nowait(c)
+    #     if self.processes == 1:
+    #         pool_init3(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix, self.raw_scores,
+    #                    # self.result_matrices, self.coverage, self.summary_matrices, self.sub_alignments, self.alignment,
+    #                    self.result_matrices, self.coverage, self.scores, self.sub_alignments, self.alignment,
+    #                    self.aucs, scorer, self.output_dir)
+    #         et_mip_worker3((1, 1))
+    #     else:
+    #         pool = Pool(processes=self.processes, initializer=pool_init3,
+    #                     initargs=(cluster_queue, output_queue, q_name, today, verbosity, self.whole_mip_matrix,
+    #                               # self.raw_scores, self.result_matrices, self.coverage, self.summary_matrices,
+    #                               self.raw_scores, self.result_matrices, self.coverage, self.scores,
+    #                               self.sub_alignments, self.alignment, self.aucs, scorer, self.output_dir))
+    #         res = pool.map_async(et_mip_worker3, [(x + 1, self.processes)
+    #                                               for x in range(self.processes)])
+    #         pool.close()
+    #         pool.join()
+    #         for times in res.get():
+    #             for c in times:
+    #                 self.time[c] += times[c]
+    #     finish = time()
+    #     print('Producing final figures took {} min'.format(
+    #         (finish - begin) / 60.0))
+    #
+    # def write_final_results(self, today, cutoff):
+    #     """
+    #     Write final results
+    #
+    #     This method writes the final results to file for an analysis.  In this case
+    #     that consists of the cluster numbers, the resulting AUCs, and the time
+    #     spent in processing.
+    #
+    #     Parameters:
+    #     -----------
+    #     today: str
+    #         The current date in string format.
+    #     cutoff: float
+    #         The distance threshold for interaction between two residues in a
+    #         protein structure.
+    #     """
+    #     start = time()
+    #     q_name = self.alignment.query_id.split('_')[1]
+    #     o = os.path.join(self.output_dir, '{}_{}etmipAUC_results.txt'.format(q_name, today))
+    #     outfile = open(o, 'w+')
+    #     outfile.write(
+    #         "Protein/id: {} Alignment Size: {} Length of protein: {} Cutoff: {}\n".format(
+    #             q_name, self.alignment.size, self.alignment.seq_length, cutoff))
+    #     outfile.write("#OfClusters\tAUC\tRunTime\n")
+    #     for c in self.clusters:
+    #         # if self.pdb:
+    #         if self.aucs:
+    #             outfile.write("\t{0}\t{1}\t{2}\n".format(c, round(self.aucs[c][2], 4), round(self.time[c], 4)))
+    #         else:
+    #             outfile.write("\t{0}\t{1}\t{2}\n".format(c, '-', round(self.time[c], 4)))
+    #     end = time()
+    #     print('Writing final results took {} min'.format((end - start) / 60.0))
 
     def clear_intermediate_files(self):
         """
         Clear Intermediate Files
 
-        This method is intended to be used only if the ETMIPC low_mem variable is
-        set to True. If this is the case and the complete analysis has been
-        performed then this function will remove all intermediate file generated
-        during execution.
+        This method is intended to be used only if the cET-MIp low_mem variable is set to True. If this is the case and
+        the complete analysis has been performed then this function will remove all intermediate file generated during
+        execution.
         """
         for k in self.clusters:
             res_path = os.path.join(self.output_dir, str(k), 'K{}_Result.npz'.format(k))
@@ -567,24 +575,15 @@ def save_raw_score_matrix(k, sub, mat, evidence, out_dir):
     """
     Save Raw Score Matrix
 
-    This function can be used to save the rawScore and evidence_counts matrices
-    which need to be saved to disk in order to reduce the memory footprint when
-    the ETMIPC variable low_mem is set to true.
+    This function can be used to save the rawScore and evidence_counts matrices which need to be saved to disk in order
+    to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
 
-    Parameters:
-    -----------
-    k : int
-        An integer specifying which clustering constant to load data for.
-    sub : int
-        An integer specifying the the cluster for which to save data (expected
-        values are in range(0, k)).
-    mat : np.array
-        The array for the rawScore data to save for the specified cluster.
-    evidence : np.array
-        The array for the evidence_counts data to save for the specified cluster.
-    out_dir : str
-        The top level directory where data are being stored, where directories
-        for each k can be found.
+    Args:
+        k (int): An integer specifying which clustering constant to load data for.
+        sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
+        mat (np.array): The array for the rawScore data to save for the specified cluster.
+        evidence (np.array): The array for the evidence_counts data to save for the specified cluster.
+        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     """
     c_out_dir = os.path.join(out_dir, str(k))
     np.savez(os.path.join(c_out_dir, 'K{}_Sub{}.npz'.format(k, sub)), mat=mat,
@@ -595,26 +594,16 @@ def load_raw_score_matrix(seq_len, k, out_dir):
     """
     Load Raw Score Matrix
 
-    This function can be used to load the rawScore and evidence_counts matrices
-    which need to be saved to disk in order to reduce the memory footprint when
-    the ETMIPC variable low_mem is set to true.
+    This function can be used to load the rawScore and evidence_counts matrices which need to be saved to disk in order
+    to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
 
-    Parameters:
-    -----------
-    k : int
-        An integer specifying which clustering constant to load data for.
-    sub : int
-        An integer specifying the the cluster for which to save data (expected
-        values are in range(0, k)).
-    out_dir : str
-        The top level directory where data are being stored, where directories
-        for each k can be found.
+    Args:
+        k (int): An integer specifying which clustering constant to load data for.
+        sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
+        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     Returns:
-    --------
-    np.array
-        The array for the rawScore data to save for the specified cluster.
-    np.array
-        The array for the evidence_counts data to save for the specified cluster.
+        np.array. The array for the rawScore data to save for the specified cluster.
+        np.array. The array for the evidence_counts data to save for the specified cluster.
     """
     mat = np.zeros((k, seq_len, seq_len))
     evidence = np.zeros((k, seq_len, seq_len))
@@ -632,25 +621,17 @@ def save_single_matrix(name, k, mat, out_dir):
     """
     Save Single Matrix
 
-    This function can be used to save any of the several matrices which need to
-    be saved to disk in order to reduce the memory footprint when the ETMIPC
-    variable low_mem is set to true.
+    This function can be used to save any of the several matrices which need to be saved to disk in order to reduce the
+    memory footprint when the cET-MIp variable low_mem is set to true.
 
-    Parameters:
-    -----------
-    name : str
-        A string specifying what kind of data is being stored, expected values
-        include:
+    Args:
+        name (str): A string specifying what kind of data is being stored, expected values include:
             Result
             Summary
             Coverage
-    k : int
-        An integer specifying which clustering constant to load data for.
-    mat : np.array
-        The array for the given type of data to save for the specified cluster.
-    out_dir : str
-        The top level directory where data are being stored, where directories
-        for each k can be found.
+        k (int): An integer specifying which clustering constant to load data for.
+        mat (np.array): The array for the given type of data to save for the specified cluster.
+        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     """
     c_out_dir = os.path.join(out_dir, str(k))
     np.savez(os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name)), mat=mat)
@@ -660,27 +641,19 @@ def load_single_matrix(name, k, out_dir):
     """
     Load Single Matrix
 
-    This function can be used to load any of the several matrices which are
-    saved to disk in order to reduce the memory footprint when the ETMIPC
-    variable low_mem is set to true.
+    This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
+    footprint when the cET-MIp variable low_mem is set to true.
 
     Parameters:
     -----------
-    name : str
-        A string specifying what kind of data is being stored, expected values
-        include:
+        name (str): A string specifying what kind of data is being stored, expected values include:
             Result
             Summary
             Coverage
-    k : int
-        An integer specifying which clustering constant to load data for.
-    out_dir : str
-        The top level directory where data are being stored, where directories
-        for each k can be found.
+        k (int): An integer specifying which clustering constant to load data for.
+        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     Returns:
-    --------
-    np.array
-        The array for the given type of data loaded for the specified cluster.
+        np.array. The array for the given type of data loaded for the specified cluster.
     """
     data = np.load(os.path.join(out_dir, str(k), 'K{}_{}.npz'.format(k, name)))
     return data['mat']
@@ -692,24 +665,17 @@ def whole_analysis(alignment, evidence, save_file=None):
 
     Generates the MIP matrix.
 
-    Parameters:
-    -----------
-    alignment: SeqAlignment
-        A class containing the query sequence alignment in different formats,
-        as well as summary values.
-    evidence : bool
-        Whether or not to normalize using the evidence using the evidence
-        counts computed while performing the coupling scoring.
-    save_file: str
-        File path to a previously stored MIP matrix (.npz should be excluded as
-        it will be added automatically).
+    Args:
+        alignment (SeqAlignment): A class containing the query sequence alignment in different formats, as well as
+        summary values.
+        evidence (bool): Whether or not to normalize using the evidence using the evidence counts computed while
+        performing the coupling scoring.
+        save_file (str): File path to a previously stored MIP matrix (.npz should be excluded as it will be added
+        automatically).
     Returns:
-    --------
-    matrix
-        Matrix of MIP scores which has dimensions seq_length by seq_length.
-    matrix
-        Matrix containing the number of sequences which are not gaps in either
-        position used for scoring the whole_mip_matrix.
+        np.array. Matrix of MIP scores which has dimensions seq_length by seq_length.
+        np.array. Matrix containing the number of sequences which are not gaps in either position used for scoring the
+        whole_mip_matrix.
     """
     start = time()
     if (save_file is not None) and os.path.exists(save_file + '.npz'):
@@ -766,38 +732,25 @@ def whole_analysis(alignment, evidence, save_file=None):
 def pool_init1(aa_reference, w_cc, original_alignment, save_dir, align_lock, k_queue, sub_alignment_queue, res_queue,
                low_mem):
     """
-    poolInit
+    Pool Init
 
-    A function which initializes processes spawned in a worker pool performing
-    the etMIPWorker function.  This provides a set of variables to all working
-    processes which are shared.
+    A function which initializes processes spawned in a worker pool performing the etMIPWorker function.  This provides
+    a set of variables to all working processes which are shared.
 
-    Parameters:
-    -----------
-    aa_reference : dict
-        Dictionary mapping amino acid abbreviations.
-    w_cc : str
-        Method by which to combine individual matrices from one round of
-        clustering. The options supported now are: sum, average, size_weighted,
-        and evidence_weighted.
-    originialAlignment : SeqAlignment
-        Alignment held by the instance of ETMIPC which called this method.
-    save_dir : str
-        The caching directory used to save results from agglomerative
-        clustering.
-    align_lock : multiprocessing.Manager.Lock()
-        Lock used to regulate access to the alignment object for the purpose
-        of setting the tree order.
-    k_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the k's for which clustering still needs to be
-        performed.
-    sub_alignment_queue : multiprocessing.Manager.Queue()
-        Queue used to track the subalignments generated by clustering based on
-        the k's in the k_queue.
-    res_queue : multiprocessing.Manager.Queue()
-        Queue used to track final results generated by this method.
-    low_mem : bool
-        Whether or not low memory mode should be used.
+    Args:
+        aa_reference (dict): Dictionary mapping amino acid abbreviations.
+        w_cc (str): Method by which to combine individual matrices from one round of clustering. The options supported
+        now are: sum, average, size_weighted, and evidence_weighted.
+        originialAlignment (SeqAlignment): Alignment held by the instance of ETMIPC which called this method.
+        save_dir (str): The caching directory used to save results from agglomerative clustering.
+        align_lock (multiprocessing.Manager.Lock()): Lock used to regulate access to the alignment object for the
+        purpose of setting the tree order.
+        k_queue (multiprocessing.Manager.Queue()): Queue used for tracking the k's for which clustering still needs to
+        be performed.
+        sub_alignment_queue (multiprocessing.Manager.Queue()): Queue used to track the subalignments generated by
+        clustering based on the k's in the k_queue.
+        res_queue (multiprocessing.Manager.Queue()): Queue used to track final results generated by this method.
+        low_mem (bool): Whether or not low memory mode should be used.
     """
     global aa_dict
     aa_dict = aa_reference
@@ -821,27 +774,19 @@ def pool_init1(aa_reference, w_cc, original_alignment, save_dir, align_lock, k_q
 
 def et_mip_worker1(in_tup):
     """
-    ETMIP Worker
+    ET-MIp Worker
 
-    Performs clustering and calculation of cluster dependent sequence distances.
-    This function requires initialization of threads with poolInit, or setting
-    of global variables as described in that function.
+    Performs clustering and calculation of cluster dependent sequence distances. This function requires initialization
+    of threads with poolInit, or setting of global variables as described in that function.
 
-    Parameters:
-    -----------
-    in_tup: tuple
-        Tuple containing the one int specifying which process this is,
-        and a second int specifying the number of active processes.
+    Args:
+        in_tup (tuple): Tuple containing the one int specifying which process this is, and a second int specifying the
+        number of active processes.
     Returns:
-    --------
-    dict
-        Mapping of k, to sub-cluster, to size of sub-cluster.
-    dict
-        Mapping of k, to sub-cluster, to the SeqAlignment object reprsenting
-        the sequence IDs present in that sub-cluster.
-    dict
-        Mapping of k to the time spent working on data from that k by this
-        process.
+        dict. Mapping of k, to sub-cluster, to size of sub-cluster.
+        dict. Mapping of k, to sub-cluster, to the SeqAlignment object reprsenting the sequence IDs present in that
+        sub-cluster.
+        dict. Mapping of k to the time spent working on data from that k by this process.
     """
     curr_process, total_processes = in_tup
     cluster_sizes = {}
@@ -995,60 +940,40 @@ def et_mip_worker1(in_tup):
 #     return clus, curr_coverage, time_elapsed, fpr, tpr, roc_auc
 ########################################################################################################################
 
-# def pool_init2(q_scorer, out_dir):
 def pool_init2(out_dir):
     """
     pool_init2
 
-    A function which initializes processes spawned in a worker pool performing
-    the et_mip_worker2 function.  This provides a set of variables to all working
-    processes which are shared.
+    A function which initializes processes spawned in a worker pool performing the et_mip_worker2 function.  This
+    provides a set of variables to all working processes which are shared.
 
-    Parameters:
-    -----------
-    c: float
-        The threshold distance at which to consider two residues as interacting
-        with one another.
-    q_alignment: SeqAlignment
-        Object containing the sequence alignment for this analysis.
-    q_structure: PDBReference
-        Object containing the PDB information for this analysis.
+    Args:
+        c (float): The threshold distance at which to consider two residues as interacting with one another.
+        q_alignment (SeqAlignment): Object containing the sequence alignment for this analysis.
+        q_structure (PDBReference): Object containing the PDB information for this analysis.
     """
     global w2_out_dir
     w2_out_dir = out_dir
-    # global scorer
-    # scorer = q_scorer
 
 
 def et_mip_worker2(in_tup):
     """
-    ETMIP Worker 2
+    ET-MIp Worker 2
 
-    Performs clustering and calculation of cluster dependent sequence distances.
-    This function requires initialization of threads with poolInit, or setting
-    of global variables as described in that function.
+    Performs clustering and calculation of cluster dependent sequence distances. This function requires initialization
+    of threads with poolInit, or setting of global variables as described in that function.
 
-    Parameters:
-    -----------
-    in_tup: tuple
-        Tuple containing the number of clusters to form during agglomerative
-        clustering and a matrix which is the result of summing the original
-        MIP matrix and the matrix resulting from clustering at this clustering
-        and lower clusterings.
+    Args:
+    in_tup (tuple): Tuple containing the number of clusters to form during agglomerative clustering and a matrix which
+    is the result of summing the original MIP matrix and the matrix resulting from clustering at this clustering and
+    lower clusterings.
     Returns:
-    --------
-    int
-        Number of clusters.
-    list
-        Coverage values for this clustering.
-    float
-        The time in seconds which it took to perform clustering.
-    list
-        List of false positive rates.
-    list
-        List of true positive rates.
-    float
-        The ROCAUC value for this clustering.
+    int. Number of clusters.
+    list. Coverage values for this clustering.
+    float. The time in seconds which it took to perform clustering.
+    list. List of false positive rates.
+    list. List of true positive rates.
+    float. The ROCAUC value for this clustering.
     """
     clus, all_summed_matrix = in_tup
     if all_summed_matrix:
@@ -1066,70 +991,46 @@ def et_mip_worker2(in_tup):
             corrected_mat = bool_mat * mask
             compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
             curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
-    # tpr, fpr, roc_auc = scorer.score_auc(curr_coverage)
     end = time()
     time_elapsed = end - start
     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
     if all_summed_matrix is None:
         save_single_matrix('Coverage', clus, curr_coverage, w2_out_dir)
         curr_coverage = None
-    # return clus, curr_coverage, time_elapsed, fpr, tpr, roc_auc
     return clus, curr_coverage, time_elapsed
 
 
-def pool_init_new2(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
-                   class_coverage, class_summary, class_alignment, output_dir):
+def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
+               class_coverage, class_summary, class_alignment, output_dir):
     """
-    pool_init_new2
+    Pool Init 3
 
-    A function which initializes processes spawned in a worker pool performing
-    the et_mip_worker3 function.  This provides a set of variables to all working
-    processes which are shared.
+    A function which initializes processes spawned in a worker pool performing the et_mip_worker3 function.  This
+    provides a set of variables to all working processes which are shared.
 
-    Parameters:
-    -----------
-    cluster_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the k's for which output still needs to be
-        generated.
-    q_name : str
-        The name of the query string.
-    today : str
-        The current date which will be used for identifying the proper directory
-        to store files in.
-    cut_off : float
-        Distance in Angstroms between residues considered as a preliminary
-        positive set of coupled residues based on spatial positions in the PDB
-        file if provided.
-    class_mip_matrix : np.ndarray
-        Matrix scoring the coupling between all positions in the query
-        sequence, as computed over all sequences in the input alignment.
-    class_raw_scores : dict
-        The dictionary mapping clustering constant to coupling scores for all
-        positions in the query sequences at the specified clustering constant
-        created by hierarchical clustering.
-    class_result_matrices : dict
-        A dictionary mapping clustering constants to matrices which represent
-        the integration of coupling scores across all clusters defined at that
-        clustering constant.
-    class_coverage : dict
-        This dictionary maps clustering constants to a matrix of normalized
-        coupling scores between 0 and 100, computed from the
-        summary_matrices.
-    class_summary : dict
-        This dictionary maps clustering constants to a matrix which combines
-        the scores from the whole_mip_matrix, all lower clustering constants,
-        and this clustering constant.
-    class_subalignments : dict
-            A dictionary mapping a clustering constant (k) to another dictionary
-            which maps a cluster label (0 to k-1) to a SeqAlignment object
-            containing only the sequences for that specific cluster.
-    class_alignment : SeqAlignment
-        The SeqAlignment object containing relevant information for this
-        ETMIPC analysis.
-    output_dir : str
-        The full path to where the output generated by this process should be
-        stored. If None (default) the plot will be stored in the current working
-        directory.
+    Args:
+        cluster_queue (multiprocessing.Manager.Queue()): Queue used for tracking the k's for which output still needs to
+        be generated.
+        q_name (str): The name of the query string.
+        today (str): The current date which will be used for identifying the proper directory to store files in.
+        cut_off (float): Distance in Angstroms between residues considered as a preliminary positive set of coupled
+        residues based on spatial positions in the PDB file if provided.
+        class_mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as
+        computed over all sequences in the input alignment.
+        class_raw_scores (dict): The dictionary mapping clustering constant to coupling scores for all positions in the
+        query sequences at the specified clustering constant created by hierarchical clustering.
+        class_result_matrices (dict): A dictionary mapping clustering constants to matrices which represent the
+        integration of coupling scores across all clusters defined at that clustering constant.
+        class_coverage (dict): This dictionary maps clustering constants to a matrix of normalized coupling scores
+        between 0 and 100, computed from the summary_matrices.
+        class_summary (dict): This dictionary maps clustering constants to a matrix which combines the scores from the
+        whole_mip_matrix, all lower clustering constants, and this clustering constant.
+        class_subalignments (dict): A dictionary mapping a clustering constant (k) to another dictionary which maps a
+        cluster label (0 to k-1) to a SeqAlignment object containing only the sequences for that specific cluster.
+        class_alignment (SeqAlignment): The SeqAlignment object containing relevant information for this cET-MIp
+        analysis.
+        output_dir (str): The full path to where the output generated by this process should be stored. If None
+        (default) the plot will be stored in the current working directory.
     """
     global queue1
     queue1 = cluster_queue
@@ -1153,31 +1054,23 @@ def pool_init_new2(cluster_queue, q_name, today, class_mip_matrix, class_raw_sco
     out_dir = output_dir
 
 
-def et_mip_worker_new2(input_tuple):
+def et_mip_worker3(input_tuple):
     """
-    ETMIP Worker New
+    ET-MIp Worker 3
 
-    This method uses queues to generate the jobs necessary to create the final
-    output of the ETMIPC class ProduceFinalFigures method (figures and
-    output files). One queue is used to hold the clustering constants to be
-    processed (producer) while another queue is used to hold the functions
-    to call and the input data to provide (producer). This method directs a
-    process to preferentially pull jobs from the second queue, unless none are
-    available, in which case it directs the process to generate additional jobs
-    using queue 1. If both queues are empty the method terminates.
+    This method uses queues to generate the jobs necessary to create the final output of the cET-MIp class
+    ProduceFinalFigures method (figures and output files). One queue is used to hold the clustering constants to be
+    processed (producer) while another queue is used to hold the functions to call and the input data to provide
+    (producer). This method directs a process to preferentially pull jobs from the second queue, unless none are
+    available, in which case it directs the process to generate additional jobs using queue 1. If both queues are empty
+    the method terminates.
 
-    Parameters:
-    -----------
-    inTup: tuple
-        Tuple containing the one int specifying which process this is,
-        and a second int specifying the number of active processes.
+    Args:
+        inTup (tuple): Tuple containing the one int specifying which process this is, and a second int specifying the
+        number of active processes.
     Returns:
-    --------
-    dict
-        Mapping of k to the time spent working on data from that k by this
-        process.
+        dict. Mapping of k to the time spent working on data from that k by this process.
     """
-    from ContactScorer import write_out_contact_scoring
     curr_process, total_processes = input_tuple
     times = {}
     while not queue1.empty():
@@ -1212,428 +1105,428 @@ def et_mip_worker_new2(input_tuple):
     return times
 
 
-def pool_init_new3(cluster_queue, output_queue, q_name, today, verbosity, class_mip_matrix, class_raw_scores,
-               class_result_matrices, class_coverage, class_summary, class_subalignments, class_alignment, class_aucs,
-               class_scorer, output_dir):
-    """
-    pool_init3
-
-    A function which initializes processes spawned in a worker pool performing
-    the et_mip_worker3 function.  This provides a set of variables to all working
-    processes which are shared.
-
-    Parameters:
-    -----------
-    cluster_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the k's for which output still needs to be
-        generated.
-    output_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the types of output to be generated and the
-        inputs for the dependent methods.
-    q_name : str
-        The name of the query string.
-    today : str
-        The current date which will be used for identifying the proper directory
-        to store files in.
-    cut_off : float
-        Distance in Angstroms between residues considered as a preliminary
-        positive set of coupled residues based on spatial positions in the PDB
-        file if provided.
-    verbosity : int
-        How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
-        and final AUC and Timing file. 2 = files with all scores at each
-        clustering. 3 = sub-alignment files and plots. 4 = surface plots
-        and heatmaps of ETMIP raw and coverage scores.'
-    class_mip_matrix : np.ndarray
-        Matrix scoring the coupling between all positions in the query
-        sequence, as computed over all sequences in the input alignment.
-    class_raw_scores : dict
-        The dictionary mapping clustering constant to coupling scores for all
-        positions in the query sequences at the specified clustering constant
-        created by hierarchical clustering.
-    class_result_matrices : dict
-        A dictionary mapping clustering constants to matrices which represent
-        the integration of coupling scores across all clusters defined at that
-        clustering constant.
-    class_coverage : dict
-        This dictionary maps clustering constants to a matrix of normalized
-        coupling scores between 0 and 100, computed from the
-        summary_matrices.
-    class_summary : dict
-        This dictionary maps clustering constants to a matrix which combines
-        the scores from the whole_mip_matrix, all lower clustering constants,
-        and this clustering constant.
-    class_subalignments : dict
-            A dictionary mapping a clustering constant (k) to another dictionary
-            which maps a cluster label (0 to k-1) to a SeqAlignment object
-            containing only the sequences for that specific cluster.
-    class_alignment : SeqAlignment
-        The SeqAlignment object containing relevant information for this
-        ETMIPC analysis.
-    class_aucs : dictionary
-        AUC values stored in the ETMIPC class, used to identify the specific
-        values for the specified clustering constant (clus).
-    class_pdb : PDBReference
-        Object representing the pdb structure used in the current
-        analysis.
-    output_dir : str
-        The full path to where the output generated by this process should be
-        stored. If None (default) the plot will be stored in the current working
-        directory.
-    """
-    global queue1
-    queue1 = cluster_queue
-    global queue2
-    queue2 = output_queue
-    global query_n
-    query_n = q_name
-    global date
-    date = today
-    global ver
-    ver = verbosity
-    global mip_matrix
-    mip_matrix = class_mip_matrix
-    global raw_scores
-    raw_scores = class_raw_scores
-    global res_mat
-    res_mat = class_result_matrices
-    global sub_alignments
-    sub_alignments = class_subalignments
-    global alignment
-    alignment = class_alignment
-    global coverage
-    coverage = class_coverage
-    global summary
-    summary = class_summary
-    global aucs
-    aucs = class_aucs
-    global scorer
-    scorer = class_scorer
-    global out_dir
-    out_dir = output_dir
-
-
-def et_mip_worker_new3(input_tuple):
-    """
-    ETMIP Worker 3
-
-    This method uses queues to generate the jobs necessary to create the final
-    output of the ETMIPC class ProduceFinalFigures method (figures and 
-    output files). One queue is used to hold the clustering constants to be
-    processed (producer) while another queue is used to hold the functions
-    to call and the input data to provide (producer). This method directs a
-    process to preferentially pull jobs from the second queue, unless none are
-    available, in which case it directs the process to generate additional jobs
-    using queue 1. If both queues are empty the method terminates.
-
-    Parameters:
-    -----------
-    inTup: tuple
-        Tuple containing the one int specifying which process this is,
-        and a second int specifying the number of active processes.
-    Returns:
-    --------
-    dict
-        Mapping of k to the time spent working on data from that k by this
-        process.
-    """
-    from ContactScorer import write_out_contact_scoring
-    curr_process, total_processes = input_tuple
-    times = {}
-    function_dict = {'heatmap': heatmap_plot, 'surface_plot': surface_plot,
-                     'writeClusterResults': scorer.write_out_clustering_results,
-                     # 'writeClusterScoring': write_out_contact_scoring,
-                     'plot_auc': scorer.plot_auc, 'subAlignment': None}
-    while (not queue1.empty()) or (not queue2.empty()):
-        try:
-            q_func, q_param = queue2.get_nowait()
-            print('Calling: {} in processes {}:{}'.format(q_func, curr_process, total_processes))
-            c = q_param[0]
-            c_out_dir = os.path.join(out_dir, str(c))
-            # if q_func in ['writeClusterResults', 'writeClusterScoring', 'heatmap', 'surface_plot']:
-            if q_func in ['writeClusterResults', 'heatmap', 'surface_plot']:
-                if (summary is None) and (coverage is None):
-                    c_summary = load_single_matrix('Summary', c, out_dir)
-                    c_coverage = load_single_matrix('Coverage', c, out_dir)
-                else:
-                    c_summary = summary[c]
-                    c_coverage = coverage[c]
-                if q_func == 'heatmap':
-                    if q_param[1] == 'Raw Score':
-                        function_dict[q_func]('Raw Score Heatmap K {}'.format(c), c_summary, c_out_dir)
-                    else:
-                        function_dict[q_func]('Coverage Heatmap K {}'.format(c), c_coverage, c_out_dir)
-                elif q_func == 'surface_plot':
-                    if q_param[1] == 'Raw Score':
-                        function_dict[q_func]('Raw Score Surface K {}'.format(c), c_summary, c_out_dir)
-                    else:
-                        function_dict[q_func]('Coverage Surface K {}'.format(c), c_coverage, c_out_dir)
-                # elif q_func == 'writeClusterResults':
-                else:
-                    start = time()
-                    res_fn = '{}_{}_{}.etmipCVG.clustered.txt'.format(date, query_n, c)
-                    function_dict[q_func](date, query_n, c_summary, c_coverage, res_fn, c_out_dir)
-                    end = time()
-                    time_elapsed = end - start
-                    if c not in times:
-                        times[c] = time_elapsed
-                    else:
-                        times[c] += time_elapsed
-                # else:
-                #     if (res_mat is None) and (raw_scores is None):
-                #         c_raw_scores, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
-                #         c_result = load_single_matrix('Result', c, out_dir)
-                #     else:
-                #         c_raw_scores = raw_scores[c]
-                #         c_result = res_mat[c]
-                #     res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
-                #     function_dict[q_func](date, c_result, c_coverage, mip_matrix, c_raw_scores, c_summary, res_fn,
-                #                           c_out_dir)
-            elif q_func == 'plot_auc':
-                auc_title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(query_n, c)
-                auc_fn = '{0}{1}A_C{2}_{3}roc.eps'.format(query_n, scorer.cutoff, c, date)
-                function_dict[q_func](query_n, aucs[c], auc_title, auc_fn, c_out_dir)
-            elif q_func == 'subAlignment':
-                sub = q_param[1]
-                sub_alignments[c][sub].set_tree_ordering(alignment.tree_order)
-                sub_alignments[c][sub].write_out_alignment(os.path.join(c_out_dir,
-                                                                        'AlignmentForK{}_{}.fa'.format(c, sub)))
-                sub_alignments[c][sub].heatmap_plot('Alignment For K {} {}'.format(c, sub), c_out_dir)
-            else:
-                raise ValueError('Function: {} not implemented!'.format(q_func))
-        except Queue.Empty:
-            pass
-        try:
-            c = queue1.get_nowait()
-            if ver >= 1:
-                queue2.put_nowait(('writeClusterResults', (c,)))
-                if scorer:
-                    queue2.put_nowait(('plot_auc', (c,)))
-            # if ver >= 2:
-            #     queue2.put_nowait(('writeClusterScoring', (c,)))
-            if ver >= 3:
-                for sub in range(c):
-                    queue2.put_nowait(('subAlignment', (c, sub)))
-            if ver >= 4:
-                queue2.put_nowait(('heatmap', (c, 'Raw Score')))
-                queue2.put_nowait(('heatmap', (c, 'Coverage')))
-                queue2.put_nowait(('surface_plot', (c, 'Raw Score')))
-                queue2.put_nowait(('surface_plot', (c, 'Coverage')))
-        except Queue.Empty:
-            pass
-    print('Function completed by {}:{}'.format(curr_process, total_processes))
-    return times
+# def pool_init_new3(cluster_queue, output_queue, q_name, today, verbosity, class_mip_matrix, class_raw_scores,
+#                class_result_matrices, class_coverage, class_summary, class_subalignments, class_alignment, class_aucs,
+#                class_scorer, output_dir):
+#     """
+#     pool_init3
+#
+#     A function which initializes processes spawned in a worker pool performing
+#     the et_mip_worker3 function.  This provides a set of variables to all working
+#     processes which are shared.
+#
+#     Parameters:
+#     -----------
+#     cluster_queue : multiprocessing.Manager.Queue()
+#         Queue used for tracking the k's for which output still needs to be
+#         generated.
+#     output_queue : multiprocessing.Manager.Queue()
+#         Queue used for tracking the types of output to be generated and the
+#         inputs for the dependent methods.
+#     q_name : str
+#         The name of the query string.
+#     today : str
+#         The current date which will be used for identifying the proper directory
+#         to store files in.
+#     cut_off : float
+#         Distance in Angstroms between residues considered as a preliminary
+#         positive set of coupled residues based on spatial positions in the PDB
+#         file if provided.
+#     verbosity : int
+#         How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+#         and final AUC and Timing file. 2 = files with all scores at each
+#         clustering. 3 = sub-alignment files and plots. 4 = surface plots
+#         and heatmaps of ETMIP raw and coverage scores.'
+#     class_mip_matrix : np.ndarray
+#         Matrix scoring the coupling between all positions in the query
+#         sequence, as computed over all sequences in the input alignment.
+#     class_raw_scores : dict
+#         The dictionary mapping clustering constant to coupling scores for all
+#         positions in the query sequences at the specified clustering constant
+#         created by hierarchical clustering.
+#     class_result_matrices : dict
+#         A dictionary mapping clustering constants to matrices which represent
+#         the integration of coupling scores across all clusters defined at that
+#         clustering constant.
+#     class_coverage : dict
+#         This dictionary maps clustering constants to a matrix of normalized
+#         coupling scores between 0 and 100, computed from the
+#         summary_matrices.
+#     class_summary : dict
+#         This dictionary maps clustering constants to a matrix which combines
+#         the scores from the whole_mip_matrix, all lower clustering constants,
+#         and this clustering constant.
+#     class_subalignments : dict
+#             A dictionary mapping a clustering constant (k) to another dictionary
+#             which maps a cluster label (0 to k-1) to a SeqAlignment object
+#             containing only the sequences for that specific cluster.
+#     class_alignment : SeqAlignment
+#         The SeqAlignment object containing relevant information for this
+#         ETMIPC analysis.
+#     class_aucs : dictionary
+#         AUC values stored in the ETMIPC class, used to identify the specific
+#         values for the specified clustering constant (clus).
+#     class_pdb : PDBReference
+#         Object representing the pdb structure used in the current
+#         analysis.
+#     output_dir : str
+#         The full path to where the output generated by this process should be
+#         stored. If None (default) the plot will be stored in the current working
+#         directory.
+#     """
+#     global queue1
+#     queue1 = cluster_queue
+#     global queue2
+#     queue2 = output_queue
+#     global query_n
+#     query_n = q_name
+#     global date
+#     date = today
+#     global ver
+#     ver = verbosity
+#     global mip_matrix
+#     mip_matrix = class_mip_matrix
+#     global raw_scores
+#     raw_scores = class_raw_scores
+#     global res_mat
+#     res_mat = class_result_matrices
+#     global sub_alignments
+#     sub_alignments = class_subalignments
+#     global alignment
+#     alignment = class_alignment
+#     global coverage
+#     coverage = class_coverage
+#     global summary
+#     summary = class_summary
+#     global aucs
+#     aucs = class_aucs
+#     global scorer
+#     scorer = class_scorer
+#     global out_dir
+#     out_dir = output_dir
+#
+#
+# def et_mip_worker_new3(input_tuple):
+#     """
+#     ETMIP Worker 3
+#
+#     This method uses queues to generate the jobs necessary to create the final
+#     output of the ETMIPC class ProduceFinalFigures method (figures and
+#     output files). One queue is used to hold the clustering constants to be
+#     processed (producer) while another queue is used to hold the functions
+#     to call and the input data to provide (producer). This method directs a
+#     process to preferentially pull jobs from the second queue, unless none are
+#     available, in which case it directs the process to generate additional jobs
+#     using queue 1. If both queues are empty the method terminates.
+#
+#     Parameters:
+#     -----------
+#     inTup: tuple
+#         Tuple containing the one int specifying which process this is,
+#         and a second int specifying the number of active processes.
+#     Returns:
+#     --------
+#     dict
+#         Mapping of k to the time spent working on data from that k by this
+#         process.
+#     """
+#     from ContactScorer import write_out_contact_scoring
+#     curr_process, total_processes = input_tuple
+#     times = {}
+#     function_dict = {'heatmap': heatmap_plot, 'surface_plot': surface_plot,
+#                      'writeClusterResults': scorer.write_out_clustering_results,
+#                      # 'writeClusterScoring': write_out_contact_scoring,
+#                      'plot_auc': scorer.plot_auc, 'subAlignment': None}
+#     while (not queue1.empty()) or (not queue2.empty()):
+#         try:
+#             q_func, q_param = queue2.get_nowait()
+#             print('Calling: {} in processes {}:{}'.format(q_func, curr_process, total_processes))
+#             c = q_param[0]
+#             c_out_dir = os.path.join(out_dir, str(c))
+#             # if q_func in ['writeClusterResults', 'writeClusterScoring', 'heatmap', 'surface_plot']:
+#             if q_func in ['writeClusterResults', 'heatmap', 'surface_plot']:
+#                 if (summary is None) and (coverage is None):
+#                     c_summary = load_single_matrix('Summary', c, out_dir)
+#                     c_coverage = load_single_matrix('Coverage', c, out_dir)
+#                 else:
+#                     c_summary = summary[c]
+#                     c_coverage = coverage[c]
+#                 if q_func == 'heatmap':
+#                     if q_param[1] == 'Raw Score':
+#                         function_dict[q_func]('Raw Score Heatmap K {}'.format(c), c_summary, c_out_dir)
+#                     else:
+#                         function_dict[q_func]('Coverage Heatmap K {}'.format(c), c_coverage, c_out_dir)
+#                 elif q_func == 'surface_plot':
+#                     if q_param[1] == 'Raw Score':
+#                         function_dict[q_func]('Raw Score Surface K {}'.format(c), c_summary, c_out_dir)
+#                     else:
+#                         function_dict[q_func]('Coverage Surface K {}'.format(c), c_coverage, c_out_dir)
+#                 # elif q_func == 'writeClusterResults':
+#                 else:
+#                     start = time()
+#                     res_fn = '{}_{}_{}.etmipCVG.clustered.txt'.format(date, query_n, c)
+#                     function_dict[q_func](date, query_n, c_summary, c_coverage, res_fn, c_out_dir)
+#                     end = time()
+#                     time_elapsed = end - start
+#                     if c not in times:
+#                         times[c] = time_elapsed
+#                     else:
+#                         times[c] += time_elapsed
+#                 # else:
+#                 #     if (res_mat is None) and (raw_scores is None):
+#                 #         c_raw_scores, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
+#                 #         c_result = load_single_matrix('Result', c, out_dir)
+#                 #     else:
+#                 #         c_raw_scores = raw_scores[c]
+#                 #         c_result = res_mat[c]
+#                 #     res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
+#                 #     function_dict[q_func](date, c_result, c_coverage, mip_matrix, c_raw_scores, c_summary, res_fn,
+#                 #                           c_out_dir)
+#             elif q_func == 'plot_auc':
+#                 auc_title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(query_n, c)
+#                 auc_fn = '{0}{1}A_C{2}_{3}roc.eps'.format(query_n, scorer.cutoff, c, date)
+#                 function_dict[q_func](query_n, aucs[c], auc_title, auc_fn, c_out_dir)
+#             elif q_func == 'subAlignment':
+#                 sub = q_param[1]
+#                 sub_alignments[c][sub].set_tree_ordering(alignment.tree_order)
+#                 sub_alignments[c][sub].write_out_alignment(os.path.join(c_out_dir,
+#                                                                         'AlignmentForK{}_{}.fa'.format(c, sub)))
+#                 sub_alignments[c][sub].heatmap_plot('Alignment For K {} {}'.format(c, sub), c_out_dir)
+#             else:
+#                 raise ValueError('Function: {} not implemented!'.format(q_func))
+#         except Queue.Empty:
+#             pass
+#         try:
+#             c = queue1.get_nowait()
+#             if ver >= 1:
+#                 queue2.put_nowait(('writeClusterResults', (c,)))
+#                 if scorer:
+#                     queue2.put_nowait(('plot_auc', (c,)))
+#             # if ver >= 2:
+#             #     queue2.put_nowait(('writeClusterScoring', (c,)))
+#             if ver >= 3:
+#                 for sub in range(c):
+#                     queue2.put_nowait(('subAlignment', (c, sub)))
+#             if ver >= 4:
+#                 queue2.put_nowait(('heatmap', (c, 'Raw Score')))
+#                 queue2.put_nowait(('heatmap', (c, 'Coverage')))
+#                 queue2.put_nowait(('surface_plot', (c, 'Raw Score')))
+#                 queue2.put_nowait(('surface_plot', (c, 'Coverage')))
+#         except Queue.Empty:
+#             pass
+#     print('Function completed by {}:{}'.format(curr_process, total_processes))
+#     return times
 
     ####################################################################################################################
-def pool_init3(cluster_queue, output_queue, q_name, today, verbosity, class_mip_matrix, class_raw_scores,
-               class_result_matrices, class_coverage, class_summary, class_subalignments, class_alignment,
-               class_aucs,
-               class_scorer, output_dir):
-    """
-    pool_init3
-
-    A function which initializes processes spawned in a worker pool performing
-    the et_mip_worker3 function.  This provides a set of variables to all working
-    processes which are shared.
-
-    Parameters:
-    -----------
-    cluster_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the k's for which output still needs to be
-        generated.
-    output_queue : multiprocessing.Manager.Queue()
-        Queue used for tracking the types of output to be generated and the
-        inputs for the dependent methods.
-    q_name : str
-        The name of the query string.
-    today : str
-        The current date which will be used for identifying the proper directory
-        to store files in.
-    cut_off : float
-        Distance in Angstroms between residues considered as a preliminary
-        positive set of coupled residues based on spatial positions in the PDB
-        file if provided.
-    verbosity : int
-        How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
-        and final AUC and Timing file. 2 = files with all scores at each
-        clustering. 3 = sub-alignment files and plots. 4 = surface plots
-        and heatmaps of ETMIP raw and coverage scores.'
-    class_mip_matrix : np.ndarray
-        Matrix scoring the coupling between all positions in the query
-        sequence, as computed over all sequences in the input alignment.
-    class_raw_scores : dict
-        The dictionary mapping clustering constant to coupling scores for all
-        positions in the query sequences at the specified clustering constant
-        created by hierarchical clustering.
-    class_result_matrices : dict
-        A dictionary mapping clustering constants to matrices which represent
-        the integration of coupling scores across all clusters defined at that
-        clustering constant.
-    class_coverage : dict
-        This dictionary maps clustering constants to a matrix of normalized
-        coupling scores between 0 and 100, computed from the
-        summary_matrices.
-    class_summary : dict
-        This dictionary maps clustering constants to a matrix which combines
-        the scores from the whole_mip_matrix, all lower clustering constants,
-        and this clustering constant.
-    class_subalignments : dict
-            A dictionary mapping a clustering constant (k) to another dictionary
-            which maps a cluster label (0 to k-1) to a SeqAlignment object
-            containing only the sequences for that specific cluster.
-    class_alignment : SeqAlignment
-        The SeqAlignment object containing relevant information for this
-        ETMIPC analysis.
-    class_aucs : dictionary
-        AUC values stored in the ETMIPC class, used to identify the specific
-        values for the specified clustering constant (clus).
-    class_pdb : PDBReference
-        Object representing the pdb structure used in the current
-        analysis.
-    output_dir : str
-        The full path to where the output generated by this process should be
-        stored. If None (default) the plot will be stored in the current working
-        directory.
-    """
-    global queue1
-    queue1 = cluster_queue
-    global queue2
-    queue2 = output_queue
-    global query_n
-    query_n = q_name
-    global date
-    date = today
-    global ver
-    ver = verbosity
-    global mip_matrix
-    mip_matrix = class_mip_matrix
-    global raw_scores
-    raw_scores = class_raw_scores
-    global res_mat
-    res_mat = class_result_matrices
-    global sub_alignments
-    sub_alignments = class_subalignments
-    global alignment
-    alignment = class_alignment
-    global coverage
-    coverage = class_coverage
-    global summary
-    summary = class_summary
-    global aucs
-    aucs = class_aucs
-    global scorer
-    scorer = class_scorer
-    global out_dir
-    out_dir = output_dir
-
-def et_mip_worker3(input_tuple):
-    """
-    ETMIP Worker 3
-
-    This method uses queues to generate the jobs necessary to create the final
-    output of the ETMIPC class ProduceFinalFigures method (figures and
-    output files). One queue is used to hold the clustering constants to be
-    processed (producer) while another queue is used to hold the functions
-    to call and the input data to provide (producer). This method directs a
-    process to preferentially pull jobs from the second queue, unless none are
-    available, in which case it directs the process to generate additional jobs
-    using queue 1. If both queues are empty the method terminates.
-
-    Parameters:
-    -----------
-    inTup: tuple
-        Tuple containing the one int specifying which process this is,
-        and a second int specifying the number of active processes.
-    Returns:
-    --------
-    dict
-        Mapping of k to the time spent working on data from that k by this
-        process.
-    """
-    from ContactScorer import write_out_contact_scoring
-    curr_process, total_processes = input_tuple
-    times = {}
-    function_dict = {'heatmap': heatmap_plot, 'surface_plot': surface_plot,
-                     'writeClusterResults': scorer.write_out_clustering_results,
-                     'writeClusterScoring': write_out_contact_scoring,
-                     'plot_auc': scorer.plot_auc, 'subAlignment': None}
-    while (not queue1.empty()) or (not queue2.empty()):
-        try:
-            q_func, q_param = queue2.get_nowait()
-            print('Calling: {} in processes {}:{}'.format(q_func, curr_process, total_processes))
-            c = q_param[0]
-            c_out_dir = os.path.join(out_dir, str(c))
-            if q_func in ['writeClusterResults', 'writeClusterScoring', 'heatmap', 'surface_plot']:
-                if (summary is None) and (coverage is None):
-                    c_summary = load_single_matrix('Summary', c, out_dir)
-                    c_coverage = load_single_matrix('Coverage', c, out_dir)
-                else:
-                    c_summary = summary[c]
-                    c_coverage = coverage[c]
-                if q_func == 'heatmap':
-                    if q_param[1] == 'Raw Score':
-                        function_dict[q_func]('Raw Score Heatmap K {}'.format(c), c_summary, c_out_dir)
-                    else:
-                        function_dict[q_func]('Coverage Heatmap K {}'.format(c), c_coverage, c_out_dir)
-                elif q_func == 'surface_plot':
-                    if q_param[1] == 'Raw Score':
-                        function_dict[q_func]('Raw Score Surface K {}'.format(c), c_summary, c_out_dir)
-                    else:
-                        function_dict[q_func]('Coverage Surface K {}'.format(c), c_coverage, c_out_dir)
-                elif q_func == 'writeClusterResults':
-                    start = time()
-                    res_fn = '{}_{}_{}.etmipCVG.clustered.txt'.format(date, query_n, c)
-                    function_dict[q_func](date, query_n, c_summary, c_coverage, res_fn, c_out_dir)
-                    end = time()
-                    time_elapsed = end - start
-                    if c not in times:
-                        times[c] = time_elapsed
-                    else:
-                        times[c] += time_elapsed
-                else:
-                    if (res_mat is None) and (raw_scores is None):
-                        c_raw_scores, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
-                        c_result = load_single_matrix('Result', c, out_dir)
-                    else:
-                        c_raw_scores = raw_scores[c]
-                        c_result = res_mat[c]
-                    res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
-                    # today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
-                    #                               c_integrated_scores=None, file_name=None, output_dir=None
-                    function_dict[q_func](date, alignment, c_result, c_coverage, mip_matrix, c_raw_scores, c_summary, res_fn,
-                                          c_out_dir)
-            elif q_func == 'plot_auc':
-                auc_title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(query_n, c)
-                auc_fn = '{0}{1}A_C{2}_{3}roc.eps'.format(query_n, scorer.cutoff, c, date)
-                function_dict[q_func](query_n, aucs[c], auc_title, auc_fn, c_out_dir)
-            elif q_func == 'subAlignment':
-                sub = q_param[1]
-                sub_alignments[c][sub].set_tree_ordering(alignment.tree_order)
-                sub_alignments[c][sub].write_out_alignment(os.path.join(c_out_dir,
-                                                                        'AlignmentForK{}_{}.fa'.format(c, sub)))
-                sub_alignments[c][sub].heatmap_plot('Alignment For K {} {}'.format(c, sub), c_out_dir)
-            else:
-                raise ValueError('Function: {} not implemented!'.format(q_func))
-        except Queue.Empty:
-            pass
-        try:
-            c = queue1.get_nowait()
-            if ver >= 1:
-                queue2.put_nowait(('writeClusterResults', (c,)))
-                if scorer:
-                    queue2.put_nowait(('plot_auc', (c,)))
-            if ver >= 2:
-                queue2.put_nowait(('writeClusterScoring', (c,)))
-            if ver >= 3:
-                for sub in range(c):
-                    queue2.put_nowait(('subAlignment', (c, sub)))
-            if ver >= 4:
-                queue2.put_nowait(('heatmap', (c, 'Raw Score')))
-                queue2.put_nowait(('heatmap', (c, 'Coverage')))
-                queue2.put_nowait(('surface_plot', (c, 'Raw Score')))
-                queue2.put_nowait(('surface_plot', (c, 'Coverage')))
-        except Queue.Empty:
-            pass
-    print('Function completed by {}:{}'.format(curr_process, total_processes))
-    return times
+# def pool_init3(cluster_queue, output_queue, q_name, today, verbosity, class_mip_matrix, class_raw_scores,
+#                class_result_matrices, class_coverage, class_summary, class_subalignments, class_alignment,
+#                class_aucs,
+#                class_scorer, output_dir):
+#     """
+#     pool_init3
+#
+#     A function which initializes processes spawned in a worker pool performing
+#     the et_mip_worker3 function.  This provides a set of variables to all working
+#     processes which are shared.
+#
+#     Parameters:
+#     -----------
+#     cluster_queue : multiprocessing.Manager.Queue()
+#         Queue used for tracking the k's for which output still needs to be
+#         generated.
+#     output_queue : multiprocessing.Manager.Queue()
+#         Queue used for tracking the types of output to be generated and the
+#         inputs for the dependent methods.
+#     q_name : str
+#         The name of the query string.
+#     today : str
+#         The current date which will be used for identifying the proper directory
+#         to store files in.
+#     cut_off : float
+#         Distance in Angstroms between residues considered as a preliminary
+#         positive set of coupled residues based on spatial positions in the PDB
+#         file if provided.
+#     verbosity : int
+#         How many figures to produce.1 = ROC Curves, ETMIP Coverage file,
+#         and final AUC and Timing file. 2 = files with all scores at each
+#         clustering. 3 = sub-alignment files and plots. 4 = surface plots
+#         and heatmaps of ETMIP raw and coverage scores.'
+#     class_mip_matrix : np.ndarray
+#         Matrix scoring the coupling between all positions in the query
+#         sequence, as computed over all sequences in the input alignment.
+#     class_raw_scores : dict
+#         The dictionary mapping clustering constant to coupling scores for all
+#         positions in the query sequences at the specified clustering constant
+#         created by hierarchical clustering.
+#     class_result_matrices : dict
+#         A dictionary mapping clustering constants to matrices which represent
+#         the integration of coupling scores across all clusters defined at that
+#         clustering constant.
+#     class_coverage : dict
+#         This dictionary maps clustering constants to a matrix of normalized
+#         coupling scores between 0 and 100, computed from the
+#         summary_matrices.
+#     class_summary : dict
+#         This dictionary maps clustering constants to a matrix which combines
+#         the scores from the whole_mip_matrix, all lower clustering constants,
+#         and this clustering constant.
+#     class_subalignments : dict
+#             A dictionary mapping a clustering constant (k) to another dictionary
+#             which maps a cluster label (0 to k-1) to a SeqAlignment object
+#             containing only the sequences for that specific cluster.
+#     class_alignment : SeqAlignment
+#         The SeqAlignment object containing relevant information for this
+#         ETMIPC analysis.
+#     class_aucs : dictionary
+#         AUC values stored in the ETMIPC class, used to identify the specific
+#         values for the specified clustering constant (clus).
+#     class_pdb : PDBReference
+#         Object representing the pdb structure used in the current
+#         analysis.
+#     output_dir : str
+#         The full path to where the output generated by this process should be
+#         stored. If None (default) the plot will be stored in the current working
+#         directory.
+#     """
+#     global queue1
+#     queue1 = cluster_queue
+#     global queue2
+#     queue2 = output_queue
+#     global query_n
+#     query_n = q_name
+#     global date
+#     date = today
+#     global ver
+#     ver = verbosity
+#     global mip_matrix
+#     mip_matrix = class_mip_matrix
+#     global raw_scores
+#     raw_scores = class_raw_scores
+#     global res_mat
+#     res_mat = class_result_matrices
+#     global sub_alignments
+#     sub_alignments = class_subalignments
+#     global alignment
+#     alignment = class_alignment
+#     global coverage
+#     coverage = class_coverage
+#     global summary
+#     summary = class_summary
+#     global aucs
+#     aucs = class_aucs
+#     global scorer
+#     scorer = class_scorer
+#     global out_dir
+#     out_dir = output_dir
+#
+# def et_mip_worker3(input_tuple):
+#     """
+#     ETMIP Worker 3
+#
+#     This method uses queues to generate the jobs necessary to create the final
+#     output of the ETMIPC class ProduceFinalFigures method (figures and
+#     output files). One queue is used to hold the clustering constants to be
+#     processed (producer) while another queue is used to hold the functions
+#     to call and the input data to provide (producer). This method directs a
+#     process to preferentially pull jobs from the second queue, unless none are
+#     available, in which case it directs the process to generate additional jobs
+#     using queue 1. If both queues are empty the method terminates.
+#
+#     Parameters:
+#     -----------
+#     inTup: tuple
+#         Tuple containing the one int specifying which process this is,
+#         and a second int specifying the number of active processes.
+#     Returns:
+#     --------
+#     dict
+#         Mapping of k to the time spent working on data from that k by this
+#         process.
+#     """
+#     from ContactScorer import write_out_contact_scoring
+#     curr_process, total_processes = input_tuple
+#     times = {}
+#     function_dict = {'heatmap': heatmap_plot, 'surface_plot': surface_plot,
+#                      'writeClusterResults': scorer.write_out_clustering_results,
+#                      'writeClusterScoring': write_out_contact_scoring,
+#                      'plot_auc': scorer.plot_auc, 'subAlignment': None}
+#     while (not queue1.empty()) or (not queue2.empty()):
+#         try:
+#             q_func, q_param = queue2.get_nowait()
+#             print('Calling: {} in processes {}:{}'.format(q_func, curr_process, total_processes))
+#             c = q_param[0]
+#             c_out_dir = os.path.join(out_dir, str(c))
+#             if q_func in ['writeClusterResults', 'writeClusterScoring', 'heatmap', 'surface_plot']:
+#                 if (summary is None) and (coverage is None):
+#                     c_summary = load_single_matrix('Summary', c, out_dir)
+#                     c_coverage = load_single_matrix('Coverage', c, out_dir)
+#                 else:
+#                     c_summary = summary[c]
+#                     c_coverage = coverage[c]
+#                 if q_func == 'heatmap':
+#                     if q_param[1] == 'Raw Score':
+#                         function_dict[q_func]('Raw Score Heatmap K {}'.format(c), c_summary, c_out_dir)
+#                     else:
+#                         function_dict[q_func]('Coverage Heatmap K {}'.format(c), c_coverage, c_out_dir)
+#                 elif q_func == 'surface_plot':
+#                     if q_param[1] == 'Raw Score':
+#                         function_dict[q_func]('Raw Score Surface K {}'.format(c), c_summary, c_out_dir)
+#                     else:
+#                         function_dict[q_func]('Coverage Surface K {}'.format(c), c_coverage, c_out_dir)
+#                 elif q_func == 'writeClusterResults':
+#                     start = time()
+#                     res_fn = '{}_{}_{}.etmipCVG.clustered.txt'.format(date, query_n, c)
+#                     function_dict[q_func](date, query_n, c_summary, c_coverage, res_fn, c_out_dir)
+#                     end = time()
+#                     time_elapsed = end - start
+#                     if c not in times:
+#                         times[c] = time_elapsed
+#                     else:
+#                         times[c] += time_elapsed
+#                 else:
+#                     if (res_mat is None) and (raw_scores is None):
+#                         c_raw_scores, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
+#                         c_result = load_single_matrix('Result', c, out_dir)
+#                     else:
+#                         c_raw_scores = raw_scores[c]
+#                         c_result = res_mat[c]
+#                     res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
+#                     # today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
+#                     #                               c_integrated_scores=None, file_name=None, output_dir=None
+#                     function_dict[q_func](date, alignment, c_result, c_coverage, mip_matrix, c_raw_scores, c_summary, res_fn,
+#                                           c_out_dir)
+#             elif q_func == 'plot_auc':
+#                 auc_title = 'Ability to predict positive contacts in {}, Cluster = {}'.format(query_n, c)
+#                 auc_fn = '{0}{1}A_C{2}_{3}roc.eps'.format(query_n, scorer.cutoff, c, date)
+#                 function_dict[q_func](query_n, aucs[c], auc_title, auc_fn, c_out_dir)
+#             elif q_func == 'subAlignment':
+#                 sub = q_param[1]
+#                 sub_alignments[c][sub].set_tree_ordering(alignment.tree_order)
+#                 sub_alignments[c][sub].write_out_alignment(os.path.join(c_out_dir,
+#                                                                         'AlignmentForK{}_{}.fa'.format(c, sub)))
+#                 sub_alignments[c][sub].heatmap_plot('Alignment For K {} {}'.format(c, sub), c_out_dir)
+#             else:
+#                 raise ValueError('Function: {} not implemented!'.format(q_func))
+#         except Queue.Empty:
+#             pass
+#         try:
+#             c = queue1.get_nowait()
+#             if ver >= 1:
+#                 queue2.put_nowait(('writeClusterResults', (c,)))
+#                 if scorer:
+#                     queue2.put_nowait(('plot_auc', (c,)))
+#             if ver >= 2:
+#                 queue2.put_nowait(('writeClusterScoring', (c,)))
+#             if ver >= 3:
+#                 for sub in range(c):
+#                     queue2.put_nowait(('subAlignment', (c, sub)))
+#             if ver >= 4:
+#                 queue2.put_nowait(('heatmap', (c, 'Raw Score')))
+#                 queue2.put_nowait(('heatmap', (c, 'Coverage')))
+#                 queue2.put_nowait(('surface_plot', (c, 'Raw Score')))
+#                 queue2.put_nowait(('surface_plot', (c, 'Coverage')))
+#         except Queue.Empty:
+#             pass
+#     print('Function completed by {}:{}'.format(curr_process, total_processes))
+#     return times
     ####################################################################################################################
