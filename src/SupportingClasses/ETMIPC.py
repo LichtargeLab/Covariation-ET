@@ -149,19 +149,14 @@ class ETMIPC(object):
         """
         Calculate Clustered MIP Scores
 
-        This method calculates the coupling scores for subsets of sequences
-        from the alignment as determined by hierarchical clustering on the
-        distance matrix between sequences of the alignment. This method updates
-        the result_matrices, result_times, and raw_scores class variables.
+        This method calculates the coupling scores for subsets of sequences from the alignment as determined by
+        hierarchical clustering on the distance matrix between sequences of the alignment. This method updates the
+        raw_scores, result_matrices, and time class variables.
 
-        Parameters:
-        -----------
-        aa_dict : dict
-            A dictionary mapping amino acids to numerical representations.
-        combine_clusters : str
-            Method by which to combine individual matrices from one round of
-            clustering. The options supported now are: sum, average,
-            size_weighted, evidence_weighted, and evidence_vs_size.
+        Args:
+        aa_dict (dict): A dictionary mapping amino acids to numerical representations.
+        combine_clusters (str): Method by which to combine individual matrices from one round of clustering. The options
+        supported now are: sum, average, size_weighted, evidence_weighted, and evidence_vs_size.
         """
         cetmip_manager = Manager()
         k_queue = cetmip_manager.Queue()
@@ -247,17 +242,13 @@ class ETMIPC(object):
         """
         Combine Clustering Result
 
-        This method combines data from whole_mip_matrix and result_matrices to
-        populate the summary_matrices.  The combination occurs by simple addition
-        but if average is specified it is normalized by the number of elements
+        This method combines data from whole_mip_matrix and result_matrices to populate the scores matrices.  The
+        combination occurs by simple addition but if average is specified it is normalized by the number of elements
         added.
 
-        Parameters:
-        -----------
-        combination: str
-            Method by which to combine scores across clustering constants. By
-            default only a sum is performed, the option average is also
-            supported.
+        Args:
+        combination (str): Method by which to combine scores across clustering constants. By default only a sum is
+        performed, the option average is also supported.
         """
         start = time()
         for i in range(len(self.clusters)):
@@ -281,36 +272,24 @@ class ETMIPC(object):
         print('Combining data across clusters took {} min'.format(
             (end - start) / 60.0))
 
-    ####################################################################################################################
-    def compute_coverage_and_auc(self, contact_scorer):
+    def compute_coverage(self):
         """
-        Compute Coverage And AUC
+        Compute Coverage
 
-        This method computes the coverage/normalized coupling scores between
-        residues in the query sequence as well as the AUC summary values
-        determined when comparing the coupling score to the distance between
-        residues in the PDB file. This method updates the coverage, result_times,
-        and aucs variables.
-
-        Parameters:
-        -----------
-        threshold : float
-            Distance in Angstroms between residues considered as a preliminary
-            positive set of coupled residues based on spatial positions in
-            the PDB file if provided.
+        This method computes the coverage/normalized coupling scores between residues in the query sequence as well as
+        the AUC summary values determined when comparing the coupling score to the distance between residues in the PDB
+        file. This method updates the coverage, result_times, and aucs variables.
         """
         start = time()
         if self.processes == 1:
             res2 = []
             for clus in self.clusters:
-                pool_init2(contact_scorer, self.output_dir)
+                pool_init2(self.output_dir)
                 r = et_mip_worker2((clus, self.scores))
                 res2.append(r)
         else:
-            pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(contact_scorer, self.output_dir))
-            res2 = pool2.map_async(et_mip_worker2,
-                                   [(clus, self.scores)
-                                    for clus in self.clusters])
+            pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(self.output_dir, ))
+            res2 = pool2.map_async(et_mip_worker2, [(clus, self.scores) for clus in self.clusters])
             pool2.close()
             pool2.join()
             res2 = res2.get()
@@ -318,53 +297,8 @@ class ETMIPC(object):
             if not self.low_mem:
                 self.coverage[r[0]] = r[1]
             self.time[r[0]] += r[2]
-            self.aucs[r[0]] = r[3:]
         end = time()
-        print('Computing coverage and AUC took {} min'.format((end - start) / 60.0))
-    ####################################################################################################################
-
-    # def compute_coverage_and_auc(self, contact_scorer):
-    def compute_coverage(self):
-        """
-        Compute Coverage And AUC
-
-        This method computes the coverage/normalized coupling scores between
-        residues in the query sequence as well as the AUC summary values
-        determined when comparing the coupling score to the distance between
-        residues in the PDB file. This method updates the coverage, result_times,
-        and aucs variables.
-
-        Parameters:
-        -----------
-        threshold : float
-            Distance in Angstroms between residues considered as a preliminary
-            positive set of coupled residues based on spatial positions in
-            the PDB file if provided.
-        """
-        start = time()
-        if self.processes == 1:
-            res2 = []
-            for clus in self.clusters:
-                # pool_init_new(contact_scorer, self.output_dir)
-                pool_init_new(self.output_dir)
-                # r = et_mip_worker_new((clus, self.summary_matrices))
-                r = et_mip_worker_new((clus, self.scores))
-                res2.append(r)
-        else:
-            # pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(contact_scorer, self.output_dir))
-            pool2 = Pool(processes=self.processes, initializer=pool_init_new, initargs=(self.output_dir, ))
-            # res2 = pool2.map_async(et_mip_worker2, [(clus, self.summary_matrices) for clus in self.clusters])
-            res2 = pool2.map_async(et_mip_worker_new, [(clus, self.scores) for clus in self.clusters])
-            pool2.close()
-            pool2.join()
-            res2 = res2.get()
-        for r in res2:
-            if not self.low_mem:
-                self.coverage[r[0]] = r[1]
-            self.time[r[0]] += r[2]
-            # self.aucs[r[0]] = r[3:]
-        end = time()
-        print('Computing coverage and AUC took {} min'.format((end - start) / 60.0))
+        print('Computing coverage took {} min'.format((end - start) / 60.0))
 
     def write_out_scores(self, today):
         """
@@ -981,88 +915,88 @@ def et_mip_worker1(in_tup):
     return cluster_sizes, sub_alignments, cluster_times
 
 ########################################################################################################################
-def pool_init2(q_scorer, out_dir):
-    """
-    pool_init2
-
-    A function which initializes processes spawned in a worker pool performing
-    the et_mip_worker2 function.  This provides a set of variables to all working
-    processes which are shared.
-
-    Parameters:
-    -----------
-    c: float
-        The threshold distance at which to consider two residues as interacting
-        with one another.
-    q_alignment: SeqAlignment
-        Object containing the sequence alignment for this analysis.
-    q_structure: PDBReference
-        Object containing the PDB information for this analysis.
-    """
-    global w2_out_dir
-    w2_out_dir = out_dir
-    global scorer
-    scorer = q_scorer
-
-
-def et_mip_worker2(in_tup):
-    """
-    ETMIP Worker 2
-
-    Performs clustering and calculation of cluster dependent sequence distances.
-    This function requires initialization of threads with poolInit, or setting
-    of global variables as described in that function.
-
-    Parameters:
-    -----------
-    in_tup: tuple
-        Tuple containing the number of clusters to form during agglomerative
-        clustering and a matrix which is the result of summing the original
-        MIP matrix and the matrix resulting from clustering at this clustering
-        and lower clusterings.
-    Returns:
-    --------
-    int
-        Number of clusters.
-    list
-        Coverage values for this clustering.
-    float
-        The time in seconds which it took to perform clustering.
-    list
-        List of false positive rates.
-    list
-        List of true positive rates.
-    float
-        The ROCAUC value for this clustering.
-    """
-    clus, all_summed_matrix = in_tup
-    if all_summed_matrix:
-        summed_matrix = all_summed_matrix[clus]
-    else:
-        summed_matrix = load_single_matrix('Summary', clus, w2_out_dir)
-    start = time()
-    curr_coverage = np.zeros(summed_matrix.shape)
-    test_mat = np.triu(summed_matrix)
-    mask = np.triu(np.ones(summed_matrix.shape), k=1)
-    normalization = ((summed_matrix.shape[0]**2 - summed_matrix.shape[0]) / 2.0)
-    for i in range(summed_matrix.shape[0]):
-        for j in range(i + 1, summed_matrix.shape[0]):
-            bool_mat = (test_mat[i, j] >= test_mat) * 1.0
-            corrected_mat = bool_mat * mask
-            compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
-            curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
-    tpr, fpr, roc_auc = scorer.score_auc(curr_coverage)
-    end = time()
-    time_elapsed = end - start
-    print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
-    if all_summed_matrix is None:
-        save_single_matrix('Coverage', clus, curr_coverage, w2_out_dir)
-        curr_coverage = None
-    return clus, curr_coverage, time_elapsed, fpr, tpr, roc_auc
+# def pool_init2(q_scorer, out_dir):
+#     """
+#     pool_init2
+#
+#     A function which initializes processes spawned in a worker pool performing
+#     the et_mip_worker2 function.  This provides a set of variables to all working
+#     processes which are shared.
+#
+#     Parameters:
+#     -----------
+#     c: float
+#         The threshold distance at which to consider two residues as interacting
+#         with one another.
+#     q_alignment: SeqAlignment
+#         Object containing the sequence alignment for this analysis.
+#     q_structure: PDBReference
+#         Object containing the PDB information for this analysis.
+#     """
+#     global w2_out_dir
+#     w2_out_dir = out_dir
+#     global scorer
+#     scorer = q_scorer
+#
+#
+# def et_mip_worker2(in_tup):
+#     """
+#     ETMIP Worker 2
+#
+#     Performs clustering and calculation of cluster dependent sequence distances.
+#     This function requires initialization of threads with poolInit, or setting
+#     of global variables as described in that function.
+#
+#     Parameters:
+#     -----------
+#     in_tup: tuple
+#         Tuple containing the number of clusters to form during agglomerative
+#         clustering and a matrix which is the result of summing the original
+#         MIP matrix and the matrix resulting from clustering at this clustering
+#         and lower clusterings.
+#     Returns:
+#     --------
+#     int
+#         Number of clusters.
+#     list
+#         Coverage values for this clustering.
+#     float
+#         The time in seconds which it took to perform clustering.
+#     list
+#         List of false positive rates.
+#     list
+#         List of true positive rates.
+#     float
+#         The ROCAUC value for this clustering.
+#     """
+#     clus, all_summed_matrix = in_tup
+#     if all_summed_matrix:
+#         summed_matrix = all_summed_matrix[clus]
+#     else:
+#         summed_matrix = load_single_matrix('Summary', clus, w2_out_dir)
+#     start = time()
+#     curr_coverage = np.zeros(summed_matrix.shape)
+#     test_mat = np.triu(summed_matrix)
+#     mask = np.triu(np.ones(summed_matrix.shape), k=1)
+#     normalization = ((summed_matrix.shape[0]**2 - summed_matrix.shape[0]) / 2.0)
+#     for i in range(summed_matrix.shape[0]):
+#         for j in range(i + 1, summed_matrix.shape[0]):
+#             bool_mat = (test_mat[i, j] >= test_mat) * 1.0
+#             corrected_mat = bool_mat * mask
+#             compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
+#             curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
+#     tpr, fpr, roc_auc = scorer.score_auc(curr_coverage)
+#     end = time()
+#     time_elapsed = end - start
+#     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
+#     if all_summed_matrix is None:
+#         save_single_matrix('Coverage', clus, curr_coverage, w2_out_dir)
+#         curr_coverage = None
+#     return clus, curr_coverage, time_elapsed, fpr, tpr, roc_auc
 ########################################################################################################################
 
 # def pool_init2(q_scorer, out_dir):
-def pool_init_new(out_dir):
+def pool_init2(out_dir):
     """
     pool_init2
 
@@ -1086,7 +1020,7 @@ def pool_init_new(out_dir):
     # scorer = q_scorer
 
 
-def et_mip_worker_new(in_tup):
+def et_mip_worker2(in_tup):
     """
     ETMIP Worker 2
 
