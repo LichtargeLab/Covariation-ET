@@ -9,6 +9,7 @@ import numpy as np
 from time import time
 from multiprocessing import Manager, Pool
 from sklearn.metrics import mutual_info_score
+from SeqAlignment import SeqAlignment
 from ContactScorer import heatmap_plot, surface_plot
 
 
@@ -17,173 +18,73 @@ class ETMIPC(object):
     classdocs
     """
 
-    # def __init__(self, alignment, clusters, pdb, output_dir, processes, low_memory_mode=False):
-    def __init__(self, alignment, clusters=None, pdb=None, output_dir=None, processes=None, low_memory_mode=None):
-    # def __init__(self, alignment):
+    def __init__(self, alignment):
         """
         Constructor
 
-        Initiates an instance of the ETMIPC class which stores the
-        following data:
+        Initiates an instance of the ETMIPC class which stores the following data:
 
         alignment : SeqAlignment
-            The SeqAlignment object containing relevant information for this
-            ETMIPC analysis.
+            The SeqAlignment object containing relevant information for this cET-MIp analysis.
         clusters : list
-            The k's for which to create different clusterings.
+            The k's for which to create clusters and across which to integrate scores.
         sub_alignments : dict
-            A dictionary mapping a clustering constant (k) to another dictionary
-            which maps a cluster label (0 to k-1) to a SeqAlignment object
-            containing only the sequences for that specific cluster.
-        pdb : PDBReference
-            The PDBReference object containing relevant information for this
-            ETMIPC analysis.
+            A dictionary mapping a clustering constant (k) to another dictionary which maps a cluster label (0 to k-1)
+            to a SeqAlignment object containing only the sequences for that specific cluster.
         output_dir : str
-            Directory name or path to directory where results from this analysis
-            should be stored.
+            Directory name or path to directory where results from this analysis should be stored.
         processes : int
-            The number of processes to spawn for more intense computations
-            performed during this analysis.  If the number is higher than the
-            number of jobs required to quickly perform this analysis the number
-            of jobs is used as the number of processes.  If the number of
-            processes is higher than the number of processors available to the
-            program, the number of processors available is used instead.
+            The number of processes to spawn for more intense computations performed during this analysis.  If the
+            number is higher than the number of jobs required to quickly perform this analysis the number of jobs is
+            used as the number of processes.  If the number of processes is higher than the number of processors
+            available to the program, the number of processors available is used instead.
         whole_mip_matrix : np.array
-            Matrix scoring the coupling between all positions in the query
-            sequence, as computed over all sequences in the input alignment.
+            Matrix scoring the coupling between all positions in the query sequence, as computed over all sequences in
+            the input alignment.
         whole_evidence_matrix : np.array
-            Matrix containing the number of sequences which are not gaps in
-            either position used for scoring the whole_mip_matrix.
-        result_times : dict
-            Dictionary mapping k constant to the amount of time it took to
-            perform analysis for that k constant.
+            Matrix containing the number of sequences which are not gaps in either position used for scoring the
+            whole_mip_matrix.
+        time : dict
+            Dictionary mapping k constant to the amount of time it took to perform analysis for that k constant.
         raw_scores : dict
-            This dictionary maps clustering constant to an k x m x n matrix.
-            This matrix has coupling scores for all positions in the query
-            sequences for each of the clusters created by hierarchical
-            clustering.
+            This dictionary maps clustering constant to an k x m x n matrix. This matrix has coupling scores for all
+            positions in the query sequences for each of the clusters created by hierarchical clustering.
         result_matrices : dict
-            This dictionary maps clustering constants to a matrix scoring the
-            coupling between all residues in the query sequence over all of the
-            clusters created at that constant.
+            This dictionary maps clustering constants to a matrix scoring the coupling between all residues in the query
+            sequence over all of the clusters created at that constant.
         evidence_counts : dict
-            This dictionary maps clustering constants to a matrix which has
-            counts for the number of sequences which are not gaps in
-            either position used for scoring at that position.
-        summary_matrices : dict
-            This dictionary maps clustering constants to a matrix which combines
-            the scores from the whole_mip_matrix, all lower clustering constants,
-            and this clustering constant.
+            This dictionary maps clustering constants to a matrix which has counts for the number of sequences which are
+            not gaps in either position used for scoring at that position.
+        scores : dict
+            This dictionary maps clustering constants to a matrix which combines the scores from the whole_mip_matrix,
+            all lower clustering constants, and this clustering constant.
         coverage : dict
-            This dictionary maps clustering constants to a matrix of normalized
-            coupling scores between 0 and 100, computed from the
-            summary_matrices.
-        aucs : dict
-            This dictionary maps clustering constants to a tuple containing the
-            auc, tpr, and fpr for comparing the coupled scores to the PDB
-            reference (if provided) at a specified distance threshold.
-        low_memory_mode: bool
-            This boolean specifies whether or not to run in low memory mode. If
-            True is specified a majority of the class variables are set to None
-            and the data is saved to disk at run time and loaded when needed for
-            downstream analysis. The intermediate files generated in this way
-            can be removed using clear_intermediate_files. The default value is
-            False, in which case all variables are kept in memory.
+            This dictionary maps clustering constants to a matrix of normalized coupling scores between 0 and 100,
+            computed from the summary_matrices.
+        low_mem: bool
+            This boolean specifies whether or not to run in low memory mode. If True is specified a majority of the
+            class variables are set to None and the data is saved to disk at run time and loaded when needed for
+            downstream analysis. The intermediate files generated in this way can be removed using
+            clear_intermediate_files. The default value is False, in which case all variables are kept in memory.
         """
-        ################################################################################################################
         self.alignment = alignment
-        self.output_dir = output_dir
-        # self.output_dir = None
-        self.processes = processes
-        # self.processes = None
-        self.pdb = pdb
-        self.clusters = clusters
-        # self.clusters = None
-        self.low_mem = low_memory_mode
-        # self.low_mem = None
+        self.output_dir = None
+        self.clusters = None
         self.whole_mip_matrix = None
+        self.low_mem = None
+        self.sub_alignments = None
+        self.processes = None
         self.whole_evidence_matrix = None
-        if self.clusters:
-            self.sub_alignments = {c: {} for c in self.clusters}
-            self.time = {c: 0.0 for c in self.clusters}
-            self.aucs = None
-            if low_memory_mode:
-                self.raw_scores = None
-                self.evidence_counts = None
-                self.result_matrices = None
-                # self.summary_matrices = None
-                self.scores = None
-                self.coverage = None
-            else:
-                self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                                   for c in self.clusters}
-                self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                                        for c in self.clusters}
-                self.result_matrices = {c: None for c in self.clusters}
-                # self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                         for c in self.clusters}
-                self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                 for c in self.clusters}
-            for k in self.clusters:
-                c_out_dir = os.path.join(self.output_dir, str(k))
-                if not os.path.exists(c_out_dir):
-                    os.mkdir(c_out_dir)
-            self.aucs = {}
-        else:
-            self.sub_alignments = None
-            self.time = None
-            self.raw_scores = None
-            self.evidence_counts = None
-            self.result_matrices = None
-            # self.summary_matrices = None
-            self.scores = None
-            self.coverage = None
-            self.aucs = None
-        ################################################################################################################
-        # self.alignment = alignment
-        # # self.output_dir = output_dir
-        # self.output_dir = None
-        # # self.clusters = clusters
-        # self.clusters = None
-        # self.whole_mip_matrix = None
-        # # self.low_mem = low_memory_mode
-        # self.low_mem = None
-        # # self.sub_alignments = {c: {} for c in self.clusters}
-        # self.sub_alignments = None
-        # # self.pdb = pdb
-        # # self.processes = processes
-        # self.processes = None
-        # self.whole_evidence_matrix = None
-        # # self.time = {c: 0.0 for c in self.clusters}
-        # self.time = None
-        # # if low_memory_mode:
-        # self.raw_scores = None
-        # self.evidence_counts = None
-        # self.result_matrices = None
-        # # self.summary_matrices = None
-        # self.scores = None
-        # self.coverage = None
-        # # else:
-        # #     self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-        # #                        for c in self.clusters}
-        # #     self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-        # #                             for c in self.clusters}
-        # #     self.result_matrices = {c: None for c in self.clusters}
-        # #     self.summary_matrices = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        # #     self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        # #                              for c in self.clusters}
-        # #     self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        # #                      for c in self.clusters}
-        # self.aucs = None
-        # # for k in self.clusters:
-        # #     c_out_dir = os.path.join(self.output_dir, str(k))
-        # #     if not os.path.exists(c_out_dir):
-        # #         os.mkdir(c_out_dir)
+        self.raw_scores = None
+        self.evidence_counts = None
+        self.result_matrices = None
+        self.scores = None
+        self.coverage = None
+        self.time = None
 
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         # This should be moved to top once it works!
-        from SeqAlignment import SeqAlignment
+
         print 'Importing alignment'
         # Create SeqAlignment object to represent the alignment for this analysis.
         query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
