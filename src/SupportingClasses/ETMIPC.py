@@ -71,7 +71,10 @@ class ETMIPC(object):
         Args:
             alignment (str): The path to an .fa formatted alignment to be used for analysis.
         """
-        self.alignment = alignment
+        if isinstance(alignment, SeqAlignment):
+            self.alignment = alignment.file_name
+        else:
+            self.alignment = alignment
         self.output_dir = None
         self.clusters = None
         self.whole_mip_matrix = None
