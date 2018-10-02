@@ -54,6 +54,7 @@ class ContactScorer(object):
         self.best_chain = None
         self.query_pdb_mapping = None
         self.distances = None
+        self.dist_type = None
 
     def __str__(self):
         """
@@ -80,28 +81,35 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_pdb_mapping class variable.
         """
-        start = time()
         best_chain = None
         best_alignment = None
-        for ch in self.query_structure.seq:
-            curr_align = pairwise2.align.globalxs(self.query_alignment.query_sequence,
-                                                  self.query_structure.seq[ch], -1, 0)
-            if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
-                best_alignment = curr_align
-                best_chain = ch
-        print(format_alignment(*best_alignment[0]))
-        f_counter = 0
-        p_counter = 0
-        f_to_p_map = {}
-        for i in range(len(best_alignment[0][0])):
-            if (best_alignment[0][0][i] != '-') and (best_alignment[0][1][i] != '-'):
-                f_to_p_map[f_counter] = p_counter
-            if best_alignment[0][0][i] != '-':
-                f_counter += 1
-            if best_alignment[0][1][i] != '-':
-                p_counter += 1
-        end = time()
-        print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
+        f_to_p_map = None
+        if self.query_structure is None:
+            print('Scorer cannot be fit, because no PDB was provided.')
+        elif self.best_chain and self.query_pdb_mapping:
+            best_chain = self.best_chain
+            f_to_p_map = self.query_pdb_mapping
+        else:
+            start = time()
+            for ch in self.query_structure.seq:
+                curr_align = pairwise2.align.globalxs(self.query_alignment.query_sequence,
+                                                      self.query_structure.seq[ch], -1, 0)
+                if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
+                    best_alignment = curr_align
+                    best_chain = ch
+            print(format_alignment(*best_alignment[0]))
+            f_counter = 0
+            p_counter = 0
+            f_to_p_map = {}
+            for i in range(len(best_alignment[0][0])):
+                if (best_alignment[0][0][i] != '-') and (best_alignment[0][1][i] != '-'):
+                    f_to_p_map[f_counter] = p_counter
+                if best_alignment[0][0][i] != '-':
+                    f_counter += 1
+                if best_alignment[0][1][i] != '-':
+                    p_counter += 1
+            end = time()
+            print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
         self.best_chain = best_chain
         self.query_pdb_mapping = f_to_p_map
 
@@ -210,6 +218,10 @@ class ContactScorer(object):
             stored on a previous run.
     """
         start = time()
+        if self.query_structure is None:
+            print('Distance cannot be measured, because no PDB was provided.')
+        elif (self.distances is not None) and (self.dist_type == method):
+            return
         if (save_file is not None) and os.path.exists(save_file):
             dists = np.load(save_file + '.npz')['dists']
         else:
@@ -243,6 +255,7 @@ class ContactScorer(object):
         end = time()
         print('Computing the distance matrix based on the PDB file took {} min'.format((end - start) / 60.0))
         self.distances = dists
+        self.dist_type = method
 
     def find_pairs_by_separation(self, category='Any', mappable_only=False):
         """
@@ -358,16 +371,18 @@ class ContactScorer(object):
             np.array. The list of false positive rate value calculated when computing the roc curve.
             float. The auroc determined for the roc curve.
         """
-        if self.query_pdb_mapping is not None:
-            mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
-            # AUC computation
-            if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
-                raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
-            y_true1 = ((mapped_distances <= self.cutoff) * 1)
-            fpr, tpr, _thresholds = roc_curve(y_true1, mapped_predictions, pos_label=1)
-            auroc = auc(fpr, tpr)
-        else:
-            fpr = tpr = auroc = None
+        if self.query_structure is None:
+            print('AUC cannot be measured, because no PDB was provided.')
+            return None, None, '-'
+        if self.query_pdb_mapping is None:
+            self.fit()
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # AUC computation
+        if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        y_true1 = ((mapped_distances <= self.cutoff) * 1)
+        fpr, tpr, _thresholds = roc_curve(y_true1, mapped_predictions, pos_label=1)
+        auroc = auc(fpr, tpr)
         return tpr, fpr, auroc
 
     def plot_auc(self, query_name, auc_data, title=None, file_name=None, output_dir=None):
@@ -439,6 +454,9 @@ class ContactScorer(object):
                 Any : Any/All pairs of residues.
         Returns:
         """
+        if self.query_structure is None:
+            print('Precision cannot be measured, because no PDB was provided.')
+            return '-'
         if (k is not None) and (n is not None):
             raise ValueError('Both k and n were set for score_precision which is not a valid option.')
         else:
@@ -453,7 +471,6 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    # def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0, file_path='./z_score.tsv'):
     def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv'):
         """
         Score Clustering Of Contact Predictions
@@ -471,6 +488,9 @@ class ContactScorer(object):
             list. A list of residues sorted order by the prediction score.
             list. A list of z-scores matching the
         """
+        if self.query_structure is None:
+            print('Z-Scores cannot be measured, because no PDB was provided.')
+            return pd.DataFrame()
         scores = []
         residues = []
         for i in range(predictions.shape[0]):
@@ -551,6 +571,9 @@ class ContactScorer(object):
             ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
             (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
         """
+        if self.query_structure is None:
+            print('Z-Score cannot be measured, because no PDB was provided.')
+            return '-', None, None, None, None, None
         # Check that there is a valid bias values
         if bias is not True and bias is not False:
             raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
@@ -731,24 +754,23 @@ class ContactScorer(object):
         coverage_stats = None
         if isinstance(predictor.scores, dict):
             for c in predictor.scores:
+                c_out_dir = os.path.join(out_dir, str(c))
+                if not os.path.isdir(c_out_dir):
+                    os.mkdir(c_out_dir)
                 score_stats = self.evaluate_predictions(query=query, scores=predictor.scores[c],
-                                                        verbosity=verbosity, out_dir=out_dir, dist=dist,
+                                                        verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                                                         file_prefix='Scores_K-{}_'.format(c), stats=score_stats)
                 if 'K' not in score_stats:
                     score_stats['K'] = []
                     score_stats['Time'] = []
-                print('AUROC: {}'.format(len(score_stats['AUROC'])))
-                print('K: {}'.format(len(score_stats['K'])))
-                print(len(score_stats['AUROC']) - len(score_stats['K']))
                 diff_len = len(score_stats['AUROC']) - len(score_stats['K'])
                 c_array = [c] * diff_len
                 time_array = [predictor.time[c]] * diff_len
-                print(c_array)
                 score_stats['K'] += c_array
                 score_stats['Time'] += time_array
                 try:
                     coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage[c],
-                                                               verbosity=verbosity, out_dir=out_dir, dist=dist,
+                                                               verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                                                                file_prefix='Coverage_K-{}_'.format(c),
                                                                stats=coverage_stats)
                     if 'K' not in coverage_stats:
@@ -759,26 +781,26 @@ class ContactScorer(object):
                 except AttributeError:
                     pass
         else:
-            score_stats = self.evaluate_predictions(query=query, scores=predictor.scores, time=predictor.time,
-                                                    verbosity=verbosity, out_dir=out_dir, dist=dist,
-                                                    file_prefix='Scores_', stats=score_stats)
+            score_stats = self.evaluate_predictions(query=query, scores=predictor.scores, verbosity=verbosity,
+                                                    out_dir=out_dir, dist=dist, file_prefix='Scores_',
+                                                    stats=score_stats)
             if 'Time' not in score_stats:
                 score_stats['Time'] = []
             diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
             time_array = [predictor.time] * diff_len
             score_stats['Time'] += time_array
             try:
-                coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage, time=predictor.time,
-                                                           verbosity=verbosity, out_dir=out_dir,
-                                                           dist=dist, file_prefix='Coverage_', stats=coverage_stats)
+                coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage, verbosity=verbosity,
+                                                           out_dir=out_dir, dist=dist, file_prefix='Coverage_',
+                                                           stats=coverage_stats)
                 if 'K' not in coverage_stats:
                     coverage_stats['K'] = []
                     coverage_stats['Time'] = []
                 coverage_stats['Time'] += time_array
             except AttributeError:
                 pass
-        for k in score_stats:
-            print('{} : {}'.format(k, len(score_stats[k])))
+        # for k in score_stats:
+        #     print('{} : {}'.format(k, len(score_stats[k])))
         pd.DataFrame(score_stats).to_csv(path_or_buf=os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist)),
                                          columns=sorted(score_stats.keys()), sep='\t', header=True, index=False)
         if coverage_stats is not None:
@@ -820,47 +842,53 @@ class ContactScorer(object):
         """
         if stats is None:
             stats = {'AUROC': [], 'distance': [], 'sequence_separation': []}
-        if verbosity <2:
-            return None
+        # if verbosity <2:
+        #     return None
         self.fit()
         self.measure_distance(method=dist)
         if verbosity >= 2:
             # Score Prediction Clustering
-            z_score_fn = file_prefix + 'Dist-{}_{}_ZScores.tsv'
-            z_score_plot_fn = file_prefix + 'Dist-{}_{}_ZScores.eps'
+            z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
+            z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
+            # z_score_biased = self.score_clustering_of_contact_predictions(scores, bias=True, cutoff=self.cutoff,
             z_score_biased = self.score_clustering_of_contact_predictions(
-                scores, bias=True, cutoff=self.cutoff, file_path=os.path.join(out_dir, z_score_fn.format(dist, 'Biased')))
-            self.plot_z_scores(z_score_biased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Biased')))
+                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'))
+            self.plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
             z_score_unbiased = self.score_clustering_of_contact_predictions(
-                scores, bias=False, cutoff=self.cutoff, file_path=os.path.join(out_dir, z_score_fn.format(dist, 'Unbiased')))
-            self.plot_z_scores(z_score_unbiased, os.path.join(out_dir, z_score_plot_fn.format(dist, 'Unbiased')))
-        if verbosity >= 3:
-            # Evaluating scores
-            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-                # AUC Evaluation
-                auc_roc_any = self.score_auc(scores, category=separation)
-                stats['AUROC'].append(auc_roc_any[2])
-                stats['distance'].append(dist)
-                stats['sequence_separation'].append(separation)
-                self.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation', output_dir=out_dir,
+                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'))
+            self.plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
+        # Evaluating scores
+        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+            # AUC Evaluation
+            if verbosity >= 3:
+                auc_roc = self.score_auc(scores, category=separation)
+                self.plot_auc(query_name=query, auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
+            else:
+                auc_roc = (None, None, '-')
+            stats['AUROC'].append(auc_roc[2])
+            stats['distance'].append(dist)
+            stats['sequence_separation'].append(separation)
+            # Precision Evaluation
+            for k in range(1, 11):
+                if k == 1:
+                    precision_label = 'Precision (L)'
+                else:
+                    precision_label = 'Precision (L/{})'.format(k)
+                if precision_label not in stats:
+                    stats[precision_label] = []
                 if verbosity >= 4:
-                    # Precision Evaluation
-                    for k in range(1, 11):
-                        precision_any = self.score_precision(predictions=scores, k=k, category=separation)
-                        if k == 1:
-                            precision_label = 'Precision (L)'
-                        else:
-                            precision_label = 'Precision (L/{})'.format(k)
-                        if precision_label not in stats:
-                            stats[precision_label] = []
-                        stats[precision_label].append(precision_any)
+                    precision = self.score_precision(predictions=scores, k=k, category=separation)
+                else:
+                    precision = '-'
+                stats[precision_label].append(precision)
         if verbosity >= 5:
             heatmap_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Heatmap'.format(dist), data_mat=scores,
                          output_dir=out_dir)
             surface_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Surface'.format(dist), data_mat=scores,
                          output_dir=out_dir)
         return stats
+
 
 def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
                               c_integrated_scores=None, file_name=None, output_dir=None):
