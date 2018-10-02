@@ -66,8 +66,9 @@ def parse_arguments():
                              'Z-Scores against resiude count, 3 tests the AUROC of contact prediction at different '
                              'levels of sequence separation and plots the resulting curves to file, 4 tests the '
                              'precision of  contact prediction at different levels of sequence separation and list '
-                             'lengths (L, L/2 ... L/10). In all cases a file is written out with the final evaluation '
-                             'of the scores, if no PDB is provided, this means only times will be recorded.')
+                             'lengths (L, L/2 ... L/10), 5 produces heatmaps and surface plots of scores. In all cases a'
+                             'file is written out with the final evaluation of the scores, if no PDB is provided, this '
+                             'means only times will be recorded.')
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)

@@ -741,7 +741,7 @@ def pool_init1(aa_reference, w_cc, original_alignment, save_dir, align_lock, k_q
         aa_reference (dict): Dictionary mapping amino acid abbreviations.
         w_cc (str): Method by which to combine individual matrices from one round of clustering. The options supported
         now are: sum, average, size_weighted, and evidence_weighted.
-        originialAlignment (SeqAlignment): Alignment held by the instance of ETMIPC which called this method.
+        original_alignment (SeqAlignment): Alignment held by the instance of ETMIPC which called this method.
         save_dir (str): The caching directory used to save results from agglomerative clustering.
         align_lock (multiprocessing.Manager.Lock()): Lock used to regulate access to the alignment object for the
         purpose of setting the tree order.
@@ -975,11 +975,11 @@ def et_mip_worker2(in_tup):
     list. List of true positive rates.
     float. The ROCAUC value for this clustering.
     """
-    clus, all_summed_matrix = in_tup
+    c, all_summed_matrix = in_tup
     if all_summed_matrix:
-        summed_matrix = all_summed_matrix[clus]
+        summed_matrix = all_summed_matrix[c]
     else:
-        summed_matrix = load_single_matrix('Summary', clus, w2_out_dir)
+        summed_matrix = load_single_matrix('Summary', c, w2_out_dir)
     start = time()
     curr_coverage = np.zeros(summed_matrix.shape)
     test_mat = np.triu(summed_matrix)
@@ -995,9 +995,9 @@ def et_mip_worker2(in_tup):
     time_elapsed = end - start
     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
     if all_summed_matrix is None:
-        save_single_matrix('Coverage', clus, curr_coverage, w2_out_dir)
+        save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
         curr_coverage = None
-    return clus, curr_coverage, time_elapsed
+    return c, curr_coverage, time_elapsed
 
 
 def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
@@ -1059,15 +1059,12 @@ def et_mip_worker3(input_tuple):
     ET-MIp Worker 3
 
     This method uses queues to generate the jobs necessary to create the final output of the cET-MIp class
-    ProduceFinalFigures method (figures and output files). One queue is used to hold the clustering constants to be
-    processed (producer) while another queue is used to hold the functions to call and the input data to provide
-    (producer). This method directs a process to preferentially pull jobs from the second queue, unless none are
-    available, in which case it directs the process to generate additional jobs using queue 1. If both queues are empty
-    the method terminates.
+    write_out_scores method. One queue is used to hold the clustering constants to be processed (producer) and the data
+    for that clustering constant is written to file, while the time taken is saved to a dictionary.
 
     Args:
-        inTup (tuple): Tuple containing the one int specifying which process this is, and a second int specifying the
-        number of active processes.
+        input_tuple (tuple): Tuple containing the one int specifying which process this is, and a second int specifying
+        the number of active processes.
     Returns:
         dict. Mapping of k to the time spent working on data from that k by this process.
     """

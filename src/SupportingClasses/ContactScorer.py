@@ -7,7 +7,7 @@ import os
 import math
 import numpy as np
 import pandas as pd
-from time import time, clock
+from time import time
 from math import floor
 from scipy.stats import rankdata
 from Bio import pairwise2
@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
-from IPython import embed
 
 
 class ContactScorer(object):
@@ -41,13 +40,13 @@ class ContactScorer(object):
         Init
 
         This function overwrite the default __init__ function. It accepts a SeqAlignment and PDBReference object which
-        it will use to map between an alignment and a strucutre, compute distances, and ultimately score predictions
+        it will use to map between an alignment and a structure, compute distances, and ultimately score predictions
         made on contacts within a structure.
 
         Args:
             seq_alignment (SupportingClasses.SeqAlignment): The object containing the alignment of interest.
             pdb_reference (SupportingClasses.PDBReference): The object containing the PDB structure of interest.
-            cutoff (int or float): The distance between two residues at which a true contact is said to be occuring.
+            cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
         """
         self.query_alignment = seq_alignment
         self.query_structure = pdb_reference
@@ -379,20 +378,16 @@ class ContactScorer(object):
         the eps format with dpi=1000 using a name specified by the query name,
         cutoff, clustering constant, and date.
 
-        Parameters:
-        -----------
-        query_name: str
-            Name of the query protein
-        clus: int
-            Number of clusters created
-        today: date
-            The days date
-        aucs : dictionary
-            AUC values stored in the ETMIPC class, used to identify the specific
-            values for the specified clustering constant (clus).
-        output_dir : str
-            The full path to where the AUC plot image should be stored. If None
-            (default) the plot will be stored in the current working directory.
+        Args:
+            query_name (str): Name of the query protein
+            clus (int): Number of clusters created
+            today (date): The days date
+            auc_data (dictionary): AUC values stored in the ETMIPC class, used to identify the specific values for the
+            specified clustering constant (clus).
+            title (str): The title for the AUC plot.
+            file_name (str): The file name under which to save this figure.
+            output_dir (str): The full path to where the AUC plot image should be stored. If None (default) the plot
+            will be stored in the current working directory.
         """
         start = time()
         plt.plot(auc_data[0], auc_data[1], label='(AUC = {0:.2f})'.format(auc_data[2]))
@@ -458,7 +453,8 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0, file_path='./z_score.tsv'):
+    # def score_clustering_of_contact_predictions(self, predictions, bias=True, cutoff=4.0, file_path='./z_score.tsv'):
+    def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv'):
         """
         Score Clustering Of Contact Predictions
 
@@ -496,8 +492,7 @@ class ContactScorer(object):
                 new_res.append(pair[1])
             if len(new_res) > 0:
                 residues_of_interest.update(new_res)
-                z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, cutoff=cutoff,
-                                                   w2_ave_sub=w2_ave_sub)
+                z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub)
                 if w2_ave_sub is None:
                     w2_ave_sub = z_score[-1]
                 if z_score[0] == '-':
@@ -515,7 +510,8 @@ class ContactScorer(object):
         df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
         return df
 
-    def _clustering_z_score(self, res_list, bias=True, cutoff=4.0, w2_ave_sub=None):
+    # def _clustering_z_score(self, res_list, bias=True, cutoff=4.0, w2_ave_sub=None):
+    def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None):
         """
         Clustering Z Score
 
@@ -530,9 +526,19 @@ class ContactScorer(object):
         Args:
             res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
             bias (int or bool): option to calculate with bias or nobias (j-i factor)
-            cutoff (float): the distance cutoff at which to consider residues in contact/clustered.
+            w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
         Returns:
-            float. The z-score calculated for the resiudes of interest for the PDB provided with this ContactScorer.
+            float. The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
+            float. The w (clustering) score calculated for the residues of interest for the PDB provided with this
+            ContactScorer.
+            float. The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
+            ContactScorer.
+            float. The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
+            ContactScorer.
+            float. The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
+            ContactScorer.
+            dict. The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+            3).
 
         This method adapted from code written by Rhonald Lua in Python (Reference 1) which was adapted from code written
         by Angela Wilkins (Reference 2).
@@ -558,7 +564,7 @@ class ContactScorer(object):
             print(', '.join([str(x) for x in self.query_pdb_mapping.keys()]))
             return '-', None, None, None, None, None
         positions = range(self.distances.shape[0])
-        a = self.distances < cutoff
+        a = self.distances < self.cutoff
         a[positions, positions] = 0
         s_i = np.in1d(positions, res_list)
         s_ij = np.outer(s_i, s_i)
@@ -580,7 +586,7 @@ class ContactScorer(object):
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
             for res_i in range(self.distances.shape[0]):
                 for res_j in range(res_i + 1, self.distances.shape[1]):
-                    if self.distances[res_i][res_j] >= cutoff:
+                    if self.distances[res_i][res_j] >= self.cutoff:
                         continue
                     if bias:
                         s_ij = res_j - res_i
@@ -588,7 +594,7 @@ class ContactScorer(object):
                         s_ij = 1
                     for res_x in range(self.distances.shape[0]):
                         for res_y in range(res_x + 1, self.distances.shape[1]):
-                            if self.distances[res_x][res_y] >= cutoff:
+                            if self.distances[res_x][res_y] >= self.cutoff:
                                 continue
                             if bias:
                                 s_xy = (res_y - res_x)
@@ -634,33 +640,16 @@ class ContactScorer(object):
 
         This method writes the covariation scores to file along with the structural validation data if available.
 
-        Parameters:
-        today: date
-            Todays date.
-        q_name: str
-            The name of the query protein
-        cutoff : float
-            The distance used for proximity cutoff in the PDB structure.
-        clus: int
-            The number of clusters created
-        alignment: SeqAlignment
-            The sequence alignment object associated with the ETMIPC instance
-            calling this method.
-        pdb: PDBReference
-            Object representing the pdb structure used in the current
-            analysis.  This object is passed in to enable access to the
-            sortedPDBDist variable.
-        raw_scores : dict
-            A dictionary of the clustering constants mapped to a matrix of the raw
-            values from the whole MIp matrix through all clustering constants <=
-            clus. See ETMIPC class description.
-        coverage_scores : dict
-            A dictionary of the clustering constants mapped to a matrix of the
-            coverage_scores values computed on the raw_scores matrices. See ETMIPC class
-            description.
-        output_dir : str
-            The full path to where the output file should be stored. If None
-            (default) the plot will be stored in the current working directory.
+        Args:
+            today (date/str): Todays date.
+            q_name (str): The name of the query protein
+            raw_scores (dict): A dictionary of the clustering constants mapped to a matrix of the raw values from the
+            whole MIp matrix through all clustering constants <= clus. See ETMIPC class description.
+            coverage_scores (dict): A dictionary of the clustering constants mapped to a matrix of the coverage_scores
+            values computed on the raw_scores matrices. See ETMIPC class description.
+            file_name (str): The filename under which to save the results.
+            output_dir (str): The full path to where the output file should be stored. If None (default) the plot will
+            be stored in the current working directory.
         """
         start = time()
         header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
@@ -716,6 +705,28 @@ class ContactScorer(object):
             (end - start) / 60.0))
 
     def evaluate_predictor(self, query, predictor, verbosity, out_dir, dist='Any'):
+        """
+        Evaluate Predictor
+
+        Args:
+            query (str): The name of the query sequence.
+            predictor (ETMIPC/ETMIPWrapper/DCAWrapper): A predictor which has already calculated its covariance scores.
+            verbosity (int): What level of output to produce.
+                1. writes scores for all tested clustering constants
+                2. tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                against resiude count
+                3. tests the AUROC of contact prediction at different levels of sequence separation and plots the
+                resulting curves to file
+                4. tests the precision of  contact prediction at different levels of sequence separation and list
+                lengths (L, L/2 ... L/10).
+                5. produces heatmaps and surface plots of scores.
+                In all cases a file is written out with the final evaluation of the scores, if no PDB is provided, this
+                means only times will be recorded.'
+            out_dir (str/path): The path at which to save
+            dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
+                Any - Measures the minimum distance between two residues considering all of their atoms.
+                CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
+        """
         score_stats = None
         coverage_stats = None
         if isinstance(predictor.scores, dict):
@@ -777,8 +788,36 @@ class ContactScorer(object):
 
 
     # def evaluate_predictions(self, query, predictor, verbosity, cutoff, out_dir, dist='Any'):
-    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='',
-                             stats=None):
+    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None):
+        """
+        Evaluate Predictions
+
+        This function evaluates a matrix of covariance predictions to the specified verbosity level.
+
+        Args:
+            query (str): The name of the query sequence.
+            scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
+            verbosity (int): What level of output to produce.
+                1. writes scores for all tested clustering constants
+                2. tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                against resiude count
+                3. tests the AUROC of contact prediction at different levels of sequence separation and plots the
+                resulting curves to file
+                4. tests the precision of  contact prediction at different levels of sequence separation and list
+                lengths (L, L/2 ... L/10).
+                5. produces heatmaps and surface plots of scores.
+                In all cases a file is written out with the final evaluation of the scores, if no PDB is provided, this
+                means only times will be recorded.'
+            out_dir (str/path): The path at which to save
+            dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
+                Any - Measures the minimum distance between two residues considering all of their atoms.
+                CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
+            file_prefix (str): string to prepend before filenames.
+            stats (dict): A dictionary of previously computed statistics and scores from a predictor.
+        Returns:
+            dict. The stats computed for this matrix of scores, if a dictionary of stats was passed in the current stats
+            are added to the previous ones.
+        """
         if stats is None:
             stats = {'AUROC': [], 'distance': [], 'sequence_separation': []}
         if verbosity <2:
@@ -830,33 +869,23 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
 
     This method writes the results of covariation scoring to file.
 
-    Parameters:
-    today: date
-        Todays date.
-    alignment (SeqAlignment): Alignment associated with the scores being written to file.
-    mip_matrix : np.ndarray
-        Matrix scoring the coupling between all positions in the query
-        sequence, as computed over all sequences in the input alignment.
-    c_raw_sub_scores : numpy.array
-        The coupling scores for all positions in the query sequences at the specified clustering constant created by
-        hierarchical clustering.
-    c_raw_scores : numpy.array
-        A matrix which represents the integration of coupling scores across all clusters defined at that clustering
-        constant.
-    c_integrated_scores : numpy.array
-        This dictionary maps clustering constants to a matrix which combines
-        the scores from the whole_mip_matrix, all lower clustering constants,
-        and this clustering constant.
-    c_coverage : numpy.array
-        This dictionary maps clustering constants to a matrix of normalized
-        coupling scores between 0 and 100, computed from the
-        summary_matrices.
-    file_name : str
-        The name with which to save the file. If None the following string template will be used:
+    Args:
+        today (date): Todays date.
+        alignment (SeqAlignment): Alignment associated with the scores being written to file.
+        mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as computed
+        over all sequences in the input alignment.
+        c_raw_sub_scores (numpy.array): The coupling scores for all positions in the query sequences at the specified
+        clustering constant created by hierarchical clustering.
+        c_raw_scores (numpy.array): A matrix which represents the integration of coupling scores across all clusters
+        defined at that clustering constant.
+        c_integrated_scores (numpy.array): This dictionary maps clustering constants to a matrix which combines the
+        scores from the whole_mip_matrix, all lower clustering constants, and this clustering constant.
+        c_coverage (numpy.array): This dictionary maps clustering constants to a matrix of normalized coupling scores
+        between 0 and 100, computed from the summary_matrices.
+        file_name (str): The name with which to save the file. If None the following string template will be used:
         "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
-    output_dir : str
-        The full path to where the output file should be stored. If None
-        (default) the plot will be stored in the current working directory.
+        output_dir (str): The full path to where the output file should be stored. If None (default) the plot will be
+        stored in the current working directory.
     """
     start = time()
     header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
@@ -897,22 +926,15 @@ def heatmap_plot(name, data_mat, output_dir=None):
     """
     Heatmap Plot
 
-    This method creates a heatmap using the Seaborn plotting package. The
-    data used can come from the summary_matrices or coverage data.
+    This method creates a heatmap using the Seaborn plotting package. The data used can come from the scores
+    or coverage data.
 
-    Parameters:
-    -----------
-    name : str
-        Name used as the title of the plot and the filename for the saved
-        figure.
-    rel_data : dict
-        A dictionary of integers (k) mapped to matrices (scores). This input
-        should either be the coverage or summary_matrices from the ETMIPC class.
-    cluster : int
-        The clustering constant for which to create a heatmap.
-    output_dir : str
-        The full path to where the heatmap plot image should be stored. If None
-        (default) the plot will be stored in the current working directory.
+    Args:
+        name (str): Name used as the title of the plot and the filename for the saved figure.
+        data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
+        predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
+        output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
+        will be stored in the current working directory.
     """
     start = time()
     dm_max = np.max(data_mat)
@@ -934,23 +956,16 @@ def surface_plot(name, data_mat, output_dir=None):
     """
     Surface Plot
 
-    This method creates a surface plot using the matplotlib plotting
-    package. The data used can come from the summary_matrices or coverage
-    data.
+    This method creates a surface plot using the matplotlib plotting package. The data used can come from the
+    scores or coverage data.
 
     Parameters:
     -----------
-    name : str
-        Name used as the title of the plot and the filename for the saved
-        figure.
-    rel_data : dict
-        A dictionary of integers (k) mapped to matrices (scores). This input
-        should either be the coverage or summary_matrices from the ETMIPC class.
-    cluster : int
-        The clustering constant for which to create a heatmap.
-    output_dir : str
-        The full path to where the AUC plot image should be stored. If None
-        (default) the plot will be stored in the current working directory.
+    name (str): Name used as the title of the plot and the filename for the saved figure.
+    data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
+    predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
+    output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
+    will be stored in the current working directory.
     """
     start = time()
     dm_max = np.max(data_mat)
