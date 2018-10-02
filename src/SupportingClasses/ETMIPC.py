@@ -89,6 +89,11 @@ class ETMIPC(object):
         self.coverage = None
         self.time = None
 
+    # def __getattribute__(self, item):
+    #     if self.low_mem and item in ['raw_scores', 'evidence_counts', 'result_matrices', 'scores', 'coverage']:
+    #     else:
+    #         return self.__getattribute__(item)
+
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         """
         Import Alignment
@@ -256,10 +261,11 @@ class ETMIPC(object):
         start = time()
         for i in range(len(self.clusters)):
             curr_clus = self.clusters[i]
-            if self.low_mem:
-                curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-            else:
-                curr_summary = self.scores[curr_clus]
+            # if self.low_mem:
+            #     curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+            # else:
+            #     curr_summary = self.scores[curr_clus]
+            curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
             curr_summary += self.whole_mip_matrix
             for j in [c for c in self.clusters if c <= curr_clus]:
                 if self.low_mem:
@@ -269,7 +275,10 @@ class ETMIPC(object):
             if combination == 'average':
                 curr_summary /= (i + 2)
             if self.low_mem:
-                save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
+                fn = save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
+                self.scores[curr_clus] = fn
+            else:
+                self.scores[curr_clus] = curr_summary
         end = time()
         print('Combining data across clusters took {} min'.format(
             (end - start) / 60.0))
@@ -296,8 +305,8 @@ class ETMIPC(object):
             pool2.join()
             res2 = res2.get()
         for r in res2:
-            if not self.low_mem:
-                self.coverage[r[0]] = r[1]
+            # if not self.low_mem:
+            self.coverage[r[0]] = r[1]
             self.time[r[0]] += r[2]
         end = time()
         print('Computing coverage took {} min'.format((end - start) / 60.0))
@@ -317,25 +326,25 @@ class ETMIPC(object):
         cluster_queue = pool_manager.Queue()
         for c in self.clusters:
             cluster_queue.put_nowait(c)
-        if self.processes == 1:
-            pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                       self.coverage, self.scores, self.alignment, self.output_dir)
-            et_mip_worker3((1, 1))
-        else:
-            pool = Pool(processes=self.processes, initializer=pool_init3,
-                        initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
-            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
-            pool.close()
-            pool.join()
-            for times in res.get():
-                for c in times:
-                    self.time[c] += times[c]
+        # if self.processes == 1:
+        pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
+                   self.coverage, self.scores, self.alignment, self.output_dir)
+        et_mip_worker3((1, 1))
+        # else:
+        #     pool = Pool(processes=self.processes, initializer=pool_init3,
+        #                 initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
+        #                           self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
+        #     res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
+        #     pool.close()
+        #     pool.join()
+        #     for times in res.get():
+        #         for c in times:
+        #             self.time[c] += times[c]
         finish = time()
         print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
     def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks,
-                         processes=1, low_memory_mode=False, ignore_alignment_size=False):
+                         processes=1, low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
         """
         Calculate Scores
 
@@ -359,6 +368,7 @@ class ETMIPC(object):
             footprint but may increase the time to run. Only recommended for very large analyses.
             ignore_alignment_size (bool): Whether or not to allow alignments with fewer than 125 sequences as suggested
             by PMID:16159918.
+            del_intermediate (bool): Whether or not to delete intermediate files if using the low_mem option.
         Returns:
             float. The time taken to calculate cET-MIp scores in seconds.
         """
@@ -399,6 +409,14 @@ class ETMIPC(object):
                                for c in self.clusters}
                 self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                  for c in self.clusters}
+            else:
+                # self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                #                    for c in self.clusters}
+                # self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                #                         for c in self.clusters}
+                self.result_matrices = {c: None for c in self.clusters}
+                self.scores = {c: None for c in self.clusters}
+                self.coverage = {c: None for c in self.clusters}
             self.processes = processes
             self.calculate_clustered_mip_scores(aa_dict=aa_dict, combine_clusters=combine_clusters)
             self.combine_clustering_results(combination=combine_ks)
@@ -411,8 +429,11 @@ class ETMIPC(object):
             # from IPython import embed
             # embed()
             # exit()
-            if self.low_mem:
+            if self.low_mem and del_intermediate:
                 self.clear_intermediate_files()
+            from IPython import embed
+            print('In ETMIPC')
+            embed()
         return self.time
 
     ####################################################################################################################
@@ -641,7 +662,9 @@ def save_single_matrix(name, k, mat, out_dir):
         out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     """
     c_out_dir = os.path.join(out_dir, str(k))
-    np.savez(os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name)), mat=mat)
+    fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
+    np.savez(fn, mat=mat)
+    return fn
 
 
 def load_single_matrix(name, k, out_dir):
@@ -983,10 +1006,14 @@ def et_mip_worker2(in_tup):
     float. The ROCAUC value for this clustering.
     """
     c, all_summed_matrix = in_tup
-    if all_summed_matrix:
-        summed_matrix = all_summed_matrix[c]
-    else:
+    # if all_summed_matrix:
+    #     summed_matrix = all_summed_matrix[c]
+    # else:
+    #     summed_matrix = load_single_matrix('Summary', c, w2_out_dir)
+    if isinstance(all_summed_matrix[c], str):
         summed_matrix = load_single_matrix('Summary', c, w2_out_dir)
+    else:
+        summed_matrix = all_summed_matrix[c]
     start = time()
     curr_coverage = np.zeros(summed_matrix.shape)
     test_mat = np.triu(summed_matrix)
@@ -1001,9 +1028,11 @@ def et_mip_worker2(in_tup):
     end = time()
     time_elapsed = end - start
     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
-    if all_summed_matrix is None:
-        save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
-        curr_coverage = None
+    if isinstance(all_summed_matrix[c], str):
+    # if all_summed_matrix is None:
+        # save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
+        curr_coverage = save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
+        # curr_coverage = None
     return c, curr_coverage, time_elapsed
 
 
@@ -1083,7 +1112,9 @@ def et_mip_worker3(input_tuple):
             print('Process {} of {} writing scores for cluster {}'.format(curr_process, total_processes, c))
             start = time()
             c_out_dir = os.path.join(out_dir, str(c))
-            if (summary is None) and (coverage is None):
+            # if (summary is None) and (coverage is None):
+            # if (summary is None) and isinstance(coverage[c], str):
+            if isinstance(summary[c], str) and isinstance(coverage[c], str):
                 c_summary = load_single_matrix('Summary', c, out_dir)
                 c_coverage = load_single_matrix('Coverage', c, out_dir)
             else:
@@ -1096,6 +1127,10 @@ def et_mip_worker3(input_tuple):
                 c_raw = raw_scores[c]
                 c_result = res_mat[c]
             res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
+            print(coverage)
+            print(c_coverage)
+            print(summary)
+            print(c_summary)
             write_out_contact_scoring(date, alignment, c_result, c_coverage, mip_matrix, c_raw, c_summary, res_fn,
                                       c_out_dir)
             end = time()
