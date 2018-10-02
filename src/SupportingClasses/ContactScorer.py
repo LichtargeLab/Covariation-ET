@@ -220,9 +220,10 @@ class ContactScorer(object):
         start = time()
         if self.query_structure is None:
             print('Distance cannot be measured, because no PDB was provided.')
+            return
         elif (self.distances is not None) and (self.dist_type == method):
             return
-        if (save_file is not None) and os.path.exists(save_file):
+        elif (save_file is not None) and os.path.exists(save_file):
             dists = np.load(save_file + '.npz')['dists']
         else:
             if self.best_chain is None:
@@ -395,8 +396,6 @@ class ContactScorer(object):
 
         Args:
             query_name (str): Name of the query protein
-            clus (int): Number of clusters created
-            today (date): The days date
             auc_data (dictionary): AUC values stored in the ETMIPC class, used to identify the specific values for the
             specified clustering constant (clus).
             title (str): The title for the AUC plot.
@@ -404,6 +403,8 @@ class ContactScorer(object):
             output_dir (str): The full path to where the AUC plot image should be stored. If None (default) the plot
             will be stored in the current working directory.
         """
+        if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
+            return
         start = time()
         plt.plot(auc_data[0], auc_data[1], label='(AUC = {0:.2f})'.format(auc_data[2]))
         plt.plot([0, 1], [0, 1], 'k--')
@@ -482,7 +483,6 @@ class ContactScorer(object):
         Args:
             predictions (numpy.array):
             bias (int or bool): option to calculate z_scores with bias or nobias (j-i factor)
-            cutoff (float): the distance cutoff at which to consider residues in contact/clustered.
             file_path (str): path where the z-scoring results should be written to.
         Returns:
             list. A list of residues sorted order by the prediction score.
@@ -530,7 +530,6 @@ class ContactScorer(object):
         df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
         return df
 
-    # def _clustering_z_score(self, res_list, bias=True, cutoff=4.0, w2_ave_sub=None):
     def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None):
         """
         Clustering Z Score
@@ -638,25 +637,6 @@ class ContactScorer(object):
         z_score = (w - w_ave) / sigma
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
-    def plot_z_scores(self, df, file_path=None):
-        """
-        Plot Z-Scores
-
-        This method accepts a dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
-        running the score_clustering_of_contact_predictions method. These are used to plot a scatter plot.
-
-        Args:
-            df (Pandas.DataFrame): Dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
-            running the score_clustering_of_contact_predictions method
-            file_path (str): Path at which to save the plot produced by this call.
-        """
-        plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
-        scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
-        if file_path is None:
-            file_path = './zscore_plot.pdf'
-        plt.savefig(file_path)
-        plt.clf()
-
     def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
         """
         Write out clustering results
@@ -752,7 +732,11 @@ class ContactScorer(object):
         """
         score_stats = None
         coverage_stats = None
+        columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
+                   'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
+                   'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)']
         if isinstance(predictor.scores, dict):
+            columns = ['K'] + columns
             for c in predictor.scores:
                 c_out_dir = os.path.join(out_dir, str(c))
                 if not os.path.isdir(c_out_dir):
@@ -799,17 +783,14 @@ class ContactScorer(object):
                 coverage_stats['Time'] += time_array
             except AttributeError:
                 pass
-        # for k in score_stats:
-        #     print('{} : {}'.format(k, len(score_stats[k])))
         pd.DataFrame(score_stats).to_csv(path_or_buf=os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist)),
-                                         columns=sorted(score_stats.keys()), sep='\t', header=True, index=False)
+                                         columns=columns, sep='\t', header=True, index=False)
         if coverage_stats is not None:
             pd.DataFrame(coverage_stats).to_csv(
                 path_or_buf=os.path.join(out_dir,'Coverage_Evaluation_Dist-{}.txt'.format(dist)),
-                columns=sorted(coverage_stats.keys()), sep='\t', header=True, index=False)
+                columns=columns, sep='\t', header=True, index=False)
 
 
-    # def evaluate_predictions(self, query, predictor, verbosity, cutoff, out_dir, dist='Any'):
     def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None):
         """
         Evaluate Predictions
@@ -841,22 +822,19 @@ class ContactScorer(object):
             are added to the previous ones.
         """
         if stats is None:
-            stats = {'AUROC': [], 'distance': [], 'sequence_separation': []}
-        # if verbosity <2:
-        #     return None
+            stats = {'AUROC': [], 'Distance': [], 'Sequence_Separation': []}
         self.fit()
         self.measure_distance(method=dist)
         if verbosity >= 2:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
-            # z_score_biased = self.score_clustering_of_contact_predictions(scores, bias=True, cutoff=self.cutoff,
             z_score_biased = self.score_clustering_of_contact_predictions(
                 scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'))
-            self.plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
+            plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
             z_score_unbiased = self.score_clustering_of_contact_predictions(
                 scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'))
-            self.plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
+            plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         # Evaluating scores
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
             # AUC Evaluation
@@ -867,8 +845,8 @@ class ContactScorer(object):
             else:
                 auc_roc = (None, None, '-')
             stats['AUROC'].append(auc_roc[2])
-            stats['distance'].append(dist)
-            stats['sequence_separation'].append(separation)
+            stats['Distance'].append(dist)
+            stats['Sequence_Separation'].append(separation)
             # Precision Evaluation
             for k in range(1, 11):
                 if k == 1:
@@ -948,6 +926,28 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
     df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
     end = time()
     print('Writing the contact prediction scores to file took {} min'.format((end - start) / 60.0))
+
+
+def plot_z_scores(df, file_path=None):
+    """
+    Plot Z-Scores
+
+    This method accepts a dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
+    running the score_clustering_of_contact_predictions method. These are used to plot a scatter plot.
+
+    Args:
+        df (Pandas.DataFrame): Dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
+        running the score_clustering_of_contact_predictions method
+        file_path (str): Path at which to save the plot produced by this call.
+    """
+    if df.empty:
+        return
+    plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
+    scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
+    if file_path is None:
+        file_path = './zscore_plot.pdf'
+    plt.savefig(file_path)
+    plt.clf()
 
 
 def heatmap_plot(name, data_mat, output_dir=None):
