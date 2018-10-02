@@ -360,16 +360,17 @@ class ETMIPC(object):
             float. The time taken to calculate cET-MIp scores in seconds.
         """
         serialized_path = os.path.join(out_dir, 'cET-MIp.npz')
+        self.output_dir = out_dir
         if os.path.isfile(serialized_path):
+            self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
             loaded_data = np.load(serialized_path)
-            self.scores = loaded_data['scores']
-            self.coverage = loaded_data['coverage']
-            self.raw_scores = loaded_data['raw']
-            self.result_matrices = loaded_data['res']
-            self.time = loaded_data['time']
+            self.scores = loaded_data['scores'][()]
+            self.coverage = loaded_data['coverage'][()]
+            self.raw_scores = loaded_data['raw'][()]
+            self.result_matrices = loaded_data['res'][()]
+            self.time = loaded_data['time'][()]
         else:
             start = time()
-            self.output_dir = out_dir
             self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
             if self.alignment.size < max(clusters):
                 raise ValueError('The analysis could not be performed because the alignment has fewer sequences than '
@@ -387,12 +388,12 @@ class ETMIPC(object):
             self.low_mem = low_memory_mode
             if not self.low_mem:
                 self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                                       for c in self.clusters}
+                                   for c in self.clusters}
                 self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
                                         for c in self.clusters}
                 self.result_matrices = {c: None for c in self.clusters}
                 self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                         for c in self.clusters}
+                               for c in self.clusters}
                 self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                  for c in self.clusters}
             self.processes = processes
@@ -404,6 +405,9 @@ class ETMIPC(object):
             self.time['Total'] = end - start
             np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
                      res=self.result_matrices, time=self.time)
+            # from IPython import embed
+            # embed()
+            # exit()
             if self.low_mem:
                 self.clear_intermediate_files()
         return self.time
