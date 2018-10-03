@@ -196,18 +196,30 @@ class ETMIPC(object):
                 for c in cD[2]:
                     self.time[c] += cD[2][c]
         # Retrieve results
-        while (not self.low_mem) and (not res_queue.empty()):
+        # while (not self.low_mem) and (not res_queue.empty()):
+        while not res_queue.empty():
             r = res_queue.get_nowait()
             self.raw_scores[r[0]][r[1]] = r[2]
             self.evidence_counts[r[0]][r[1]] = r[3]
         # Combine results
         for c in self.clusters:
             if self.low_mem:
-                curr_raw_scores, curr_evidence = load_raw_score_matrix(
-                    self.alignment.seq_length, c, self.output_dir)
+                curr_raw_scores = {k: load_single_matrix(name='Raw_C{}'.format(k), k=c, out_dir=self.output_dir)
+                                   for k in range(c)}
+                curr_evidence = {k: load_single_matrix(name='Evidence_C{}'.format(k), k=c, out_dir=self.output_dir)
+                                 for k in range(c)}
+                # curr_raw_scores, curr_evidence = load_raw_score_matrix(
+                #     self.alignment.seq_length, c, self.output_dir)
             else:
                 curr_raw_scores = self.raw_scores[c]
                 curr_evidence = self.evidence_counts[c]
+            curr_raw_scores = np.vstack(tuple([curr_raw_scores[k][np.newaxis, :, :]
+                                               for k in sorted(curr_raw_scores.keys())]))
+            curr_evidence = np.vstack(tuple([curr_evidence[k][np.newaxis, :, :]
+                                             for k in sorted(curr_evidence.keys())]))
+            # from IPython import embed
+            # embed()
+            # exit()
             start = time()
             # Additive clusters
             if combine_clusters == 'sum':
@@ -325,18 +337,20 @@ class ETMIPC(object):
             cluster_queue.put_nowait(c)
         if self.processes == 1:
             pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                       self.coverage, self.scores, self.alignment, self.output_dir)
-            et_mip_worker3((1, 1))
+                       self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem)
+            res = et_mip_worker3((1, 1))
+            res = [res]
         else:
             pool = Pool(processes=self.processes, initializer=pool_init3,
                         initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
+                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem))
             res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
             pool.close()
             pool.join()
-            for times in res.get():
-                for c in times:
-                    self.time[c] += times[c]
+            res = res.get()
+        for times in res:
+            for c in times:
+                self.time[c] += times[c]
         finish = time()
         print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
@@ -397,19 +411,22 @@ class ETMIPC(object):
                     os.mkdir(c_out_dir)
             self.low_mem = low_memory_mode
             if not self.low_mem:
-                self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                                   for c in self.clusters}
-                self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                                        for c in self.clusters}
+                # self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                #                    for c in self.clusters}
+                # self.evidence_counts = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
+                #                         for c in self.clusters}
+                self.raw_scores = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                                       for k in range(c)} for c in self.clusters}
+                self.evidence_counts = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+                                            for k in range(c)} for c in self.clusters}
                 self.result_matrices = {c: None for c in self.clusters}
                 self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                for c in self.clusters}
                 self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
                                  for c in self.clusters}
             else:
-                # self.raw_scores = {c: np.zeros((c, self.alignment.seq_length, self.alignment.seq_length))
-                #                    for c in self.clusters}
-                self.evidence_counts = {c: None for c in self.clusters}
+                self.raw_scores = {c: {k: None for k in range(c)} for c in self.clusters}
+                self.evidence_counts = {c: {k: None for k in range(c)} for c in self.clusters}
                 self.result_matrices = {c: None for c in self.clusters}
                 self.scores = {c: None for c in self.clusters}
                 self.coverage = {c: None for c in self.clusters}
@@ -455,50 +472,50 @@ class ETMIPC(object):
 ###############################################################################
 
 
-def save_raw_score_matrix(k, sub, mat, evidence, out_dir):
-    """
-    Save Raw Score Matrix
-
-    This function can be used to save the rawScore and evidence_counts matrices which need to be saved to disk in order
-    to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
-
-    Args:
-        k (int): An integer specifying which clustering constant to load data for.
-        sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
-        mat (np.array): The array for the rawScore data to save for the specified cluster.
-        evidence (np.array): The array for the evidence_counts data to save for the specified cluster.
-        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
-    """
-    c_out_dir = os.path.join(out_dir, str(k))
-    np.savez(os.path.join(c_out_dir, 'K{}_Sub{}.npz'.format(k, sub)), mat=mat,
-             evidence=evidence)
-
-
-def load_raw_score_matrix(seq_len, k, out_dir):
-    """
-    Load Raw Score Matrix
-
-    This function can be used to load the rawScore and evidence_counts matrices which need to be saved to disk in order
-    to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
-
-    Args:
-        k (int): An integer specifying which clustering constant to load data for.
-        sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
-        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
-    Returns:
-        np.array. The array for the rawScore data to save for the specified cluster.
-        np.array. The array for the evidence_counts data to save for the specified cluster.
-    """
-    mat = np.zeros((k, seq_len, seq_len))
-    evidence = np.zeros((k, seq_len, seq_len))
-    for sub in range(k):
-        load_path = os.path.join(out_dir, str(k), 'K{}_Sub{}.npz'.format(k, sub))
-        data = np.load(load_path)
-        c_mat = data['mat']
-        e_mat = data['evidence']
-        mat[sub] = c_mat
-        evidence[sub] = e_mat
-    return mat, evidence
+# def save_raw_score_matrix(k, sub, mat, evidence, out_dir):
+#     """
+#     Save Raw Score Matrix
+#
+#     This function can be used to save the rawScore and evidence_counts matrices which need to be saved to disk in order
+#     to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
+#
+#     Args:
+#         k (int): An integer specifying which clustering constant to load data for.
+#         sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
+#         mat (np.array): The array for the rawScore data to save for the specified cluster.
+#         evidence (np.array): The array for the evidence_counts data to save for the specified cluster.
+#         out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
+#     """
+#     c_out_dir = os.path.join(out_dir, str(k))
+#     np.savez(os.path.join(c_out_dir, 'K{}_Sub{}.npz'.format(k, sub)), mat=mat,
+#              evidence=evidence)
+#
+#
+# def load_raw_score_matrix(seq_len, k, out_dir):
+#     """
+#     Load Raw Score Matrix
+#
+#     This function can be used to load the rawScore and evidence_counts matrices which need to be saved to disk in order
+#     to reduce the memory footprint when the cET-MIp variable low_mem is set to true.
+#
+#     Args:
+#         k (int): An integer specifying which clustering constant to load data for.
+#         sub (int): An integer specifying the the cluster for which to save data (expected values are in range(0, k)).
+#         out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
+#     Returns:
+#         np.array. The array for the rawScore data to save for the specified cluster.
+#         np.array. The array for the evidence_counts data to save for the specified cluster.
+#     """
+#     mat = np.zeros((k, seq_len, seq_len))
+#     evidence = np.zeros((k, seq_len, seq_len))
+#     for sub in range(k):
+#         load_path = os.path.join(out_dir, str(k), 'K{}_Sub{}.npz'.format(k, sub))
+#         data = np.load(load_path)
+#         c_mat = data['mat']
+#         e_mat = data['evidence']
+#         mat[sub] = c_mat
+#         evidence[sub] = e_mat
+#     return mat, evidence
 
 
 def save_single_matrix(name, k, mat, out_dir):
@@ -697,9 +714,13 @@ def et_mip_worker1(in_tup):
                 cluster_times[clus] = time_elapsed
             print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
             if pool1_mem_mode:
-                save_raw_score_matrix(clus, sub, clustered_mip_matrix, evidence_mat, cache_dir)
-            else:
-                queue3.put((clus, sub, clustered_mip_matrix, evidence_mat))
+                clustered_mip_matrix = save_single_matrix(name='Raw_C{}'.format(sub), k=clus, mat=clustered_mip_matrix,
+                                                          out_dir=cache_dir)
+                evidence_mat = save_single_matrix(name='Evidence_C{}'.format(sub), k=clus, mat=evidence_mat,
+                                                  out_dir=cache_dir)
+                # save_raw_score_matrix(clus, sub, clustered_mip_matrix, evidence_mat, cache_dir)
+            # else:
+            queue3.put((clus, sub, clustered_mip_matrix, evidence_mat))
             print('Processes {}:{} pushing cET-MIp scores!'.format(
                 curr_process, total_processes))
             continue
@@ -813,7 +834,7 @@ def et_mip_worker2(in_tup):
 
 
 def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
-               class_coverage, class_summary, class_alignment, output_dir):
+               class_coverage, class_summary, class_alignment, output_dir, low_mem):
     """
     Pool Init 3
 
@@ -843,6 +864,7 @@ def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores,
         analysis.
         output_dir (str): The full path to where the output generated by this process should be stored. If None
         (default) the plot will be stored in the current working directory.
+        low_mem (bool): Whether low memory mode is active during this score computation.
     """
     global queue1
     queue1 = cluster_queue
@@ -864,6 +886,8 @@ def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores,
     summary = class_summary
     global out_dir
     out_dir = output_dir
+    global worker3_low_mem
+    worker3_low_mem = low_mem
 
 
 def et_mip_worker3(input_tuple):
@@ -890,14 +914,17 @@ def et_mip_worker3(input_tuple):
             c_out_dir = os.path.join(out_dir, str(c))
             # if (summary is None) and (coverage is None):
             # if (summary is None) and isinstance(coverage[c], str):
-            if isinstance(summary[c], str) and isinstance(coverage[c], str):
+            # if isinstance(summary[c], str) and isinstance(coverage[c], str):
+            if worker3_low_mem:
                 c_summary = load_single_matrix('Summary', c, out_dir)
                 c_coverage = load_single_matrix('Coverage', c, out_dir)
             else:
                 c_summary = summary[c]
                 c_coverage = coverage[c]
-            if (res_mat is None) and (raw_scores is None):
-                c_raw, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
+            # if (res_mat is None) and (raw_scores is None):
+            if worker3_low_mem:
+                c_raw = {k: load_single_matrix(name='Raw_C{}'.format(k), k=c, out_dir=out_dir) for k in range(c)}
+                # c_raw, _ = load_raw_score_matrix(alignment.seq_length, c, out_dir)
                 c_result = load_single_matrix('Result', c, out_dir)
             else:
                 c_raw = raw_scores[c]
@@ -907,6 +934,10 @@ def et_mip_worker3(input_tuple):
             print(c_coverage)
             print(summary)
             print(c_summary)
+            print(raw_scores)
+            print(c_raw)
+            print(res_mat)
+            print(c_result)
             write_out_contact_scoring(date, alignment, c_result, c_coverage, mip_matrix, c_raw, c_summary, res_fn,
                                       c_out_dir)
             end = time()

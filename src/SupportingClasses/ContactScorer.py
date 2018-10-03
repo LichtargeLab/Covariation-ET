@@ -896,7 +896,8 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
     start = time()
     header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
     if c_raw_sub_scores is not None:
-        header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
+        # header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
+        header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, [k + 1 for k in sorted(c_raw_sub_scores.keys())])]
     if c_integrated_scores is not None:
         header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
     else:
@@ -912,8 +913,10 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
             file_dict['AA2'].append(one_to_three(alignment.query_sequence[j]))
             file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
             if c_raw_sub_scores is not None:
-                for c in range(c_raw_sub_scores.shape[0]):
-                    file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c, i, j], 4))
+                # for c in range(c_raw_sub_scores.shape[0]):
+                for c in c_raw_sub_scores:
+                    # file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c, i, j], 4))
+                    file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c][i, j], 4))
             file_dict['Raw_Score'].append(round(c_raw_scores[i, j], 4))
             if c_integrated_scores is not None:
                 file_dict['Integrated_Score'].append(round(c_integrated_scores[i, j], 4))
