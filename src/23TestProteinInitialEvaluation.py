@@ -4,11 +4,12 @@ Created on Sep 15, 2017
 @author: daniel
 """
 from PerformAnalysis import analyze_alignment
-from SupportingClasses.ContactScorer import ContactScorer
+from SupportingClasses.ContactScorer import ContactScorer, plot_z_scores
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.ETMIPWrapper import ETMIPWrapper
 from SupportingClasses.DCAWrapper import DCAWrapper
+from SupportingClasses.ETMIPC import ETMIPC
 from multiprocessing import cpu_count
 import datetime
 import argparse
@@ -81,6 +82,9 @@ def parse_id(fa_file):
 
 if __name__ == '__main__':
     today = str(datetime.date.today())
+    aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
+               'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
+    aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
     arguments = parse_arguments()
     input_files = []
     files = os.listdir(arguments['inputDir'])
@@ -105,7 +109,12 @@ if __name__ == '__main__':
     ####################################################################################################################
     ####################################################################################################################
     methods = {'DCA': {'class': DCAWrapper, 'args': {'delete_file': False}},
-               'ET-MIp': {'class': ETMIPWrapper, 'args': {'delete_files': False}}} #, 'cET-MIp': {}}
+               'ET-MIp': {'class': ETMIPWrapper, 'args': {'delete_files': False}},
+               'cET-MIp': {'class': ETMIPC, 'args': {'today': today, 'query': None, 'clusters': [2, 3, 5, 7, 10, 25],
+                                                     'aa_dict': aa_dict, 'combine_clusters': 'sum', 'combine_ks': 'sum',
+                                                     'processes': arguments['processes'],
+                                                     'low_memory_mode': arguments['lowMemoryMode'],
+                                                     'ignore_alignment_size': True}}}
     if not os.path.isdir(arguments['output']):
         os.mkdir(arguments['output'])
     ####################################################################################################################
@@ -113,6 +122,7 @@ if __name__ == '__main__':
     times = {'query': [], 'method': [], 'time(s)': []}
     aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
     precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
+    stats = []
     for query in sorted(input_dict.keys()):
         # if query != '7hvpa':
         #     print(query)
@@ -126,11 +136,11 @@ if __name__ == '__main__':
         query_structure = PDBReference(input_dict[query][2])
         query_structure.import_pdb(structure_id=input_dict[query][0])
         contact_any = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-        contact_any.fit()
-        contact_any.measure_distance(method='Any')
+        # contact_any.fit()
+        # contact_any.measure_distance(method='Any')
         contact_beta = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-        contact_beta.fit()
-        contact_beta.measure_distance(method='CB')
+        # contact_beta.fit()
+        # contact_beta.measure_distance(method='CB')
         for method in sorted(methods.keys()):
             if 'dir' not in methods[method]:
                 method_dir = os.path.join(arguments['output'], method)
@@ -144,67 +154,27 @@ if __name__ == '__main__':
                 os.mkdir(protein_dir)
             predictor = methods[method]['class'](query_aln)
             print(protein_dir, '{}_predictions.tsv'.format(method))
+            if method == 'cET-MIp':
+                methods[method]['args']['query'] = input_dict[query][0]
             curr_time = predictor.calculate_scores(out_dir=protein_dir, **methods[method]['args'])
             times['query'].append(query)
             times['method'].append(method)
             times['time(s)'].append(curr_time)
-            # Score Prediction Clustering
-            z_score_any_biased = contact_any.score_clustering_of_contact_predictions(
-                predictor.scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
-                                                                                          'DistAny_Biased_ZScores.tsv'))
-                                                                                     # bias=True, cutoff=8.0)
-            contact_any.plot_z_scores(z_score_any_biased, os.path.join(protein_dir, 'DistAny_Biased_ZScores.eps'))
-            z_score_any_unbiased = contact_any.score_clustering_of_contact_predictions(
-                predictor.scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
-                                                                                          'DistAny_Unbiased_ZScores.tsv'))
-                                                                                       # bias=False, cutoff=8.0)
-            contact_any.plot_z_scores(z_score_any_unbiased, os.path.join(protein_dir, 'DistAny_Unbiased_ZScores.eps'))
-            z_score_beta_biased = contact_beta.score_clustering_of_contact_predictions(
-                predictor.scores, bias=True, cutoff=4.0, file_path=os.path.join(protein_dir,
-                                                                                          'DistBeta_Biased_ZScores.tsv'))
-                                                                                       # bias=True, cutoff=8.0)
-            contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Biased_ZScores.eps'))
-            z_score_beta_unbiased = contact_beta.score_clustering_of_contact_predictions(
-                predictor.scores, bias=False, cutoff=4.0, file_path=os.path.join(protein_dir,
-                                                                                          'DistBeta_Unbiased_ZScores.tsv'))
-                                                                                         # bias=False, cutoff=8.0)
-            contact_beta.plot_z_scores(z_score_beta_biased, os.path.join(protein_dir, 'DistBeta_Unbiased_ZScores.eps'))
-            # Evaluating scores
-            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-                # AUC Evaluation
-                auc_roc_any = contact_any.score_auc(predictor.scores, category=separation)
-                aucs['query'].append(query)
-                aucs['method'].append(method)
-                aucs['score'].append(auc_roc_any[2])
-                aucs['distance'].append('Any')
-                aucs['sequence_separation'].append(separation)
-                contact_any.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
-                                     file_name='AUROC Evaluation_{}_{}'.format('Any', separation),
-                                     output_dir=protein_dir)
-                auc_roc_beta = contact_beta.score_auc(predictor.scores, category=separation)
-                aucs['query'].append(query)
-                aucs['method'].append(method)
-                aucs['score'].append(auc_roc_beta[2])
-                aucs['distance'].append('Beta')
-                aucs['sequence_separation'].append(separation)
-                contact_any.plot_auc(query_name=query, auc_data=auc_roc_any, title='AUROC Evaluation',
-                                     file_name='AUROC Evaluation_{}_{}'.format('Beta', separation),
-                                     output_dir=protein_dir)
-                # Precision Evaluation
-                for k in range(1, 11):
-                    precision_any = contact_any.score_precision(predictions=predictor.scores, k=k,
-                                                                category=separation)
-                    precisions['query'].append(query)
-                    precisions['method'].append(method)
-                    precisions['score'].append(precision_any)
-                    precisions['distance'].append('Any')
-                    precisions['sequence_separation'].append(separation)
-                    precisions['k'].append(k)
-                    precision_beta = contact_beta.score_precision(predictions=predictor.scores, k=k,
-                                                                category=separation)
-                    precisions['query'].append(query)
-                    precisions['method'].append(method)
-                    precisions['score'].append(precision_beta)
-                    precisions['distance'].append('Beta')
-                    precisions['sequence_separation'].append(separation)
-                    precisions['k'].append(k)
+            any_score_df, any_coverage_df = contact_any.evaluate_predictor(
+                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='Any')
+            beta_score_df, beat_coverage_df = contact_beta.evaluate_predictor(
+                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='CB')
+            import pandas as pd
+            method_df = pd.concat([any_score_df, beta_score_df], ignore_index=True)
+            # method_df['Method'] = method
+            if 'K' in method_df.columns:
+                method_df['Method'] = method_df['K'].apply(lambda k: '{}_{}'.format(method, k))
+                method_df.drop(columns='K', inplace=True)
+            else:
+                method_df['Method'] = method
+            method_df['Query'] = input_dict[query][0]
+            stats.append(method_df)
+    overall_df = pd.concat(stats, ignore_index=True)
+    from IPython import embed
+    embed()
+

@@ -418,10 +418,8 @@ class ContactScorer(object):
         plt.legend(loc="lower right")
         if file_name is None:
             file_name = '{}_Cutoff{}A_roc.eps'.format(query_name, self.cutoff)
-        print(file_name)
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
-        print(file_name)
         plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
         plt.close()
         end = time()
@@ -741,7 +739,7 @@ class ContactScorer(object):
                 c_out_dir = os.path.join(out_dir, str(c))
                 if not os.path.isdir(c_out_dir):
                     os.mkdir(c_out_dir)
-                score_stats = self.evaluate_predictions(query=query, scores=predictor.scores[c],
+                score_stats = self.evaluate_predictions(query=query, scores=predictor.get_scores(c=c),
                                                         verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                                                         file_prefix='Scores_K-{}_'.format(c), stats=score_stats)
                 if 'K' not in score_stats:
@@ -753,7 +751,7 @@ class ContactScorer(object):
                 score_stats['K'] += c_array
                 score_stats['Time'] += time_array
                 try:
-                    coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage[c],
+                    coverage_stats = self.evaluate_predictions(query=query, scores=predictor.get_coverage(c),
                                                                verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                                                                file_prefix='Coverage_K-{}_'.format(c),
                                                                stats=coverage_stats)
@@ -783,13 +781,16 @@ class ContactScorer(object):
                 coverage_stats['Time'] += time_array
             except AttributeError:
                 pass
-        pd.DataFrame(score_stats).to_csv(path_or_buf=os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist)),
-                                         columns=columns, sep='\t', header=True, index=False)
+        score_df = pd.DataFrame(score_stats)
+        score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
+        score_df.to_csv(path_or_buf=score_fn, columns=columns, sep='\t', header=True, index=False)
         if coverage_stats is not None:
-            pd.DataFrame(coverage_stats).to_csv(
-                path_or_buf=os.path.join(out_dir,'Coverage_Evaluation_Dist-{}.txt'.format(dist)),
-                columns=columns, sep='\t', header=True, index=False)
-
+            coverage_df = pd.DataFrame(coverage_stats)
+            coverage_fn = os.path.join(out_dir,'Coverage_Evaluation_Dist-{}.txt'.format(dist))
+            coverage_df.to_csv(path_or_buf=coverage_fn, columns=columns, sep='\t', header=True, index=False)
+        else:
+            coverage_df = None
+        return score_df, coverage_df
 
     def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None):
         """

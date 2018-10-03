@@ -7,6 +7,7 @@ import os
 import Queue
 import numpy as np
 from time import time
+import cPickle as pickle
 from multiprocessing import Manager, Pool
 from sklearn.metrics import mutual_info_score
 from SeqAlignment import SeqAlignment
@@ -489,16 +490,25 @@ class ETMIPC(object):
         Returns:
             float. The time taken to calculate cET-MIp scores in seconds.
         """
-        serialized_path = os.path.join(out_dir, 'cET-MIp.npz')
         self.output_dir = out_dir
-        if os.path.isfile(serialized_path):
+        self.processes = processes
+        serialized_path = os.path.join(self.output_dir, 'cET-MIp.npz')
+        save_file = os.path.join(self.output_dir, 'cET-MIp.pkl')
+        if os.path.isfile(serialized_path) and os.path.isfile(save_file):
             self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
+            loaded_vars = pickle.load(open(save_file, 'rb'))
+            self.clusters = loaded_vars[0]
+            self.low_mem = loaded_vars[1]
+            self.sub_alignments = loaded_vars[2]
+            self.time = loaded_vars[3]
             loaded_data = np.load(serialized_path)
             self.scores = loaded_data['scores'][()]
             self.coverage = loaded_data['coverage'][()]
             self.raw_scores = loaded_data['raw'][()]
+            self.evidence_counts = loaded_data['counts'][()]
             self.result_matrices = loaded_data['res'][()]
-            self.time = loaded_data['time'][()]
+            self.whole_mip_matrix = loaded_data['mip']
+            self.whole_evidence_matrix = loaded_data['evidence']
         else:
             start = time()
             self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
@@ -539,14 +549,18 @@ class ETMIPC(object):
             self.write_out_scores(today=today)
             end = time()
             self.time['Total'] = end - start
+            pickle.dump((self.clusters, self.low_mem, self.sub_alignments, self.time), open(save_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
             np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
-                     res=self.result_matrices, time=self.time)
+                     counts=self.evidence_counts, res=self.result_matrices, mip=self.whole_mip_matrix,
+                     evidence=self.whole_evidence_matrix)
             if self.low_mem and del_intermediate:
                 self.clear_intermediate_files()
-        from IPython import embed
-        embed()
-        exit()
         return self.time
+
+
+    #     self.whole_mip_matrix = None
+    #     self.whole_evidence_matrix = None
 ###############################################################################
 #
 ###############################################################################
