@@ -90,54 +90,119 @@ class ETMIPC(object):
         self.time = None
 
     def get_raw_scores(self, c=None, k=None, three_dim=False):
+        """
+        Get Raw Scores
+
+        Retrieve the raw score data. The entire dictionary of dictionaries of 2D matrices can be returned, or just the
+        dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single matrix
+        f both k and c are specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from self.raw_scores
+        """
         return self.__get_c_level_matrices(item='raw_scores', c=c, k=k, three_dim=three_dim)
 
     def get_evidence_counts(self, c=None, k=None, three_dim=False):
+        """
+        Get Evidence Counts
+
+        Retrieve the evidence counts data. The entire dictionary of dictionaries of 2D matrices can be returned, or just
+        the dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single
+        matrix f both k and c are specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from self.evidence_counts
+        """
         return self.__get_c_level_matrices(item='evidence_counts', c=c, k=k, three_dim=three_dim)
 
     def __get_c_level_matrices(self, item, c=None, k=None, three_dim=False):
+        """
+        Get C Level Matrices
+
+        A general class method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
+        dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
+        3D matrix for a specified value of c, or a single matrix if both k and c are specified.
+
+        Args:
+            item (str): the class attribute to work with.
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
+        """
         attr = self.__getattribute__(item)
-        if c:
-            if k:
-                if self.low_mem:
-                    return load_single_matrix(attr[c][k])
-                else:
-                    return attr[c][k]
-            if self.low_mem:
-                curr_matrices = {k: load_single_matrix(attr[c][k]) for k in range(c)}
-            else:
-                curr_matrices = attr[c]
-            if three_dim:
-                return np.vstack(tuple([curr_matrices[k][np.newaxis, :, :] for k in curr_matrices]))
-            else:
-                return curr_matrices
-        else:
-            if self.low_mem:
-                return {c: {k: load_single_matrix(attr[c][k]) for k in attr[c]} for c in attr}
-            else:
-                return attr
+        return get_c_level_matrices(input=attr, low_mem=self.low_mem, c=c, k=k, three_dim=three_dim)
 
     def get_result_matrices(self, c=None):
+        """
+        Get Result Matrices
+
+        Retrieve the result matrices data. The entire dictionary of of 2D matrices can be returned or a single matrix if
+        c is specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
         return self.__get_k_level_matrices(item='result_matrices', c=c)
 
     def get_scores(self, c=None):
+        """
+        Get Scores
+
+        Retrieve the scores data. The entire dictionary of of 2D matrices can be returned or a single matrix if c is
+        specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
         return self.__get_k_level_matrices(item='scores', c=c)
 
     def get_coverage(self, c=None):
+        """
+        Get Coverage
+
+        Retrieve the coverage data. The entire dictionary of of 2D matrices can be returned or a single matrix if
+        c is specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
         return self.__get_k_level_matrices(item='coverage', c=c)
 
     def __get_k_level_matrices(self, item, c=None):
+        """
+        Get K Level Matrices
+
+        A general class method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices
+        can be returned or a single matrix if c is specified.
+
+        Args:
+            item (str): the class variable to work with.
+            low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
         attr = self.__getattribute__(item)
-        if self.low_mem:
-            if c:
-                return load_single_matrix(attr[c])
-            else:
-                return {c: load_single_matrix(attr[c]) for c in attr}
-        else:
-            if c:
-                return attr[c]
-            else:
-                return attr
+        return get_k_level_matrices(input=attr, low_mem=self.low_mem, c=c)
 
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         """
@@ -527,6 +592,71 @@ def load_single_matrix(file_path):
     return data['mat']
 
 
+def get_k_level_matrices(input, low_mem, c=None):
+    """
+    Get K Level Matrices
+
+    A general method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices can be
+    returned or a single matrix if c is specified.
+
+    Args:
+        input (dict): dictionary of 2D arrays containing data of interest.
+        low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
+        c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+    Returns:
+        np.array or dict. The specified data requested from the dictionary of 2D arrays.
+    """
+    if low_mem:
+        if c:
+            return load_single_matrix(input[c])
+        else:
+            return {c: load_single_matrix(input[c]) for c in input}
+    else:
+        if c:
+            return input[c]
+        else:
+            return input
+
+
+def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
+    """
+    Get C Level Matrices
+
+    A general method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
+    dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
+    3D matrix for a specified value of c, or a single matrix if both k and c are specified.
+
+    Args:
+        input (dict): dictionary of dictionaries of 2D arrays containing data of interest.
+        low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
+        c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        k (int): the second level specifier for the data to extract (corresponds to a single cluster).
+        three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+        specified.
+    Returns:
+        np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
+    """
+    if c:
+        if k:
+            if low_mem:
+                return load_single_matrix(input[c][k])
+            else:
+                return input[c][k]
+        if low_mem:
+            curr_matrices = {k: load_single_matrix(input[c][k]) for k in range(c)}
+        else:
+            curr_matrices = input[c]
+        if three_dim:
+            return np.vstack(tuple([curr_matrices[k][np.newaxis, :, :] for k in curr_matrices]))
+        else:
+            return curr_matrices
+    else:
+        if low_mem:
+            return {c: {k: load_single_matrix(input[c][k]) for k in input[c]} for c in input}
+        else:
+            return input
+
+
 def whole_analysis(alignment, evidence, save_file=None):
     """
     Whole Analysis
@@ -768,10 +898,7 @@ def et_mip_worker2(in_tup):
     float. The ROCAUC value for this clustering.
     """
     c, all_summed_matrix = in_tup
-    if worker2_low_mem:
-        summed_matrix = load_single_matrix(all_summed_matrix[c])
-    else:
-        summed_matrix = all_summed_matrix[c]
+    summed_matrix = get_k_level_matrices(input=all_summed_matrix, low_mem=worker2_low_mem, c=c)
     start = time()
     curr_coverage = np.zeros(summed_matrix.shape)
     test_mat = np.triu(summed_matrix)
@@ -870,16 +997,10 @@ def et_mip_worker3(input_tuple):
             print('Process {} of {} writing scores for cluster {}'.format(curr_process, total_processes, c))
             start = time()
             c_out_dir = os.path.join(out_dir, str(c))
-            if worker3_low_mem:
-                c_summary = load_single_matrix(summary[c])
-                c_coverage = load_single_matrix(coverage[c])
-                c_raw = {k: load_single_matrix(raw_scores[c][k]) for k in range(c)}
-                c_result = load_single_matrix(res_mat[c])
-            else:
-                c_summary = summary[c]
-                c_coverage = coverage[c]
-                c_raw = raw_scores[c]
-                c_result = res_mat[c]
+            c_summary = get_k_level_matrices(input=summary, low_mem=worker3_low_mem, c=c)
+            c_coverage = get_k_level_matrices(input=coverage, low_mem=worker3_low_mem, c=c)
+            c_result = get_k_level_matrices(input=res_mat, low_mem=worker3_low_mem, c=c)
+            c_raw = get_c_level_matrices(input=raw_scores, low_mem=worker3_low_mem, c=c, k=None, three_dim=False)
             res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
             write_out_contact_scoring(date, alignment, c_result, c_coverage, mip_matrix, c_raw, c_summary, res_fn,
                                       c_out_dir)
