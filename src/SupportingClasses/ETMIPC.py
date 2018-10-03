@@ -89,6 +89,56 @@ class ETMIPC(object):
         self.coverage = None
         self.time = None
 
+    def get_raw_scores(self, c=None, k=None, three_dim=False):
+        return self.__get_c_level_matrices(item='raw_scores', c=c, k=k, three_dim=three_dim)
+
+    def get_evidence_counts(self, c=None, k=None, three_dim=False):
+        return self.__get_c_level_matrices(item='evidence_counts', c=c, k=k, three_dim=three_dim)
+
+    def __get_c_level_matrices(self, item, c=None, k=None, three_dim=False):
+        attr = self.__getattribute__(item)
+        if c:
+            if k:
+                if self.low_mem:
+                    return load_single_matrix(attr[c][k])
+                else:
+                    return attr[c][k]
+            if self.low_mem:
+                curr_matrices = {k: load_single_matrix(attr[c][k]) for k in range(c)}
+            else:
+                curr_matrices = attr[c]
+            if three_dim:
+                return np.vstack(tuple([curr_matrices[k][np.newaxis, :, :] for k in curr_matrices]))
+            else:
+                return curr_matrices
+        else:
+            if self.low_mem:
+                return {c: {k: load_single_matrix(attr[c][k]) for k in attr[c]} for c in attr}
+            else:
+                return attr
+
+    def get_result_matrices(self, c=None):
+        return self.__get_k_level_matrices(item='coverage', c=c)
+
+    def get_scores(self, c=None):
+        return self.__get_k_level_matrices(item='scores', c=c)
+
+    def get_coverage(self, c=None):
+        return self.__get_k_level_matrices(item='coverage', c=c)
+
+    def __get_k_level_matrices(self, item, c=None):
+        attr = self.__getattribute__(item)
+        if self.low_mem:
+            if c:
+                return load_single_matrix(attr(name=item)[c])
+            else:
+                return {c: load_single_matrix(attr[c]) for c in attr}
+        else:
+            if c:
+                return attr[c]
+            else:
+                return attr
+
     def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
         """
         Import Alignment
@@ -202,16 +252,8 @@ class ETMIPC(object):
             self.evidence_counts[r[0]][r[1]] = r[3]
         # Combine results
         for c in self.clusters:
-            if self.low_mem:
-                curr_raw_scores = {k: load_single_matrix(file_path=self.raw_scores[c][k]) for k in range(c)}
-                curr_evidence = {k: load_single_matrix(file_path=self.evidence_counts[c][k]) for k in range(c)}
-            else:
-                curr_raw_scores = self.raw_scores[c]
-                curr_evidence = self.evidence_counts[c]
-            curr_raw_scores = np.vstack(tuple([curr_raw_scores[k][np.newaxis, :, :]
-                                               for k in sorted(curr_raw_scores.keys())]))
-            curr_evidence = np.vstack(tuple([curr_evidence[k][np.newaxis, :, :]
-                                             for k in sorted(curr_evidence.keys())]))
+            curr_raw_scores = self.get_raw_scores(c=c, three_dim=True)
+            curr_evidence = self.get_evidence_counts(c=c, three_dim=True)
             start = time()
             # Additive clusters
             if combine_clusters == 'sum':
