@@ -118,7 +118,7 @@ class ETMIPC(object):
                 return attr
 
     def get_result_matrices(self, c=None):
-        return self.__get_k_level_matrices(item='coverage', c=c)
+        return self.__get_k_level_matrices(item='result_matrices', c=c)
 
     def get_scores(self, c=None):
         return self.__get_k_level_matrices(item='scores', c=c)
@@ -130,7 +130,7 @@ class ETMIPC(object):
         attr = self.__getattribute__(item)
         if self.low_mem:
             if c:
-                return load_single_matrix(attr(name=item)[c])
+                return load_single_matrix(attr[c])
             else:
                 return {c: load_single_matrix(attr[c]) for c in attr}
         else:
@@ -303,10 +303,7 @@ class ETMIPC(object):
             curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
             curr_summary += self.whole_mip_matrix
             for j in [c for c in self.clusters if c <= curr_clus]:
-                if self.low_mem:
-                    curr_summary += load_single_matrix(file_path=self.result_matrices[j])
-                else:
-                    curr_summary += self.result_matrices[j]
+                curr_summary += self.get_result_matrices(c=j)
             if combination == 'average':
                 curr_summary /= (i + 2)
             if self.low_mem:
