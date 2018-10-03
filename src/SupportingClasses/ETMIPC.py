@@ -205,7 +205,6 @@ class ETMIPC(object):
             r = res_queue.get_nowait()
             self.raw_scores[r[0]][r[1]] = r[2]
             self.evidence_counts[r[0]][r[1]] = r[3]
-#             self.time[r[0]] += r[4]
         # Combine results
         for c in self.clusters:
             if self.low_mem:
@@ -239,10 +238,13 @@ class ETMIPC(object):
                 print 'Combination method not yet implemented'
                 raise NotImplementedError()
             res_matrix[np.isnan(res_matrix)] = 0.0
+            # if self.low_mem:
+            #     save_single_matrix('Result', c, res_matrix, self.output_dir)
+            # else:
+            #     self.result_matrices[c] = res_matrix
             if self.low_mem:
-                save_single_matrix('Result', c, res_matrix, self.output_dir)
-            else:
-                self.result_matrices[c] = res_matrix
+                res_matrix = save_single_matrix('Result', c, res_matrix, self.output_dir)
+            self.result_matrices[c] = res_matrix
             end = time()
             self.time[c] += end - start
 
@@ -326,20 +328,20 @@ class ETMIPC(object):
         cluster_queue = pool_manager.Queue()
         for c in self.clusters:
             cluster_queue.put_nowait(c)
-        # if self.processes == 1:
-        pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                   self.coverage, self.scores, self.alignment, self.output_dir)
-        et_mip_worker3((1, 1))
-        # else:
-        #     pool = Pool(processes=self.processes, initializer=pool_init3,
-        #                 initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-        #                           self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
-        #     res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
-        #     pool.close()
-        #     pool.join()
-        #     for times in res.get():
-        #         for c in times:
-        #             self.time[c] += times[c]
+        if self.processes == 1:
+            pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
+                       self.coverage, self.scores, self.alignment, self.output_dir)
+            et_mip_worker3((1, 1))
+        else:
+            pool = Pool(processes=self.processes, initializer=pool_init3,
+                        initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
+                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir))
+            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
+            pool.close()
+            pool.join()
+            for times in res.get():
+                for c in times:
+                    self.time[c] += times[c]
         finish = time()
         print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
