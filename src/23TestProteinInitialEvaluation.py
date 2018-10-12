@@ -3,19 +3,21 @@ Created on Sep 15, 2017
 
 @author: daniel
 """
-from PerformAnalysis import analyze_alignment
-from SupportingClasses.ContactScorer import ContactScorer, plot_z_scores
+from SupportingClasses.ContactScorer import ContactScorer
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.ETMIPWrapper import ETMIPWrapper
 from SupportingClasses.DCAWrapper import DCAWrapper
 from SupportingClasses.ETMIPC import ETMIPC
 from multiprocessing import cpu_count
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 import datetime
 import argparse
+import sys
 import os
 import re
-import sys
 
 
 def parse_arguments():
@@ -119,9 +121,7 @@ if __name__ == '__main__':
         os.mkdir(arguments['output'])
     ####################################################################################################################
     ####################################################################################################################
-    times = {'query': [], 'method': [], 'time(s)': []}
-    aucs = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': []}
-    precisions = {'query': [], 'method': [], 'score': [], 'distance': [], 'sequence_separation': [], 'k': []}
+    times = {'Query': [], 'Method': [], 'Time(s)': []}
     stats = []
     for query in sorted(input_dict.keys()):
         # if query != '7hvpa':
@@ -136,11 +136,11 @@ if __name__ == '__main__':
         query_structure = PDBReference(input_dict[query][2])
         query_structure.import_pdb(structure_id=input_dict[query][0])
         contact_any = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-        # contact_any.fit()
-        # contact_any.measure_distance(method='Any')
+        any_biased_w2_ave = None
+        any_unbiased_w2_ave = None
         contact_beta = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-        # contact_beta.fit()
-        # contact_beta.measure_distance(method='CB')
+        beta_biased_w2_ave = None
+        beta_unbiased_w2_ave = None
         for method in sorted(methods.keys()):
             if 'dir' not in methods[method]:
                 method_dir = os.path.join(arguments['output'], method)
@@ -157,24 +157,57 @@ if __name__ == '__main__':
             if method == 'cET-MIp':
                 methods[method]['args']['query'] = input_dict[query][0]
             curr_time = predictor.calculate_scores(out_dir=protein_dir, **methods[method]['args'])
-            times['query'].append(query)
-            times['method'].append(method)
-            times['time(s)'].append(curr_time)
-            any_score_df, any_coverage_df = contact_any.evaluate_predictor(
-                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='Any')
-            beta_score_df, beat_coverage_df = contact_beta.evaluate_predictor(
-                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='CB')
-            import pandas as pd
+            times['Query'].append(query)
+            times['Method'].append(method)
+            times['Time(s)'].append(curr_time)
+            any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
+                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='Any',
+                biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
+            if (any_biased_w2_ave is None) and (any_b_w2_ave is not None):
+                any_biased_w2_ave = any_b_w2_ave
+            if (any_unbiased_w2_ave is None) and (any_u_w2_ave is not None):
+                any_unbiased_w2_ave = any_u_w2_ave
+            beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
+                query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='CB',
+                biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
+            if (beta_biased_w2_ave is None) and (beta_b_w2_ave is not None):
+                beta_biased_w2_ave = beta_b_w2_ave
+            if (beta_unbiased_w2_ave is None) and (beta_u_w2_ave is not None):
+                beta_unbiased_w2_ave = beta_u_w2_ave
             method_df = pd.concat([any_score_df, beta_score_df], ignore_index=True)
-            # method_df['Method'] = method
             if 'K' in method_df.columns:
                 method_df['Method'] = method_df['K'].apply(lambda k: '{}_{}'.format(method, k))
                 method_df.drop(columns='K', inplace=True)
             else:
                 method_df['Method'] = method
             method_df['Query'] = input_dict[query][0]
+            method_df['Query_Length'] = query_aln.seq_length
+            method_df['Alignment_Length'] = query_aln.size
             stats.append(method_df)
+    ####################################################################################################################
+    method_order = ['DCA', 'ET-MIp', 'cET-MIp_2', 'cET-MIp_3', 'cET-MIp_5', 'cET-MIp_7', 'cET-MIp_10', 'cET-MIp_25']
+    separation_order = ['Any', 'Neighbors', 'Short', 'Medium', 'Long']
+    query_order = ['3q05A', '2b59A', '7hvpA', '1c17A', '206lA', '1bolA', '2z0eA', '1axbA', '135lA', '2rh1A', '4lliA',
+                   '1a26A', '1c0kA', '2zxeA', '1jwlA', '1hckA', '1h1vA', '2ysdA', '2iopA', '3b6vA', '4ycuA', '2werA',
+                   '3tnuA']
     overall_df = pd.concat(stats, ignore_index=True)
+    query_order = sorted(overall_df['Alignment_Length'].unique())
     from IPython import embed
     embed()
-
+    overall_df.to_csv(os.path.join(arguments['output'], 'Evaluation_Statistics.csv'), sep='\t', header=True,
+                      index=False)
+    auc_any = sns.catplot(data=overall_df.loc[(overall_df['Distance'] == 'Any'), :], x='Sequence_Separation', y='AUROC',
+                          hue='Method', col='Query', order=separation_order, hue_order=method_order,
+                          col_order=query_order, col_wrap=4, kind='bar', legend_out=True, sharex=True, sharey=True)
+    auc_any.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistAny.tiff'))
+    auc_cb = sns.catplot(data=overall_df.loc[(overall_df['Distance'] == 'CB'), :], x='Sequence_Separation', y='AUROC',
+                          hue='Method', col='Query', order=separation_order, hue_order=method_order,
+                          col_order=query_order, col_wrap=4, kind='bar', legend_out=True, sharex=True, sharey=True)
+    auc_cb.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistCB.tiff'))
+    times_df = pd.DataFrame(times)
+    times_df.to_csv(os.path.join(arguments['output'], 'Evaluation_Timing.csv'), sep='\t', header=True, index=False)
+    sns.barplot(x='Query', y='Time(s)', hue='Method', order=query_order, hue_order=method_order)
+    plt.savefig(os.path.join(arguments['output'], 'Time_Comparison_DistAny.tiff'))
+    plt.clf()
+    embed()
+    exit()
