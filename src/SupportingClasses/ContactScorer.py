@@ -403,10 +403,17 @@ class ContactScorer(object):
             output_dir (str): The full path to where the AUC plot image should be stored. If None (default) the plot
             will be stored in the current working directory.
         """
+        # If there is no AUC data return without plotting
         if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
             return
-        start = time()
-        plt.plot(auc_data[0], auc_data[1], label='(AUC = {0:.2f})'.format(auc_data[2]))
+        if file_name is None:
+            file_name = '{}_Cutoff{}A_roc.eps'.format(query_name, self.cutoff)
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        # If the figure has already been plotted return
+        if os.path.isfile(file_name):
+            return
+        plt.plot(auc_data[1], auc_data[0], label='(AUC = {0:.2f})'.format(auc_data[2]))
         plt.plot([0, 1], [0, 1], 'k--')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
@@ -416,14 +423,8 @@ class ContactScorer(object):
             title = 'Ability to predict positive contacts in {}'.format(query_name)
         plt.title(title)
         plt.legend(loc="lower right")
-        if file_name is None:
-            file_name = '{}_Cutoff{}A_roc.eps'.format(query_name, self.cutoff)
-        if output_dir:
-            file_name = os.path.join(output_dir, file_name)
         plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
         plt.close()
-        end = time()
-        print('Plotting the AUC plot took {} min'.format((end - start) / 60.0))
 
     def score_precision(self, predictions, k=None, n=None, category='Any'):
         """
@@ -470,7 +471,8 @@ class ContactScorer(object):
         precision = precision_score(y_true1, y_pred1)
         return precision
 
-    def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv'):
+    def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
+                                                w2_ave_sub=None):
         """
         Score Clustering Of Contact Predictions
 
@@ -482,13 +484,21 @@ class ContactScorer(object):
             predictions (numpy.array):
             bias (int or bool): option to calculate z_scores with bias or nobias (j-i factor)
             file_path (str): path where the z-scoring results should be written to.
+            w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
         Returns:
-            list. A list of residues sorted order by the prediction score.
-            list. A list of z-scores matching the
+            pd.DataFrame. Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
+            the clustering Z-Score, the w score, E[w], E[w^2], sigma, and the number of residues of interest up to that
+            point.
+            dict. The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+            3).
         """
         if self.query_structure is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
             return pd.DataFrame()
+        # If data has already been computed load and return it without recomputing.
+        if os.path.isfile(file_path):
+            df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
+            return df, None
         scores = []
         residues = []
         for i in range(predictions.shape[0]):
@@ -501,7 +511,6 @@ class ContactScorer(object):
                 'Covariance_Score': sorted_scores, 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [],
                 'Num_Residues': []}
         prev_z_score = None
-        w2_ave_sub = None
         for pair in sorted_residues:
             new_res = []
             if pair[0] not in residues_of_interest:
@@ -526,7 +535,7 @@ class ContactScorer(object):
             data['Num_Residues'].append(len(residues_of_interest))
         df = pd.DataFrame(data)
         df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
-        return df
+        return df, w2_ave_sub
 
     def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None):
         """
@@ -705,7 +714,8 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
-    def evaluate_predictor(self, query, predictor, verbosity, out_dir, dist='Any'):
+    def evaluate_predictor(self, query, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
+                           unbiased_w2_ave=None):
         """
         Evaluate Predictor
 
@@ -727,7 +737,26 @@ class ContactScorer(object):
             dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
                 Any - Measures the minimum distance between two residues considering all of their atoms.
                 CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
+            biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
+            returned by this function.
+            unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
+            computation also returned by this function.
+        Returns:
+            pandas.DataFrame.
+            pandas.DataFrame.
+            dict. A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
+            dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
+        score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
+        coverage_fn = os.path.join(out_dir, 'Coverage_Evaluation_Dist-{}.txt'.format(dist))
+        # If the evaluation has already been performed load the data and return it
+        # if os.path.isfile(score_fn):
+        #     score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
+        #     if os.path.isfile(coverage_fn):
+        #         coverage_df = pd.read_csv(coverage_fn, sep='\t', header=0, index_col=False)
+        #     else:
+        #         coverage_df = None
+        #     return score_df, coverage_df, None, None
         score_stats = None
         coverage_stats = None
         columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
@@ -739,9 +768,14 @@ class ContactScorer(object):
                 c_out_dir = os.path.join(out_dir, str(c))
                 if not os.path.isdir(c_out_dir):
                     os.mkdir(c_out_dir)
-                score_stats = self.evaluate_predictions(query=query, scores=predictor.get_scores(c=c),
-                                                        verbosity=verbosity, out_dir=c_out_dir, dist=dist,
-                                                        file_prefix='Scores_K-{}_'.format(c), stats=score_stats)
+                score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                    query=query, scores=predictor.get_scores(c=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
+                    file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
+                    unbiased_w2_ave=unbiased_w2_ave)
+                if (biased_w2_ave is None) and (b_w2_ave is not None):
+                    biased_w2_ave = b_w2_ave
+                if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                    unbiased_w2_ave = u_w2_ave
                 if 'K' not in score_stats:
                     score_stats['K'] = []
                     score_stats['Time'] = []
@@ -751,10 +785,14 @@ class ContactScorer(object):
                 score_stats['K'] += c_array
                 score_stats['Time'] += time_array
                 try:
-                    coverage_stats = self.evaluate_predictions(query=query, scores=predictor.get_coverage(c),
-                                                               verbosity=verbosity, out_dir=c_out_dir, dist=dist,
-                                                               file_prefix='Coverage_K-{}_'.format(c),
-                                                               stats=coverage_stats)
+                    coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                        query=query, scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir,
+                        dist=dist, file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats,
+                        biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+                    if (biased_w2_ave is None) and (b_w2_ave is not None):
+                        biased_w2_ave = b_w2_ave
+                    if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                        unbiased_w2_ave = u_w2_ave
                     if 'K' not in coverage_stats:
                         coverage_stats['K'] = []
                         coverage_stats['Time'] = []
@@ -763,18 +801,27 @@ class ContactScorer(object):
                 except AttributeError:
                     pass
         else:
-            score_stats = self.evaluate_predictions(query=query, scores=predictor.scores, verbosity=verbosity,
-                                                    out_dir=out_dir, dist=dist, file_prefix='Scores_',
-                                                    stats=score_stats)
+            score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                query=query, scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist,
+                file_prefix='Scores_', stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+            if (biased_w2_ave is None) and (b_w2_ave is not None):
+                biased_w2_ave = b_w2_ave
+            if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                unbiased_w2_ave = u_w2_ave
             if 'Time' not in score_stats:
                 score_stats['Time'] = []
             diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
             time_array = [predictor.time] * diff_len
             score_stats['Time'] += time_array
             try:
-                coverage_stats = self.evaluate_predictions(query=query, scores=predictor.coverage, verbosity=verbosity,
-                                                           out_dir=out_dir, dist=dist, file_prefix='Coverage_',
-                                                           stats=coverage_stats)
+                coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                    query=query, scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist,
+                    file_prefix='Coverage_', stats=coverage_stats, biased_w2_ave=biased_w2_ave,
+                    unbiased_w2_ave=unbiased_w2_ave)
+                if (biased_w2_ave is None) and (b_w2_ave is not None):
+                    biased_w2_ave = b_w2_ave
+                if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                    unbiased_w2_ave = u_w2_ave
                 if 'K' not in coverage_stats:
                     coverage_stats['K'] = []
                     coverage_stats['Time'] = []
@@ -782,17 +829,16 @@ class ContactScorer(object):
             except AttributeError:
                 pass
         score_df = pd.DataFrame(score_stats)
-        score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
         score_df.to_csv(path_or_buf=score_fn, columns=columns, sep='\t', header=True, index=False)
         if coverage_stats is not None:
             coverage_df = pd.DataFrame(coverage_stats)
-            coverage_fn = os.path.join(out_dir,'Coverage_Evaluation_Dist-{}.txt'.format(dist))
             coverage_df.to_csv(path_or_buf=coverage_fn, columns=columns, sep='\t', header=True, index=False)
         else:
             coverage_df = None
-        return score_df, coverage_df
+        return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None):
+    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
+                             biased_w2_ave=None, unbiased_w2_ave=None):
         """
         Evaluate Predictions
 
@@ -818,9 +864,15 @@ class ContactScorer(object):
                 CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
             file_prefix (str): string to prepend before filenames.
             stats (dict): A dictionary of previously computed statistics and scores from a predictor.
+            biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
+            returned by this function.
+            unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
+            computation also returned by this function.
         Returns:
             dict. The stats computed for this matrix of scores, if a dictionary of stats was passed in the current stats
             are added to the previous ones.
+            dict. A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
+            dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
         if stats is None:
             stats = {'AUROC': [], 'Distance': [], 'Sequence_Separation': []}
@@ -830,11 +882,15 @@ class ContactScorer(object):
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
-            z_score_biased = self.score_clustering_of_contact_predictions(
-                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'))
+            z_score_biased, b_w2_ave = self.score_clustering_of_contact_predictions(
+                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave)
+            if (biased_w2_ave is None) and (b_w2_ave is not None):
+                biased_w2_ave = b_w2_ave
             plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
-            z_score_unbiased = self.score_clustering_of_contact_predictions(
-                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'))
+            z_score_unbiased, u_w2_ave = self.score_clustering_of_contact_predictions(
+                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave)
+            if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         # Evaluating scores
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
@@ -866,7 +922,7 @@ class ContactScorer(object):
                          output_dir=out_dir)
             surface_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Surface'.format(dist), data_mat=scores,
                          output_dir=out_dir)
-        return stats
+        return stats, biased_w2_ave, unbiased_w2_ave
 
 
 def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
@@ -914,9 +970,7 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
             file_dict['AA2'].append(one_to_three(alignment.query_sequence[j]))
             file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
             if c_raw_sub_scores is not None:
-                # for c in range(c_raw_sub_scores.shape[0]):
                 for c in c_raw_sub_scores:
-                    # file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c, i, j], 4))
                     file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c][i, j], 4))
             file_dict['Raw_Score'].append(round(c_raw_scores[i, j], 4))
             if c_integrated_scores is not None:
@@ -944,12 +998,16 @@ def plot_z_scores(df, file_path=None):
         running the score_clustering_of_contact_predictions method
         file_path (str): Path at which to save the plot produced by this call.
     """
+    # If there is no data to plot return
     if df.empty:
+        return
+    if file_path is None:
+        file_path = './zscore_plot.pdf'
+    # If the figure has already been plotted return
+    if os.path.isfile(file_path):
         return
     plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
     scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
-    if file_path is None:
-        file_path = './zscore_plot.pdf'
     plt.savefig(file_path)
     plt.clf()
 
@@ -968,20 +1026,20 @@ def heatmap_plot(name, data_mat, output_dir=None):
         output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    start = time()
+    image_name = name.replace(' ', '_') + '.pdf'
+    if output_dir:
+        image_name = os.path.join(output_dir, image_name)
+    # If the figure has already been plotted return
+    if os.path.isfile(image_name):
+        return
     dm_max = np.max(data_mat)
     dm_min = np.min(data_mat)
     plot_max = max([dm_max, abs(dm_min)])
     heatmap(data=data_mat, cmap='jet', center=0.0, vmin=-1 * plot_max,
             vmax=plot_max, cbar=True, square=True)
     plt.title(name)
-    image_name = name.replace(' ', '_') + '.pdf'
-    if output_dir:
-        image_name = os.path.join(output_dir, image_name)
     plt.savefig(image_name)
     plt.clf()
-    end = time()
-    print('Plotting ETMIp-C heatmap took {} min'.format((end - start) / 60.0))
 
 
 def surface_plot(name, data_mat, output_dir=None):
@@ -999,7 +1057,12 @@ def surface_plot(name, data_mat, output_dir=None):
     output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
     will be stored in the current working directory.
     """
-    start = time()
+    image_name = name.replace(' ', '_') + '.pdf'
+    if output_dir:
+        image_name = os.path.join(output_dir, image_name)
+    # If the figure has already been plotted return
+    if os.path.isfile(image_name):
+        return
     dm_max = np.max(data_mat)
     dm_min = np.min(data_mat)
     plot_max = max([dm_max, abs(dm_min)])
@@ -1012,10 +1075,5 @@ def surface_plot(name, data_mat, output_dir=None):
     ax.zaxis.set_major_locator(LinearLocator(10))
     ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    image_name = name.replace(' ', '_') + '.pdf'
-    if output_dir:
-        image_name = os.path.join(output_dir, image_name)
     plt.savefig(image_name)
     plt.clf()
-    end = time()
-    print('Plotting ETMIp-C surface plot took {} min'.format((end - start) / 60.0))
