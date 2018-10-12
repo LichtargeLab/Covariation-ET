@@ -250,6 +250,31 @@ class SeqAlignment(object):
         print('Computing the distance matrix took {} min'.format((end - start) / 60.0))
         self.distance_matrix = value_matrix
 
+    def compute_effective_alignment_size(self, identity_threshold=0.62):
+        """
+        Compute Effective Alignment Size
+
+        This method uses the distance_matrix variable (containing sequence identities) to compute the effective size of
+        the current alignment. The equation (given below) and default threshold (62% identity) are taken from
+        PMID:29047157.
+            Meff = SUM_(i=0)^(N) of 1/n_i
+            where n_i are the number of sequences sequence identity >= the identity threshold
+        Args:
+            identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
+        Returns:
+            float. The effective alignment size of the current alignment (must be <= SeqAlignment.size)
+        """
+        if self.distance_matrix is None:
+            self.compute_distance_matrix()
+        meets_threshold = self.distance_matrix >= identity_threshold
+        meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
+        n_i = np.sum(meets_threshold, axis=1)
+        rec_n_i = 1.0 / n_i
+        effective_alignment_size = np.sum(rec_n_i)
+        if effective_alignment_size > self.size:
+            raise ValueError('Effective alignment size is greater than the original alignment size.')
+        return effective_alignment_size
+
     def set_tree_ordering(self, t_order=None):
         """
         Determine the ordering of the sequences from the full clustering tree
