@@ -22,10 +22,7 @@ def parse_arguments():
     and includes help functionality.
 
     Returns:
-    --------
-    dict:
-        A dictionary containing the arguments parsed from the command line and
-        their arguments.
+        dict. A dictionary containing the arguments parsed from the command line and their arguments.
     """
     # Create input parser
     parser = argparse.ArgumentParser(description='Process some integers.')
