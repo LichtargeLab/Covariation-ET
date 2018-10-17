@@ -453,6 +453,7 @@ class ContactScorer(object):
                 Long : Residues more than 24 sequence positions apart.
                 Any : Any/All pairs of residues.
         Returns:
+            float. The precision value computed for the predictions provided.
         """
         if self.query_structure is None:
             print('Precision cannot be measured, because no PDB was provided.')
@@ -1049,13 +1050,12 @@ def surface_plot(name, data_mat, output_dir=None):
     This method creates a surface plot using the matplotlib plotting package. The data used can come from the
     scores or coverage data.
 
-    Parameters:
-    -----------
-    name (str): Name used as the title of the plot and the filename for the saved figure.
-    data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
-    predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
-    output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
-    will be stored in the current working directory.
+    Args:
+        name (str): Name used as the title of the plot and the filename for the saved figure.
+        data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
+        predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
+        output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
+        will be stored in the current working directory.
     """
     image_name = name.replace(' ', '_') + '.pdf'
     if output_dir:
