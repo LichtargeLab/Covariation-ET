@@ -69,10 +69,8 @@ class PDBReference(object):
         x, y, and z coordinate. This method updates the following class
         variables: residue_3d, pdb_residue_list, residue_pos, and seq.
 
-        Parameters:
-        -----------
-        save_file: str
-            The file path to a previously stored PDB file data structure.
+        Args:
+            save_file (str): The file path to a previously stored PDB file data structure.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
