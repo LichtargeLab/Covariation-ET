@@ -12,7 +12,6 @@ import numpy as np
 import os
 import re
 import sys
-from IPython import embed
 
 
 def parse_arguments():
@@ -70,7 +69,7 @@ def parse_arguments():
 def parse_id(fa_file):
     for line in open(fa_file, 'rb'):
         id_check = re.match(r'^>query_(.*)\s?$', line)
-        if(id_check):
+        if id_check:
             return id_check.group(1)
         else:
             continue
@@ -99,16 +98,16 @@ if __name__ == '__main__':
         if not check:
             continue
         query = check.group(1).lower()
-        if(query not in input_dict):
+        if query not in input_dict:
             input_dict[query] = [None, None, None, None, None, None]
-        if(f.endswith('fa')):
+        if f.endswith('fa'):
             input_dict[query][0] = parse_id(f)
             input_dict[query][1] = f
             aln_stats = get_alignment_stats(f, input_dict[query][0])
             input_dict[query][3] = aln_stats[0]
             input_dict[query][4] = aln_stats[1]
             input_dict[query][5] = aln_stats[2]
-        elif(f.endswith('pdb')):
+        elif f.endswith('pdb'):
             input_dict[query][2] = f
         else:
             pass
@@ -117,14 +116,11 @@ if __name__ == '__main__':
     for query in sorted(input_dict, key=lambda k: input_dict[k][4]):
         if input_dict[query][0] is not None:
             counter += 1
-            create_folder = os.path.join(arguments['output'],str(today), input_dict[query][0])
-            if(os.path.isdir(os.path.abspath(create_folder)) and
-               arguments['skipPreAnalyzed']):
+            create_folder = os.path.join(arguments['output'], str(today), input_dict[query][0])
+            if os.path.isdir(os.path.abspath(create_folder)) and arguments['skipPreAnalyzed']:
                 continue
-            print('Performing analysis for: {} with query length {} size {} and'
-                  ' max k {}'.format(query, input_dict[query][3],
-                                     input_dict[query][4],
-                                     input_dict[query][5]))
+            print('Performing analysis for: {} with query length {} size {} and max k {}'.format(
+                query, input_dict[query][3], input_dict[query][4], input_dict[query][5]))
             arguments['query'] = [input_dict[query][0]]
             arguments['alignment'] = [input_dict[query][1]]
             arguments['pdb'] = input_dict[query][2]
@@ -132,7 +128,7 @@ if __name__ == '__main__':
             try:
                 AnalyzeAlignment(arguments)
                 print('Completed successfully: {}'.format(query))
-            except(ValueError):
+            except ValueError:
                 print('Analysis for {} incomplete!'.format(query))
                 incomplete.append(query)
     print('{} analyses performed'.format(counter))
