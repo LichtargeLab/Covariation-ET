@@ -125,8 +125,11 @@ if __name__ == '__main__':
     stats = []
     for query in sorted(input_dict.keys()):
         # if query != '7hvpa':
-        #     print(query)
-        #     continue
+        if query == '3tnua':
+            print(query)
+            from IPython import embed
+            embed()
+            continue
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
@@ -157,7 +160,7 @@ if __name__ == '__main__':
             if method == 'cET-MIp':
                 methods[method]['args']['query'] = input_dict[query][0]
             curr_time = predictor.calculate_scores(out_dir=protein_dir, **methods[method]['args'])
-            times['Query'].append(query)
+            times['Query'].append(input_dict[query][0])
             times['Method'].append(method)
             times['Time(s)'].append(curr_time)
             any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
@@ -187,27 +190,28 @@ if __name__ == '__main__':
     ####################################################################################################################
     method_order = ['DCA', 'ET-MIp', 'cET-MIp_2', 'cET-MIp_3', 'cET-MIp_5', 'cET-MIp_7', 'cET-MIp_10', 'cET-MIp_25']
     separation_order = ['Any', 'Neighbors', 'Short', 'Medium', 'Long']
-    query_order = ['3q05A', '2b59A', '7hvpA', '1c17A', '206lA', '1bolA', '2z0eA', '1axbA', '135lA', '2rh1A', '4lliA',
-                   '1a26A', '1c0kA', '2zxeA', '1jwlA', '1hckA', '1h1vA', '2ysdA', '2iopA', '3b6vA', '4ycuA', '2werA',
-                   '3tnuA']
     overall_df = pd.concat(stats, ignore_index=True)
-    query_order = sorted(overall_df['Alignment_Length'].unique())
-    from IPython import embed
-    embed()
+    query_order = list(zip(*sorted(zip(overall_df['Query'].unique(), overall_df['Alignment_Length'].unique()),
+                                   key=lambda k: k[1]))[0])
     overall_df.to_csv(os.path.join(arguments['output'], 'Evaluation_Statistics.csv'), sep='\t', header=True,
                       index=False)
     auc_any = sns.catplot(data=overall_df.loc[(overall_df['Distance'] == 'Any'), :], x='Sequence_Separation', y='AUROC',
                           hue='Method', col='Query', order=separation_order, hue_order=method_order,
                           col_order=query_order, col_wrap=4, kind='bar', legend_out=True, sharex=True, sharey=True)
-    auc_any.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistAny.tiff'))
+    auc_any.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistAny.eps'))
+    plt.clf()
     auc_cb = sns.catplot(data=overall_df.loc[(overall_df['Distance'] == 'CB'), :], x='Sequence_Separation', y='AUROC',
-                          hue='Method', col='Query', order=separation_order, hue_order=method_order,
-                          col_order=query_order, col_wrap=4, kind='bar', legend_out=True, sharex=True, sharey=True)
-    auc_cb.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistCB.tiff'))
+                         hue='Method', col='Query', order=separation_order, hue_order=method_order,
+                         col_order=query_order, col_wrap=4, kind='bar', legend_out=True, sharex=True, sharey=True)
+    auc_cb.savefig(os.path.join(arguments['output'], 'AUROC_Method_Comparison_DistCB.eps'))
+    plt.clf()
+    method_order = method_order[1:]
     times_df = pd.DataFrame(times)
     times_df.to_csv(os.path.join(arguments['output'], 'Evaluation_Timing.csv'), sep='\t', header=True, index=False)
-    sns.barplot(x='Query', y='Time(s)', hue='Method', order=query_order, hue_order=method_order)
-    plt.savefig(os.path.join(arguments['output'], 'Time_Comparison_DistAny.tiff'))
+    times_df['Total Time(s)'] = times_df['Time(s)'].apply(lambda x: x['Total'] if isinstance(x, dict) else x)
+    g = sns.barplot(x='Query', y='Total Time(s)', hue='Method', order=query_order, hue_order=method_order,
+                    data=times_df.loc[times_df['Method'].isin(method_order), :])
+    plt.savefig(os.path.join(arguments['output'], 'Time_Comparison_DistAny.eps'))
+    g.set_yscale('log')
+    plt.savefig(os.path.join(arguments['output'], 'Time_Comparison_LogScale.eps'))
     plt.clf()
-    embed()
-    exit()
