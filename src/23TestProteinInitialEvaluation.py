@@ -28,15 +28,11 @@ def parse_arguments():
     and includes help functionality.
 
     Returns:
-    --------
-    dict:
-        A dictionary containing the arguments parsed from the command line and
-        their arguments.
+        dict. A dictionary containing the arguments parsed from the command line and their arguments.
     """
     # Create input parser
     parser = argparse.ArgumentParser(description='Process some integers.')
-    # Set up all optional variables to be parsed from the command line
-    # (defaults)
+    # Set up all optional variables to be parsed from the command line (defaults)
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?',

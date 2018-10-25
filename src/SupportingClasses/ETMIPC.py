@@ -197,7 +197,6 @@ class ETMIPC(object):
 
         Args:
             item (str): the class variable to work with.
-            low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
             c (int): the first level specifier for the data to extract (corresponds to clustering constants).
         Returns:
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
@@ -273,9 +272,9 @@ class ETMIPC(object):
         raw_scores, result_matrices, and time class variables.
 
         Args:
-        aa_dict (dict): A dictionary mapping amino acids to numerical representations.
-        combine_clusters (str): Method by which to combine individual matrices from one round of clustering. The options
-        supported now are: sum, average, size_weighted, evidence_weighted, and evidence_vs_size.
+            aa_dict (dict): A dictionary mapping amino acids to numerical representations.
+            combine_clusters (str): Method by which to combine individual matrices from one round of clustering. The
+            options supported now are: sum, average, size_weighted, evidence_weighted, and evidence_vs_size.
         """
         cetmip_manager = Manager()
         k_queue = cetmip_manager.Queue()
@@ -360,8 +359,8 @@ class ETMIPC(object):
         added.
 
         Args:
-        combination (str): Method by which to combine scores across clustering constants. By default only a sum is
-        performed, the option average is also supported.
+            combination (str): Method by which to combine scores across clustering constants. By default only a sum is
+            performed, the option average is also supported.
         """
         start = time()
         for i in range(len(self.clusters)):
@@ -415,7 +414,7 @@ class ETMIPC(object):
         This method writes out clustering scores. This method updates the time class variable.
 
         Args:
-        today (str): The current date which will be used for identifying the proper directory to store files in.
+            today (str): The current date which will be used for identifying the proper directory to store files in.
         """
         begin = time()
         q_name = self.alignment.query_id.split('_')[1]
@@ -461,8 +460,8 @@ class ETMIPC(object):
                 curr_path = os.path.join(self.output_dir, str(k), 'K{}_Sub{}.npz'.format(k, sub))
                 os.remove(curr_path)
 
-    def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks,
-                         processes=1, low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
+    def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks, processes=1,
+                         low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
         """
         Calculate Scores
 
@@ -559,13 +558,6 @@ class ETMIPC(object):
         return self.time
 
 
-    #     self.whole_mip_matrix = None
-    #     self.whole_evidence_matrix = None
-###############################################################################
-#
-###############################################################################
-
-
 def save_single_matrix(name, k, mat, out_dir):
     """
     Save Single Matrix
@@ -595,8 +587,7 @@ def load_single_matrix(file_path):
     This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
     footprint when the cET-MIp variable low_mem is set to true.
 
-    Parameters:
-    -----------
+    Args:
         file_path (str/path): The path to the matrix to be loaded. The expectation is that the matrix will be named
         'mat' in the .npz file which is passed for loading.
     Returns:
@@ -900,16 +891,16 @@ def et_mip_worker2(in_tup):
     of threads with poolInit, or setting of global variables as described in that function.
 
     Args:
-    in_tup (tuple): Tuple containing the number of clusters to form during agglomerative clustering and a matrix which
-    is the result of summing the original MIP matrix and the matrix resulting from clustering at this clustering and
-    lower clusterings.
+        in_tup (tuple): Tuple containing the number of clusters to form during agglomerative clustering and a matrix
+        which is the result of summing the original MIP matrix and the matrix resulting from clustering at this
+        clustering and lower clusterings.
     Returns:
-    int. Number of clusters.
-    list. Coverage values for this clustering.
-    float. The time in seconds which it took to perform clustering.
-    list. List of false positive rates.
-    list. List of true positive rates.
-    float. The ROCAUC value for this clustering.
+        int. Number of clusters.
+        list. Coverage values for this clustering.
+        float. The time in seconds which it took to perform clustering.
+        list. List of false positive rates.
+        list. List of true positive rates.
+        float. The ROCAUC value for this clustering.
     """
     c, all_summed_matrix = in_tup
     summed_matrix = get_k_level_matrices(input=all_summed_matrix, low_mem=worker2_low_mem, c=c)

@@ -84,10 +84,8 @@ class SeqAlignment(object):
         updates the alignment, seq_order, query_sequence, seq_length, and size
         class variables.
 
-        Parameters:
-        -----------
-        save_file: str
-            Path to file in which the desired alignment was stored previously.
+        Args:
+            save_file (str): Path to file in which the desired alignment was stored previously.
         """
         start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
@@ -116,9 +114,8 @@ class SeqAlignment(object):
         sequence which is longer than 60 positions will be split over multiple
         lines with 60 characters per line.
 
-        Parameters:
-        file_name: str
-            Path to file where the alignment should be written.
+        Args:
+            file_name (str): Path to file where the alignment should be written.
         """
         start = time()
         AlignIO.write(self.alignment, file_name, "fasta")
@@ -169,11 +166,9 @@ class SeqAlignment(object):
         corresponding positions in all other sequences. This method updates the
         class variables alignment, query_sequence, and seq_length.
 
-        Parameters:
-        -----------
-        save_file: str
-            Path to a file where the alignment with gaps in the query sequence
-            removed was stored previously.
+        Args:
+            save_file (str): Path to a file where the alignment with gaps in the query sequence removed was stored
+            previously.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
@@ -200,11 +195,9 @@ class SeqAlignment(object):
         Converts an alignment dictionary to a numerical representation.  This
         method updates the alignment_matrix class variable.
 
-        Parameters:
-        -----------
-        aa_dict: dict
-            Dictionary mapping characters which can appear in the alignment to
-            digits for representation.
+        Args:
+            aa_dict (dict): Dictionary mapping characters which can appear in the alignment to digits for
+            representation.
         """
         start = time()
         alignment_to_num = np.zeros((self.size, self.seq_length))
@@ -224,11 +217,9 @@ class SeqAlignment(object):
         returns a matrix of the pairwise distances.  This method updates the
         distance_matrix class variable.
 
-        Parameters:
-        -----------
-        save_file: str
-            The path for an .npz file containing distances between sequences in
-            the alignment (leave out the .npz as it will be added automatically.
+        Args:
+            save_file (str): The path for an .npz file containing distances between sequences in the alignment (leave
+            out the .npz as it will be added automatically.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file + '.npz'):
@@ -280,9 +271,9 @@ class SeqAlignment(object):
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
 
-        t_order : list
-            An ordered list of sequence IDs which contains at least the
-            sequence IDs represented in this SeqAlignment.
+        Args:
+            t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
+            SeqAlignment.
         """
         if t_order is not None:
             self.tree_order = [x for x in t_order if x in self.seq_order]
@@ -306,20 +297,14 @@ class SeqAlignment(object):
         Performs agglomerative clustering on a matrix of pairwise distances
         between sequences in the alignment being analyzed.
 
-        Parameters:
-        -----------
-        n_cluster: int
-            The number of clusters to separate sequences into.
-        cache_dir : str
-            The path to the directory where the clustering model can be stored
-            for access later when identifying different numbers of clusters.
+        Args:
+            n_cluster (int): The number of clusters to separate sequences into.
+            cache_dir (str): The path to the directory where the clustering model can be stored for access later when
+            identifying different numbers of clusters.
         Returns:
-        --------
-        dict
-            A dictionary with cluster number as the key and a list of sequences in
-            the specified cluster as a value.
-        set
-            A unique sorted set of the cluster values.
+            dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
+            value.
+            set. A unique sorted set of the cluster values.
         """
         start = time()
         affinity = 'euclidean'
@@ -364,17 +349,12 @@ class SeqAlignment(object):
         with self.size % nClusters groups getting one additional sequence
         otherwise.
 
-        Parameters:
-        -----------
-        nClusters : int
-            The number of clusters to produce by random assignment.
+        Args:
+            nClusters (int): The number of clusters to produce by random assignment.
         Returns:
-        --------
-        dict
-            A dictionary mapping a cluster labels (0 to nClusters -1) to a list
-            of sequence IDs assigned to that cluster.
-        set
-            The set of labels used for clustering (0 to nClusters -1).
+            dict. A dictionary mapping a cluster labels (0 to nClusters -1) to a list of sequence IDs assigned to that
+            cluster.
+            set. The set of labels used for clustering (0 to nClusters -1).
         """
         start = time()
         cluster_sizes = np.ones(n_cluster, dtype=np.int64)
@@ -418,22 +398,15 @@ class SeqAlignment(object):
         This method creates a new alignment which contains only sequences
         relating to a set of provided sequence ids.
 
-        Parameters:
-        -----------
-        sequence_ids: list
-            A list of strings which are sequence identifiers for sequences in
-            the current alignment.  Other sequence ids will be skipped.
-
+        Args:
+            sequence_ids (list): A list of strings which are sequence identifiers for sequences in the current
+            alignment. Other sequence ids will be skipped.
         Returns:
-        --------
-        SeqAlignment
-            A new SeqAlignment object containing the same file_name, query_id,
-            seq_length, and query sequence.  The seq_order will be updated to
-            only those passed in ids which are also in the current alignment,
-            preserving their ordering from the current SeqAlignment object.
-            The alignment will contain only the subset of sequences
-            represented by ids which are present in the new seq_order.  The size
-            is set to the length of the new seq_order.
+            SeqAlignment. A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
+            sequence.  The seq_order will be updated to only those passed in ids which are also in the current
+            alignment, preserving their ordering from the current SeqAlignment object. The alignment will contain only
+            the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
+            length of the new seq_order.
         """
         start = time()
         new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
@@ -453,19 +426,12 @@ class SeqAlignment(object):
         """
         Determine which positions in the alignment can be used for analysis.
 
-        Parameters:
-        -----------
-        ratio: float
-            The maximum percentage of sequences which can have a gap at a
-            specific position before it can no longer be used for analysis.
-
+        Args:
+            ratio (float): The maximum percentage of sequences which can have a gap at a specific position before it can
+            no longer be used for analysis.
         Returns:
-        --------
-        numpy ndarray:
-            The positions for which this alignment meets the specified ratio.
-        numpy ndarray:
-            The number of sequences which do not have gaps at each position in
-            the sequence alignment.
+            numpy ndarray. The positions for which this alignment meets the specified ratio.
+            numpy ndarray. The number of sequences which do not have gaps at each position in the sequence alignment.
         """
         gaps = (self.alignment_matrix == 21) * 1.0
         per_column = np.sum(gaps, axis=0)
@@ -479,28 +445,17 @@ class SeqAlignment(object):
         For two specified sequence positions identify the sequences which are
         not gaps in either and return them.
 
-        Parameters:
-        -----------
-        pos1: int
-            First position to check in the sequence alignment.
-        pos2: int
-            Second position to check in the sequence alignment.
-
+        Args:
+            pos1 (int): First position to check in the sequence alignment.
+            pos2 (int): Second position to check in the sequence alignment.
         Returns:
-        --------
-        np.array
-            The column for position 1 which was specified, where the amino acids
-            are not gaps in position 1 or position 2.
-        np.array
-            The column for position 2 which was specified, where the amino acids
-            are not gaps in position 1 or position 2.
-        np.array
-            The array of indices for which the positions were not gapped.  This
-            corresponds to the sequences where there were no gaps in the
-            alignment at those positions.
-        int
-            Number of comparable positions, this will be less than or equal to
-            the SeqAlignment.size variable.
+            np.array. The column for position 1 which was specified, where the amino acids are not gaps in position 1 or
+            position 2.
+            np.array. The column for position 2 which was specified, where the amino acids are not gaps in position 1 or
+            position 2.
+            np.array. The array of indices for which the positions were not gapped.  This corresponds to the sequences
+            where there were no gaps in the alignment at those positions.
+            int. Number of comparable positions, this will be less than or equal to the SeqAlignment.size variable.
         """
         column_i = self.alignment_matrix[:, pos1]
         indices1 = (column_i != 20.0) * 1
@@ -516,15 +471,10 @@ class SeqAlignment(object):
         This method creates a heatmap using the Seaborn plotting package. The
         data used can come from the summary_matrices or coverage data.
 
-        Parameters:
-        -----------
-        name : str
-            Name used as the title of the plot and the filename for the saved
-            figure.
-        out_dir : str
-            Path to directory where the heatmap image file should be saved. If
-            None (default) then the image will be stored in the current working
-            directory.
+        Args:
+            name (str): Name used as the title of the plot and the filename for the saved figure.
+            out_dir (str): Path to directory where the heatmap image file should be saved. If None (default) then the
+            image will be stored in the current working directory.
         """
         start = time()
         df = pd.DataFrame(self.alignment_matrix, index=self.seq_order,
