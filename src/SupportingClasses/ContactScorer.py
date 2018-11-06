@@ -53,6 +53,7 @@ class ContactScorer(object):
         self.cutoff = cutoff
         self.best_chain = None
         self.query_pdb_mapping = None
+        self._specific_mapping = None
         self.distances = None
         self.dist_type = None
 
@@ -318,34 +319,43 @@ class ContactScorer(object):
         """
         # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
         # the PDB Structure.
-        indices = np.triu_indices(predictions.shape[0], 1)
-        mappable_pos = np.array(self.query_pdb_mapping.keys())
-        x_mappable = np.in1d(indices[0], mappable_pos)
-        y_mappable = np.in1d(indices[1], mappable_pos)
-        final_mappable = x_mappable & y_mappable
-        indices = (indices[0][final_mappable], indices[1][final_mappable])
+        if self._specific_mapping is None:
+            self._specific_mapping = {}
+        if category not in self._specific_mapping:
+            if predictions.shape[0] != self.query_alignment.seq_length:
+                raise ValueError('Size of predictions does not match expectations based on query sequence!')
+            # indices = np.triu_indices(predictions.shape[0], 1)
+            indices = np.triu_indices(self.query_alignment.seq_length, 1)
+            mappable_pos = np.array(self.query_pdb_mapping.keys())
+            x_mappable = np.in1d(indices[0], mappable_pos)
+            y_mappable = np.in1d(indices[1], mappable_pos)
+            final_mappable = x_mappable & y_mappable
+            indices = (indices[0][final_mappable], indices[1][final_mappable])
+            # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
+            # distances matrix.
+            keys = sorted(self.query_pdb_mapping.keys())
+            values = [self.query_pdb_mapping[k] for k in keys]
+            replace = np.array([keys, values])
+            mask1 = np.in1d(indices[0], replace[0, :])
+            indices[0][mask1] = replace[1, np.searchsorted(replace[0, :], indices[0][mask1])]
+            mask2 = np.in1d(indices[1], replace[0, :])
+            indices[1][mask2] = replace[1, np.searchsorted(replace[0, :], indices[1][mask2])]
+            # Keep only data for the specified category
+            pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
+            indices_to_keep = []
+            for pair in pairs:
+                pair_i = np.where(indices[0] == pair[0])
+                pair_j = np.where(indices[1] == pair[1])
+                overlap = np.intersect1d(pair_i, pair_j)
+                if len(overlap) != 1:
+                    raise ValueError('Something went wrong while computing overlaps.')
+                indices_to_keep.append(overlap[0])
+            self._specific_mapping[category] = (indices, indices_to_keep)
+        else:
+            indices, indices_to_keep = self._specific_mapping[category]
         mapped_predictions = predictions[indices]
-        # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
-        # distances matrix.
-        keys = sorted(self.query_pdb_mapping.keys())
-        values = [self.query_pdb_mapping[k] for k in keys]
-        replace = np.array([keys, values])
-        mask1 = np.in1d(indices[0], replace[0, :])
-        indices[0][mask1] = replace[1, np.searchsorted(replace[0, :], indices[0][mask1])]
-        mask2 = np.in1d(indices[1], replace[0, :])
-        indices[1][mask2] = replace[1, np.searchsorted(replace[0, :], indices[1][mask2])]
-        mapped_distances = self.distances[indices]
-        # Keep only data for the specified category
-        pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
-        indices_to_keep = []
-        for pair in pairs:
-            pair_i = np.where(indices[0] == pair[0])
-            pair_j = np.where(indices[1] == pair[1])
-            overlap = np.intersect1d(pair_i, pair_j)
-            if len(overlap) != 1:
-                raise ValueError('Something went wrong while computing overlaps.')
-            indices_to_keep.append(overlap[0])
         mapped_predictions = np.array(mapped_predictions[indices_to_keep])
+        mapped_distances = self.distances[indices]
         mapped_distances = np.array(mapped_distances[indices_to_keep])
         return mapped_predictions, mapped_distances
 
@@ -1010,7 +1020,8 @@ def plot_z_scores(df, file_path=None):
     plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
     scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
     plt.savefig(file_path)
-    plt.clf()
+    # plt.clf()
+    plt.close()
 
 
 def heatmap_plot(name, data_mat, output_dir=None):
@@ -1040,7 +1051,8 @@ def heatmap_plot(name, data_mat, output_dir=None):
             vmax=plot_max, cbar=True, square=True)
     plt.title(name)
     plt.savefig(image_name)
-    plt.clf()
+    # plt.clf()
+    plt.close()
 
 
 def surface_plot(name, data_mat, output_dir=None):
@@ -1076,4 +1088,5 @@ def surface_plot(name, data_mat, output_dir=None):
     ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
     fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.savefig(image_name)
-    plt.clf()
+    # plt.clf()
+    plt.close()
