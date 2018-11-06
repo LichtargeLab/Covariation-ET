@@ -557,6 +557,44 @@ class ETMIPC(object):
                 self.clear_intermediate_files()
         return self.time
 
+    def explore_positions(self, i, j, aa_dict):
+        out_dir = '/home/daniel/Desktop/Test/'
+        from Bio import AlignIO
+        if j < i:
+            i, j = j, i
+            print('Positions reversed to maintain ordering.')
+        positional_alns = {c: {k: {} for k in range(c)} for c in [1] + self.clusters}
+        scoring = {'Branch': [], 'Cluster': [], 'Cluster Score': [], 'Branch Score': [], 'Combined Score': []}
+        positional_alns[1][0]['aln'] = self.alignment.generate_positional_sub_alignment(i, j)
+        AlignIO.write([self.alignment.alignment], os.path.join(out_dir, 'C{}_K{}.aln'.format(1, 0)),
+                      'clustal')
+        positional_alns[1][0]['plot'] = positional_alns[1][0]['aln'].heatmap_plot('C={} K={}'.format(1, 0),
+                                                                                  aa_dict=aa_dict, save=True,
+                                                                                  out_dir=out_dir)
+        scoring['Branch'].append(1)
+        scoring['Cluster'].append(0)
+        scoring['Cluster Score'].append(self.whole_mip_matrix[i, j])
+        scoring['Branch Score'].append(self.whole_mip_matrix[i, j])
+        scoring['Combined Score'].append(self.whole_mip_matrix[i, j])
+        for c in self.clusters:
+            for sub in range(c):
+                positional_alns[c][sub]['aln'] = self.sub_alignments[c][sub].generate_positional_sub_alignment(i, j)
+                AlignIO.write([self.sub_alignments[c][sub].alignment],
+                              os.path.join(out_dir, 'C{}_K{}.aln'.format(c, sub)), 'clustal')
+                positional_alns[c][sub]['plot'] = positional_alns[c][sub]['aln'].heatmap_plot(
+                    'C={} K={}'.format(c, sub), aa_dict=aa_dict, save=True, out_dir=out_dir)
+                scoring['Branch'].append(c)
+                scoring['Cluster'].append(sub)
+                scoring['Cluster Score'].append(self.get_raw_scores(c=c, k=sub)[i, j])
+                scoring['Branch Score'].append(self.get_result_matrices(c=c)[i, j])
+                scoring['Combined Score'].append(self.get_scores(c=c)[i, j])
+        import pandas as pd
+        df = pd.DataFrame(scoring)
+        import seaborn as sns
+        grid = sns.FacetGrid(df, row='Cluster', col='Branch')
+        from IPython import embed
+        embed()
+
 
 def save_single_matrix(name, k, mat, out_dir):
     """
@@ -641,8 +679,8 @@ def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
     Returns:
         np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
     """
-    if c:
-        if k:
+    if c is not None:
+        if k is not None:
             if low_mem:
                 return load_single_matrix(input[c][k])
             else:
