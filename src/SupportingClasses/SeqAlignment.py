@@ -4,7 +4,6 @@ Created on Aug 17, 2017
 @author: daniel
 """
 import matplotlib
-
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
@@ -266,7 +265,31 @@ class SeqAlignment(object):
             raise ValueError('Effective alignment size is greater than the original alignment size.')
         return effective_alignment_size
 
-    def set_tree_ordering(self, t_order=None):
+    # def set_tree_ordering(self, t_order=None):
+    #     """
+    #     Determine the ordering of the sequences from the full clustering tree
+    #     used when separating the alignment into sub-clusters.
+    #
+    #     Args:
+    #         t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
+    #         SeqAlignment.
+    #     """
+    #     if t_order is not None:
+    #         self.tree_order = [x for x in t_order if x in self.seq_order]
+    #     elif self.tree_order is None:
+    #         df = pd.DataFrame(self.alignment_matrix,
+    #                           columns=list(self.query_sequence),
+    #                           index=self.tree_order)
+    #         hm = clustermap(df, method='ward', metric='euclidean',
+    #                         z_score=None, standard_scale=None, row_cluster=True,
+    #                         col_cluster=False, cmap='jet')
+    #         re_indexing = hm.dendrogram_row.reordered_ind
+    #         plt.clf()
+    #         self.tree_order = [self.seq_order[i] for i in re_indexing]
+    #     else:
+    #         pass
+
+    def set_tree_ordering(self):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -275,20 +298,24 @@ class SeqAlignment(object):
             t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
             SeqAlignment.
         """
-        if t_order is not None:
-            self.tree_order = [x for x in t_order if x in self.seq_order]
-        elif self.tree_order is None:
-            df = pd.DataFrame(self.alignment_matrix,
-                              columns=list(self.query_sequence),
-                              index=self.tree_order)
-            hm = clustermap(df, method='ward', metric='euclidean',
-                            z_score=None, standard_scale=None, row_cluster=True,
-                            col_cluster=False, cmap='jet')
-            re_indexing = hm.dendrogram_row.reordered_ind
-            plt.clf()
-            self.tree_order = [self.seq_order[i] for i in re_indexing]
-        else:
-            pass
+        curr_order = self.seq_order
+        for k in range(2, self.size + 1):
+            model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
+                                            n_clusters=k, memory=os.path.dirname(self.file_name),
+                                            compute_full_tree=True)
+            model.fit(self.distance_matrix)
+            # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
+            cluster_list = model.labels_.tolist()
+            c_map = {c: cluster_list.index(c) for c in range(k)}
+            # from IPython import embed
+            # embed()
+            # exit()
+            new_cluster_list = [c_map[i] for i in cluster_list]
+            curr_order = zip(*sorted(zip(curr_order, new_cluster_list), key=lambda x: x[1]))[0]
+        print(curr_order)
+        from shutil import rmtree
+        rmtree(os.path.join(os.path.dirname(self.file_name), 'joblib'))
+
 
     def agg_clustering(self, n_cluster, cache_dir):
         """
@@ -422,6 +449,26 @@ class SeqAlignment(object):
         print('Generating sub-alignment took {} min'.format((end - start) / 60.0))
         return new_alignment
 
+    def generate_positional_sub_alignment(self, i, j):
+        # from IPython import embed
+        # embed()
+        # exit()
+        new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
+        new_alignment.query_id = self.query_id
+        new_alignment.query_sequence = self.query_sequence[i] + self.query_sequence[j]
+        new_alignment.seq_length = 2
+        new_alignment.seq_order = self.seq_order
+        from Bio.Seq import Seq
+        from Bio.SeqRecord import SeqRecord
+        sub_records = [SeqRecord(Seq(rec.seq[i] + rec.seq[j]), id=rec.id, name=rec.name, description=rec.description,
+                                 dbxrefs=rec.dbxrefs, features=rec.features, annotations=rec.annotations,
+                                 letter_annotations=rec.letter_annotations) for rec in self.alignment]
+        # new_alignment.alignment = self.alignment[:, i] + self.alignment[:, j]
+        new_alignment.alignment = MultipleSeqAlignment(sub_records)
+        new_alignment.size = self.size
+        new_alignment.tree_order = self.tree_order
+        return new_alignment
+
     def determine_usable_positions(self, ratio):
         """
         Determine which positions in the alignment can be used for analysis.
@@ -464,7 +511,7 @@ class SeqAlignment(object):
         check = np.where((indices1 + indices2) == 2)[0]
         return column_i[check], column_j[check], check, check.shape[0]
 
-    def heatmap_plot(self, name, out_dir=None):
+    def heatmap_plot(self, name, out_dir=None, aa_dict=None, save=True):
         """
         Heatmap Plot
 
@@ -477,18 +524,26 @@ class SeqAlignment(object):
             image will be stored in the current working directory.
         """
         start = time()
+        self.alignment_to_num(aa_dict)
         df = pd.DataFrame(self.alignment_matrix, index=self.seq_order,
                           columns=list(self.query_sequence))
         df = df.loc[self.tree_order]
-        hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
-                     cbar=True, square=False)
+        if aa_dict:
+            cmap = matplotlib.cm.get_cmap('jet', len(aa_dict))
+        else:
+            cmap = 'jet'
+        # hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
+        hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
         plt.title(name)
-        file_name = name.replace(' ', '_') + '.pdf'
-        if out_dir:
-            file_name = os.path.join(out_dir, file_name)
-        plt.savefig(file_name)
-        plt.clf()
+        if save:
+            file_name = name.replace(' ', '_') + '.pdf'
+            if out_dir:
+                file_name = os.path.join(out_dir, file_name)
+            plt.savefig(file_name)
+            plt.clf()
+        plt.show()
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
+        return hm
