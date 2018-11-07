@@ -298,7 +298,9 @@ class SeqAlignment(object):
             t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
             SeqAlignment.
         """
-        curr_order = self.seq_order
+        # mapping = {1: {0: list(range(self.size))}}
+        curr_order = [0] * self.size
+        print(curr_order)
         for k in range(2, self.size + 1):
             model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
                                             n_clusters=k, memory=os.path.dirname(self.file_name),
@@ -306,13 +308,11 @@ class SeqAlignment(object):
             model.fit(self.distance_matrix)
             # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
             cluster_list = model.labels_.tolist()
-            c_map = {c: cluster_list.index(c) for c in range(k)}
-            # from IPython import embed
-            # embed()
-            # exit()
-            new_cluster_list = [c_map[i] for i in cluster_list]
-            curr_order = zip(*sorted(zip(curr_order, new_cluster_list), key=lambda x: x[1]))[0]
-        print(curr_order)
+            new_clusters = re_label_clusters(curr_order, cluster_list)
+            print(new_clusters)
+            curr_order = new_clusters
+        new_order = zip(*sorted(zip(self.seq, curr_order), key=lambda x: x[1]))[0]
+        print(new_order)
         from shutil import rmtree
         rmtree(os.path.join(os.path.dirname(self.file_name), 'joblib'))
 
@@ -547,3 +547,35 @@ class SeqAlignment(object):
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return hm
+
+
+def re_label_clusters(prev, curr):
+    if len(prev) != len(curr):
+        raise ValueError('Cluster labels do not match in length.')
+    prev_labels = sorted(set(prev))
+    print('Prev Labels')
+    print(prev_labels)
+    curr_labels = set()
+    prev_to_curr = {}
+    for i in range(len(prev)):
+        prev_c = prev[i]
+        curr_c = curr[i]
+        if prev_c not in prev_to_curr:
+            prev_to_curr[prev_c] = {'clusters': [], 'indices': []}
+        if curr_c not in curr_labels:
+            curr_labels.add(curr_c)
+            prev_to_curr[prev_c]['clusters'].append(curr_c)
+            prev_to_curr[prev_c]['indices'].append(i)
+    print('Prev_To_Curr')
+    print(prev_to_curr)
+    curr_to_new = {}
+    counter = 0
+    for c in prev_labels:
+        for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
+                                  key=lambda x: x[1]))[0]:
+            curr_to_new[curr_c] = counter
+            counter += 1
+    print('Curr_To_New')
+    print(curr_to_new)
+    new_labels = [curr_to_new[c] for c in curr]
+    return new_labels
