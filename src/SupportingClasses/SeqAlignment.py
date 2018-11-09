@@ -73,8 +73,9 @@ class SeqAlignment(object):
         self.size = None
         self.distance_matrix = None
         self.tree_order = None
+        self.sequence_assignemnts = None
 
-    def import_alignment(self, save_file=None):
+    def import_alignment(self, save_file=None, verbose=False):
         """
         Import alignments:
 
@@ -86,7 +87,8 @@ class SeqAlignment(object):
         Args:
             save_file (str): Path to file in which the desired alignment was stored previously.
         """
-        start = time()
+        if verbose:
+            start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
             alignment, seq_order, query_sequence = pickle.load(open(save_file, 'rb'))
         else:
@@ -99,8 +101,9 @@ class SeqAlignment(object):
             if save_file is not None:
                 pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'wb'),
                             protocol=pickle.HIGHEST_PROTOCOL)
-        end = time()
-        print('Importing alignment took {} min'.format((end - start) / 60.0))
+        if verbose:
+            end = time()
+            print('Importing alignment took {} min'.format((end - start) / 60.0))
         self.alignment = alignment
         self.seq_order = seq_order
         self.query_sequence = query_sequence
@@ -289,7 +292,7 @@ class SeqAlignment(object):
     #     else:
     #         pass
 
-    def set_tree_ordering(self):
+    def set_tree_ordering(self, visualized_tree=False):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -300,7 +303,9 @@ class SeqAlignment(object):
         """
         # mapping = {1: {0: list(range(self.size))}}
         curr_order = [0] * self.size
-        print(curr_order)
+        check = {'SeqID': self.seq_order, 1:curr_order}
+        sequence_assignments = {1: {0: self.seq_order}}
+        # print(curr_order)
         for k in range(2, self.size + 1):
             model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
                                             n_clusters=k, memory=os.path.dirname(self.file_name),
@@ -309,13 +314,32 @@ class SeqAlignment(object):
             # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
             cluster_list = model.labels_.tolist()
             new_clusters = re_label_clusters(curr_order, cluster_list)
-            print(new_clusters)
+            # print(new_clusters)
             curr_order = new_clusters
-        new_order = zip(*sorted(zip(self.seq, curr_order), key=lambda x: x[1]))[0]
-        print(new_order)
+            check[k] = curr_order
+            sequence_assignments[k] = {}
+            for i, c in enumerate(curr_order):
+                # print(c, i)
+                if c not in sequence_assignments[k]:
+                    sequence_assignments[k][c] = set()
+                sequence_assignments[k][c].add(self.seq_order[i])
+        self.sequence_assignemnts = sequence_assignments
+        self.tree_order = zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0]
+        # print(self.tree_order)
+        if visualized_tree:
+            df = pd.DataFrame(check).set_index('SeqID').sort_values(by=self.size)[range(1, self.size + 1)]
+            df.to_csv('/home/daniel/Desktop/Check_{}.csv'.format(self.query_id.split('_')[1]), sep='\t', header=True,
+                      index=True)
+            heatmap(df, cmap='tab10', square=True)
+            plt.savefig('/home/daniel/Desktop/Check_{}.eps'.format(self.query_id.split('_')[1]))
+            plt.close()
+            print(df.index)
         from shutil import rmtree
         rmtree(os.path.join(os.path.dirname(self.file_name), 'joblib'))
 
+    def get_branch_cluster(self, k, c):
+        cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignemnts[k][c]]
+        return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
 
     def agg_clustering(self, n_cluster, cache_dir):
         """
@@ -553,8 +577,8 @@ def re_label_clusters(prev, curr):
     if len(prev) != len(curr):
         raise ValueError('Cluster labels do not match in length.')
     prev_labels = sorted(set(prev))
-    print('Prev Labels')
-    print(prev_labels)
+    # print('Prev Labels')
+    # print(prev_labels)
     curr_labels = set()
     prev_to_curr = {}
     for i in range(len(prev)):
@@ -566,8 +590,8 @@ def re_label_clusters(prev, curr):
             curr_labels.add(curr_c)
             prev_to_curr[prev_c]['clusters'].append(curr_c)
             prev_to_curr[prev_c]['indices'].append(i)
-    print('Prev_To_Curr')
-    print(prev_to_curr)
+    # print('Prev_To_Curr')
+    # print(prev_to_curr)
     curr_to_new = {}
     counter = 0
     for c in prev_labels:
@@ -575,7 +599,7 @@ def re_label_clusters(prev, curr):
                                   key=lambda x: x[1]))[0]:
             curr_to_new[curr_c] = counter
             counter += 1
-    print('Curr_To_New')
-    print(curr_to_new)
+    # print('Curr_To_New')
+    # print(curr_to_new)
     new_labels = [curr_to_new[c] for c in curr]
     return new_labels
