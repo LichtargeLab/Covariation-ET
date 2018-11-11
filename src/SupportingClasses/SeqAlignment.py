@@ -73,7 +73,7 @@ class SeqAlignment(object):
         self.size = None
         self.distance_matrix = None
         self.tree_order = None
-        self.sequence_assignemnts = None
+        self.sequence_assignments = None
 
     def import_alignment(self, save_file=None, verbose=False):
         """
@@ -323,7 +323,7 @@ class SeqAlignment(object):
                 if c not in sequence_assignments[k]:
                     sequence_assignments[k][c] = set()
                 sequence_assignments[k][c].add(self.seq_order[i])
-        self.sequence_assignemnts = sequence_assignments
+        self.sequence_assignments = sequence_assignments
         self.tree_order = zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0]
         # print(self.tree_order)
         if visualized_tree:
@@ -338,7 +338,7 @@ class SeqAlignment(object):
         rmtree(os.path.join(os.path.dirname(self.file_name), 'joblib'))
 
     def get_branch_cluster(self, k, c):
-        cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignemnts[k][c]]
+        cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
         return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
 
     def agg_clustering(self, n_cluster, cache_dir):

@@ -24,7 +24,7 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj1.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj1.tree_order, 'tree_order is correctly declared as None.')
-        self.assertIsNone(aln_obj1.sequence_assignemnts, 'sequence_assignments is correctly declared as None.')
+        self.assertIsNone(aln_obj1.sequence_assignments, 'sequence_assignments is correctly declared as None.')
         aln_obj2 = SeqAlignment('../Test/1h1vA.fa','1h1vA')
         self.assertFalse(aln_obj2.file_name.startswith('..'), 'Filename set to absolute path.')
         self.assertEqual(aln_obj2.query_id, '>query_1h1vA', 'Query ID properly changed per lab protocol.')
@@ -37,7 +37,7 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj2.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj2.tree_order, 'tree_order is correctly declared as None.')
-        self.assertIsNone(aln_obj2.sequence_assignemnts, 'sequence_assignments is correctly declared as None.')
+        self.assertIsNone(aln_obj2.sequence_assignments, 'sequence_assignments is correctly declared as None.')
 
     def test_import_alignment(self):
         aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
@@ -65,7 +65,7 @@ class TestSeqAlignment(TestCase):
             self.assertEqual(aln_obj1.size, 49, 'size is correctly determined.')
             self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
             self.assertIsNone(aln_obj1.tree_order, 'tree_order is correctly declared as None.')
-            self.assertIsNone(aln_obj1.sequence_assignemnts, 'sequence_assignments is correctly declared as None.')
+            self.assertIsNone(aln_obj1.sequence_assignments, 'sequence_assignments is correctly declared as None.')
             if save is None:
                 self.assertFalse(os.path.isfile(os.path.abspath('../Test/1c17A_aln.pkl')), 'No save performed.')
             else:
@@ -266,7 +266,7 @@ class TestSeqAlignment(TestCase):
             self.assertEqual(aln_obj2.size, 785, 'size is correctly determined.')
             self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
             self.assertIsNone(aln_obj2.tree_order, 'tree_order is correctly declared as None.')
-            self.assertIsNone(aln_obj2.sequence_assignemnts, 'sequence_assignments is correctly declared as None.')
+            self.assertIsNone(aln_obj2.sequence_assignments, 'sequence_assignments is correctly declared as None.')
             if save is None:
                 self.assertFalse(os.path.isfile(os.path.abspath('../Test/1h1vA_aln.pkl')), 'No save performed.')
             else:
@@ -449,9 +449,49 @@ class TestSeqAlignment(TestCase):
                                  aln_obj2.query_sequence[aln_obj2.seq_length // 2] +
                                  aln_obj2.query_sequence[-5:])
 
-    # def test_remove_gaps(self):
-    #     self.fail()
-    #
+    def test_remove_gaps(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.remove_gaps()
+        aln_obj1.import_alignment()
+        aln_obj1_prime = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        aln_obj1_prime.import_alignment()
+        aln_obj1_prime.remove_gaps()
+        self.assertEqual(aln_obj1.file_name, aln_obj1_prime.file_name)
+        self.assertEqual(aln_obj1.query_id, aln_obj1_prime.query_id)
+        for i in range(aln_obj1.size):
+            self.assertEqual(aln_obj1.alignment[i].seq, aln_obj1_prime.alignment[i].seq)
+        self.assertEqual(aln_obj1.seq_order, aln_obj1_prime.seq_order)
+        self.assertEqual(aln_obj1.query_sequence, aln_obj1_prime.query_sequence)
+        self.assertEqual(aln_obj1.seq_length, aln_obj1_prime.seq_length)
+        self.assertEqual(aln_obj1.size, aln_obj1_prime.size)
+        self.assertEqual(aln_obj1.distance_matrix, aln_obj1_prime.distance_matrix)
+        self.assertEqual(aln_obj1.tree_order, aln_obj1_prime.tree_order)
+        self.assertEqual(aln_obj1.sequence_assignments, aln_obj1_prime.sequence_assignments)
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2.remove_gaps()
+        aln_obj2.import_alignment()
+        aln_obj2_prime = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        aln_obj2_prime.import_alignment()
+        aln_obj2_prime.remove_gaps()
+        self.assertEqual(aln_obj2.file_name, aln_obj2_prime.file_name)
+        self.assertEqual(aln_obj2.query_id, aln_obj2_prime.query_id)
+        for i in range(aln_obj2.size):
+            self.assertEqual(len(aln_obj2_prime.alignment[i].seq), 368)
+        self.assertEqual(aln_obj2.seq_order, aln_obj2_prime.seq_order)
+        self.assertEqual(aln_obj2_prime.query_sequence, 'TTALVCDNGSGLVKAGFAGDDAPRAVFPSIVGRPRHMVGMGQKDSYVGDEAQSKRGILTLKY'
+                                                        'PIEHGIITNWDDMEKIWHHTFYNELRVAPEEHPTLLTEAPLNPKANREKMTQIMFETFNVPA'
+                                                        'MYVAIQAVLSLYASGRTTGIVLDSGDGVTHNVPIYEGYALPHAIMRLDLAGRDLTDYLMKIL'
+                                                        'TERGYSFVTTAEREIVRDIKEKLCYVALDFENEMATAASSSSLEKSYELPDGQVITIGNERF'
+                                                        'RCPETLFQPSFIGMESAGIHETTYNSIMKCDIDIRKDLYANNVMSGGTTMYPGIADRMQKEI'
+                                                        'TALAPSTMKIKIIAPPERKYSVWIGGSILASLSTFQQMWITKQEYDEAGPSIVHRKCF')
+        self.assertEqual(aln_obj2_prime.seq_length, 368)
+        self.assertEqual(aln_obj2.size, aln_obj2_prime.size)
+        self.assertEqual(aln_obj2.distance_matrix, aln_obj2_prime.distance_matrix)
+        self.assertEqual(aln_obj2.tree_order, aln_obj2_prime.tree_order)
+        self.assertEqual(aln_obj2.sequence_assignments, aln_obj2_prime.sequence_assignments)
+
     # def test_alignment_to_num(self):
     #     self.fail()
     #
