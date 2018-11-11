@@ -303,29 +303,151 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(aln_obj2.size, aln_obj2_prime.size)
         os.remove(os.path.abspath('../Test/test_1h1vA.fa'))
 
-    # def test__subset_columns(self):
-    #     aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
-    #     with self.assertRaises(TypeError):
-    #         aln_obj1._subset_columns([range(5) + range(745, 749)])
-    #     aln_obj1.import_alignment()
-    #     # One position
-    #     aln_obj1_alpha = aln_obj1._subset_columns([0])
-    #     aln_obj1_beta = aln_obj1._subset_columns([aln_obj1.seq_length - 1])
-    #     aln_obj1_gamma = aln_obj1._subset_columns([aln_obj1.seq_length // 2])
-    #     # Single Range
-    #     aln_obj1_delta = aln_obj1._subset_columns(range(5))
-    #     aln_obj1_epsilon = aln_obj1._subset_columns(range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
-    #     aln_obj1_zeta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
-    #     # Mixed Range and Single Position
-    #     aln_obj1_eta = aln_obj1._subset_columns([0] + range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
-    #     aln_obj1_theta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5) +
-    #                                               [aln_obj1.seq_length - 1])
-    #     aln_obj1_iota = aln_obj1._subset_columns(range(5) + [aln_obj1.seq_length // 2] +
-    #                                              range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
-    #     aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
-    #     with self.assertRaises(TypeError):
-    #         aln_obj2._subset_columns([range(5) + range(1501, 1506)])
-    #     aln_obj2.import_alignment()
+    def test__subset_columns(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1._subset_columns([range(5) + range(745, 749)])
+        aln_obj1.import_alignment()
+        # One position
+        aln_obj1_alpha = aln_obj1._subset_columns([0])
+        self.assertEqual(len(aln_obj1_alpha), aln_obj1.size)
+        for rec in aln_obj1_alpha:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[0])
+        # self.assertEqual(aln_obj1.file_name, aln_obj1_alpha.file_name)
+        # self.assertEqual(aln_obj1.query_id, aln_obj1_alpha.query_id)
+        # self.assertEqual(aln_obj1.seq_order, aln_obj1_alpha.seq_order)
+        # self.assertEqual(aln_obj1.size, aln_obj1_alpha.size, 'Sizes match')
+        # self.assertEqual(aln_obj1.distance_matrix, aln_obj1_alpha.distance_matrix)
+
+        aln_obj1_beta = aln_obj1._subset_columns([aln_obj1.seq_length - 1])
+        self.assertEqual(len(aln_obj1_beta), aln_obj1.size)
+        for rec in aln_obj1_beta:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length - 1])
+        aln_obj1_gamma = aln_obj1._subset_columns([aln_obj1.seq_length // 2])
+        self.assertEqual(len(aln_obj1_gamma), aln_obj1.size)
+        for rec in aln_obj1_gamma:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2])
+        # Single Range
+        aln_obj1_delta = aln_obj1._subset_columns(range(5))
+        self.assertEqual(len(aln_obj1_delta), aln_obj1.size)
+        for rec in aln_obj1_delta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[:5])
+        aln_obj1_epsilon = aln_obj1._subset_columns(range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
+        self.assertEqual(len(aln_obj1_epsilon), aln_obj1.size)
+        for rec in aln_obj1_epsilon:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[-5:])
+        aln_obj1_zeta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
+        self.assertEqual(len(aln_obj1_zeta), aln_obj1.size)
+        for rec in aln_obj1_zeta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2:
+                                                                       aln_obj1.seq_length // 2 + 5])
+        # Mixed Range and Single Position
+        aln_obj1_eta = aln_obj1._subset_columns([0] + range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
+        self.assertEqual(len(aln_obj1_eta), aln_obj1.size)
+        for rec in aln_obj1_eta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[0] +
+                                 aln_obj1.query_sequence[aln_obj1.seq_length // 2: aln_obj1.seq_length // 2 + 5])
+        aln_obj1_theta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5) +
+                                                  [aln_obj1.seq_length - 1])
+        self.assertEqual(len(aln_obj1_theta), aln_obj1.size)
+        for rec in aln_obj1_theta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2:
+                                                                       aln_obj1.seq_length // 2 + 5] +
+                                 aln_obj1.query_sequence[aln_obj1.seq_length - 1])
+        aln_obj1_iota = aln_obj1._subset_columns(range(5) + [aln_obj1.seq_length // 2] +
+                                                 range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
+        self.assertEqual(len(aln_obj1_iota), aln_obj1.size)
+        for rec in aln_obj1_iota:
+            self.assertEqual(len(rec.seq), 11)
+            if rec.id == aln_obj1.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[:5] +
+                                 aln_obj1.query_sequence[aln_obj1.seq_length // 2] +
+                                 aln_obj1.query_sequence[-5:])
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._subset_columns([range(5) + range(1501, 1506)])
+        aln_obj2.import_alignment()
+        # One position
+        aln_obj2_alpha = aln_obj2._subset_columns([0])
+        self.assertEqual(len(aln_obj2_alpha), aln_obj2.size)
+        for rec in aln_obj2_alpha:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0])
+        aln_obj2_beta = aln_obj2._subset_columns([aln_obj2.seq_length - 1])
+        self.assertEqual(len(aln_obj2_beta), aln_obj2.size)
+        for rec in aln_obj2_beta:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length - 1])
+        aln_obj2_gamma = aln_obj2._subset_columns([aln_obj2.seq_length // 2])
+        self.assertEqual(len(aln_obj2_gamma), aln_obj2.size)
+        for rec in aln_obj2_gamma:
+            self.assertEqual(len(rec.seq), 1)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2])
+        # Single Range
+        aln_obj2_delta = aln_obj2._subset_columns(range(5))
+        self.assertEqual(len(aln_obj2_delta), aln_obj2.size)
+        for rec in aln_obj2_delta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0:5])
+        aln_obj2_epsilon = aln_obj2._subset_columns(range(aln_obj2.seq_length - 5, aln_obj2.seq_length))
+        self.assertEqual(len(aln_obj2_epsilon), aln_obj2.size)
+        for rec in aln_obj2_epsilon:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[-5:])
+        aln_obj2_zeta = aln_obj2._subset_columns(range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5))
+        self.assertEqual(len(aln_obj2_zeta), aln_obj2.size)
+        for rec in aln_obj2_zeta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2:
+                                                                       aln_obj2.seq_length // 2 + 5])
+        # Mixed Range and Single Position
+        aln_obj2_eta = aln_obj2._subset_columns([0] + range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5))
+        self.assertEqual(len(aln_obj2_eta), aln_obj2.size)
+        for rec in aln_obj2_eta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0] +
+                                 aln_obj2.query_sequence[aln_obj2.seq_length // 2: aln_obj2.seq_length // 2 + 5])
+        aln_obj2_theta = aln_obj2._subset_columns(range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5) +
+                                                  [aln_obj2.seq_length - 1])
+        self.assertEqual(len(aln_obj2_theta), aln_obj2.size)
+        for rec in aln_obj2_theta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2:
+                                                                       aln_obj2.seq_length // 2 + 5] +
+                                 aln_obj2.query_sequence[aln_obj2.seq_length - 1])
+        aln_obj2_iota = aln_obj2._subset_columns(range(5) + [aln_obj2.seq_length // 2] +
+                                                 range(aln_obj2.seq_length - 5, aln_obj2.seq_length))
+        self.assertEqual(len(aln_obj2_iota), aln_obj2.size)
+        for rec in aln_obj2_iota:
+            self.assertEqual(len(rec.seq), 11)
+            if rec.id == aln_obj2.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[:5] +
+                                 aln_obj2.query_sequence[aln_obj2.seq_length // 2] +
+                                 aln_obj2.query_sequence[-5:])
 
     # def test_remove_gaps(self):
     #     self.fail()
