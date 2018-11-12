@@ -315,6 +315,90 @@ class SeqAlignment(object):
             rmtree(os.path.join(os.getcwd(), 'joblib'))
         return cluster_list
 
+    # def random_assignment(self, n_cluster):
+    #     """
+    #     random_assignment
+    #
+    #     Randomly assigns sequence IDs to groups totaling the specified
+    #     nClusters. Sequences are split as evenly as possible with all clusters
+    #     getting the same number of sequences if self.size % nClusters = 0 and
+    #     with self.size % nClusters groups getting one additional sequence
+    #     otherwise.
+    #
+    #     Args:
+    #         nClusters (int): The number of clusters to produce by random assignment.
+    #     Returns:
+    #         dict. A dictionary mapping a cluster labels (0 to nClusters -1) to a list of sequence IDs assigned to that
+    #         cluster.
+    #         set. The set of labels used for clustering (0 to nClusters -1).
+    #     """
+    #     start = time()
+    #     cluster_sizes = np.ones(n_cluster, dtype=np.int64)
+    #     min_size = self.size / n_cluster
+    #     cluster_sizes *= min_size
+    #     larger_clusters = self.size % n_cluster
+    #     if larger_clusters > 0:
+    #         cluster_sizes[(-1 * larger_clusters):] += 1
+    #     cluster_list = [0] * self.size
+    #     choices = range(self.size)
+    #     for i in range(n_cluster):
+    #         curr_assignment = np.random.choice(choices, size=cluster_sizes[i])
+    #         for j in curr_assignment:
+    #             cluster_list[j] = i
+    #         choices = list(set(choices) - set(curr_assignment))
+    #     cluster_labels = set(cluster_list)
+    #     cluster_dict = {}
+    #     cluster_ordering = {}
+    #     for i in range(len(cluster_list)):
+    #         seq_id = self.seq_order[i]
+    #         index = self.tree_order.index(seq_id)
+    #         key = cluster_list[i]
+    #         if key not in cluster_dict:
+    #             cluster_dict[key] = []
+    #             cluster_ordering[key] = index
+    #         if index < cluster_ordering[key]:
+    #             cluster_ordering[key] = index
+    #         cluster_dict[key].append(self.seq_order[i])
+    #     sorted_cluster_labels = sorted(cluster_ordering, key=lambda k: cluster_ordering[k])
+    #     cluster_dict2 = {}
+    #     for i in range(len(cluster_labels)):
+    #         cluster_dict2[i] = cluster_dict[sorted_cluster_labels[i]]
+    #     end = time()
+    #     print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
+    #     return cluster_dict2, cluster_labels
+
+    def _random_assignment(self, n_cluster):
+        """
+        random_assignment
+
+        Randomly assigns sequence IDs to groups totaling the specified
+        nClusters. Sequences are split as evenly as possible with all clusters
+        getting the same number of sequences if self.size % nClusters = 0 and
+        with self.size % nClusters groups getting one additional sequence
+        otherwise.
+
+        Args:
+            nClusters (int): The number of clusters to produce by random assignment.
+        Returns:
+            dict. A dictionary mapping a cluster labels (0 to nClusters -1) to a list of sequence IDs assigned to that
+            cluster.
+            set. The set of labels used for clustering (0 to nClusters -1).
+        """
+        cluster_sizes = np.ones(n_cluster, dtype=np.int64)
+        min_size = self.size // n_cluster
+        cluster_sizes *= min_size
+        larger_clusters = self.size % n_cluster
+        if larger_clusters > 0:
+            cluster_sizes[(-1 * larger_clusters):] += 1
+        cluster_list = [0] * self.size
+        choices = range(self.size)
+        for i in range(n_cluster):
+            curr_assignment = np.random.choice(choices, size=cluster_sizes[i])
+            for j in curr_assignment:
+                cluster_list[j] = i
+            choices = list(set(choices) - set(curr_assignment))
+        return cluster_list
+
     # def set_tree_ordering(self, t_order=None):
     #     """
     #     Determine the ordering of the sequences from the full clustering tree
@@ -387,58 +471,6 @@ class SeqAlignment(object):
     def get_branch_cluster(self, k, c):
         cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
         return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
-
-    def random_assignment(self, n_cluster):
-        """
-        random_assignment
-
-        Randomly assigns sequence IDs to groups totaling the specified
-        nClusters. Sequences are split as evenly as possible with all clusters
-        getting the same number of sequences if self.size % nClusters = 0 and
-        with self.size % nClusters groups getting one additional sequence
-        otherwise.
-
-        Args:
-            nClusters (int): The number of clusters to produce by random assignment.
-        Returns:
-            dict. A dictionary mapping a cluster labels (0 to nClusters -1) to a list of sequence IDs assigned to that
-            cluster.
-            set. The set of labels used for clustering (0 to nClusters -1).
-        """
-        start = time()
-        cluster_sizes = np.ones(n_cluster, dtype=np.int64)
-        min_size = self.size / n_cluster
-        cluster_sizes *= min_size
-        larger_clusters = self.size % n_cluster
-        if larger_clusters > 0:
-            cluster_sizes[(-1 * larger_clusters):] += 1
-        cluster_list = [0] * self.size
-        choices = range(self.size)
-        for i in range(n_cluster):
-            curr_assignment = np.random.choice(choices, size=cluster_sizes[i])
-            for j in curr_assignment:
-                cluster_list[j] = i
-            choices = list(set(choices) - set(curr_assignment))
-        cluster_labels = set(cluster_list)
-        cluster_dict = {}
-        cluster_ordering = {}
-        for i in range(len(cluster_list)):
-            seq_id = self.seq_order[i]
-            index = self.tree_order.index(seq_id)
-            key = cluster_list[i]
-            if key not in cluster_dict:
-                cluster_dict[key] = []
-                cluster_ordering[key] = index
-            if index < cluster_ordering[key]:
-                cluster_ordering[key] = index
-            cluster_dict[key].append(self.seq_order[i])
-        sorted_cluster_labels = sorted(cluster_ordering, key=lambda k: cluster_ordering[k])
-        cluster_dict2 = {}
-        for i in range(len(cluster_labels)):
-            cluster_dict2[i] = cluster_dict[sorted_cluster_labels[i]]
-        end = time()
-        print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
-        return cluster_dict2, cluster_labels
 
     def generate_sub_alignment(self, sequence_ids):
         """
