@@ -4,6 +4,7 @@ Created on Nov 9, 2018
 @author: daniel
 """
 import os
+import numpy as np
 from unittest import TestCase
 from Bio.Align import MultipleSeqAlignment
 from SeqAlignment import SeqAlignment
@@ -19,7 +20,7 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj1.alignment, 'alignment is correctly declared as None.')
         self.assertIsNone(aln_obj1.seq_order, 'seq_order is correctly declared as None.')
         self.assertIsNone(aln_obj1.query_sequence, 'query_sequence is correctly declared as None.')
-        self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
+        # self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj1.seq_length, 'seq_length is correctly declared as None.')
         self.assertIsNone(aln_obj1.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -32,7 +33,7 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj2.alignment, 'alignment is correctly declared as None.')
         self.assertIsNone(aln_obj2.seq_order, 'seq_order is correctly declared as None.')
         self.assertIsNone(aln_obj2.query_sequence, 'query_sequence is correctly declared as None.')
-        self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
+        # self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj2.seq_length, 'seq_length is correctly declared as None.')
         self.assertIsNone(aln_obj2.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -60,7 +61,7 @@ class TestSeqAlignment(TestCase):
                              'seq_order imported correctly.')
             self.assertEqual(aln_obj1.query_sequence, 'MENLNMDLLYMAAAVMMGLAAIGAAIGIGILGGKFLEGAARQPDLIPLLRTQFFIVMGLVDAIP'
                                                       'MIAVGLGLYVMFAVA', 'Query sequence correctly identified.')
-            self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
+            # self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
             self.assertEqual(aln_obj1.seq_length, 79, 'seq_length is correctly determined.')
             self.assertEqual(aln_obj1.size, 49, 'size is correctly determined.')
             self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -261,7 +262,7 @@ class TestSeqAlignment(TestCase):
                                                       '-ST-------FQ----Q------------------------------M-WITKQEYD-----EA'
                                                       'G-P-----S--I---VH----R-KCF--------',
                              'Query sequence correctly identified.')
-            self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
+            # self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
             self.assertEqual(aln_obj2.seq_length, 1506, 'seq_length is correctly determined.')
             self.assertEqual(aln_obj2.size, 785, 'size is correctly determined.')
             self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -492,12 +493,45 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(aln_obj2.tree_order, aln_obj2_prime.tree_order)
         self.assertEqual(aln_obj2.sequence_assignments, aln_obj2_prime.sequence_assignments)
 
-    # def test_alignment_to_num(self):
-    #     self.fail()
-    #
-    # def test_compute_distance_matrix(self):
-    #     self.fail()
-    #
+    def test_compute_distance_matrix(self):
+        # This is not a very good test, should come up with something else in the future, maybe compute the identity of
+        # sequences separately and compare them here.
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.compute_distance_matrix()
+        aln_obj1.import_alignment()
+        # Compute distance matrix manually
+        aln_obj1_num_mat = aln_obj1._alignment_to_num(aa_dict=aa_dict)
+        value_matrix = np.zeros([aln_obj1.size, aln_obj1.size])
+        for i in range(aln_obj1.size):
+            check = aln_obj1_num_mat - aln_obj1_num_mat[i]
+            value_matrix[i] = np.sum(check == 0, axis=1)
+        value_matrix /= aln_obj1.seq_length
+        value_matrix = 1 - value_matrix
+        # Compute distance matrix using class method
+        aln_obj1.compute_distance_matrix()
+        self.assertEqual(0, np.sum(aln_obj1.distance_matrix[range(aln_obj1.size), range(aln_obj1.size)]))
+        self.assertEqual(0, np.sum(value_matrix - aln_obj1.distance_matrix))
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2.compute_distance_matrix()
+        aln_obj2.import_alignment()
+        # Compute distance matrix manually
+        aln_obj2_num_mat = aln_obj2._alignment_to_num(aa_dict=aa_dict)
+        value_matrix = np.zeros([aln_obj2.size, aln_obj2.size])
+        for i in range(aln_obj2.size):
+            check = aln_obj2_num_mat - aln_obj2_num_mat[i]
+            value_matrix[i] = np.sum(check == 0, axis=1)
+        value_matrix /= aln_obj2.seq_length
+        value_matrix = 1 - value_matrix
+        # Compute distance matrix using class method
+        aln_obj2.compute_distance_matrix()
+        self.assertEqual(0, np.sum(aln_obj2.distance_matrix[range(aln_obj2.size), range(aln_obj2.size)]))
+        self.assertEqual(0, np.sum(value_matrix - aln_obj2.distance_matrix))
+
     # def test_compute_effective_alignment_size(self):
     #     self.fail()
     #
@@ -527,3 +561,7 @@ class TestSeqAlignment(TestCase):
     #
     # def test_heatmap_plot(self):
     #     self.fail()
+    #
+    # def test_alignment_to_num(self):
+    #     self.fail()
+    #

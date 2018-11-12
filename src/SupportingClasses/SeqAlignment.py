@@ -44,11 +44,6 @@ class SeqAlignment(object):
         query_sequence: str
             The sequence matching the sequence identifier give by the query_id
             variable.
-        alignment_matrix: np.array
-            A numerical representation of alignment, every amino acid has been
-            assigned a numerical representation as has the gap symbol.  All
-            rows are different sequences as described in seq_order, while each
-            column in the matrix is a position in the sequence.
         seq_length: int
             The length of the query sequence.
         size: int
@@ -68,7 +63,6 @@ class SeqAlignment(object):
         self.alignment = None
         self.seq_order = None
         self.query_sequence = None
-        self.alignment_matrix = None
         self.seq_length = None
         self.size = None
         self.distance_matrix = None
@@ -190,27 +184,6 @@ class SeqAlignment(object):
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
 
-    def alignment_to_num(self, aa_dict):
-        """
-        Alignment to num
-
-        Converts an alignment dictionary to a numerical representation.  This
-        method updates the alignment_matrix class variable.
-
-        Args:
-            aa_dict (dict): Dictionary mapping characters which can appear in the alignment to digits for
-            representation.
-        """
-        start = time()
-        alignment_to_num = np.zeros((self.size, self.seq_length))
-        for i in range(self.size):
-            for j in range(self.seq_length):
-                curr_seq = self.alignment[i]
-                alignment_to_num[i, j] = aa_dict[curr_seq[j]]
-        self.alignment_matrix = alignment_to_num
-        end = time()
-        print('Converting alignment took {} min'.format((end - start) / 60.0))
-
     def compute_distance_matrix(self, save_file=None):
         """
         Distance matrix
@@ -228,15 +201,7 @@ class SeqAlignment(object):
             value_matrix = np.load(save_file + '.npz')['X']
         else:
             calculator = DistanceCalculator('identity')
-            value_matrix = 1 - np.array(calculator.get_distance(self.alignment))
-            value_matrix[range(value_matrix.shape[0]), range(value_matrix.shape[1])] = 0
-            # value_matrix = np.zeros([self.size, self.size])
-            # for i in range(self.size):
-            #     check = self.alignment_matrix - self.alignment_matrix[i]
-            #     value_matrix[i] = np.sum(check == 0, axis=1)
-            # #                 value_matrix[i] = np.sum(check != 0, axis=1)
-            # value_matrix[np.arange(self.size), np.arange(self.size)] = 0
-            # value_matrix /= self.seq_length
+            value_matrix = np.array(calculator.get_distance(self.alignment))
             if save_file is not None:
                 np.savez(save_file, X=value_matrix)
         end = time()
@@ -535,6 +500,25 @@ class SeqAlignment(object):
         check = np.where((indices1 + indices2) == 2)[0]
         return column_i[check], column_j[check], check, check.shape[0]
 
+    def _alignment_to_num(self, aa_dict):
+        """
+        Alignment to num
+
+        Converts an alignment dictionary to a numerical representation.  This
+        method updates the alignment_matrix class variable.
+
+        Args:
+            aa_dict (dict): Dictionary mapping characters which can appear in the alignment to digits for
+            representation.
+        """
+        alignment_to_num = np.zeros((self.size, self.seq_length))
+        for i in range(self.size):
+            for j in range(self.seq_length):
+                curr_seq = self.alignment[i]
+                alignment_to_num[i, j] = aa_dict[curr_seq[j]]
+        return alignment_to_num
+
+
     def heatmap_plot(self, name, out_dir=None, aa_dict=None, save=True):
         """
         Heatmap Plot
@@ -548,8 +532,7 @@ class SeqAlignment(object):
             image will be stored in the current working directory.
         """
         start = time()
-        self.alignment_to_num(aa_dict)
-        df = pd.DataFrame(self.alignment_matrix, index=self.seq_order,
+        df = pd.DataFrame(self._alignment_to_num(aa_dict), index=self.seq_order,
                           columns=list(self.query_sequence))
         df = df.loc[self.tree_order]
         if aa_dict:
