@@ -399,6 +399,38 @@ class SeqAlignment(object):
             choices = list(set(choices) - set(curr_assignment))
         return cluster_list
 
+    @staticmethod
+    def _re_label_clusters(prev, curr):
+        if len(prev) != len(curr):
+            raise ValueError('Cluster labels do not match in length.')
+        prev_labels = sorted(set(prev))
+        # print('Prev Labels')
+        # print(prev_labels)
+        curr_labels = set()
+        prev_to_curr = {}
+        for i in range(len(prev)):
+            prev_c = prev[i]
+            curr_c = curr[i]
+            if prev_c not in prev_to_curr:
+                prev_to_curr[prev_c] = {'clusters': [], 'indices': []}
+            if curr_c not in curr_labels:
+                curr_labels.add(curr_c)
+                prev_to_curr[prev_c]['clusters'].append(curr_c)
+                prev_to_curr[prev_c]['indices'].append(i)
+        # print('Prev_To_Curr')
+        # print(prev_to_curr)
+        curr_to_new = {}
+        counter = 0
+        for c in prev_labels:
+            for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
+                                      key=lambda x: x[1]))[0]:
+                curr_to_new[curr_c] = counter
+                counter += 1
+        # print('Curr_To_New')
+        # print(curr_to_new)
+        new_labels = [curr_to_new[c] for c in curr]
+        return new_labels
+
     # def set_tree_ordering(self, t_order=None):
     #     """
     #     Determine the ordering of the sequences from the full clustering tree
@@ -423,7 +455,7 @@ class SeqAlignment(object):
     #     else:
     #         pass
 
-    def set_tree_ordering(self, visualized_tree=False):
+    def set_tree_ordering(self, tree_depth=None, visualized_tree=False, clustering='agglomerative', clustering_args={}):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -432,19 +464,32 @@ class SeqAlignment(object):
             t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
             SeqAlignment.
         """
+        method_dict = {'agglomerative': self._agglomerative_clustering, 'random': self._random_assignment}
         # mapping = {1: {0: list(range(self.size))}}
         curr_order = [0] * self.size
         check = {'SeqID': self.seq_order, 1:curr_order}
         sequence_assignments = {1: {0: set(self.seq_order)}}
         # print(curr_order)
-        for k in range(2, self.size + 1):
-            model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
-                                            n_clusters=k, memory=os.path.dirname(self.file_name),
-                                            compute_full_tree=True)
-            model.fit(self.distance_matrix)
-            # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
-            cluster_list = model.labels_.tolist()
-            new_clusters = re_label_clusters(curr_order, cluster_list)
+        if tree_depth is None:
+            tree_depth = range(2, self.size + 1)
+        elif isinstance(tree_depth, tuple):
+            if len(tree_depth) != 2:
+                raise ValueError('If a tuple is provided for tree_depth, two values must be specified.')
+            tree_depth = range(tree_depth[0], tree_depth[1])
+        elif isinstance(tree_depth, list):
+            pass
+        else:
+            raise ValueError('tree_depth must be None, a tuple, or a list.')
+        # for k in range(2, self.size + 1):
+        for k in tree_depth:
+            cluster_list = method_dict[clustering](n_cluster=k, *clustering_args)
+            # model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
+            #                                 n_clusters=k, memory=os.path.dirname(self.file_name),
+            #                                 compute_full_tree=True)
+            # model.fit(self.distance_matrix)
+            # # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
+            # cluster_list = model.labels_.tolist()
+            new_clusters = self._re_label_clusters(curr_order, cluster_list)
             # print(new_clusters)
             curr_order = new_clusters
             check[k] = curr_order
@@ -619,35 +664,3 @@ class SeqAlignment(object):
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return hm
-
-
-def re_label_clusters(prev, curr):
-    if len(prev) != len(curr):
-        raise ValueError('Cluster labels do not match in length.')
-    prev_labels = sorted(set(prev))
-    # print('Prev Labels')
-    # print(prev_labels)
-    curr_labels = set()
-    prev_to_curr = {}
-    for i in range(len(prev)):
-        prev_c = prev[i]
-        curr_c = curr[i]
-        if prev_c not in prev_to_curr:
-            prev_to_curr[prev_c] = {'clusters': [], 'indices': []}
-        if curr_c not in curr_labels:
-            curr_labels.add(curr_c)
-            prev_to_curr[prev_c]['clusters'].append(curr_c)
-            prev_to_curr[prev_c]['indices'].append(i)
-    # print('Prev_To_Curr')
-    # print(prev_to_curr)
-    curr_to_new = {}
-    counter = 0
-    for c in prev_labels:
-        for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
-                                  key=lambda x: x[1]))[0]:
-            curr_to_new[curr_c] = counter
-            counter += 1
-    # print('Curr_To_New')
-    # print(curr_to_new)
-    new_labels = [curr_to_new[c] for c in curr]
-    return new_labels
