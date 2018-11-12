@@ -224,7 +224,7 @@ class SeqAlignment(object):
         """
         if self.distance_matrix is None:
             self.compute_distance_matrix()
-        meets_threshold = self.distance_matrix >= identity_threshold
+        meets_threshold = (1 - self.distance_matrix) >= identity_threshold
         meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
         n_i = np.sum(meets_threshold, axis=1)
         rec_n_i = 1.0 / n_i

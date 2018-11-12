@@ -12,7 +12,8 @@ from SeqAlignment import SeqAlignment
 
 class TestSeqAlignment(TestCase):
     def test_init(self):
-        # self.assertRaises(TypeError, SeqAlignment(), 'Identified bad init call')
+        with self.assertRaises(TypeError):
+            SeqAlignment()
         aln_obj1 = SeqAlignment('../Test/1c17A.fa','1c17A')
         self.assertFalse(aln_obj1.file_name.startswith('..'), 'Filename set to absolute path.')
         self.assertEqual(aln_obj1.query_id, '>query_1c17A', 'Query ID properly changed per lab protocol.')
@@ -20,7 +21,6 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj1.alignment, 'alignment is correctly declared as None.')
         self.assertIsNone(aln_obj1.seq_order, 'seq_order is correctly declared as None.')
         self.assertIsNone(aln_obj1.query_sequence, 'query_sequence is correctly declared as None.')
-        # self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj1.seq_length, 'seq_length is correctly declared as None.')
         self.assertIsNone(aln_obj1.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -33,7 +33,6 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_obj2.alignment, 'alignment is correctly declared as None.')
         self.assertIsNone(aln_obj2.seq_order, 'seq_order is correctly declared as None.')
         self.assertIsNone(aln_obj2.query_sequence, 'query_sequence is correctly declared as None.')
-        # self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
         self.assertIsNone(aln_obj2.seq_length, 'seq_length is correctly declared as None.')
         self.assertIsNone(aln_obj2.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -61,7 +60,6 @@ class TestSeqAlignment(TestCase):
                              'seq_order imported correctly.')
             self.assertEqual(aln_obj1.query_sequence, 'MENLNMDLLYMAAAVMMGLAAIGAAIGIGILGGKFLEGAARQPDLIPLLRTQFFIVMGLVDAIP'
                                                       'MIAVGLGLYVMFAVA', 'Query sequence correctly identified.')
-            # self.assertIsNone(aln_obj1.alignment_matrix, 'alignment_matrix is correctly declared as None.')
             self.assertEqual(aln_obj1.seq_length, 79, 'seq_length is correctly determined.')
             self.assertEqual(aln_obj1.size, 49, 'size is correctly determined.')
             self.assertIsNone(aln_obj1.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -262,7 +260,6 @@ class TestSeqAlignment(TestCase):
                                                       '-ST-------FQ----Q------------------------------M-WITKQEYD-----EA'
                                                       'G-P-----S--I---VH----R-KCF--------',
                              'Query sequence correctly identified.')
-            # self.assertIsNone(aln_obj2.alignment_matrix, 'alignment_matrix is correctly declared as None.')
             self.assertEqual(aln_obj2.seq_length, 1506, 'seq_length is correctly determined.')
             self.assertEqual(aln_obj2.size, 785, 'size is correctly determined.')
             self.assertIsNone(aln_obj2.distance_matrix, 'distance_matrix is correctly declared as None.')
@@ -316,12 +313,6 @@ class TestSeqAlignment(TestCase):
             self.assertEqual(len(rec.seq), 1)
             if rec.id == aln_obj1.query_id[1:]:
                 self.assertEqual(str(rec.seq), aln_obj1.query_sequence[0])
-        # self.assertEqual(aln_obj1.file_name, aln_obj1_alpha.file_name)
-        # self.assertEqual(aln_obj1.query_id, aln_obj1_alpha.query_id)
-        # self.assertEqual(aln_obj1.seq_order, aln_obj1_alpha.seq_order)
-        # self.assertEqual(aln_obj1.size, aln_obj1_alpha.size, 'Sizes match')
-        # self.assertEqual(aln_obj1.distance_matrix, aln_obj1_alpha.distance_matrix)
-
         aln_obj1_beta = aln_obj1._subset_columns([aln_obj1.seq_length - 1])
         self.assertEqual(len(aln_obj1_beta), aln_obj1.size)
         for rec in aln_obj1_beta:
@@ -532,9 +523,36 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(0, np.sum(aln_obj2.distance_matrix[range(aln_obj2.size), range(aln_obj2.size)]))
         self.assertEqual(0, np.sum(value_matrix - aln_obj2.distance_matrix))
 
-    # def test_compute_effective_alignment_size(self):
-    #     self.fail()
-    #
+    def test_compute_effective_alignment_size(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.compute_distance_matrix()
+        aln_obj1.import_alignment()
+        aln_obj1.compute_distance_matrix()
+        identity_mat = 1 - aln_obj1.distance_matrix
+        effective_size = 0.0
+        for i in range(aln_obj1.size):
+            n_i = 0.0
+            for j in range(aln_obj1.size):
+                if identity_mat[i, j] >= 0.62:
+                    n_i += 1.0
+            effective_size += 1.0 / n_i
+        self.assertLess(abs(aln_obj1.compute_effective_alignment_size() - effective_size), 1.0e-12)
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2.compute_distance_matrix()
+        aln_obj2.import_alignment()
+        aln_obj2.compute_distance_matrix()
+        identity_mat = 1 - aln_obj2.distance_matrix
+        effective_size = 0.0
+        for i in range(aln_obj2.size):
+            n_i = 0.0
+            for j in range(aln_obj2.size):
+                if identity_mat[i, j] >= 0.62:
+                    n_i += 1.0
+            effective_size += 1.0 / n_i
+        self.assertEqual(abs(aln_obj2.compute_effective_alignment_size() - effective_size), 1.0e-12)
+
     # def test_set_tree_ordering(self):
     #     self.fail()
     #
