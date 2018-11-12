@@ -5,6 +5,7 @@ Created on Nov 9, 2018
 """
 import os
 import numpy as np
+from shutil import rmtree
 from unittest import TestCase
 from Bio.Align import MultipleSeqAlignment
 from SeqAlignment import SeqAlignment
@@ -526,7 +527,7 @@ class TestSeqAlignment(TestCase):
     def test_compute_effective_alignment_size(self):
         aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
         with self.assertRaises(TypeError):
-            aln_obj1.compute_distance_matrix()
+            aln_obj1.compute_effective_alignment_size()
         aln_obj1.import_alignment()
         aln_obj1.compute_distance_matrix()
         identity_mat = 1 - aln_obj1.distance_matrix
@@ -540,7 +541,7 @@ class TestSeqAlignment(TestCase):
         self.assertLess(abs(aln_obj1.compute_effective_alignment_size() - effective_size), 1.0e-12)
         aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
         with self.assertRaises(TypeError):
-            aln_obj2.compute_distance_matrix()
+            aln_obj2.compute_effective_alignment_size()
         aln_obj2.import_alignment()
         aln_obj2.compute_distance_matrix()
         identity_mat = 1 - aln_obj2.distance_matrix
@@ -551,15 +552,44 @@ class TestSeqAlignment(TestCase):
                 if identity_mat[i, j] >= 0.62:
                     n_i += 1.0
             effective_size += 1.0 / n_i
-        self.assertEqual(abs(aln_obj2.compute_effective_alignment_size() - effective_size), 1.0e-12)
+        self.assertLess(abs(aln_obj2.compute_effective_alignment_size() - effective_size), 1.0e-12)
+
+    def test__agglomerative_clustering(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1._agglomerative_clustering(n_cluster=2)
+        aln_obj1.import_alignment()
+        aln_obj1_clusters = aln_obj1._agglomerative_clustering(n_cluster=2)
+        self.assertEqual(len(set(aln_obj1_clusters)), 2)
+        self.assertTrue(0 in set(aln_obj1_clusters))
+        self.assertTrue(1 in set(aln_obj1_clusters))
+        self.assertFalse(os.path.isdir(os.path.join(os.getcwd(), 'joblib')))
+        aln_obj1._agglomerative_clustering(n_cluster=2, cache_dir=os.path.abspath('../Test'))
+        self.assertEqual(len(set(aln_obj1_clusters)), 2)
+        self.assertTrue(0 in set(aln_obj1_clusters))
+        self.assertTrue(1 in set(aln_obj1_clusters))
+        self.assertTrue(os.path.isdir(os.path.join(os.path.abspath('../Test'), 'joblib')))
+        rmtree(os.path.join(os.path.abspath('../Test'), 'joblib'))
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._agglomerative_clustering(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2_clusters = aln_obj2._agglomerative_clustering(n_cluster=2)
+        self.assertEqual(len(set(aln_obj2_clusters)), 2)
+        self.assertTrue(0 in set(aln_obj2_clusters))
+        self.assertTrue(1 in set(aln_obj2_clusters))
+        self.assertFalse(os.path.isdir(os.path.join(os.getcwd(), 'joblib')))
+        aln_obj2._agglomerative_clustering(n_cluster=2, cache_dir=os.path.abspath('../Test'))
+        self.assertEqual(len(set(aln_obj2_clusters)), 2)
+        self.assertTrue(0 in set(aln_obj2_clusters))
+        self.assertTrue(1 in set(aln_obj2_clusters))
+        self.assertTrue(os.path.isdir(os.path.join(os.path.abspath('../Test'), 'joblib')))
+        rmtree(os.path.join(os.path.abspath('../Test'), 'joblib'))
 
     # def test_set_tree_ordering(self):
     #     self.fail()
     #
     # def test_get_branch_cluster(self):
-    #     self.fail()
-    #
-    # def test_agg_clustering(self):
     #     self.fail()
     #
     # def test_random_assignment(self):

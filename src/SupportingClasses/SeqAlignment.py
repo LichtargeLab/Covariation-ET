@@ -11,6 +11,7 @@ from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from sklearn.cluster import AgglomerativeClustering
+from shutil import rmtree
 import cPickle as pickle
 from time import time
 import pandas as pd
@@ -233,6 +234,87 @@ class SeqAlignment(object):
             raise ValueError('Effective alignment size is greater than the original alignment size.')
         return effective_alignment_size
 
+    # def agg_clustering(self, n_cluster, cache_dir):
+    #     """
+    #     Agglomerative clustering
+    #
+    #     Performs agglomerative clustering on a matrix of pairwise distances
+    #     between sequences in the alignment being analyzed.
+    #
+    #     Args:
+    #         n_cluster (int): The number of clusters to separate sequences into.
+    #         cache_dir (str): The path to the directory where the clustering model can be stored for access later when
+    #         identifying different numbers of clusters.
+    #     Returns:
+    #         dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
+    #         value.
+    #         set. A unique sorted set of the cluster values.
+    #     """
+    #     start = time()
+    #     affinity = 'euclidean'
+    #     linkage = 'ward'
+    #     model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
+    #                                     n_clusters=n_cluster, memory=cache_dir,
+    #                                     compute_full_tree=True)
+    #     model.fit(self.distance_matrix)
+    #     # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
+    #     cluster_list = model.labels_.tolist()
+    #     ################################################################################################################
+    #     #       Mapping Clusters to Sequences
+    #     ################################################################################################################
+    #     cluster_labels = set(cluster_list)
+    #     cluster_dict = {}
+    #     cluster_ordering = {}
+    #     for i in range(len(cluster_list)):
+    #         seq_id = self.seq_order[i]
+    #         index = self.tree_order.index(seq_id)
+    #         key = cluster_list[i]
+    #         if key not in cluster_dict:
+    #             cluster_dict[key] = []
+    #             cluster_ordering[key] = index
+    #         if index < cluster_ordering[key]:
+    #             cluster_ordering[key] = index
+    #         cluster_dict[key].append(self.seq_order[i])
+    #     sorted_cluster_labels = sorted(cluster_ordering, key=lambda k: cluster_ordering[k])
+    #     cluster_dict2 = {}
+    #     for i in range(len(cluster_labels)):
+    #         cluster_dict2[i] = cluster_dict[sorted_cluster_labels[i]]
+    #     end = time()
+    #     print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
+    #     return cluster_dict2, cluster_labels
+
+    def _agglomerative_clustering(self, n_cluster, cache_dir=None, affinity='euclidean', linkage='ward'):
+        """
+        Agglomerative clustering
+
+        Performs agglomerative clustering on a matrix of pairwise distances
+        between sequences in the alignment being analyzed.
+
+        Args:
+            n_cluster (int): The number of clusters to separate sequences into.
+            cache_dir (str): The path to the directory where the clustering model can be stored for access later when
+            identifying different numbers of clusters.
+        Returns:
+            dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
+            value.
+            set. A unique sorted set of the cluster values.
+        """
+        if cache_dir is None:
+            remove_cache = True
+            cache_dir = os.getcwd()
+        else:
+            remove_cache = False
+        if self.distance_matrix is None:
+            self.compute_distance_matrix()
+        model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=n_cluster, memory=cache_dir,
+                                        compute_full_tree=True)
+        model.fit(self.distance_matrix)
+        # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
+        cluster_list = model.labels_.tolist()
+        if remove_cache:
+            rmtree(os.path.join(os.getcwd(), 'joblib'))
+        return cluster_list
+
     # def set_tree_ordering(self, t_order=None):
     #     """
     #     Determine the ordering of the sequences from the full clustering tree
@@ -269,7 +351,7 @@ class SeqAlignment(object):
         # mapping = {1: {0: list(range(self.size))}}
         curr_order = [0] * self.size
         check = {'SeqID': self.seq_order, 1:curr_order}
-        sequence_assignments = {1: {0: self.seq_order}}
+        sequence_assignments = {1: {0: set(self.seq_order)}}
         # print(curr_order)
         for k in range(2, self.size + 1):
             model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
@@ -305,55 +387,6 @@ class SeqAlignment(object):
     def get_branch_cluster(self, k, c):
         cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
         return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
-
-    def agg_clustering(self, n_cluster, cache_dir):
-        """
-        Agglomerative clustering
-
-        Performs agglomerative clustering on a matrix of pairwise distances
-        between sequences in the alignment being analyzed.
-
-        Args:
-            n_cluster (int): The number of clusters to separate sequences into.
-            cache_dir (str): The path to the directory where the clustering model can be stored for access later when
-            identifying different numbers of clusters.
-        Returns:
-            dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
-            value.
-            set. A unique sorted set of the cluster values.
-        """
-        start = time()
-        affinity = 'euclidean'
-        linkage = 'ward'
-        model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
-                                        n_clusters=n_cluster, memory=cache_dir,
-                                        compute_full_tree=True)
-        model.fit(self.distance_matrix)
-        # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
-        cluster_list = model.labels_.tolist()
-        ################################################################################################################
-        #       Mapping Clusters to Sequences
-        ################################################################################################################
-        cluster_labels = set(cluster_list)
-        cluster_dict = {}
-        cluster_ordering = {}
-        for i in range(len(cluster_list)):
-            seq_id = self.seq_order[i]
-            index = self.tree_order.index(seq_id)
-            key = cluster_list[i]
-            if key not in cluster_dict:
-                cluster_dict[key] = []
-                cluster_ordering[key] = index
-            if index < cluster_ordering[key]:
-                cluster_ordering[key] = index
-            cluster_dict[key].append(self.seq_order[i])
-        sorted_cluster_labels = sorted(cluster_ordering, key=lambda k: cluster_ordering[k])
-        cluster_dict2 = {}
-        for i in range(len(cluster_labels)):
-            cluster_dict2[i] = cluster_dict[sorted_cluster_labels[i]]
-        end = time()
-        print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
-        return cluster_dict2, cluster_labels
 
     def random_assignment(self, n_cluster):
         """
