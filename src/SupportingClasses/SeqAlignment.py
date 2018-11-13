@@ -299,11 +299,6 @@ class SeqAlignment(object):
             value.
             set. A unique sorted set of the cluster values.
         """
-        if cache_dir is None:
-            remove_cache = True
-            cache_dir = os.getcwd()
-        else:
-            remove_cache = False
         if self.distance_matrix is None:
             self.compute_distance_matrix()
         model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=n_cluster, memory=cache_dir,
@@ -311,8 +306,6 @@ class SeqAlignment(object):
         model.fit(self.distance_matrix)
         # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
         cluster_list = model.labels_.tolist()
-        if remove_cache:
-            rmtree(os.path.join(os.getcwd(), 'joblib'))
         return cluster_list
 
     # def random_assignment(self, n_cluster):
@@ -367,7 +360,7 @@ class SeqAlignment(object):
     #     print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
     #     return cluster_dict2, cluster_labels
 
-    def _random_assignment(self, n_cluster):
+    def _random_assignment(self, n_cluster, cache_dir=None):
         """
         random_assignment
 
@@ -384,6 +377,17 @@ class SeqAlignment(object):
             cluster.
             set. The set of labels used for clustering (0 to nClusters -1).
         """
+        if cache_dir is not None:
+            save_dir = os.path.join(cache_dir, 'joblib')
+        else:
+            save_dir = None
+        if save_dir is not None:
+            save_file = os.path.join(save_dir, 'K_{}.pkl'.format(n_cluster))
+            if not os.path.isdir(save_dir):
+                os.mkdir(save_dir)
+            else:
+                if os.path.isfile(save_file):
+                    return pickle.load(save_file)
         cluster_sizes = np.ones(n_cluster, dtype=np.int64)
         min_size = self.size // n_cluster
         cluster_sizes *= min_size
@@ -397,12 +401,14 @@ class SeqAlignment(object):
             for j in curr_assignment:
                 cluster_list[j] = i
             choices = list(set(choices) - set(curr_assignment))
+        if save_dir is not None:
+            pickle.dump(cluster_list, save_file, pickle.HIGHEST_PROTOCOL)
         return cluster_list
 
     @staticmethod
     def _re_label_clusters(prev, curr):
         if len(prev) != len(curr):
-            raise ValueError('Cluster labels do not match in length.')
+            raise ValueError('Cluster labels do not match in length: {} vs {}.'.format(len(prev), len(curr)))
         prev_labels = sorted(set(prev))
         # print('Prev Labels')
         # print(prev_labels)
@@ -455,7 +461,7 @@ class SeqAlignment(object):
     #     else:
     #         pass
 
-    def set_tree_ordering(self, tree_depth=None, visualized_tree=False, clustering='agglomerative', clustering_args={}):
+    def set_tree_ordering(self, tree_depth=None, clustering='agglomerative', cache_dir=None, clustering_args={}):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -467,22 +473,27 @@ class SeqAlignment(object):
         method_dict = {'agglomerative': self._agglomerative_clustering, 'random': self._random_assignment}
         # mapping = {1: {0: list(range(self.size))}}
         curr_order = [0] * self.size
-        check = {'SeqID': self.seq_order, 1:curr_order}
         sequence_assignments = {1: {0: set(self.seq_order)}}
         # print(curr_order)
         if tree_depth is None:
-            tree_depth = range(2, self.size + 1)
+            tree_depth = range(1, self.size + 1)
         elif isinstance(tree_depth, tuple):
             if len(tree_depth) != 2:
                 raise ValueError('If a tuple is provided for tree_depth, two values must be specified.')
-            tree_depth = range(tree_depth[0], tree_depth[1])
+            tree_depth = [1] + range(tree_depth[0], tree_depth[1])
         elif isinstance(tree_depth, list):
-            pass
+            if tree_depth[0] != 1:
+                tree_depth = [1] + tree_depth
         else:
             raise ValueError('tree_depth must be None, a tuple, or a list.')
+        if cache_dir is None:
+            remove_dir = True
+            cache_dir = os.getcwd()
+        else:
+            remove_dir = False
         # for k in range(2, self.size + 1):
         for k in tree_depth:
-            cluster_list = method_dict[clustering](n_cluster=k, *clustering_args)
+            cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, *clustering_args)
             # model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
             #                                 n_clusters=k, memory=os.path.dirname(self.file_name),
             #                                 compute_full_tree=True)
@@ -492,26 +503,32 @@ class SeqAlignment(object):
             new_clusters = self._re_label_clusters(curr_order, cluster_list)
             # print(new_clusters)
             curr_order = new_clusters
-            check[k] = curr_order
             sequence_assignments[k] = {}
             for i, c in enumerate(curr_order):
-                # print(c, i)
                 if c not in sequence_assignments[k]:
                     sequence_assignments[k][c] = set()
                 sequence_assignments[k][c].add(self.seq_order[i])
         self.sequence_assignments = sequence_assignments
         self.tree_order = zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0]
-        # print(self.tree_order)
-        if visualized_tree:
-            df = pd.DataFrame(check).set_index('SeqID').sort_values(by=self.size)[range(1, self.size + 1)]
-            df.to_csv('/home/daniel/Desktop/Check_{}.csv'.format(self.query_id.split('_')[1]), sep='\t', header=True,
-                      index=True)
-            heatmap(df, cmap='tab10', square=True)
-            plt.savefig('/home/daniel/Desktop/Check_{}.eps'.format(self.query_id.split('_')[1]))
-            plt.close()
-            print(df.index)
-        from shutil import rmtree
-        rmtree(os.path.join(os.path.dirname(self.file_name), 'joblib'))
+        if remove_dir:
+            rmtree(os.path.join(cache_dir, 'joblib'))
+
+    def visualize_tree(self, out_dir):
+        check = {'SeqID': self.seq_order, 1: [0] * self.size}
+        for k in self.sequence_assignments:
+            curr_order = []
+            for i in range(self.size):
+                for c in self.sequence_assignments[k]:
+                    if i in self.sequence_assignments[k][c]:
+                        curr_order.append(c)
+            check[k] = curr_order
+        df = pd.DataFrame(check).set_index('SeqID').sort_values(by=self.size)[range(1, self.size + 1)]
+        df.to_csv('/home/daniel/Desktop/Check_{}.csv'.format(self.query_id.split('_')[1]), sep='\t', header=True,
+                  index=True)
+        heatmap(df, cmap='tab10', square=True)
+        plt.savefig('/home/daniel/Desktop/Check_{}.eps'.format(self.query_id.split('_')[1]))
+        plt.close()
+        return df
 
     def get_branch_cluster(self, k, c):
         cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]

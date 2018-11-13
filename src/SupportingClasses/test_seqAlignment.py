@@ -803,7 +803,70 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_22), labels_4_expected)
         self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_22), labels_4_expected)
 
-    # def test_set_tree_ordering(self):
+    def test_set_tree_ordering(self):
+
+        def check(seq_dict, curr, prev=None):
+            if prev is None:
+                return True
+            c_prev = 0
+            c_curr = 0
+            while (c_prev != (prev - 1)) and (c_curr != (curr - 1)):
+                if not seq_dict[curr][c_curr].issubset(seq_dict[prev][c_prev]):
+                    c_prev += 1
+                if not seq_dict[curr][c_curr].issubset(seq_dict[prev][c_prev]):
+                    return False
+                c_curr += 1
+            return True
+
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        aln_obj1.set_tree_ordering(tree_depth=(2, 5))
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for k in range(2, 5):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k-1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj1.set_tree_ordering(tree_depth=clusters)
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for i in range(len(clusters)):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
+                            'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
+        aln_obj1.set_tree_ordering()
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for k in range(1, aln_obj1.size):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2.set_tree_ordering(tree_depth=(2, 5))
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for k in range(2, 5):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj2.set_tree_ordering(tree_depth=clusters)
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for i in range(len(clusters)):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
+        aln_obj2.set_tree_ordering()
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for k in range(1, aln_obj2.size):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+
+    # def test_visualize_tree(self):
     #     self.fail()
     #
     # def test_get_branch_cluster(self):
