@@ -567,25 +567,18 @@ class SeqAlignment(object):
         return new_alignment
 
     def get_branch_cluster(self, k, c):
+        if self.sequence_assignments is None:
+            self.set_tree_ordering()
         cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
         return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
 
     def generate_positional_sub_alignment(self, i, j):
-        # from IPython import embed
-        # embed()
-        # exit()
         new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
         new_alignment.query_id = self.query_id
         new_alignment.query_sequence = self.query_sequence[i] + self.query_sequence[j]
         new_alignment.seq_length = 2
         new_alignment.seq_order = self.seq_order
-        from Bio.Seq import Seq
-        from Bio.SeqRecord import SeqRecord
-        sub_records = [SeqRecord(Seq(rec.seq[i] + rec.seq[j]), id=rec.id, name=rec.name, description=rec.description,
-                                 dbxrefs=rec.dbxrefs, features=rec.features, annotations=rec.annotations,
-                                 letter_annotations=rec.letter_annotations) for rec in self.alignment]
-        # new_alignment.alignment = self.alignment[:, i] + self.alignment[:, j]
-        new_alignment.alignment = MultipleSeqAlignment(sub_records)
+        new_alignment.alignment = self._subset_columns(indices_to_keep=[i, j])
         new_alignment.size = self.size
         new_alignment.tree_order = self.tree_order
         return new_alignment

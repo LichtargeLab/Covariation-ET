@@ -916,7 +916,7 @@ class TestSeqAlignment(TestCase):
                 self.assertEqual(aln_obj1_sub.seq_order, [x for x in aln_obj1.seq_order
                                                           if x in aln_obj1.sequence_assignments[k][c]])
                 self.assertEqual(aln_obj1_sub.tree_order, [x for x in aln_obj1.tree_order
-                                                          if x in aln_obj1.sequence_assignments[k][c]])
+                                                           if x in aln_obj1.sequence_assignments[k][c]])
         aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
@@ -934,14 +934,80 @@ class TestSeqAlignment(TestCase):
                 self.assertEqual(aln_obj2_sub.seq_order, [x for x in aln_obj2.seq_order
                                                           if x in aln_obj2.sequence_assignments[k][c]])
                 self.assertEqual(aln_obj2_sub.tree_order, [x for x in aln_obj2.tree_order
-                                                          if x in aln_obj2.sequence_assignments[k][c]])
+                                                           if x in aln_obj2.sequence_assignments[k][c]])
 
-    # def test_get_branch_cluster(self):
-    #     self.fail()
-    #
-    # def test_generate_positional_sub_alignment(self):
-    #     self.fail()
-    #
+    def test_get_branch_cluster(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        aln_obj1.set_tree_ordering(tree_depth=(2, 5))
+        for k in aln_obj1.sequence_assignments:
+            for c in aln_obj1.sequence_assignments[k]:
+                aln_obj1_sub = aln_obj1.get_branch_cluster(k, c)
+                aln_obj1_sub_prime = aln_obj1.generate_sub_alignment(aln_obj1.sequence_assignments[k][c])
+                self.assertEqual(aln_obj1_sub.file_name, aln_obj1_sub_prime.file_name)
+                self.assertEqual(aln_obj1_sub.query_id, aln_obj1_sub_prime.query_id)
+                self.assertEqual(aln_obj1.query_sequence, aln_obj1_sub.query_sequence)
+                self.assertEqual(aln_obj1_sub.distance_matrix, aln_obj1_sub_prime.distance_matrix)
+                self.assertEqual(aln_obj1_sub.sequence_assignments, aln_obj1_sub_prime.sequence_assignments)
+                self.assertEqual(aln_obj1_sub.size, aln_obj1_sub_prime.size)
+                self.assertEqual(aln_obj1_sub.seq_order, aln_obj1_sub_prime.seq_order)
+                self.assertEqual(aln_obj1_sub.tree_order, aln_obj1_sub_prime.tree_order)
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2.set_tree_ordering(tree_depth=(2, 5))
+        for k in aln_obj2.sequence_assignments:
+            for c in aln_obj2.sequence_assignments[k]:
+                aln_obj2_sub = aln_obj2.get_branch_cluster(k, c)
+                aln_obj2_sub_prime = aln_obj2.generate_sub_alignment(aln_obj2.sequence_assignments[k][c])
+                self.assertEqual(aln_obj2_sub.file_name, aln_obj2_sub_prime.file_name)
+                self.assertEqual(aln_obj2_sub.query_id, aln_obj2_sub_prime.query_id)
+                self.assertEqual(aln_obj2.query_sequence, aln_obj2_sub.query_sequence)
+                self.assertEqual(aln_obj2_sub.distance_matrix, aln_obj2_sub_prime.distance_matrix)
+                self.assertEqual(aln_obj2_sub.sequence_assignments, aln_obj2_sub_prime.sequence_assignments)
+                self.assertEqual(aln_obj2_sub.size, aln_obj2_sub_prime.size)
+                self.assertEqual(aln_obj2_sub.seq_order, aln_obj2_sub_prime.seq_order)
+                self.assertEqual(aln_obj2_sub.tree_order, aln_obj2_sub_prime.tree_order)
+
+    def test_generate_positional_sub_alignment(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        for i in range(aln_obj1.size - 1):
+            aln_obj1_sub = aln_obj1.generate_positional_sub_alignment(i, i + 1)
+            self.assertEqual(aln_obj1.file_name, aln_obj1_sub.file_name)
+            self.assertEqual(aln_obj1.query_id, aln_obj1_sub.query_id)
+            self.assertEqual(aln_obj1_sub.query_sequence, aln_obj1.query_sequence[i] + aln_obj1.query_sequence[i + 1])
+            self.assertIsNone(aln_obj1_sub.distance_matrix)
+            self.assertIsNone(aln_obj1_sub.sequence_assignments)
+            self.assertEqual(aln_obj1.size, aln_obj1_sub.size)
+            self.assertEqual(aln_obj1.seq_order, aln_obj1_sub.seq_order)
+            self.assertEqual(aln_obj1.tree_order, aln_obj1_sub.tree_order)
+            for j in range(aln_obj1.size):
+                self.assertEqual(aln_obj1_sub.alignment[j].seq,
+                                 aln_obj1.alignment[j].seq[i] + aln_obj1.alignment[j].seq[i + 1])
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        for i in range(aln_obj2.size - 1):
+            aln_obj2_sub = aln_obj2.generate_positional_sub_alignment(i, i + 1)
+            self.assertEqual(aln_obj2.file_name, aln_obj2_sub.file_name)
+            self.assertEqual(aln_obj2.query_id, aln_obj2_sub.query_id)
+            self.assertEqual(aln_obj2_sub.query_sequence, aln_obj2.query_sequence[i] + aln_obj2.query_sequence[i + 1])
+            self.assertIsNone(aln_obj2_sub.distance_matrix)
+            self.assertIsNone(aln_obj2_sub.sequence_assignments)
+            self.assertEqual(aln_obj2.size, aln_obj2_sub.size)
+            self.assertEqual(aln_obj2.seq_order, aln_obj2_sub.seq_order)
+            self.assertEqual(aln_obj2.tree_order, aln_obj2_sub.tree_order)
+            for j in range(aln_obj2.size):
+                self.assertEqual(aln_obj2_sub.alignment[j].seq,
+                                 aln_obj2.alignment[j].seq[i] + aln_obj2.alignment[j].seq[i + 1])
+
     # def test_determine_usable_positions(self):
     #     self.fail()
     #
