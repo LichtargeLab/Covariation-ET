@@ -866,9 +866,38 @@ class TestSeqAlignment(TestCase):
         for k in range(1, aln_obj2.size):
             self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
 
-    # def test_visualize_tree(self):
-    #     self.fail()
-    #
+    def test_visualize_tree(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        aln_obj1_df = aln_obj1.visualize_tree(out_dir=os.path.abspath('../Test/'))
+        self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df['SeqID']))
+        for i in range(1, aln_obj1.size):
+            for j in aln_obj1_df.index:
+                self.assertIn(aln_obj1_df.loc['SeqID', j],  aln_obj1.sequence_assignments[i][aln_obj1_df.loc[i, j]])
+        self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
+                                                                    'query_1c17A_Sequence_Assignment.csv'))))
+        os.remove(os.path.abspath(os.path.join('../Test/', 'query_1c17A_Sequence_Assignment.csv')))
+        self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
+                                                                    'query_1c17A_Sequence_Assignment.eps'))))
+        os.remove(os.path.abspath(os.path.join('../Test/', 'query_1c17A_Sequence_Assignment.eps')))
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2_df = aln_obj2.visualize_tree(out_dir=os.path.abspath('../Test/'))
+        self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df['SeqID']))
+        for i in range(1, aln_obj2.size):
+            for j in aln_obj2_df.index:
+                self.assertIn(aln_obj2_df.loc['SeqID', j],  aln_obj2.sequence_assignments[i][aln_obj2_df.loc[i, j]])
+        self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
+                                                                    'query_1h1vA_Sequence_Assignment.csv'))))
+        os.remove(os.path.abspath(os.path.join('../Test/', 'query_1h1vA_Sequence_Assignment.csv')))
+        self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
+                                                                    'query_1h1vA_Sequence_Assignment.eps'))))
+        os.remove(os.path.abspath(os.path.join('../Test/', 'query_1h1vA_Sequence_Assignment.eps')))
+
     # def test_get_branch_cluster(self):
     #     self.fail()
     #

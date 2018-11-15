@@ -471,10 +471,8 @@ class SeqAlignment(object):
             SeqAlignment.
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'random': self._random_assignment}
-        # mapping = {1: {0: list(range(self.size))}}
         curr_order = [0] * self.size
         sequence_assignments = {1: {0: set(self.seq_order)}}
-        # print(curr_order)
         if tree_depth is None:
             tree_depth = range(1, self.size + 1)
         elif isinstance(tree_depth, tuple):
@@ -491,17 +489,9 @@ class SeqAlignment(object):
             cache_dir = os.getcwd()
         else:
             remove_dir = False
-        # for k in range(2, self.size + 1):
         for k in tree_depth:
             cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, *clustering_args)
-            # model = AgglomerativeClustering(affinity='euclidean', linkage='ward',
-            #                                 n_clusters=k, memory=os.path.dirname(self.file_name),
-            #                                 compute_full_tree=True)
-            # model.fit(self.distance_matrix)
-            # # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
-            # cluster_list = model.labels_.tolist()
             new_clusters = self._re_label_clusters(curr_order, cluster_list)
-            # print(new_clusters)
             curr_order = new_clusters
             sequence_assignments[k] = {}
             for i, c in enumerate(curr_order):
@@ -513,20 +503,24 @@ class SeqAlignment(object):
         if remove_dir:
             rmtree(os.path.join(cache_dir, 'joblib'))
 
-    def visualize_tree(self, out_dir):
-        check = {'SeqID': self.seq_order, 1: [0] * self.size}
+    def visualize_tree(self, out_dir=None):
+        if out_dir is None:
+            out_dir = os.getcwd()
+        if self.sequence_assignments is None:
+            self.set_tree_ordering()
+        check = {'SeqID': self.tree_order, 1: [0] * self.size}
         for k in self.sequence_assignments:
             curr_order = []
             for i in range(self.size):
                 for c in self.sequence_assignments[k]:
-                    if i in self.sequence_assignments[k][c]:
+                    if self.tree_order[i] in self.sequence_assignments[k][c]:
                         curr_order.append(c)
             check[k] = curr_order
         df = pd.DataFrame(check).set_index('SeqID').sort_values(by=self.size)[range(1, self.size + 1)]
-        df.to_csv('/home/daniel/Desktop/Check_{}.csv'.format(self.query_id.split('_')[1]), sep='\t', header=True,
+        df.to_csv(os.path.join(out_dir, '{}_Sequence_Assignment.csv'.format(self.query_id[1:])), sep='\t', header=True,
                   index=True)
         heatmap(df, cmap='tab10', square=True)
-        plt.savefig('/home/daniel/Desktop/Check_{}.eps'.format(self.query_id.split('_')[1]))
+        plt.savefig(os.path.join(out_dir, '{}_Sequence_Assignment.eps'.format(self.query_id[1:])))
         plt.close()
         return df
 
