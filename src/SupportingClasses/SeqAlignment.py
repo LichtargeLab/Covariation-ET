@@ -524,10 +524,6 @@ class SeqAlignment(object):
         plt.close()
         return df
 
-    def get_branch_cluster(self, k, c):
-        cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
-        return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
-
     def generate_sub_alignment(self, sequence_ids):
         """
         Initializes a new alignment which is a subset of the current alignment.
@@ -545,19 +541,34 @@ class SeqAlignment(object):
             the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
             length of the new seq_order.
         """
-        start = time()
         new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
         new_alignment.query_id = self.query_id
         new_alignment.query_sequence = self.query_sequence
         new_alignment.seq_length = self.seq_length
-        sub_records = [rec for rec in self.alignment if rec.id in sequence_ids]
-        new_alignment.seq_order = [x.id for x in sub_records]
+        sub_records = []
+        sub_seq_order = []
+        if self.tree_order:
+            sub_tree_order = []
+        else:
+            sub_tree_order = None
+        for i in range(self.size):
+            if self.alignment[i].id in sequence_ids:
+                sub_records.append(self.alignment[i])
+                sub_seq_order.append(self.alignment[i].id)
+            if sub_tree_order and (self.tree_order[i] in sequence_ids):
+                sub_tree_order.append(self.tree_order[i])
+        # sub_records = [rec for rec in self.alignment if rec.id in sequence_ids]
+        # new_alignment.seq_order = [x.id for x in sub_records]
         new_alignment.alignment = MultipleSeqAlignment(sub_records)
+        new_alignment.seq_order = sub_seq_order
+        new_alignment.tree_order = sub_tree_order
         new_alignment.size = len(new_alignment.seq_order)
-        new_alignment.tree_order = [x for x in self.tree_order if x in sequence_ids]
-        end = time()
-        print('Generating sub-alignment took {} min'.format((end - start) / 60.0))
+        # new_alignment.tree_order = [x for x in self.tree_order if x in sequence_ids]
         return new_alignment
+
+    def get_branch_cluster(self, k, c):
+        cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
+        return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
 
     def generate_positional_sub_alignment(self, i, j):
         # from IPython import embed
