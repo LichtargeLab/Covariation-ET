@@ -499,7 +499,7 @@ class SeqAlignment(object):
                     sequence_assignments[k][c] = set()
                 sequence_assignments[k][c].add(self.seq_order[i])
         self.sequence_assignments = sequence_assignments
-        self.tree_order = zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0]
+        self.tree_order = list(zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0])
         if remove_dir:
             rmtree(os.path.join(cache_dir, 'joblib'))
 
@@ -555,7 +555,7 @@ class SeqAlignment(object):
             if self.alignment[i].id in sequence_ids:
                 sub_records.append(self.alignment[i])
                 sub_seq_order.append(self.alignment[i].id)
-            if sub_tree_order and (self.tree_order[i] in sequence_ids):
+            if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
                 sub_tree_order.append(self.tree_order[i])
         # sub_records = [rec for rec in self.alignment if rec.id in sequence_ids]
         # new_alignment.seq_order = [x.id for x in sub_records]
@@ -594,6 +594,8 @@ class SeqAlignment(object):
             numpy ndarray. The positions for which this alignment meets the specified ratio.
             numpy ndarray. The number of sequences which do not have gaps at each position in the sequence alignment.
         """
+        print(self.alignment._get_per_column_annotations())
+        raise NotImplemented()
         gaps = (self.alignment_matrix == 21) * 1.0
         per_column = np.sum(gaps, axis=0)
         percent_gaps = per_column / self.alignment_matrix.shape[0]

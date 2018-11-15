@@ -872,10 +872,10 @@ class TestSeqAlignment(TestCase):
             aln_obj1.set_tree_ordering()
         aln_obj1.import_alignment()
         aln_obj1_df = aln_obj1.visualize_tree(out_dir=os.path.abspath('../Test/'))
-        self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df['SeqID']))
+        self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df.index))
         for i in range(1, aln_obj1.size):
             for j in aln_obj1_df.index:
-                self.assertIn(aln_obj1_df.loc['SeqID', j],  aln_obj1.sequence_assignments[i][aln_obj1_df.loc[i, j]])
+                self.assertIn(j,  aln_obj1.sequence_assignments[i][aln_obj1_df.loc[j, i]])
         self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
                                                                     'query_1c17A_Sequence_Assignment.csv'))))
         os.remove(os.path.abspath(os.path.join('../Test/', 'query_1c17A_Sequence_Assignment.csv')))
@@ -887,10 +887,10 @@ class TestSeqAlignment(TestCase):
             aln_obj2._random_assignment(n_cluster=2)
         aln_obj2.import_alignment()
         aln_obj2_df = aln_obj2.visualize_tree(out_dir=os.path.abspath('../Test/'))
-        self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df['SeqID']))
+        self.assertEqual(aln_obj2.tree_order, list(aln_obj2_df.index))
         for i in range(1, aln_obj2.size):
             for j in aln_obj2_df.index:
-                self.assertIn(aln_obj2_df.loc['SeqID', j],  aln_obj2.sequence_assignments[i][aln_obj2_df.loc[i, j]])
+                self.assertIn(j,  aln_obj2.sequence_assignments[i][aln_obj2_df.loc[j, i]])
         self.assertTrue(os.path.isfile(os.path.abspath(os.path.join('../Test/',
                                                                     'query_1h1vA_Sequence_Assignment.csv'))))
         os.remove(os.path.abspath(os.path.join('../Test/', 'query_1h1vA_Sequence_Assignment.csv')))
@@ -916,7 +916,7 @@ class TestSeqAlignment(TestCase):
                 self.assertEqual(aln_obj1_sub.seq_order, [x for x in aln_obj1.seq_order
                                                           if x in aln_obj1.sequence_assignments[k][c]])
                 self.assertEqual(aln_obj1_sub.tree_order, [x for x in aln_obj1.tree_order
-                                                           if x in aln_obj1.sequence_assignments[k][c]])
+                                                           if (x in aln_obj1.sequence_assignments[k][c])])
         aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
@@ -1008,9 +1008,20 @@ class TestSeqAlignment(TestCase):
                 self.assertEqual(aln_obj2_sub.alignment[j].seq,
                                  aln_obj2.alignment[j].seq[i] + aln_obj2.alignment[j].seq[i + 1])
 
-    # def test_determine_usable_positions(self):
-    #     self.fail()
-    #
+    def test_determine_usable_positions(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        aln_obj1.determine_usable_positions(ratio=0.5)
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2.determine_usable_positions(ratio=0.5)
+
+
+
     # def test_identify_comparable_sequences(self):
     #     self.fail()
     #
