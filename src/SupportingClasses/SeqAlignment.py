@@ -617,10 +617,10 @@ class SeqAlignment(object):
             where there were no gaps in the alignment at those positions.
             int. Number of comparable positions, this will be less than or equal to the SeqAlignment.size variable.
         """
-        column_i = self.alignment_matrix[:, pos1]
-        indices1 = (column_i != 20.0) * 1
-        column_j = self.alignment_matrix[:, pos2]
-        indices2 = (column_j != 20.0) * 1
+        column_i = np.array(list(self.alignment[:, pos1]), dtype=str)
+        indices1 = (column_i != '-') * 1
+        column_j = np.array(list(self.alignment[:, pos2]), dtype=str)
+        indices2 = (column_j != '-') * 1
         check = np.where((indices1 + indices2) == 2)[0]
         return column_i[check], column_j[check], check, check.shape[0]
 

@@ -1040,9 +1040,52 @@ class TestSeqAlignment(TestCase):
             self.assertEqual(evidence2[i], count)
         self.assertEqual(list(pos2), usable_pos2)
 
-    # def test_identify_comparable_sequences(self):
-    #     self.fail()
-    #
+    def test_identify_comparable_sequences(self):
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        for i in range(1, aln_obj1.seq_length):
+            comp_tup = aln_obj1.identify_comparable_sequences(pos1=0, pos2=i)
+            col1 = aln_obj1.alignment[:, 0]
+            col1_sub = []
+            col2 = aln_obj1.alignment[:, i]
+            col2_sub = []
+            indices = []
+            count = 0
+            for j in range(aln_obj1.size):
+                if (col1[j] != '-') and (col2[j] != '-'):
+                    col1_sub.append(col1[j])
+                    col2_sub.append(col2[j])
+                    indices.append(j)
+                    count += 1
+            self.assertEqual(list(comp_tup[0]), col1_sub)
+            self.assertEqual(list(comp_tup[1]), col2_sub)
+            self.assertEqual(list(comp_tup[2]), indices)
+            self.assertEqual(comp_tup[3], count)
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        for i in range(1, aln_obj2.seq_length):
+            comp_tup = aln_obj2.identify_comparable_sequences(pos1=0, pos2=i)
+            col1 = aln_obj2.alignment[:, 0]
+            col1_sub = []
+            col2 = aln_obj2.alignment[:, i]
+            col2_sub = []
+            indices = []
+            count = 0
+            for j in range(aln_obj2.size):
+                if (col1[j] != '-') and (col2[j] != '-'):
+                    col1_sub.append(col1[j])
+                    col2_sub.append(col2[j])
+                    indices.append(j)
+                    count += 1
+            self.assertEqual(list(comp_tup[0]), col1_sub)
+            self.assertEqual(list(comp_tup[1]), col2_sub)
+            self.assertEqual(list(comp_tup[2]), indices)
+            self.assertEqual(comp_tup[3], count)
+
     # def test_heatmap_plot(self):
     #     self.fail()
     #
