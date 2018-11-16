@@ -594,11 +594,8 @@ class SeqAlignment(object):
             numpy ndarray. The positions for which this alignment meets the specified ratio.
             numpy ndarray. The number of sequences which do not have gaps at each position in the sequence alignment.
         """
-        print(self.alignment._get_per_column_annotations())
-        raise NotImplemented()
-        gaps = (self.alignment_matrix == 21) * 1.0
-        per_column = np.sum(gaps, axis=0)
-        percent_gaps = per_column / self.alignment_matrix.shape[0]
+        per_column = np.array([self.alignment[:, x].count('-') for x in range(self.seq_length)], dtype=float)
+        percent_gaps = per_column / self.size
         usable_positions = np.where(percent_gaps <= ratio)[0]
         evidence = (np.ones(self.seq_length) * self.size) - per_column
         return usable_positions, evidence

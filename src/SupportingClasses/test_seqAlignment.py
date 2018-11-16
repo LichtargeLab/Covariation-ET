@@ -1013,14 +1013,32 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj1.set_tree_ordering()
         aln_obj1.import_alignment()
-        aln_obj1.determine_usable_positions(ratio=0.5)
+        pos1, evidence1 = aln_obj1.determine_usable_positions(ratio=0.5)
+        usable_pos = []
+        for i in range(aln_obj1.seq_length):
+            count = 0
+            for j in range(aln_obj1.size):
+                if aln_obj1.alignment[j, i] != '-':
+                    count += 1
+            if count >= (aln_obj1.size / 2):
+                usable_pos.append(i)
+            self.assertEqual(evidence1[i], count)
+        self.assertEqual(list(pos1), usable_pos)
         aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
         aln_obj2.import_alignment()
-        aln_obj2.determine_usable_positions(ratio=0.5)
-
-
+        pos2, evidence2 = aln_obj2.determine_usable_positions(ratio=0.5)
+        usable_pos2 = []
+        for i in range(aln_obj2.seq_length):
+            count = 0
+            for j in range(aln_obj2.size):
+                if aln_obj2.alignment[j, i] != '-':
+                    count += 1
+            if count >= (aln_obj2.size / 2):
+                usable_pos2.append(i)
+            self.assertEqual(evidence2[i], count)
+        self.assertEqual(list(pos2), usable_pos2)
 
     # def test_identify_comparable_sequences(self):
     #     self.fail()
