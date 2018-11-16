@@ -1086,9 +1086,27 @@ class TestSeqAlignment(TestCase):
             self.assertEqual(list(comp_tup[2]), indices)
             self.assertEqual(comp_tup[3], count)
 
+    def test_alignment_to_num(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        aln_obj1_num = aln_obj1._alignment_to_num(aa_dict=aa_dict)
+        for i in range(aln_obj1.size):
+            for j in range(aln_obj1.seq_length):
+                self.assertEqual(aln_obj1_num[i, j], aa_dict[aln_obj1.alignment[i, j]])
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        aln_obj2_num = aln_obj2._alignment_to_num(aa_dict=aa_dict)
+        for i in range(aln_obj2.size):
+            for j in range(aln_obj2.seq_length):
+                self.assertEqual(aln_obj2_num[i, j], aa_dict[aln_obj2.alignment[i, j]])
+
     # def test_heatmap_plot(self):
-    #     self.fail()
-    #
-    # def test_alignment_to_num(self):
     #     self.fail()
     #

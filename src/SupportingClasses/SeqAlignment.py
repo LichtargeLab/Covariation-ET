@@ -642,7 +642,6 @@ class SeqAlignment(object):
                 alignment_to_num[i, j] = aa_dict[curr_seq[j]]
         return alignment_to_num
 
-
     def heatmap_plot(self, name, out_dir=None, aa_dict=None, save=True):
         """
         Heatmap Plot
