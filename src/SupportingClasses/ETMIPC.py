@@ -88,6 +88,55 @@ class ETMIPC(object):
         self.low_mem = None
         self.output_dir = None
 
+    def import_alignment(self, query, aa_dict, ignore_alignment_size=False, clustering='agglomerative',
+                         clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}):
+        """
+        Import Alignment
+
+        This method imports an alignment for analysis. The gaps are removed from the alignment such that the query
+        sequence specified by query has no gaps in its sequence. This ungapped alignment is written to file. The
+        alignment variable of this class instance is also updated to the imported SeqAlignment as opposed to the path
+        provided upon initialization.
+
+        Args:
+            query (str): A string specifying the name of the target query in the alignment, '>query_' will be prepended
+            to the provided string to find it in the alignment.
+            aa_dict (dict): A dictionary mapping single letter amino acid codes (inlcuding '-' for the gap character) to
+            integer values. This is used to convert the alignment into a numerical format which is used for quickly
+            computing distances based on sequence identity.
+            ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
+            provided has fewer than 125 sequences a ValueError will be raised.
+        """
+        print 'Importing alignment'
+        # Create SeqAlignment object to represent the alignment for this analysis.
+        query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
+        # Import alignment information from file.
+        query_alignment.import_alignment(save_file=os.path.join(self.output_dir, 'alignment.pkl'))
+        # Check if alignment meets analysis criteria:
+        if (not ignore_alignment_size) and (query_alignment.size < 125):
+            raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis '
+                             '({} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please '
+                             'call the code again using the --ignore_alignment_size option.'.format(query_alignment.size))
+        # Remove gaps from aligned query sequences
+        query_alignment.remove_gaps(save_file=os.path.join(self.output_dir, 'ungapped_alignment.pkl'))
+        # Compute distance between all sequences in the alignment
+        query_alignment.compute_distance_matrix(save_file=os.path.join(self.output_dir, 'X'))
+        # Write the ungapped alignment to file.
+        query_alignment.write_out_alignment(file_name=os.path.join(self.output_dir, 'UngappedAlignment.fa'))
+        # Determine the full clustering tree for the alignment and the ordering of its sequences.
+        query_alignment.set_tree_ordering(tree_depth=self.tree_depth, cache_dir=self.output_dir, clustering=clustering,
+                                          clustering_args=clustering_args)
+        unique_assignments = {}
+        for branch in query_alignment.sequence_assignments:
+            for cluster in query_alignment.sequence_assignments[branch]:
+                assignments = query_alignment.sequence_assignments[branch][cluster]
+                if assignments not in unique_assignments:
+                    unique_assignments[assignments] = {'tree_positions': set()}
+                unique_assignments[assignments]['tree_positions'].add((branch, cluster))
+        print('Query Sequence: {}'.format(query_alignment.query_sequence))
+        self.alignment = query_alignment
+        self.unique_clusters = unique_assignments
+
     def get_raw_scores(self, c=None, k=None, three_dim=False):
         """
         Get Raw Scores
@@ -201,49 +250,6 @@ class ETMIPC(object):
         """
         attr = self.__getattribute__(item)
         return get_k_level_matrices(input=attr, low_mem=self.low_mem, c=c)
-
-    def import_alignment(self, query, aa_dict, ignore_alignment_size=False):
-        """
-        Import Alignment
-
-        This method imports an alignment for analysis. The gaps are removed from the alignment such that the query
-        sequence specified by query has no gaps in its sequence. This ungapped alignment is written to file. The
-        alignment variable of this class instance is also updated to the imported SeqAlignment as opposed to the path
-        provided upon initialization.
-
-        Args:
-            query (str): A string specifying the name of the target query in the alignment, '>query_' will be prepended
-            to the provided string to find it in the alignment.
-            aa_dict (dict): A dictionary mapping single letter amino acid codes (inlcuding '-' for the gap character) to
-            integer values. This is used to convert the alignment into a numerical format which is used for quickly
-            computing distances based on sequence identity.
-            ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
-            provided has fewer than 125 sequences a ValueError will be raised.
-        """
-        print 'Importing alignment'
-        # Create SeqAlignment object to represent the alignment for this analysis.
-        query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
-        # Import alignment information from file.
-        query_alignment.import_alignment(save_file=os.path.join(self.output_dir, 'alignment.pkl'))
-        # Check if alignment meets analysis criteria:
-        if (not ignore_alignment_size) and (query_alignment.size < 125):
-            raise ValueError('The multiple sequence alignment is smaller than recommended for performing this analysis '
-                             '({} < 125, see PMID:16159918), if you wish to proceed with the analysis anyway please '
-                             'call the code again using the --ignore_alignment_size option.'.format(query_alignment.size))
-        # Remove gaps from aligned query sequences
-        query_alignment.remove_gaps(save_file=os.path.join(self.output_dir, 'ungapped_alignment.pkl'))
-        # Create matrix converting sequences of amino acids to sequences of integers
-        # representing sequences of amino acids.
-        query_alignment.alignment_to_num(aa_dict)
-        # Write the ungapped alignment to file.
-        query_alignment.write_out_alignment(file_name=os.path.join(self.output_dir, 'UngappedAlignment.fa'))
-        # Compute distance between all sequences in the alignment
-        query_alignment.compute_distance_matrix(save_file=os.path.join(self.output_dir, 'X'))
-        # Determine the full clustering tree for the alignment and the ordering of its sequences.
-        query_alignment.set_tree_ordering()
-        print('Query Sequence:')
-        print(query_alignment.query_sequence)
-        self.alignment = query_alignment
 
     def determine_whole_mip(self, evidence):
         """

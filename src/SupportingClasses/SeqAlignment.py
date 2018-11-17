@@ -478,12 +478,13 @@ class SeqAlignment(object):
         elif isinstance(tree_depth, tuple):
             if len(tree_depth) != 2:
                 raise ValueError('If a tuple is provided for tree_depth, two values must be specified.')
-            tree_depth = [1] + range(tree_depth[0], tree_depth[1])
+            tree_depth = list(range(tree_depth[0], tree_depth[1]))
         elif isinstance(tree_depth, list):
-            if tree_depth[0] != 1:
-                tree_depth = [1] + tree_depth
+            pass
         else:
             raise ValueError('tree_depth must be None, a tuple, or a list.')
+        if tree_depth[0] != 1:
+            tree_depth = [1] + tree_depth
         if cache_dir is None:
             remove_dir = True
             cache_dir = os.getcwd()
