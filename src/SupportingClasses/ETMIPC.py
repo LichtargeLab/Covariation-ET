@@ -76,19 +76,17 @@ class ETMIPC(object):
             self.alignment = alignment.file_name
         else:
             self.alignment = alignment
-        self.output_dir = None
-        self.clusters = None
-        self.whole_mip_matrix = None
-        self.low_mem = None
-        self.sub_alignments = None
-        self.processes = None
-        self.whole_evidence_matrix = None
-        self.raw_scores = None
-        self.evidence_counts = None
-        self.result_matrices = None
+        self.tree_depth = None
+        self.nongap_counts = None
+        self.unique_clusters = None
+        self.cluster_scores = None
+        self.branch_scores = None
         self.scores = None
         self.coverage = None
-        self.time = None
+        self.times = None
+        self.processes = None
+        self.low_mem = None
+        self.output_dir = None
 
     def get_raw_scores(self, c=None, k=None, three_dim=False):
         """
