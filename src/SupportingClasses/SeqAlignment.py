@@ -642,7 +642,7 @@ class SeqAlignment(object):
                 alignment_to_num[i, j] = aa_dict[curr_seq[j]]
         return alignment_to_num
 
-    def heatmap_plot(self, name, out_dir=None, aa_dict=None, save=True):
+    def heatmap_plot(self, name, aa_dict, out_dir=None, save=True):
         """
         Heatmap Plot
 
@@ -656,8 +656,9 @@ class SeqAlignment(object):
         """
         start = time()
         df = pd.DataFrame(self._alignment_to_num(aa_dict), index=self.seq_order,
-                          columns=list(self.query_sequence))
-        df = df.loc[self.tree_order]
+                          columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
+        if self.tree_order:
+            df = df.loc[self.tree_order]
         if aa_dict:
             cmap = matplotlib.cm.get_cmap('jet', len(aa_dict))
         else:
@@ -668,7 +669,7 @@ class SeqAlignment(object):
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
         plt.title(name)
         if save:
-            file_name = name.replace(' ', '_') + '.pdf'
+            file_name = name.replace(' ', '_') + '.eps'
             if out_dir:
                 file_name = os.path.join(out_dir, file_name)
             plt.savefig(file_name)
@@ -676,4 +677,4 @@ class SeqAlignment(object):
         plt.show()
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
-        return hm
+        return df, hm

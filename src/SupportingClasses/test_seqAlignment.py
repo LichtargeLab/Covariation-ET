@@ -1107,6 +1107,61 @@ class TestSeqAlignment(TestCase):
             for j in range(aln_obj2.seq_length):
                 self.assertEqual(aln_obj2_num[i, j], aa_dict[aln_obj2.alignment[i, j]])
 
-    # def test_heatmap_plot(self):
-    #     self.fail()
-    #
+    def test_heatmap_plot(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        with self.assertRaises(TypeError):
+            aln_obj1.set_tree_ordering()
+        aln_obj1.import_alignment()
+        df1a, _hm1a = aln_obj1.heatmap_plot(name='1c17A Alignment Visualization Seq Order', aa_dict=aa_dict,
+                                            out_dir=os.path.abspath('../Test/'), save=True)
+        for i in range(aln_obj1.size):
+            self.assertEqual(df1a.index[i], aln_obj1.seq_order[i])
+            for j in range(aln_obj1.seq_length):
+                self.assertEqual(df1a.loc[aln_obj1.seq_order[i], '{}:{}'.format(j, aln_obj1.query_sequence[j])],
+                                 aa_dict[aln_obj1.alignment[i, j]])
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'),
+                                                    '1c17A Alignment Visualization Seq Order.eps'.replace(' ', '_'))))
+        os.remove(os.path.join(os.path.abspath('../Test/'),
+                               '1c17A Alignment Visualization Seq Order.eps'.replace(' ', '_')))
+        aln_obj1.set_tree_ordering(tree_depth=range(2, 10, 2))
+        df1b, _hm1b = aln_obj1.heatmap_plot(name='1c17A Alignment Visualization Tree Order', aa_dict=aa_dict,
+                                            out_dir=os.path.abspath('../Test/'), save=True)
+        for i in range(aln_obj1.size):
+            self.assertEqual(df1b.index[i], aln_obj1.tree_order[i])
+            for j in range(aln_obj1.seq_length):
+                self.assertEqual(df1b.loc[aln_obj1.tree_order[i], '{}:{}'.format(j, aln_obj1.query_sequence[j])],
+                                 aa_dict[aln_obj1.alignment[aln_obj1.seq_order.index(aln_obj1.tree_order[i]), j]])
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'),
+                                                    '1c17A Alignment Visualization Tree Order.eps'.replace(' ', '_'))))
+        os.remove(os.path.join(os.path.abspath('../Test/'),
+                               '1c17A Alignment Visualization Tree Order.eps'.replace(' ', '_')))
+        aln_obj2 = SeqAlignment('../Test/1h1vA.fa', '1h1vA')
+        with self.assertRaises(TypeError):
+            aln_obj2._random_assignment(n_cluster=2)
+        aln_obj2.import_alignment()
+        df2a, _hm2a = aln_obj2.heatmap_plot(name='1h1vA Alignment Visualization Seq Order', aa_dict=aa_dict,
+                                            out_dir=os.path.abspath('../Test/'), save=True)
+        for i in range(aln_obj2.size):
+            self.assertEqual(df2a.index[i], aln_obj2.seq_order[i])
+            for j in range(aln_obj2.seq_length):
+                self.assertEqual(df2a.loc[aln_obj2.seq_order[i], '{}:{}'.format(j, aln_obj2.query_sequence[j])],
+                                 aa_dict[aln_obj2.alignment[i, j]])
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'),
+                                                    '1h1vA Alignment Visualization Seq Order.eps'.replace(' ', '_'))))
+        os.remove(os.path.join(os.path.abspath('../Test/'),
+                               '1h1vA Alignment Visualization Seq Order.eps'.replace(' ', '_')))
+        aln_obj2.set_tree_ordering(tree_depth=range(2, 10, 2))
+        df2b, _hm2b = aln_obj2.heatmap_plot(name='1h1vA Alignment Visualization Tree Order', aa_dict=aa_dict,
+                                            out_dir=os.path.abspath('../Test/'), save=True)
+        for i in range(aln_obj2.size):
+            self.assertEqual(df2b.index[i], aln_obj2.tree_order[i])
+            for j in range(aln_obj2.seq_length):
+                self.assertEqual(df2b.loc[aln_obj2.tree_order[i], '{}:{}'.format(j, aln_obj2.query_sequence[j])],
+                                 aa_dict[aln_obj2.alignment[aln_obj2.seq_order.index(aln_obj2.tree_order[i]), j]])
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'),
+                                                    '1h1vA Alignment Visualization Tree Order.eps'.replace(' ', '_'))))
+        os.remove(os.path.join(os.path.abspath('../Test/'),
+                               '1h1vA Alignment Visualization Tree Order.eps'.replace(' ', '_')))
