@@ -88,7 +88,7 @@ class ETMIPC(object):
         self.low_mem = None
         self.output_dir = None
 
-    def import_alignment(self, query, aa_dict, ignore_alignment_size=False, clustering='agglomerative',
+    def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',
                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}):
         """
         Import Alignment
@@ -124,18 +124,19 @@ class ETMIPC(object):
         # Write the ungapped alignment to file.
         query_alignment.write_out_alignment(file_name=os.path.join(self.output_dir, 'UngappedAlignment.fa'))
         # Determine the full clustering tree for the alignment and the ordering of its sequences.
-        query_alignment.set_tree_ordering(tree_depth=self.tree_depth, cache_dir=self.output_dir, clustering=clustering,
-                                          clustering_args=clustering_args)
+        tree_depth = query_alignment.set_tree_ordering(tree_depth=self.tree_depth, cache_dir=self.output_dir,
+                                                       clustering=clustering, clustering_args=clustering_args)
         unique_assignments = {}
         for branch in query_alignment.sequence_assignments:
             for cluster in query_alignment.sequence_assignments[branch]:
-                assignments = query_alignment.sequence_assignments[branch][cluster]
+                assignments = '_'.join(sorted(query_alignment.sequence_assignments[branch][cluster]))
                 if assignments not in unique_assignments:
                     unique_assignments[assignments] = {'tree_positions': set()}
                 unique_assignments[assignments]['tree_positions'].add((branch, cluster))
         print('Query Sequence: {}'.format(query_alignment.query_sequence))
         self.alignment = query_alignment
         self.unique_clusters = unique_assignments
+        self.tree_depth = tree_depth
 
     def get_raw_scores(self, c=None, k=None, three_dim=False):
         """
