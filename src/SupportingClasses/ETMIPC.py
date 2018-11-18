@@ -101,9 +101,6 @@ class ETMIPC(object):
         Args:
             query (str): A string specifying the name of the target query in the alignment, '>query_' will be prepended
             to the provided string to find it in the alignment.
-            aa_dict (dict): A dictionary mapping single letter amino acid codes (inlcuding '-' for the gap character) to
-            integer values. This is used to convert the alignment into a numerical format which is used for quickly
-            computing distances based on sequence identity.
             ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
             provided has fewer than 125 sequences a ValueError will be raised.
         """
@@ -131,7 +128,9 @@ class ETMIPC(object):
             for cluster in query_alignment.sequence_assignments[branch]:
                 assignments = '_'.join(sorted(query_alignment.sequence_assignments[branch][cluster]))
                 if assignments not in unique_assignments:
-                    unique_assignments[assignments] = {'tree_positions': set()}
+                    unique_assignments[assignments] = {'tree_positions': set(),
+                                                       'sub_alignment': self.alignment.generate_sub_alignment(
+                                                           query_alignment.sequence_assignments[branch][cluster])}
                 unique_assignments[assignments]['tree_positions'].add((branch, cluster))
         print('Query Sequence: {}'.format(query_alignment.query_sequence))
         self.alignment = query_alignment
