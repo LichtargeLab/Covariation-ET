@@ -822,12 +822,14 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj1.set_tree_ordering()
         aln_obj1.import_alignment()
-        aln_obj1.set_tree_ordering(tree_depth=(2, 5))
+        aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=os.path.abspath('../Test/'),
+                                   clustering_args={'affinity': 'euclidean', 'linkage': 'ward'})
         self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
         self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
         self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
         for k in range(2, 5):
             self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k-1))
+        rmtree(os.path.abspath('../Test/joblib'))
         clusters = [1, 2, 3, 5, 7, 10, 25]
         aln_obj1.set_tree_ordering(tree_depth=clusters)
         self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
@@ -846,12 +848,14 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
         aln_obj2.import_alignment()
-        aln_obj2.set_tree_ordering(tree_depth=(2, 5))
+        aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=os.path.abspath('../Test/'),
+                                   clustering_args={'affinity': 'euclidean', 'linkage': 'ward'})
         self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
         self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
         self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
         for k in range(2, 5):
             self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        rmtree(os.path.abspath('../Test/joblib'))
         clusters = [1, 2, 3, 5, 7, 10, 25]
         aln_obj2.set_tree_ordering(tree_depth=clusters)
         self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))

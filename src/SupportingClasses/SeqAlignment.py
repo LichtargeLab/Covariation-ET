@@ -461,7 +461,7 @@ class SeqAlignment(object):
     #     else:
     #         pass
 
-    def set_tree_ordering(self, tree_depth=None, clustering='agglomerative', cache_dir=None, clustering_args={}):
+    def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
@@ -491,7 +491,15 @@ class SeqAlignment(object):
         else:
             remove_dir = False
         for k in tree_depth:
-            cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, *clustering_args)
+            cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, **clustering_args)
+            # if clustering == 'agglomerative':
+            #     print(cache_dir)
+            #     print(clustering_args)
+            #     cluster_list = self._agglomerative_clustering(n_cluster=k, cache_dir=cache_dir, **clustering_args)
+            # elif clustering == 'random':
+            #     cluster_list = self._random_assignment(new_clusters=k, cache_dir=cache_dir)
+            # else:
+            #     raise NotImplemented('{} clustering method not implemented'.format(clustering))
             new_clusters = self._re_label_clusters(curr_order, cluster_list)
             curr_order = new_clusters
             sequence_assignments[k] = {}
@@ -503,6 +511,7 @@ class SeqAlignment(object):
         self.tree_order = list(zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0])
         if remove_dir:
             rmtree(os.path.join(cache_dir, 'joblib'))
+        return tree_depth
 
     def visualize_tree(self, out_dir=None):
         if out_dir is None:
