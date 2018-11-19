@@ -63,6 +63,8 @@ class TestETMIPC(TestCase):
         etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
         self.assertEqual(etmipc1.tree_depth, [1, 2, 3, 4])
         self.assertEqual(len(etmipc1.unique_clusters), 7)
+        self.assertEqual(len(etmipc1.cluster_mapping), 10)
+        self.assertEqual(len(set(etmipc1.cluster_mapping.values())), 7)
         tree_points = set()
         for unique in etmipc1.unique_clusters:
             tree_points = tree_points.union(etmipc1.unique_clusters[unique]['tree_positions'])
@@ -122,6 +124,8 @@ class TestETMIPC(TestCase):
         tree_points = set()
         for unique in etmipc2.unique_clusters:
             tree_points = tree_points.union(etmipc2.unique_clusters[unique]['tree_positions'])
+        self.assertEqual(len(etmipc2.cluster_mapping), 10)
+        self.assertEqual(len(set(etmipc2.cluster_mapping.values())), 7)
         self.assertEqual(len(tree_points), 10)
         self.assertIsInstance(etmipc2.alignment, SeqAlignment)
         self.assertFalse(etmipc2.alignment.file_name.startswith('..'), 'Filename set to absolute path.')

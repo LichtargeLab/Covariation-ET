@@ -79,6 +79,7 @@ class ETMIPC(object):
         self.tree_depth = None
         self.nongap_counts = None
         self.unique_clusters = None
+        self.cluster_mapping = None
         self.cluster_scores = None
         self.branch_scores = None
         self.scores = None
@@ -124,18 +125,29 @@ class ETMIPC(object):
         tree_depth = query_alignment.set_tree_ordering(tree_depth=self.tree_depth, cache_dir=self.output_dir,
                                                        clustering=clustering, clustering_args=clustering_args)
         unique_assignments = {}
+        first_occurrence = {}
+        cluster_mapping = {}
         for branch in query_alignment.sequence_assignments:
             for cluster in query_alignment.sequence_assignments[branch]:
-                assignments = '_'.join(sorted(query_alignment.sequence_assignments[branch][cluster]))
-                if assignments not in unique_assignments:
-                    unique_assignments[assignments] = {'tree_positions': set(),
-                                                       'sub_alignment': self.alignment.generate_sub_alignment(
-                                                           query_alignment.sequence_assignments[branch][cluster])}
-                unique_assignments[assignments]['tree_positions'].add((branch, cluster))
+                # assignments = '_'.join(sorted(query_alignment.sequence_assignments[branch][cluster]))
+                assignments = frozenset(query_alignment.sequence_assignments[branch][cluster])
+                tree_position = (branch, cluster)
+                # if assignments not in unique_assignments:
+                if assignments not in first_occurrence:
+                    first_occurrence[assignments] = tree_position
+                    unique_assignments[tree_position] = {'assignments': assignments, 'tree_positions': set(),
+                                                         'sub_alignment': query_alignment.generate_sub_alignment(
+                                                             assignments)}
+                unique_assignments[first_occurrence[assignments]]['tree_positions'].add(tree_position)
+                cluster_mapping[tree_position] = first_occurrence[assignments]
         print('Query Sequence: {}'.format(query_alignment.query_sequence))
         self.alignment = query_alignment
         self.unique_clusters = unique_assignments
+        self.cluster_mapping = cluster_mapping
         self.tree_depth = tree_depth
+
+    def get_sub_alignment(self, branch, cluster):
+        return self.unique_clusters[self.cluster_mapping[(branch, cluster)]]['sub_alignment']
 
     def get_raw_scores(self, c=None, k=None, three_dim=False):
         """
