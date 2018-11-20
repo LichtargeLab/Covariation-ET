@@ -693,7 +693,7 @@ class TestETMIPC(TestCase):
         pool_init_score(evidence=True, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
                         out_dir=out_dir, low_mem=True)
         etmipc2_mip_res1 = mip_score((1, 0))
-        etmipc2_conservateive_mip = conservative_mip(etmipc1.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(aa_dict))
+        etmipc2_conservateive_mip = conservative_mip(etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(aa_dict))
         self.assertEqual(etmipc2_mip_res1[0], (1, 0))
         self.assertEqual(etmipc2_mip_res1[1], single_matrix_filename(name='Raw_C0', k=1, out_dir=out_dir)[1])
         self.assertLess(np.sum(load_single_matrix(name='Raw_C0', k=1, out_dir=out_dir) - etmipc2_conservateive_mip),
