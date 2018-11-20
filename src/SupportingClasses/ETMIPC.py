@@ -135,9 +135,8 @@ class ETMIPC(object):
                 # if assignments not in unique_assignments:
                 if assignments not in first_occurrence:
                     first_occurrence[assignments] = tree_position
-                    unique_assignments[tree_position] = {'assignments': assignments, 'tree_positions': set(),
-                                                         'sub_alignment': query_alignment.generate_sub_alignment(
-                                                             assignments)}
+                    unique_assignments[tree_position] = {'assignments': assignments, 'tree_positions': set(), 'time': 0,
+                                                         'sub_alignment': None, 'raw_scores': None, 'evidence': None}
                 unique_assignments[first_occurrence[assignments]]['tree_positions'].add(tree_position)
                 cluster_mapping[tree_position] = first_occurrence[assignments]
         print('Query Sequence: {}'.format(query_alignment.query_sequence))
@@ -145,6 +144,245 @@ class ETMIPC(object):
         self.unique_clusters = unique_assignments
         self.cluster_mapping = cluster_mapping
         self.tree_depth = tree_depth
+
+    @staticmethod
+    def _pool_init_sub_aln(aln, cluster_dict):
+        global full_aln
+        full_aln = aln
+        global assignment_dict
+        assignment_dict = cluster_dict
+
+    @staticmethod
+    def _generate_sub_alignment(tree_position):
+        start = time()
+        sequence_ids = assignment_dict[tree_position]['assignments']
+        end = time()
+        return tree_position, full_aln.generate_sub_alignment(sequence_ids), (end - start)
+
+    def _generate_sub_alignments(self):
+        tree_positions = list(self.unique_clusters.keys())
+        pool = Pool(processes=self.processes, initializer=ETMIPC._pool_init_sub_aln, initargs=(self.alignment,
+                                                                                               self.unique_clusters))
+        pool_res = pool.map_async(ETMIPC._generate_sub_alignment, tree_positions)
+        for res in pool_res.get():
+            self.unique_clusters[res[0]]['sub_alignment'] = res[1]
+            self.unique_clusters[res[0]]['time'] = res[2]
+
+    @staticmethod
+    def _pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
+        global measure_evidence
+        measure_evidence = evidence
+        global sub_alignments
+        sub_alignments = cluster_dict
+        global aa_dict
+        aa_dict = amino_acid_mapping
+        global serialization_dir
+        serialization_dir = out_dir
+        global low_memory_mode
+        low_memory_mode = low_mem
+
+    @staticmethod
+    def _single_matrix_filename(name, k, out_dir):
+        c_out_dir = os.path.join(out_dir, str(k))
+        fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
+        return fn
+
+    @staticmethod
+    def _save_single_matrix(name, k, mat, out_dir):
+        """
+        Save Single Matrix
+
+        This function can be used to save any of the several matrices which need to be saved to disk in order to reduce the
+        memory footprint when the cET-MIp variable low_mem is set to true.
+
+        Args:
+            name (str): A string specifying what kind of data is being stored, expected values include:
+                Result
+                Summary
+                Coverage
+            k (int): An integer specifying which clustering constant to load data for.
+            mat (np.array): The array for the given type of data to save for the specified cluster.
+            out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
+        """
+        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        np.savez(fn, mat=mat)
+        return fn
+
+    @staticmethod
+    def _exists_single_matrix(name, k, out_dir):
+        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        if os.path.isfile(fn):
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def _load_single_matrix(name, k, out_dir):
+        """
+        Load Single Matrix
+
+        This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
+        footprint when the cET-MIp variable low_mem is set to true.
+
+        Args:
+            file_path (str/path): The path to the matrix to be loaded. The expectation is that the matrix will be named
+            'mat' in the .npz file which is passed for loading.
+        Returns:
+            np.array. The array for the given type of data loaded for the specified cluster.
+        """
+        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        data = np.load(fn)
+        return data['mat']
+
+    @staticmethod
+    def mip_score(tree_position):
+        """
+        Whole Analysis
+
+        Generates the MIP matrix.
+
+        Args:
+            alignment (SeqAlignment): A class containing the query sequence alignment in different formats, as well as
+            summary values.
+            evidence (bool): Whether or not to normalize using the evidence using the evidence counts computed while
+            performing the coupling scoring.
+            save_file (str): File path to a previously stored MIP matrix (.npz should be excluded as it will be added
+            automatically).
+        Returns:
+            np.array. Matrix of MIP scores which has dimensions seq_length by seq_length.
+            np.array. Matrix containing the number of sequences which are not gaps in either position used for scoring the
+            whole_mip_matrix.
+        """
+        start = time()
+        mip_fn_bool = ETMIPC._exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+                                                   out_dir=serialization_dir)
+        evidence_fn_bool = ETMIPC._exists_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
+                                                        k=tree_position[0], out_dir=serialization_dir)
+        if low_memory_mode and mip_fn_bool and evidence_fn_bool:
+            mip_matrix = ETMIPC._single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+                                                              out_dir=serialization_dir)
+            evidence_matrix = ETMIPC._single_matrix_filename('Evidence_C{}'.format(tree_position[1]), k=tree_position[0],
+                                        out_dir=serialization_dir)
+        else:
+            alignment = sub_alignments[tree_position]['sub_alignment']
+            overall_mmi = 0.0
+            # generate an MI matrix for each cluster
+            mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+            evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+            # Vector of 1 column
+            mmi = np.zeros(alignment.seq_length)
+            apc_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+            mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+            # Generate MI matrix from alignment2Num matrix, the mmi matrix,
+            # and overall_mmi
+            alignment_matrix = alignment._alignment_to_num(aa_dict=aa_dict)
+            for i in range(alignment.seq_length):
+                for j in range(i + 1, alignment.seq_length):
+                    if measure_evidence:
+                        _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
+                    else:
+                        ev = 0
+                    col_i = alignment_matrix[:, i]
+                    col_j = alignment_matrix[:, j]
+                    try:
+                        curr_mis = mutual_info_score(col_i, col_j, contingency=None)
+                    except:
+                        print col_i
+                        print col_j
+                        exit()
+                    # AW: divides by individual entropies to normalize.
+                    mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
+                    evidence_matrix[i, j] = evidence_matrix[j, i] = ev
+                    overall_mmi += curr_mis
+            mmi += np.sum(mi_matrix, axis=1)
+            mmi -= mi_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)]
+            mmi /= (alignment.seq_length - 1)
+            overall_mmi = 2.0 * (overall_mmi / (alignment.seq_length - 1)) / alignment.seq_length
+            # Calculating APC
+            apc_matrix += np.outer(mmi, mmi)
+            apc_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
+            apc_matrix /= overall_mmi
+            # Defining MIP matrix
+            mip_matrix += mi_matrix - apc_matrix
+            mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
+            if low_memory_mode:
+                mip_matrix = ETMIPC.save_single_matrix(name='Raw_C{}'.fromat(tree_position[1], k=tree_position[0],
+                                                                             mat=mip_matrix, out_dir=serialization_dir))
+                evidence_matrix = ETMIPC.save_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
+                                                            k=tree_position[0], mat=evidence_matrix,
+                                                            out_dir=serialization_dir)
+        end = time()
+        print('MIp scoring took {} min'.format((end - start) / 60.0))
+        return tree_position, mip_matrix, evidence_matrix, (end - start)
+
+    def _score_clusters(self, evidence, aa_dict):
+        tree_positions = list(self.unique_clusters.keys())
+        pool = Pool(processes=self.processes, initializer=ETMIPC._pool_init_score,
+                    initargs=(evidence, self.unique_clusters, aa_dict))
+        pool_res = pool.map_async(ETMIPC._generate_sub_alignment, tree_positions)
+        for res in pool_res.get():
+            self.unique_clusters[res[0]]['raw_score'] = res[1]
+            self.unique_clusters[res[0]]['evidence'] = res[2]
+            self.unique_clusters[res[0]]['time'] = res[3]
+
+    def calculate_cluster_scores(self, evidence, aa_dict):
+        self._generate_sub_alignments()
+        self._score_clusters(evidence=evidence, aa_dict=aa_dict)
+
+    @staticmethod
+    def _init_calculate_branch_score(curr_instance, combine_clusters):
+        global instance
+        instance = curr_instance
+        global combination_method
+        combination_method = combine_clusters
+
+    @staticmethod
+    def _calculate_branch_score(branch):
+        start = time()
+        branch_score_fn_bool = ETMIPC._exists_single_matrix(name='Result', k=branch, out_dir=instance.output_dir)
+        if instance.low_mem and branch_score_fn_bool:
+            branch_score = ETMIPC._single_matrix_filename(name='Result', k=branch, out_dir=instance.output_dir)
+        else:
+            curr_raw_scores = instance.get_raw_scores(c=branch, three_dim=True)
+            curr_evidence = instance.get_evidence_counts(c=branch, three_dim=True)
+            # Additive clusters
+            if combination_method == 'sum':
+                res_matrix = np.sum(curr_raw_scores, axis=0)
+            # Normal average over clusters
+            elif combination_method == 'average':
+                res_matrix = np.mean(curr_raw_scores, axis=0)
+            # Weighted average over clusters based on cluster sizes
+            elif combination_method == 'size_weighted':
+                weighting = np.array([instance.unique_clusters[branch][sub].size for sub in range(branch)])
+                res_matrix = weighting[:, None, None] * curr_raw_scores
+                res_matrix = np.sum(res_matrix, axis=0) / instance.alignment.size
+            # Weighted average over clusters based on evidence counts at each
+            # pair vs. the number of sequences with evidence for that pairing.
+            elif combination_method == 'evidence_weighted':
+                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / np.sum(curr_evidence, axis=0))
+            # Weighted average over clusters based on evidence counts at each
+            # pair vs. the entire size of the alignment.
+            elif combination_method == 'evidence_vs_size':
+                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / float(instance.alignment.size))
+            else:
+                print 'Combination method not yet implemented'
+                raise NotImplementedError()
+            res_matrix[np.isnan(res_matrix)] = 0.0
+            if instance.low_mem:
+                res_matrix = ETMIPC._save_single_matrix('Result', branch, res_matrix, instance.output_dir)
+        end = time()
+        print('Branch scoring took {} min'.format((end - start) / 60.0))
+        return branch, branch_score, (end - start)
+
+    def calculate_branch_scores(self, combine_clusters):
+        pool = Pool(processes=self.processes, initializer=ETMIPC._init_calculate_branch_score,
+                    initargs=(self, combine_clusters))
+        pool_res = pool.map_async(ETMIPC._calculate_branch_score, self.clusters)
+        self.branch_scores = {}
+        for res in pool_res.get():
+            self.branch_scores[res[0]] = {}
+            self.branch_scores[res[0]]['scores'] = res[1]
+            self.branch_scores[res[0]]['time'] = res[2]
 
     def get_sub_alignment(self, branch, cluster):
         return self.unique_clusters[self.cluster_mapping[(branch, cluster)]]['sub_alignment']
@@ -263,109 +501,6 @@ class ETMIPC(object):
         attr = self.__getattribute__(item)
         return get_k_level_matrices(input=attr, low_mem=self.low_mem, c=c)
 
-    def determine_whole_mip(self, evidence):
-        """
-        Determine Whole MIp
-
-        This method performs the whole_analysis method on all sequences in the sequence alignment. This method updates
-        the whole_mip_matrix and whole_evidence_matrix class variables.
-
-        Args:
-            evidence (bool): Whether or not to normalize using the evidence counts computed while performing the
-            coupling scoring.
-        """
-        mip_matrix, evidence_counts = whole_analysis(self.alignment, evidence, save_file=os.path.join(self.output_dir,
-                                                                                                      'wholeMIP'))
-        self.whole_mip_matrix = mip_matrix
-        self.whole_evidence_matrix = evidence_counts
-
-    def calculate_clustered_mip_scores(self, aa_dict, combine_clusters):
-        """
-        Calculate Clustered MIP Scores
-
-        This method calculates the coupling scores for subsets of sequences from the alignment as determined by
-        hierarchical clustering on the distance matrix between sequences of the alignment. This method updates the
-        raw_scores, result_matrices, and time class variables.
-
-        Args:
-            aa_dict (dict): A dictionary mapping amino acids to numerical representations.
-            combine_clusters (str): Method by which to combine individual matrices from one round of clustering. The
-            options supported now are: sum, average, size_weighted, evidence_weighted, and evidence_vs_size.
-        """
-        cetmip_manager = Manager()
-        k_queue = cetmip_manager.Queue()
-        sub_alignment_queue = cetmip_manager.Queue()
-        res_queue = cetmip_manager.Queue()
-        alignment_lock = cetmip_manager.Lock()
-        for k in self.clusters:
-            k_queue.put(k)
-        if self.processes == 1:
-            pool_init1(aa_dict, combine_clusters, self.alignment, self.output_dir, alignment_lock, k_queue,
-                       sub_alignment_queue, res_queue, self.low_mem)
-            cluster_sizes, sub_alignments, cluster_times = et_mip_worker1((1, 1))
-            print sub_alignment_queue.qsize()
-            self.time = cluster_times
-            self.sub_alignments = sub_alignments
-        else:
-            pool = Pool(processes=self.processes, initializer=pool_init1,
-                        initargs=(aa_dict, combine_clusters, self.alignment, self.output_dir, alignment_lock, k_queue,
-                                  sub_alignment_queue, res_queue, self.low_mem))
-            pool_res = pool.map_async(et_mip_worker1, [(x + 1, self.processes) for x in range(self.processes)])
-            pool.close()
-            pool.join()
-            cluster_dicts = pool_res.get()
-            cluster_sizes = {}
-            for cD in cluster_dicts:
-                for c in cD[0]:
-                    if c not in cluster_sizes:
-                        cluster_sizes[c] = {}
-                    for s in cD[0][c]:
-                        cluster_sizes[c][s] = cD[0][c][s]
-                for c in cD[1]:
-                    for s in cD[1][c]:
-                        self.sub_alignments[c][s] = cD[1][c][s]
-                for c in cD[2]:
-                    self.time[c] += cD[2][c]
-        # Retrieve results
-        while not res_queue.empty():
-            r = res_queue.get_nowait()
-            self.raw_scores[r[0]][r[1]] = r[2]
-            self.evidence_counts[r[0]][r[1]] = r[3]
-        # Combine results
-        for c in self.clusters:
-            curr_raw_scores = self.get_raw_scores(c=c, three_dim=True)
-            curr_evidence = self.get_evidence_counts(c=c, three_dim=True)
-            start = time()
-            # Additive clusters
-            if combine_clusters == 'sum':
-                res_matrix = np.sum(curr_raw_scores, axis=0)
-            # Normal average over clusters
-            elif combine_clusters == 'average':
-                res_matrix = np.mean(curr_raw_scores, axis=0)
-            # Weighted average over clusters based on cluster sizes
-            elif combine_clusters == 'size_weighted':
-                weighting = np.array([cluster_sizes[c][s]
-                                      for s in sorted(cluster_sizes[c].keys())])
-                res_matrix = weighting[:, None, None] * curr_raw_scores
-                res_matrix = np.sum(res_matrix, axis=0) / self.alignment.size
-            # Weighted average over clusters based on evidence counts at each
-            # pair vs. the number of sequences with evidence for that pairing.
-            elif combine_clusters == 'evidence_weighted':
-                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / np.sum(curr_evidence, axis=0))
-            # Weighted average over clusters based on evidence counts at each
-            # pair vs. the entire size of the alignment.
-            elif combine_clusters == 'evidence_vs_size':
-                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / float(self.alignment.size))
-            else:
-                print 'Combination method not yet implemented'
-                raise NotImplementedError()
-            res_matrix[np.isnan(res_matrix)] = 0.0
-            if self.low_mem:
-                res_matrix = save_single_matrix('Result', c, res_matrix, self.output_dir)
-            self.result_matrices[c] = res_matrix
-            end = time()
-            self.time[c] += end - start
-
     def combine_clustering_results(self, combination):
         """
         Combine Clustering Result
@@ -388,7 +523,7 @@ class ETMIPC(object):
             if combination == 'average':
                 curr_summary /= (i + 2)
             if self.low_mem:
-                fn = save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
+                fn = ETMIPC._save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
                 self.scores[curr_clus] = fn
             else:
                 self.scores[curr_clus] = curr_summary
@@ -611,46 +746,6 @@ class ETMIPC(object):
         from IPython import embed
         embed()
 
-
-def save_single_matrix(name, k, mat, out_dir):
-    """
-    Save Single Matrix
-
-    This function can be used to save any of the several matrices which need to be saved to disk in order to reduce the
-    memory footprint when the cET-MIp variable low_mem is set to true.
-
-    Args:
-        name (str): A string specifying what kind of data is being stored, expected values include:
-            Result
-            Summary
-            Coverage
-        k (int): An integer specifying which clustering constant to load data for.
-        mat (np.array): The array for the given type of data to save for the specified cluster.
-        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
-    """
-    c_out_dir = os.path.join(out_dir, str(k))
-    fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
-    np.savez(fn, mat=mat)
-    return fn
-
-
-def load_single_matrix(file_path):
-    """
-    Load Single Matrix
-
-    This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
-    footprint when the cET-MIp variable low_mem is set to true.
-
-    Args:
-        file_path (str/path): The path to the matrix to be loaded. The expectation is that the matrix will be named
-        'mat' in the .npz file which is passed for loading.
-    Returns:
-        np.array. The array for the given type of data loaded for the specified cluster.
-    """
-    data = np.load(file_path)
-    return data['mat']
-
-
 def get_k_level_matrices(input, low_mem, c=None):
     """
     Get K Level Matrices
@@ -667,9 +762,9 @@ def get_k_level_matrices(input, low_mem, c=None):
     """
     if low_mem:
         if c:
-            return load_single_matrix(input[c])
+            return ETMIPC._load_single_matrix(input[c])
         else:
-            return {c: load_single_matrix(input[c]) for c in input}
+            return {c: ETMIPC._load_single_matrix(input[c]) for c in input}
     else:
         if c:
             return input[c]
@@ -698,11 +793,11 @@ def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
     if c is not None:
         if k is not None:
             if low_mem:
-                return load_single_matrix(input[c][k])
+                return ETMIPC._load_single_matrix(input[c][k])
             else:
                 return input[c][k]
         if low_mem:
-            curr_matrices = {k: load_single_matrix(input[c][k]) for k in range(c)}
+            curr_matrices = {k: ETMIPC._load_single_matrix(input[c][k]) for k in range(c)}
         else:
             curr_matrices = input[c]
         if three_dim:
@@ -711,212 +806,9 @@ def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
             return curr_matrices
     else:
         if low_mem:
-            return {c: {k: load_single_matrix(input[c][k]) for k in input[c]} for c in input}
+            return {c: {k: ETMIPC._load_single_matrix(input[c][k]) for k in input[c]} for c in input}
         else:
             return input
-
-
-def whole_analysis(alignment, evidence, save_file=None):
-    """
-    Whole Analysis
-
-    Generates the MIP matrix.
-
-    Args:
-        alignment (SeqAlignment): A class containing the query sequence alignment in different formats, as well as
-        summary values.
-        evidence (bool): Whether or not to normalize using the evidence using the evidence counts computed while
-        performing the coupling scoring.
-        save_file (str): File path to a previously stored MIP matrix (.npz should be excluded as it will be added
-        automatically).
-    Returns:
-        np.array. Matrix of MIP scores which has dimensions seq_length by seq_length.
-        np.array. Matrix containing the number of sequences which are not gaps in either position used for scoring the
-        whole_mip_matrix.
-    """
-    start = time()
-    if (save_file is not None) and os.path.exists(save_file + '.npz'):
-        loaded_data = np.load(save_file + '.npz')
-        mip_matrix = loaded_data['wholeMIP']
-        evidence_matrix = loaded_data['evidence']
-    else:
-        overall_mmi = 0.0
-        # generate an MI matrix for each cluster
-        mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-        evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-        # Vector of 1 column
-        mmi = np.zeros(alignment.seq_length)
-        apc_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-        mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-        # Generate MI matrix from alignment2Num matrix, the mmi matrix,
-        # and overall_mmi
-        for i in range(alignment.seq_length):
-            for j in range(i + 1, alignment.seq_length):
-                if evidence:
-                    _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
-                else:
-                    ev = 0
-                col_i = alignment.alignment_matrix[:, i]
-                col_j = alignment.alignment_matrix[:, j]
-                try:
-                    curr_mis = mutual_info_score(col_i, col_j, contingency=None)
-                except:
-                    print col_i
-                    print col_j
-                    exit()
-                # AW: divides by individual entropies to normalize.
-                mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
-                evidence_matrix[i, j] = evidence_matrix[j, i] = ev
-                overall_mmi += curr_mis
-        mmi += np.sum(mi_matrix, axis=1)
-        mmi -= mi_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)]
-        mmi /= (alignment.seq_length - 1)
-        overall_mmi = 2.0 * (overall_mmi / (alignment.seq_length - 1)) / alignment.seq_length
-        # Calculating APC
-        apc_matrix += np.outer(mmi, mmi)
-        apc_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
-        apc_matrix /= overall_mmi
-        # Defining MIP matrix
-        mip_matrix += mi_matrix - apc_matrix
-        mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
-        if save_file is not None:
-            np.savez(save_file, wholeMIP=mip_matrix, evidence=evidence_matrix)
-    end = time()
-    print('Whole analysis took {} min'.format((end - start) / 60.0))
-    return mip_matrix, evidence_matrix
-
-
-def pool_init1(aa_reference, w_cc, original_alignment, save_dir, align_lock, k_queue, sub_alignment_queue, res_queue,
-               low_mem):
-    """
-    Pool Init
-
-    A function which initializes processes spawned in a worker pool performing the etMIPWorker function.  This provides
-    a set of variables to all working processes which are shared.
-
-    Args:
-        aa_reference (dict): Dictionary mapping amino acid abbreviations.
-        w_cc (str): Method by which to combine individual matrices from one round of clustering. The options supported
-        now are: sum, average, size_weighted, and evidence_weighted.
-        original_alignment (SeqAlignment): Alignment held by the instance of ETMIPC which called this method.
-        save_dir (str): The caching directory used to save results from agglomerative clustering.
-        align_lock (multiprocessing.Manager.Lock()): Lock used to regulate access to the alignment object for the
-        purpose of setting the tree order.
-        k_queue (multiprocessing.Manager.Queue()): Queue used for tracking the k's for which clustering still needs to
-        be performed.
-        sub_alignment_queue (multiprocessing.Manager.Queue()): Queue used to track the subalignments generated by
-        clustering based on the k's in the k_queue.
-        res_queue (multiprocessing.Manager.Queue()): Queue used to track final results generated by this method.
-        low_mem (bool): Whether or not low memory mode should be used.
-    """
-    global aa_dict
-    aa_dict = aa_reference
-    global within_cluster_combi
-    within_cluster_combi = w_cc
-    global initial_alignment
-    initial_alignment = original_alignment
-    global cache_dir
-    cache_dir = save_dir
-    global k_lock
-    k_lock = align_lock
-    global queue1
-    queue1 = k_queue
-    global queue2
-    queue2 = sub_alignment_queue
-    global queue3
-    queue3 = res_queue
-    global pool1_mem_mode
-    pool1_mem_mode = low_mem
-
-
-def et_mip_worker1(in_tup):
-    """
-    ET-MIp Worker
-
-    Performs clustering and calculation of cluster dependent sequence distances. This function requires initialization
-    of threads with poolInit, or setting of global variables as described in that function.
-
-    Args:
-        in_tup (tuple): Tuple containing the one int specifying which process this is, and a second int specifying the
-        number of active processes.
-    Returns:
-        dict. Mapping of k, to sub-cluster, to size of sub-cluster.
-        dict. Mapping of k, to sub-cluster, to the SeqAlignment object reprsenting the sequence IDs present in that
-        sub-cluster.
-        dict. Mapping of k to the time spent working on data from that k by this process.
-    """
-    curr_process, total_processes = in_tup
-    cluster_sizes = {}
-    cluster_times = {}
-    sub_alignments = {}
-    while (not queue1.empty()) or (not queue2.empty()):
-        try:
-            print('Processes {}:{} acquiring sub alignment!'.format(
-                curr_process, total_processes))
-            clus, sub, new_alignment = queue2.get_nowait()
-            print('Current alignment has {} sequences'.format(new_alignment.size))
-            start = time()
-            if 'evidence' in within_cluster_combi:
-                clustered_mip_matrix, evidence_mat = whole_analysis(new_alignment, True)
-            else:
-                clustered_mip_matrix, evidence_mat = whole_analysis(new_alignment, False)
-            end = time()
-            time_elapsed = end - start
-            if clus in cluster_times:
-                cluster_times[clus] += time_elapsed
-            else:
-                cluster_times[clus] = time_elapsed
-            print('ETMIP worker took {} min'.format(time_elapsed / 60.0))
-            if pool1_mem_mode:
-                clustered_mip_matrix = save_single_matrix(name='Raw_C{}'.format(sub), k=clus, mat=clustered_mip_matrix,
-                                                          out_dir=cache_dir)
-                evidence_mat = save_single_matrix(name='Evidence_C{}'.format(sub), k=clus, mat=evidence_mat,
-                                                  out_dir=cache_dir)
-            queue3.put((clus, sub, clustered_mip_matrix, evidence_mat))
-            print('Processes {}:{} pushing cET-MIp scores!'.format(
-                curr_process, total_processes))
-            continue
-        except Queue.Empty:
-            print('Processes {}:{} failed to acquire-sub alignment!'.format(
-                curr_process, total_processes))
-            pass
-        try:
-            print('Processes {}:{} acquiring k to generate clusters!'.format(curr_process, total_processes))
-            k_lock.acquire()
-            print('Lock acquired by: {}'.format(curr_process))
-            c = queue1.get_nowait()
-            print('K: {} acquired setting tree'.format(c))
-            start = time()
-            cluster_sizes[c] = {}
-            clus_dict, clus_det = initial_alignment.agg_clustering(n_cluster=c, cache_dir=cache_dir)
-            tree_ordering = []
-            sub_alignments[c] = {}
-            for sub in clus_det:
-                new_alignment = initial_alignment.generate_sub_alignment(clus_dict[sub])
-                cluster_sizes[c][sub] = new_alignment.size
-                # Create matrix converting sequences of amino acids to sequences of
-                # integers representing sequences of amino acids
-                new_alignment.alignment_to_num(aa_dict)
-                queue2.put((c, sub, new_alignment))
-                tree_ordering += new_alignment.tree_order
-                sub_alignments[c][sub] = new_alignment
-            initial_alignment.set_tree_ordering(t_order=tree_ordering)
-            end = time()
-            k_lock.release()
-            if c in cluster_times:
-                cluster_times[c] += (end - start)
-            else:
-                cluster_times[c] = (end - start)
-            print('Processes {}:{} pushing new sub-alignment!'.format(
-                curr_process, total_processes))
-            continue
-        except Queue.Empty:
-            k_lock.release()
-            print('Processes {}:{} failed to acquire k!'.format(
-                curr_process, total_processes))
-            pass
-    print('Process: {} completed and returning!'.format(curr_process))
-    return cluster_sizes, sub_alignments, cluster_times
 
 
 def pool_init2(out_dir, low_mem):
