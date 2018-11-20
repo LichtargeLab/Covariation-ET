@@ -145,25 +145,11 @@ class ETMIPC(object):
         self.cluster_mapping = cluster_mapping
         self.tree_depth = tree_depth
 
-    @staticmethod
-    def _pool_init_sub_aln(aln, cluster_dict):
-        global full_aln
-        full_aln = aln
-        global assignment_dict
-        assignment_dict = cluster_dict
-
-    @staticmethod
-    def _generate_sub_alignment(tree_position):
-        start = time()
-        sequence_ids = assignment_dict[tree_position]['assignments']
-        end = time()
-        return tree_position, full_aln.generate_sub_alignment(sequence_ids), (end - start)
-
     def _generate_sub_alignments(self):
         tree_positions = list(self.unique_clusters.keys())
-        pool = Pool(processes=self.processes, initializer=ETMIPC._pool_init_sub_aln, initargs=(self.alignment,
+        pool = Pool(processes=self.processes, initializer= pool_init_sub_aln, initargs=(self.alignment,
                                                                                                self.unique_clusters))
-        pool_res = pool.map_async(ETMIPC._generate_sub_alignment, tree_positions)
+        pool_res = pool.map_async(generate_sub_alignment, tree_positions)
         for res in pool_res.get():
             self.unique_clusters[res[0]]['sub_alignment'] = res[1]
             self.unique_clusters[res[0]]['time'] = res[2]
@@ -219,10 +205,11 @@ class ETMIPC(object):
         Returns:
             np.array. The array for the given type of data loaded for the specified cluster.
         """
+        data = None
         _, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
-        if ETMIPC._exists_single_matrix(name=name, k=k, out_dir=out_dir)
-        data = np.load(fn)
-        return data['mat']
+        if ETMIPC._exists_single_matrix(name=name, k=k, out_dir=out_dir):
+            data = np.load(fn)['mat']
+        return data
 
     @staticmethod
     def _pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
@@ -748,6 +735,21 @@ class ETMIPC(object):
         grid = sns.FacetGrid(df, row='Cluster', col='Branch')
         from IPython import embed
         embed()
+
+
+def pool_init_sub_aln(aln, cluster_dict):
+    global full_aln
+    full_aln = aln
+    global assignment_dict
+    assignment_dict = cluster_dict
+
+
+def generate_sub_alignment(tree_position):
+    start = time()
+    sequence_ids = assignment_dict[tree_position]['assignments']
+    sub_aln = full_aln.generate_sub_alignment(sequence_ids)
+    end = time()
+    return tree_position, sub_aln, (end - start)
 
 def get_k_level_matrices(input, low_mem, c=None):
     """
