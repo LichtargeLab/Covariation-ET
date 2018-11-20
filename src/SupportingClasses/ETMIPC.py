@@ -172,11 +172,11 @@ class ETMIPC(object):
     def _single_matrix_filename(name, k, out_dir):
         c_out_dir = os.path.join(out_dir, str(k))
         fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
-        return fn
+        return c_out_dir, fn
 
     @staticmethod
     def _exists_single_matrix(name, k, out_dir):
-        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        _, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
         if os.path.isfile(fn):
             return True
         else:
@@ -199,7 +199,9 @@ class ETMIPC(object):
             mat (np.array): The array for the given type of data to save for the specified cluster.
             out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
         """
-        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        parent_dir, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        if not os.path.isdir(parent_dir):
+            os.mkdir(parent_dir)
         np.savez(fn, mat=mat)
         return fn
 
@@ -217,7 +219,8 @@ class ETMIPC(object):
         Returns:
             np.array. The array for the given type of data loaded for the specified cluster.
         """
-        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        _, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        if ETMIPC._exists_single_matrix(name=name, k=k, out_dir=out_dir)
         data = np.load(fn)
         return data['mat']
 

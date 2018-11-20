@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from shutil import rmtree
 from unittest import TestCase
 from Bio.Align import MultipleSeqAlignment
 from ETMIPC import ETMIPC
@@ -464,5 +465,26 @@ class TestETMIPC(TestCase):
 
     def test__single_matrix_filename(self):
         out_dir = os.path.abspath('../Test/')
-        fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
-        self.assertEqual(os.path.join(out_dir, 'Dummy.npz'), fn)
+        parent_dir, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertEqual(os.path.join(out_dir, str(1)))
+        self.assertEqual(os.path.join(out_dir, str(1),'Dummy.npz'), fn)
+
+    def test__exists_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        self.assertFalse(ETMIPC._exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
+        os.mkdir(os.path.join(out_dir, str(1)))
+        fn = ETMIPC._single_matrix_filename('Dummy', k=1, out_dir=out_dir)
+        with open(fn, 'w'):
+            os.utime(fn, None)
+        self.assertTrue(ETMIPC._exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
+        rmtree(os.path.join(out_dir, str(1)))
+
+    def test__save_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10,10)
+        ETMIPC._save_single_matrix(name='Dummy', k=1, out_dir=out_dir)
+        _, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = np.load(fn)['mat']
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
