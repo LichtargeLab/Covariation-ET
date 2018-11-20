@@ -461,3 +461,8 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         del (full_aln)
         del (assignment_dict)
+
+    def test__single_matrix_filename(self):
+        out_dir = os.path.abspath('../Test/')
+        fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertEqual(os.path.join(out_dir, 'Dummy.npz'), fn)

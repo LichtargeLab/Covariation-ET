@@ -169,23 +169,18 @@ class ETMIPC(object):
             self.unique_clusters[res[0]]['time'] = res[2]
 
     @staticmethod
-    def _pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
-        global measure_evidence
-        measure_evidence = evidence
-        global sub_alignments
-        sub_alignments = cluster_dict
-        global aa_dict
-        aa_dict = amino_acid_mapping
-        global serialization_dir
-        serialization_dir = out_dir
-        global low_memory_mode
-        low_memory_mode = low_mem
-
-    @staticmethod
     def _single_matrix_filename(name, k, out_dir):
         c_out_dir = os.path.join(out_dir, str(k))
         fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
         return fn
+
+    @staticmethod
+    def _exists_single_matrix(name, k, out_dir):
+        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
+        if os.path.isfile(fn):
+            return True
+        else:
+            return False
 
     @staticmethod
     def _save_single_matrix(name, k, mat, out_dir):
@@ -209,14 +204,6 @@ class ETMIPC(object):
         return fn
 
     @staticmethod
-    def _exists_single_matrix(name, k, out_dir):
-        fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
-        if os.path.isfile(fn):
-            return True
-        else:
-            return False
-
-    @staticmethod
     def _load_single_matrix(name, k, out_dir):
         """
         Load Single Matrix
@@ -233,6 +220,19 @@ class ETMIPC(object):
         fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
         data = np.load(fn)
         return data['mat']
+
+    @staticmethod
+    def _pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
+        global measure_evidence
+        measure_evidence = evidence
+        global sub_alignments
+        sub_alignments = cluster_dict
+        global aa_dict
+        aa_dict = amino_acid_mapping
+        global serialization_dir
+        serialization_dir = out_dir
+        global low_memory_mode
+        low_memory_mode = low_mem
 
     @staticmethod
     def mip_score(tree_position):
