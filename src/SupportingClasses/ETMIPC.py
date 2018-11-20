@@ -865,7 +865,7 @@ def et_mip_worker2(in_tup):
     time_elapsed = end - start
     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
     if worker2_low_mem:
-        curr_coverage = save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
+        curr_coverage = ETMIPC._save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
     return c, curr_coverage, time_elapsed
 
 
