@@ -3,7 +3,9 @@ import numpy as np
 from shutil import rmtree
 from unittest import TestCase
 from Bio.Align import MultipleSeqAlignment
-from ETMIPC import ETMIPC, pool_init_sub_aln, generate_sub_alignment
+from sklearn.metrics import mutual_info_score
+from ETMIPC import (ETMIPC, pool_init_sub_aln, generate_sub_alignment, pool_init_score, mip_score,
+                    single_matrix_filename, exists_single_matrix, save_single_matrix, load_single_matrix)
 from SeqAlignment import SeqAlignment
 
 
@@ -327,6 +329,42 @@ class TestETMIPC(TestCase):
         self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'X.npz')))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
+    def test_single_matrix_filename(self):
+        out_dir = os.path.abspath('../Test/')
+        parent_dir, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
+        self.assertEqual(os.path.join(out_dir, str(1),'K1_Dummy.npz'), fn)
+
+    def test_exists_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        self.assertFalse(exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
+        dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
+        dummy_handle = open(dummy_fn, 'wb')
+        dummy_handle.write('Testing')
+        dummy_handle.close()
+        rmtree(os.path.join(out_dir, str(1)))
+
+    def test_save_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10,10)
+        save_single_matrix(mat=dummy, name='Dummy', k=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = np.load(fn)['mat']
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
+    def test_load_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10, 10)
+        self.assertIsNone(load_single_matrix(name='Dummy', k=1, out_dir=out_dir))
+        save_single_matrix(mat=dummy, name='Dummy', k=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = load_single_matrix(name='Dummy', k=1, out_dir=out_dir)
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
     # def test_pool_init_sub_aln(self):
@@ -509,40 +547,170 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
-    def test__single_matrix_filename(self):
-        out_dir = os.path.abspath('../Test/')
-        parent_dir, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
-        self.assertEqual(os.path.join(out_dir, str(1)))
-        self.assertEqual(os.path.join(out_dir, str(1),'Dummy.npz'), fn)
+    # Could not properly test this method, not sure how to check the global variables in another module like this
+    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
+    # def test_pool_init_score(self):
+    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+    #                '-']
+    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #     out_dir = os.path.abspath('../Test/')
+    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
+    #     etmipc1.tree_depth = (2, 5)
+    #     etmipc1.output_dir = os.path.abspath('../Test/')
+    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+    #     etmipc1.processes = 6
+    #     etmipc1._generate_sub_alignments()
+    #     pool_init_score(evidence=True, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+    #                     out_dir=out_dir, low_mem=True)
+    #     pool_init_score(evidence=False, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+    #                     out_dir=out_dir, low_mem=False)
+    #     self.assertTrue('assignment_dict' in globals())
+    #     self.assertTrue('full_aln' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     # del(full_aln)
+    #     # del(assignment_dict)
+    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
+    #     etmipc2.tree_depth = (2, 5)
+    #     etmipc2.output_dir = os.path.abspath('../Test/')
+    #     etmipc2.import_alignment(query='1h1vA')
+    #     etmipc2.processes = 6
+    #     etmipc2._generate_sub_alignments()
+    #     pool_init_score(evidence=True, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+    #                     out_dir=out_dir, low_mem=True)
+    #     pool_init_score(evidence=False, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+    #                     out_dir=out_dir, low_mem=False)
+    #     self.assertTrue('assignment_dict' in globals())
+    #     self.assertTrue('full_aln' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     # del (full_aln)
+    #     # del (assignment_dict)
 
-    def test__exists_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        self.assertFalse(ETMIPC._exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
-        os.mkdir(os.path.join(out_dir, str(1)))
-        fn = ETMIPC._single_matrix_filename('Dummy', k=1, out_dir=out_dir)
-        with open(fn, 'w'):
-            os.utime(fn, None)
-        self.assertTrue(ETMIPC._exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
-        rmtree(os.path.join(out_dir, str(1)))
+    def test_mip_score(self):
+        def conservative_mip(alignment2Num):
+            overallMMI = 0.0
+            seq_length = alignment2Num.shape[1]
+            # generate a MI matrix for each cluster
+            MI_matrix = np.zeros([seq_length, seq_length])
+            MMI = np.zeros([seq_length, 1])  # Vector of 1 column
+            APC_matrix = np.zeros([seq_length, seq_length])
+            MIP_matrix = np.zeros([seq_length, seq_length])
 
-    def test__save_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10,10)
-        ETMIPC._save_single_matrix(name='Dummy', k=1, out_dir=out_dir)
-        _, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = np.load(fn)['mat']
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
+            # alignment2Num = []
+            #
+            # for key in alignment:
+            #     seq2Num = []
+            #     for idc, c in enumerate(alignment[key]):
+            #         seq2Num.append(aa_list.index(c))
+            #     alignment2Num.append(seq2Num)
 
-    def test__load_single_matrix(self):
+            for i in range(0, seq_length):
+                MMI[i][0] = 0.0
+                column_i = []
+                column_j = []
+                for j in range(0, seq_length):
+                    if i >= j:
+                        continue
+                    column_i = [int(item[i]) for item in alignment2Num]
+                    column_j = [int(item[j]) for item in alignment2Num]
+                    MI_matrix[i][j] = mutual_info_score(
+                        column_i, column_j, contingency=None)
+                    # AW: divides by individual entropies to normalize.
+                    MI_matrix[j][i] = MI_matrix[i][j]
+
+            for i in range(0, seq_length):  # this is where we can do i, j by running a second loop
+                for j in range(0, seq_length):
+                    if i != j:
+                        MMI[i][0] += MI_matrix[i][j]
+                        if i > j:
+                            overallMMI += MI_matrix[i][j]
+                MMI[i][0] = MMI[i][0] / (seq_length - 1)
+
+            overallMMI = 2.0 * (overallMMI / (seq_length - 1)) / seq_length
+            ####--------------------------------------------#####
+            # Calculating APC
+            ####--------------------------------------------#####
+            for i in range(0, seq_length):
+                for j in range(0, seq_length):
+                    if i == j:
+                        continue
+                    APC_matrix[i][j] = (MMI[i][0] * MMI[j][0]) / overallMMI
+
+            for i in range(0, seq_length):
+                for j in range(0, seq_length):
+                    if i == j:
+                        continue
+                    MIP_matrix[i][j] = MI_matrix[i][j] - APC_matrix[i][j]
+            return MIP_matrix
+
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
         out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10, 10)
-        self.assertRaises(excClass=IOError, callableObj=ETMIPC._load_single_matrix,
-                          args={'name': 'Dummy', 'k': 1, 'out_dir': out_dir})
-        ETMIPC._save_single_matrix(name='Dummy', k=1, out_dir=out_dir)
-        _, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = ETMIPC._load_single_matrix(name='Dummy', k=1, out_dir=out_dir)
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = os.path.abspath('../Test/')
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 6
+        etmipc1._generate_sub_alignments()
+        pool_init_score(evidence=True, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=True)
+        etmipc1_mip_res1 = mip_score((1, 0))
+        print(etmipc1_mip_res1)
+        etmipc1_conservateive_mip = conservative_mip(etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num(aa_dict))
+
+        self.assertEqual(etmipc1_mip_res1[0], (1,0))
+        self.assertEqual(etmipc1_mip_res1[1], single_matrix_filename(name='Raw_C0', k=1, out_dir=out_dir)[1])
+        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', k=1, out_dir=out_dir) - etmipc1_conservateive_mip),
+                        1e-10)
+        self.assertEqual(etmipc1_mip_res1[2], single_matrix_filename(name='Evidence_C0', k=1, out_dir=out_dir)[1])
+        self.assertGreater(np.sum(load_single_matrix(name='Evidence_C0', k=1, out_dir=out_dir)), 0)
+        self.assertGreater(etmipc1_mip_res1[3], 0)
+        pool_init_score(evidence=False, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=False)
+        etmipc1_mip_res2 = mip_score((1, 0))
+        self.assertEqual(etmipc1_mip_res2[0], (1, 0))
+        self.assertLess(np.sum(etmipc1_mip_res2[1] - etmipc1_conservateive_mip), 1e-10)
+        self.assertEqual(np.sum(etmipc1_mip_res2[2]), 0)
+        self.assertGreater(etmipc1_mip_res2[3], 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        rmtree(os.path.join(out_dir, '1'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = os.path.abspath('../Test/')
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2._generate_sub_alignments()
+        pool_init_score(evidence=True, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=True)
+        etmipc2_mip_res1 = mip_score((1, 0))
+        etmipc2_conservateive_mip = conservative_mip(etmipc1.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(aa_dict))
+        self.assertEqual(etmipc2_mip_res1[0], (1, 0))
+        self.assertEqual(etmipc2_mip_res1[1], single_matrix_filename(name='Raw_C0', k=1, out_dir=out_dir)[1])
+        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', k=1, out_dir=out_dir) - etmipc2_conservateive_mip),
+                        1e-10)
+        self.assertEqual(etmipc2_mip_res1[2], single_matrix_filename(name='Evidence_C0', k=1, out_dir=out_dir)[1])
+        self.assertGreater(np.sum(load_single_matrix(name='Evidence_C0', k=1, out_dir=out_dir)), 0)
+        self.assertGreater(etmipc2_mip_res1[3], 0)
+        pool_init_score(evidence=False, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=False)
+        etmipc2_mip_res2 = mip_score((1, 0))
+        self.assertEqual(etmipc2_mip_res2[0], (1, 0))
+        self.assertLess(np.sum(etmipc2_mip_res2[1] - etmipc2_conservateive_mip), 1e-10)
+        self.assertEqual(np.sum(etmipc2_mip_res2[2]), 0)
+        self.assertGreater(etmipc2_mip_res2[3], 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        rmtree(os.path.join(out_dir, '1'))

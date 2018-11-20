@@ -154,157 +154,6 @@ class ETMIPC(object):
             self.unique_clusters[res[0]]['sub_alignment'] = res[1]
             self.unique_clusters[res[0]]['time'] = res[2]
 
-    @staticmethod
-    def _single_matrix_filename(name, k, out_dir):
-        c_out_dir = os.path.join(out_dir, str(k))
-        fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
-        return c_out_dir, fn
-
-    @staticmethod
-    def _exists_single_matrix(name, k, out_dir):
-        _, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
-        if os.path.isfile(fn):
-            return True
-        else:
-            return False
-
-    @staticmethod
-    def _save_single_matrix(name, k, mat, out_dir):
-        """
-        Save Single Matrix
-
-        This function can be used to save any of the several matrices which need to be saved to disk in order to reduce the
-        memory footprint when the cET-MIp variable low_mem is set to true.
-
-        Args:
-            name (str): A string specifying what kind of data is being stored, expected values include:
-                Result
-                Summary
-                Coverage
-            k (int): An integer specifying which clustering constant to load data for.
-            mat (np.array): The array for the given type of data to save for the specified cluster.
-            out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
-        """
-        parent_dir, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
-        if not os.path.isdir(parent_dir):
-            os.mkdir(parent_dir)
-        np.savez(fn, mat=mat)
-        return fn
-
-    @staticmethod
-    def _load_single_matrix(name, k, out_dir):
-        """
-        Load Single Matrix
-
-        This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
-        footprint when the cET-MIp variable low_mem is set to true.
-
-        Args:
-            file_path (str/path): The path to the matrix to be loaded. The expectation is that the matrix will be named
-            'mat' in the .npz file which is passed for loading.
-        Returns:
-            np.array. The array for the given type of data loaded for the specified cluster.
-        """
-        data = None
-        _, fn = ETMIPC._single_matrix_filename(name=name, k=k, out_dir=out_dir)
-        if ETMIPC._exists_single_matrix(name=name, k=k, out_dir=out_dir):
-            data = np.load(fn)['mat']
-        return data
-
-    @staticmethod
-    def _pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
-        global measure_evidence
-        measure_evidence = evidence
-        global sub_alignments
-        sub_alignments = cluster_dict
-        global aa_dict
-        aa_dict = amino_acid_mapping
-        global serialization_dir
-        serialization_dir = out_dir
-        global low_memory_mode
-        low_memory_mode = low_mem
-
-    @staticmethod
-    def mip_score(tree_position):
-        """
-        Whole Analysis
-
-        Generates the MIP matrix.
-
-        Args:
-            alignment (SeqAlignment): A class containing the query sequence alignment in different formats, as well as
-            summary values.
-            evidence (bool): Whether or not to normalize using the evidence using the evidence counts computed while
-            performing the coupling scoring.
-            save_file (str): File path to a previously stored MIP matrix (.npz should be excluded as it will be added
-            automatically).
-        Returns:
-            np.array. Matrix of MIP scores which has dimensions seq_length by seq_length.
-            np.array. Matrix containing the number of sequences which are not gaps in either position used for scoring the
-            whole_mip_matrix.
-        """
-        start = time()
-        mip_fn_bool = ETMIPC._exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
-                                                   out_dir=serialization_dir)
-        evidence_fn_bool = ETMIPC._exists_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
-                                                        k=tree_position[0], out_dir=serialization_dir)
-        if low_memory_mode and mip_fn_bool and evidence_fn_bool:
-            mip_matrix = ETMIPC._single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
-                                                              out_dir=serialization_dir)
-            evidence_matrix = ETMIPC._single_matrix_filename('Evidence_C{}'.format(tree_position[1]), k=tree_position[0],
-                                        out_dir=serialization_dir)
-        else:
-            alignment = sub_alignments[tree_position]['sub_alignment']
-            overall_mmi = 0.0
-            # generate an MI matrix for each cluster
-            mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-            evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-            # Vector of 1 column
-            mmi = np.zeros(alignment.seq_length)
-            apc_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-            mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
-            # Generate MI matrix from alignment2Num matrix, the mmi matrix,
-            # and overall_mmi
-            alignment_matrix = alignment._alignment_to_num(aa_dict=aa_dict)
-            for i in range(alignment.seq_length):
-                for j in range(i + 1, alignment.seq_length):
-                    if measure_evidence:
-                        _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
-                    else:
-                        ev = 0
-                    col_i = alignment_matrix[:, i]
-                    col_j = alignment_matrix[:, j]
-                    try:
-                        curr_mis = mutual_info_score(col_i, col_j, contingency=None)
-                    except:
-                        print col_i
-                        print col_j
-                        exit()
-                    # AW: divides by individual entropies to normalize.
-                    mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
-                    evidence_matrix[i, j] = evidence_matrix[j, i] = ev
-                    overall_mmi += curr_mis
-            mmi += np.sum(mi_matrix, axis=1)
-            mmi -= mi_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)]
-            mmi /= (alignment.seq_length - 1)
-            overall_mmi = 2.0 * (overall_mmi / (alignment.seq_length - 1)) / alignment.seq_length
-            # Calculating APC
-            apc_matrix += np.outer(mmi, mmi)
-            apc_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
-            apc_matrix /= overall_mmi
-            # Defining MIP matrix
-            mip_matrix += mi_matrix - apc_matrix
-            mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
-            if low_memory_mode:
-                mip_matrix = ETMIPC.save_single_matrix(name='Raw_C{}'.fromat(tree_position[1], k=tree_position[0],
-                                                                             mat=mip_matrix, out_dir=serialization_dir))
-                evidence_matrix = ETMIPC.save_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
-                                                            k=tree_position[0], mat=evidence_matrix,
-                                                            out_dir=serialization_dir)
-        end = time()
-        print('MIp scoring took {} min'.format((end - start) / 60.0))
-        return tree_position, mip_matrix, evidence_matrix, (end - start)
-
     def _score_clusters(self, evidence, aa_dict):
         tree_positions = list(self.unique_clusters.keys())
         pool = Pool(processes=self.processes, initializer=ETMIPC._pool_init_score,
@@ -737,6 +586,63 @@ class ETMIPC(object):
         embed()
 
 
+def single_matrix_filename(name, k, out_dir):
+    c_out_dir = os.path.join(out_dir, str(k))
+    fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
+    return c_out_dir, fn
+
+
+def exists_single_matrix(name, k, out_dir):
+    _, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
+    if os.path.isfile(fn):
+        return True
+    else:
+        return False
+
+
+def save_single_matrix(name, k, mat, out_dir):
+    """
+    Save Single Matrix
+
+    This function can be used to save any of the several matrices which need to be saved to disk in order to reduce the
+    memory footprint when the cET-MIp variable low_mem is set to true.
+
+    Args:
+        name (str): A string specifying what kind of data is being stored, expected values include:
+            Result
+            Summary
+            Coverage
+        k (int): An integer specifying which clustering constant to load data for.
+        mat (np.array): The array for the given type of data to save for the specified cluster.
+        out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
+    """
+    parent_dir, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
+    if not os.path.isdir(parent_dir):
+        os.mkdir(parent_dir)
+    np.savez(fn, mat=mat)
+    return fn
+
+
+def load_single_matrix(name, k, out_dir):
+    """
+    Load Single Matrix
+
+    This function can be used to load any of the several matrices which are saved to disk in order to reduce the memory
+    footprint when the cET-MIp variable low_mem is set to true.
+
+    Args:
+        file_path (str/path): The path to the matrix to be loaded. The expectation is that the matrix will be named
+        'mat' in the .npz file which is passed for loading.
+    Returns:
+        np.array. The array for the given type of data loaded for the specified cluster.
+    """
+    data = None
+    _, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
+    if exists_single_matrix(name=name, k=k, out_dir=out_dir):
+        data = np.load(fn)['mat']
+    return data
+
+
 def pool_init_sub_aln(aln, cluster_dict):
     global full_aln
     full_aln = aln
@@ -750,6 +656,97 @@ def generate_sub_alignment(tree_position):
     sub_aln = full_aln.generate_sub_alignment(sequence_ids)
     end = time()
     return tree_position, sub_aln, (end - start)
+
+
+def pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem):
+    global measure_evidence
+    measure_evidence = evidence
+    global sub_alignments
+    sub_alignments = cluster_dict
+    global aa_dict
+    aa_dict = amino_acid_mapping
+    global serialization_dir
+    serialization_dir = out_dir
+    global low_memory_mode
+    low_memory_mode = low_mem
+
+
+def mip_score(tree_position):
+    """
+    Whole Analysis
+
+    Generates the MIP matrix.
+
+    Args:
+        alignment (SeqAlignment): A class containing the query sequence alignment in different formats, as well as
+        summary values.
+        evidence (bool): Whether or not to normalize using the evidence using the evidence counts computed while
+        performing the coupling scoring.
+        save_file (str): File path to a previously stored MIP matrix (.npz should be excluded as it will be added
+        automatically).
+    Returns:
+        np.array. Matrix of MIP scores which has dimensions seq_length by seq_length.
+        np.array. Matrix containing the number of sequences which are not gaps in either position used for scoring the
+        whole_mip_matrix.
+    """
+    start = time()
+    mip_fn_bool = exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+                                       out_dir=serialization_dir)
+    evidence_fn_bool = exists_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
+                                            k=tree_position[0], out_dir=serialization_dir)
+    if low_memory_mode and mip_fn_bool and evidence_fn_bool:
+        mip_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+                                            out_dir=serialization_dir)
+        evidence_matrix = single_matrix_filename('Evidence_C{}'.format(tree_position[1]), k=tree_position[0],
+                                                 out_dir=serialization_dir)
+    else:
+        alignment = sub_alignments[tree_position]['sub_alignment']
+        overall_mmi = 0.0
+        # generate an MI matrix for each cluster
+        mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+        evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+        # Vector of 1 column
+        mmi = np.zeros(alignment.seq_length)
+        apc_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+        mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+        # Generate MI matrix from alignment2Num matrix, the mmi matrix,
+        # and overall_mmi
+        alignment_matrix = alignment._alignment_to_num(aa_dict=aa_dict)
+        for i in range(alignment.seq_length):
+            for j in range(i + 1, alignment.seq_length):
+                if measure_evidence:
+                    _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
+                    evidence_matrix[i, j] = evidence_matrix[j, i] = ev
+                col_i = alignment_matrix[:, i]
+                col_j = alignment_matrix[:, j]
+                try:
+                    curr_mis = mutual_info_score(col_i, col_j, contingency=None)
+                except:
+                    print col_i
+                    print col_j
+                    exit()
+                # AW: divides by individual entropies to normalize.
+                mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
+                overall_mmi += curr_mis
+        mmi += np.sum(mi_matrix, axis=1)
+        mmi -= mi_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)]
+        mmi /= (alignment.seq_length - 1)
+        overall_mmi = 2.0 * (overall_mmi / (alignment.seq_length - 1)) / alignment.seq_length
+        # Calculating APC
+        apc_matrix += np.outer(mmi, mmi)
+        apc_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
+        apc_matrix /= overall_mmi
+        # Defining MIP matrix
+        mip_matrix += mi_matrix - apc_matrix
+        mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
+        if low_memory_mode:
+            mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+                                                                  mat=mip_matrix, out_dir=serialization_dir)
+            evidence_matrix = save_single_matrix(name='Evidence_C{}'.format(tree_position[1]),k=tree_position[0],
+                                                 mat=evidence_matrix, out_dir=serialization_dir)
+    end = time()
+    print('MIp scoring took {} min'.format((end - start) / 60.0))
+    return tree_position, mip_matrix, evidence_matrix, (end - start)
 
 def get_k_level_matrices(input, low_mem, c=None):
     """
