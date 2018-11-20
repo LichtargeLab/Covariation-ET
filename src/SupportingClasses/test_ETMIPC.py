@@ -488,3 +488,15 @@ class TestETMIPC(TestCase):
         dummy_prime = np.load(fn)['mat']
         self.assertEqual(np.sum(dummy - dummy_prime), 0)
         rmtree(os.path.join(out_dir, str(1)))
+
+    def test__load_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10, 10)
+        self.assertRaises(excClass=IOError, callableObj=ETMIPC._load_single_matrix,
+                          args={'name': 'Dummy', 'k': 1, 'out_dir': out_dir})
+        ETMIPC._save_single_matrix(name='Dummy', k=1, out_dir=out_dir)
+        _, fn = ETMIPC._single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = ETMIPC._load_single_matrix(name='Dummy', k=1, out_dir=out_dir)
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
