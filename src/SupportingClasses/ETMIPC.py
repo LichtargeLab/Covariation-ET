@@ -54,7 +54,7 @@ class ETMIPC(object):
             result_matrices : dict
                 This dictionary maps clustering constants to a matrix scoring the coupling between all residues in the query
                 sequence over all of the clusters created at that constant.
-            evidence_counts : dict
+            nongap_counts_counts : dict
                 This dictionary maps clustering constants to a matrix which has counts for the number of sequences which are
                 not gaps in either position used for scoring at that position.
             scores : dict
@@ -111,20 +111,31 @@ class ETMIPC(object):
         Returns:
             np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
         """
-        if not self.low_mem:
-            attr = self.__getattribute__(item)
+        attr = self.__getattribute__(item)
         # return get_c_level_matrices(input=attr, low_mem=self.low_mem, c=c, k=k, three_dim=three_dim)
         if branch is not None:
             if cluster is not None:
                 if self.low_mem:
-                    return load_single_matrix('{}_C{}'.format(item, cluster), k=branch, out_dir=self.output_dir)
+                    # print(single_matrix_filename('{}_C{}'.format(item[0].upper() + item[1:], cluster), branch=branch,
+                    #                              out_dir=self.output_dir))
+                    # return load_single_matrix('{}_C{}'.format(item[0].upper() + item[1:], cluster), branch=branch,
+                    #                           out_dir=self.output_dir)
                     # return ETMIPC._load_single_matrix(input[branch][cluster])
+                    return np.load(attr[branch][cluster])['mat']
                 else:
                     return attr[branch][cluster]
             if self.low_mem:
+                # for cluster in range(branch):
+                #     single_matrix_filename('{}_C{}'.format(item[0].upper() + item[1:], cluster), branch=branch,
+                #                            out_dir=self.output_dir)
                 # curr_matrices = {cluster: ETMIPC._load_single_matrix(input[branch][cluster]) for cluster in range(branch)}
-                curr_matrices = {cluster: load_single_matrix('{}'.format(item), k=branch, out_dir=self.output_dir)
-                                 for cluster in range(branch)}
+                # curr_matrices = {cluster: load_single_matrix('{}_C{}'.format(item[0].upper() + item[1:], cluster),
+                #                                              branch=branch, out_dir=self.output_dir)
+                #                  for cluster in range(branch)}
+                if isinstance(attr[branch], dict):
+                    curr_matrices = {cluster: np.load(attr[branch][cluster])['mat'] for cluster in attr[branch]}
+                else:
+                    curr_matrices = np.load(attr[branch])['mat']
             else:
                 curr_matrices = attr[branch]
             if three_dim:
@@ -134,17 +145,26 @@ class ETMIPC(object):
         else:
             if self.low_mem:
                 # return {branch: {cluster: ETMIPC._load_single_matrix(input[branch][cluster]) for cluster in input[branch]} for c in input}
-                return {branch: {cluster: load_single_matrix('{}'.format(item, cluster), k=branch,
-                                                             out_dir=self.output_dir)
-                                 for cluster in input[branch]} for branch in input}
+                # for branch in attr:
+                    # for cluster in attr[branch]:
+                        # print(single_matrix_filename('{}_C{}'.format(item[0].upper() + item[1:], cluster),
+                        #                              branch=branch, out_dir=self.output_dir))
+                if isinstance(attr.values()[0], dict):
+                    # return {branch: {cluster: load_single_matrix('{}_C{}'.format(item[0].upper() + item[1:], cluster),
+                    #                                              branch=branch, out_dir=self.output_dir)
+                    #                  for cluster in attr[branch]} for branch in attr}
+                    return {branch: {cluster: np.load(attr[branch][cluster])['mat'] for cluster in attr[branch]}
+                            for branch in attr}
+                else:
+                    return {branch: np.load(attr[branch])['mat'] for branch in attr}
             else:
-                return input
+                return attr
 
     def get_nongap_counts(self, branch=None, cluster=None, three_dim=False):
         """
-        Get Evidence Counts
+        Get Nongap Counts
 
-        Retrieve the evidence counts data. The entire dictionary of dictionaries of 2D matrices can be returned, or just
+        Retrieve the nongap counts data. The entire dictionary of dictionaries of 2D matrices can be returned, or just
         the dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single
         matrix f both k and c are specified.
 
@@ -154,11 +174,11 @@ class ETMIPC(object):
             three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
             specified.
         Returns:
-            np.array or dict. The specified data requested from self.evidence_counts
+            np.array or dict. The specified data requested from self.nongap_counts
         """
         return self.__get_c_level_matrices(item='nongap_counts', branch=branch, cluster=cluster, three_dim=three_dim)
 
-    def get_raw_scores(self, branch=None, cluster=None, three_dim=False):
+    def get_cluster_scores(self, branch=None, cluster=None, three_dim=False):
         """
         Get Raw Scores
 
@@ -174,7 +194,7 @@ class ETMIPC(object):
         Returns:
             np.array or dict. The specified data requested from self.raw_scores
         """
-        return self.__get_c_level_matrices(item='raw_scores', branch=branch, cluster=cluster, three_dim=three_dim)
+        return self.__get_c_level_matrices(item='cluster_scores', branch=branch, cluster=cluster, three_dim=three_dim)
 
     # def __get_k_level_matrices(self, item, branch=None):
     #     """
@@ -204,7 +224,8 @@ class ETMIPC(object):
     #         else:
     #             return attr
 
-    def get_result_matrices(self, branch=None):
+    # def get_result_matrices(self, branch=None):
+    def get_branch_scores(self, branch=None):
         """
         Get Result Matrices
 
@@ -217,9 +238,9 @@ class ETMIPC(object):
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
         # return self.__get_k_level_matrices(item='result_matrices', c=c)
-        return self.__get_c_level_matrices(item=, branch=branch)
+        return self.__get_c_level_matrices(item='branch_scores', branch=branch)
 
-    def get_scores(self, c=None):
+    def get_scores(self, branch=None):
         """
         Get Scores
 
@@ -231,9 +252,10 @@ class ETMIPC(object):
         Returns:
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
-        return self.__get_k_level_matrices(item='scores', c=c)
+        # return self.__get_k_level_matrices(item='scores', c=c)
+        return self.__get_c_level_matrices(item='scores', branch=branch)
 
-    def get_coverage(self, c=None):
+    def get_coverage(self, branch=None):
         """
         Get Coverage
 
@@ -245,7 +267,8 @@ class ETMIPC(object):
         Returns:
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
-        return self.__get_k_level_matrices(item='coverage', c=c)
+        # return self.__get_k_level_matrices(item='coverage', c=c)
+        return self.__get_c_level_matrices(item='soverage', branch=branch)
     ####################################################################################################################
 
     def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',
@@ -295,7 +318,8 @@ class ETMIPC(object):
                 if assignments not in first_occurrence:
                     first_occurrence[assignments] = tree_position
                     unique_assignments[tree_position] = {'assignments': assignments, 'tree_positions': set(), 'time': 0,
-                                                         'sub_alignment': None, 'raw_scores': None, 'evidence': None}
+                                                         'sub_alignment': None, 'cluster_scores': None,
+                                                         'nongap_counts': None}
                 unique_assignments[first_occurrence[assignments]]['tree_positions'].add(tree_position)
                 cluster_mapping[tree_position] = first_occurrence[assignments]
         print('Query Sequence: {}'.format(query_alignment.query_sequence))
@@ -319,8 +343,8 @@ class ETMIPC(object):
                     initargs=(evidence, self.unique_clusters, aa_dict, self.output_dir, self.low_mem))
         pool_res = pool.map_async(mip_score, tree_positions)
         for res in pool_res.get():
-            self.unique_clusters[res[0]]['raw_score'] = res[1]
-            self.unique_clusters[res[0]]['evidence'] = res[2]
+            self.unique_clusters[res[0]]['cluster_scores'] = res[1]
+            self.unique_clusters[res[0]]['nongap_counts'] = res[2]
             self.unique_clusters[res[0]]['time'] = res[3]
         self.nongap_counts = {}
         self.cluster_scores = {}
@@ -328,8 +352,8 @@ class ETMIPC(object):
             if c[0] not in self.nongap_counts:
                 self.nongap_counts[c[0]] = {}
                 self.cluster_scores[c[0]] = {}
-            self.nongap_counts[c[0]][c[1]] = self.unique_clusters[res[0]]['evidence']
-            self.cluster_scores[c[0]][c[1]] = self.unique_clusters[res[0]]['raw_score']
+            self.nongap_counts[c[0]][c[1]] = self.unique_clusters[self.cluster_mapping[c]]['nongap_counts']
+            self.cluster_scores[c[0]][c[1]] = self.unique_clusters[self.cluster_mapping[c]]['cluster_scores']
 
     def calculate_cluster_scores(self, evidence, aa_dict):
         self._generate_sub_alignments()
@@ -591,21 +615,21 @@ class ETMIPC(object):
         embed()
 
 
-def single_matrix_filename(name, k, out_dir):
-    c_out_dir = os.path.join(out_dir, str(k))
-    fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(k, name))
+def single_matrix_filename(name, branch, out_dir):
+    c_out_dir = os.path.join(out_dir, str(branch))
+    fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(branch, name))
     return c_out_dir, fn
 
 
-def exists_single_matrix(name, k, out_dir):
-    _, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
+def exists_single_matrix(name, branch, out_dir):
+    _, fn = single_matrix_filename(name=name, branch=branch, out_dir=out_dir)
     if os.path.isfile(fn):
         return True
     else:
         return False
 
 
-def save_single_matrix(name, k, mat, out_dir):
+def save_single_matrix(name, branch, mat, out_dir):
     """
     Save Single Matrix
 
@@ -621,14 +645,14 @@ def save_single_matrix(name, k, mat, out_dir):
         mat (np.array): The array for the given type of data to save for the specified cluster.
         out_dir (str): The top level directory where data are being stored, where directories for each k can be found.
     """
-    parent_dir, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
+    parent_dir, fn = single_matrix_filename(name=name, branch=branch, out_dir=out_dir)
     if not os.path.isdir(parent_dir):
         os.mkdir(parent_dir)
     np.savez(fn, mat=mat)
     return fn
 
 
-def load_single_matrix(name, k, out_dir):
+def load_single_matrix(name, branch, out_dir):
     """
     Load Single Matrix
 
@@ -642,8 +666,8 @@ def load_single_matrix(name, k, out_dir):
         np.array. The array for the given type of data loaded for the specified cluster.
     """
     data = None
-    _, fn = single_matrix_filename(name=name, k=k, out_dir=out_dir)
-    if exists_single_matrix(name=name, k=k, out_dir=out_dir):
+    _, fn = single_matrix_filename(name=name, branch=branch, out_dir=out_dir)
+    if exists_single_matrix(name=name, branch=branch, out_dir=out_dir):
         data = np.load(fn)['mat']
     return data
 
@@ -695,14 +719,14 @@ def mip_score(tree_position):
         whole_mip_matrix.
     """
     start = time()
-    mip_fn_bool = exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+    mip_fn_bool = exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                        out_dir=serialization_dir)
-    evidence_fn_bool = exists_single_matrix(name='Evidence_C{}'.format(tree_position[1]),
-                                            k=tree_position[0], out_dir=serialization_dir)
+    evidence_fn_bool = exists_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+                                            branch=tree_position[0], out_dir=serialization_dir)
     if low_memory_mode and mip_fn_bool and evidence_fn_bool:
-        mip_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+        mip_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                             out_dir=serialization_dir)[1]
-        evidence_matrix = single_matrix_filename('Evidence_C{}'.format(tree_position[1]), k=tree_position[0],
+        evidence_matrix = single_matrix_filename('Nongap_counts_C{}'.format(tree_position[1]), branch=tree_position[0],
                                                  out_dir=serialization_dir)[1]
     else:
         alignment = sub_alignments[tree_position]['sub_alignment']
@@ -746,9 +770,9 @@ def mip_score(tree_position):
         mip_matrix += mi_matrix - apc_matrix
         mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
         if low_memory_mode:
-            mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
+            mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                                                   mat=mip_matrix, out_dir=serialization_dir)
-            evidence_matrix = save_single_matrix(name='Evidence_C{}'.format(tree_position[1]),k=tree_position[0],
+            evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),branch=tree_position[0],
                                                  mat=evidence_matrix, out_dir=serialization_dir)
     end = time()
     print('MIp scoring took {} min'.format((end - start) / 60.0))
@@ -764,9 +788,9 @@ def init_calculate_branch_score(curr_instance, combine_clusters):
 
 def calculate_branch_score(branch):
     start = time()
-    branch_score_fn_bool = exists_single_matrix(name='Result', k=branch, out_dir=instance.output_dir)
+    branch_score_fn_bool = exists_single_matrix(name='Result', branch=branch, out_dir=instance.output_dir)
     if instance.low_mem and branch_score_fn_bool:
-        branch_score = single_matrix_filename(name='Result', k=branch, out_dir=instance.output_dir)
+        branch_score = single_matrix_filename(name='Result', branch=branch, out_dir=instance.output_dir)
     else:
         curr_raw_scores = instance.get_raw_scores(c=branch, three_dim=True)
         # Additive clusters
@@ -781,7 +805,7 @@ def calculate_branch_score(branch):
             res_matrix = weighting[:, None, None] * curr_raw_scores
             res_matrix = np.sum(res_matrix, axis=0) / instance.alignment.size
         elif 'evidence' in combination_method:
-            curr_evidence = instance.get_evidence_counts(c=branch, three_dim=True)
+            curr_evidence = instance.get_nongap_counts_counts(c=branch, three_dim=True)
             # Weighted average over clusters based on evidence counts at each
             # pair vs. the number of sequences with evidence for that pairing.
             if combination_method == 'evidence_weighted':
