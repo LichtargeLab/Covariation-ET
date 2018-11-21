@@ -156,65 +156,28 @@ class ETMIPC(object):
 
     def _score_clusters(self, evidence, aa_dict):
         tree_positions = list(self.unique_clusters.keys())
-        pool = Pool(processes=self.processes, initializer=ETMIPC._pool_init_score,
-                    initargs=(evidence, self.unique_clusters, aa_dict))
-        pool_res = pool.map_async(ETMIPC._generate_sub_alignment, tree_positions)
+        pool = Pool(processes=self.processes, initializer=pool_init_score,
+                    initargs=(evidence, self.unique_clusters, aa_dict, self.output_dir, self.low_mem))
+        pool_res = pool.map_async(mip_score, tree_positions)
         for res in pool_res.get():
             self.unique_clusters[res[0]]['raw_score'] = res[1]
             self.unique_clusters[res[0]]['evidence'] = res[2]
             self.unique_clusters[res[0]]['time'] = res[3]
+        self.nongap_counts = {}
+        self.cluster_scores = {}
+        for c in self.cluster_mapping:
+            if c[0] not in self.nongap_counts:
+                self.nongap_counts[c[0]] = {}
+                self.cluster_scores[c[0]] = {}
+            self.nongap_counts[c[0]][c[1]] = self.unique_clusters[res[0]]['evidence']
+            self.cluster_scores[c[0]][c[1]] = self.unique_clusters[res[0]]['raw_score']
 
     def calculate_cluster_scores(self, evidence, aa_dict):
         self._generate_sub_alignments()
         self._score_clusters(evidence=evidence, aa_dict=aa_dict)
 
-    @staticmethod
-    def _init_calculate_branch_score(curr_instance, combine_clusters):
-        global instance
-        instance = curr_instance
-        global combination_method
-        combination_method = combine_clusters
-
-    @staticmethod
-    def _calculate_branch_score(branch):
-        start = time()
-        branch_score_fn_bool = ETMIPC._exists_single_matrix(name='Result', k=branch, out_dir=instance.output_dir)
-        if instance.low_mem and branch_score_fn_bool:
-            branch_score = ETMIPC._single_matrix_filename(name='Result', k=branch, out_dir=instance.output_dir)
-        else:
-            curr_raw_scores = instance.get_raw_scores(c=branch, three_dim=True)
-            curr_evidence = instance.get_evidence_counts(c=branch, three_dim=True)
-            # Additive clusters
-            if combination_method == 'sum':
-                res_matrix = np.sum(curr_raw_scores, axis=0)
-            # Normal average over clusters
-            elif combination_method == 'average':
-                res_matrix = np.mean(curr_raw_scores, axis=0)
-            # Weighted average over clusters based on cluster sizes
-            elif combination_method == 'size_weighted':
-                weighting = np.array([instance.unique_clusters[branch][sub].size for sub in range(branch)])
-                res_matrix = weighting[:, None, None] * curr_raw_scores
-                res_matrix = np.sum(res_matrix, axis=0) / instance.alignment.size
-            # Weighted average over clusters based on evidence counts at each
-            # pair vs. the number of sequences with evidence for that pairing.
-            elif combination_method == 'evidence_weighted':
-                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / np.sum(curr_evidence, axis=0))
-            # Weighted average over clusters based on evidence counts at each
-            # pair vs. the entire size of the alignment.
-            elif combination_method == 'evidence_vs_size':
-                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / float(instance.alignment.size))
-            else:
-                print 'Combination method not yet implemented'
-                raise NotImplementedError()
-            res_matrix[np.isnan(res_matrix)] = 0.0
-            if instance.low_mem:
-                res_matrix = ETMIPC._save_single_matrix('Result', branch, res_matrix, instance.output_dir)
-        end = time()
-        print('Branch scoring took {} min'.format((end - start) / 60.0))
-        return branch, branch_score, (end - start)
-
     def calculate_branch_scores(self, combine_clusters):
-        pool = Pool(processes=self.processes, initializer=ETMIPC._init_calculate_branch_score,
+        pool = Pool(processes=self.processes, initializer=init_calculate_branch_score,
                     initargs=(self, combine_clusters))
         pool_res = pool.map_async(ETMIPC._calculate_branch_score, self.clusters)
         self.branch_scores = {}
@@ -696,9 +659,9 @@ def mip_score(tree_position):
                                             k=tree_position[0], out_dir=serialization_dir)
     if low_memory_mode and mip_fn_bool and evidence_fn_bool:
         mip_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), k=tree_position[0],
-                                            out_dir=serialization_dir)
+                                            out_dir=serialization_dir)[1]
         evidence_matrix = single_matrix_filename('Evidence_C{}'.format(tree_position[1]), k=tree_position[0],
-                                                 out_dir=serialization_dir)
+                                                 out_dir=serialization_dir)[1]
     else:
         alignment = sub_alignments[tree_position]['sub_alignment']
         overall_mmi = 0.0
@@ -716,6 +679,7 @@ def mip_score(tree_position):
             for j in range(i + 1, alignment.seq_length):
                 if measure_evidence:
                     _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
+                    # print('Measure Evidence: {}'.format(ev))
                     evidence_matrix[i, j] = evidence_matrix[j, i] = ev
                 col_i = alignment_matrix[:, i]
                 col_j = alignment_matrix[:, j]
@@ -747,6 +711,52 @@ def mip_score(tree_position):
     end = time()
     print('MIp scoring took {} min'.format((end - start) / 60.0))
     return tree_position, mip_matrix, evidence_matrix, (end - start)
+
+
+def init_calculate_branch_score(curr_instance, combine_clusters):
+    global instance
+    instance = curr_instance
+    global combination_method
+    combination_method = combine_clusters
+
+
+def _calculate_branch_score(branch):
+    start = time()
+    branch_score_fn_bool = exists_single_matrix(name='Result', k=branch, out_dir=instance.output_dir)
+    if instance.low_mem and branch_score_fn_bool:
+        branch_score = single_matrix_filename(name='Result', k=branch, out_dir=instance.output_dir)
+    else:
+        curr_raw_scores = instance.get_raw_scores(c=branch, three_dim=True)
+        # Additive clusters
+        if combination_method == 'sum':
+            res_matrix = np.sum(curr_raw_scores, axis=0)
+        # Normal average over clusters
+        elif combination_method == 'average':
+            res_matrix = np.mean(curr_raw_scores, axis=0)
+        # Weighted average over clusters based on cluster sizes
+        elif combination_method == 'size_weighted':
+            weighting = np.array([instance.unique_clusters[branch][sub].size for sub in range(branch)])
+            res_matrix = weighting[:, None, None] * curr_raw_scores
+            res_matrix = np.sum(res_matrix, axis=0) / instance.alignment.size
+        elif 'evidence' in combination_method:
+            curr_evidence = instance.get_evidence_counts(c=branch, three_dim=True)
+            # Weighted average over clusters based on evidence counts at each
+            # pair vs. the number of sequences with evidence for that pairing.
+            if combination_method == 'evidence_weighted':
+                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / np.sum(curr_evidence, axis=0))
+            # Weighted average over clusters based on evidence counts at each pair vs. the entire size of the alignment.
+            elif combination_method == 'evidence_vs_size':
+                res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / float(instance.alignment.size))
+        else:
+            print 'Combination method not yet implemented'
+            raise NotImplementedError()
+        res_matrix[np.isnan(res_matrix)] = 0.0
+        if instance.low_mem:
+            res_matrix = save_single_matrix('Result', branch, res_matrix, instance.output_dir)
+    end = time()
+    print('Branch scoring took {} min'.format((end - start) / 60.0))
+    return branch, branch_score, (end - start)
+
 
 def get_k_level_matrices(input, low_mem, c=None):
     """
