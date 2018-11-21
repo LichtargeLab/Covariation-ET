@@ -89,6 +89,165 @@ class ETMIPC(object):
         self.low_mem = None
         self.output_dir = None
 
+    ##################################################Getters###########################################################
+    def get_sub_alignment(self, branch, cluster):
+        return self.unique_clusters[self.cluster_mapping[(branch, cluster)]]['sub_alignment']
+
+    # def __get_c_level_matrices(self, item, c=None, k=None, three_dim=False):
+    def __get_c_level_matrices(self, item, branch=None, cluster=None, three_dim=False):
+        """
+        Get C Level Matrices
+
+        A general class method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
+        dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
+        3D matrix for a specified value of c, or a single matrix if both k and c are specified.
+
+        Args:
+            item (str): the class attribute to work with.
+            branch (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            cluster (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
+        """
+        if not self.low_mem:
+            attr = self.__getattribute__(item)
+        # return get_c_level_matrices(input=attr, low_mem=self.low_mem, c=c, k=k, three_dim=three_dim)
+        if branch is not None:
+            if cluster is not None:
+                if self.low_mem:
+                    return load_single_matrix('{}_C{}'.format(item, cluster), k=branch, out_dir=self.output_dir)
+                    # return ETMIPC._load_single_matrix(input[branch][cluster])
+                else:
+                    return attr[branch][cluster]
+            if self.low_mem:
+                # curr_matrices = {cluster: ETMIPC._load_single_matrix(input[branch][cluster]) for cluster in range(branch)}
+                curr_matrices = {cluster: load_single_matrix('{}'.format(item), k=branch, out_dir=self.output_dir)
+                                 for cluster in range(branch)}
+            else:
+                curr_matrices = attr[branch]
+            if three_dim:
+                return np.vstack(tuple([curr_matrices[cluster][np.newaxis, :, :] for cluster in curr_matrices]))
+            else:
+                return curr_matrices
+        else:
+            if self.low_mem:
+                # return {branch: {cluster: ETMIPC._load_single_matrix(input[branch][cluster]) for cluster in input[branch]} for c in input}
+                return {branch: {cluster: load_single_matrix('{}'.format(item, cluster), k=branch,
+                                                             out_dir=self.output_dir)
+                                 for cluster in input[branch]} for branch in input}
+            else:
+                return input
+
+    def get_nongap_counts(self, branch=None, cluster=None, three_dim=False):
+        """
+        Get Evidence Counts
+
+        Retrieve the evidence counts data. The entire dictionary of dictionaries of 2D matrices can be returned, or just
+        the dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single
+        matrix f both k and c are specified.
+
+        Args:
+            branch (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            cluster (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from self.evidence_counts
+        """
+        return self.__get_c_level_matrices(item='nongap_counts', branch=branch, cluster=cluster, three_dim=three_dim)
+
+    def get_raw_scores(self, branch=None, cluster=None, three_dim=False):
+        """
+        Get Raw Scores
+
+        Retrieve the raw score data. The entire dictionary of dictionaries of 2D matrices can be returned, or just the
+        dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single matrix
+        f both k and c are specified.
+
+        Args:
+            branch (int): the first level specifier for the data to extract (corresponds to clustering constants).
+            cluster (int): the second level specifier for the data to extract (corresponds to a single cluster).
+            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+            specified.
+        Returns:
+            np.array or dict. The specified data requested from self.raw_scores
+        """
+        return self.__get_c_level_matrices(item='raw_scores', branch=branch, cluster=cluster, three_dim=three_dim)
+
+    # def __get_k_level_matrices(self, item, branch=None):
+    #     """
+    #     Get K Level Matrices
+    #
+    #     A general class method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices
+    #     can be returned or a single matrix if c is specified.
+    #
+    #     Args:
+    #         item (str): the class variable to work with.
+    #         c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+    #     Returns:
+    #         np.array or dict. The specified data requested from the dictionary of 2D arrays.
+    #     """
+    #     # return get_k_level_matrices(input=attr, low_mem=self.low_mem, c=c)
+    #     if self.low_mem:
+    #         if branch:
+    #             # return ETMIPC._load_single_matrix(input[c])
+    #             return load_single_matrix(name=item, k=branch, out_dir=self.output_dir)
+    #         else:
+    #             # return {c: ETMIPC._load_single_matrix(input[branch]) for c in input}
+    #             return {branch: load_single_matrix(name=item, k=branch, out_dir=self.output_dir) for branch in input}
+    #     else:
+    #         attr = self.__getattribute__(item)
+    #         if branch:
+    #             return attr[branch]
+    #         else:
+    #             return attr
+
+    def get_result_matrices(self, branch=None):
+        """
+        Get Result Matrices
+
+        Retrieve the result matrices data. The entire dictionary of of 2D matrices can be returned or a single matrix if
+        c is specified.
+
+        Args:
+            branch (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
+        # return self.__get_k_level_matrices(item='result_matrices', c=c)
+        return self.__get_c_level_matrices(item=, branch=branch)
+
+    def get_scores(self, c=None):
+        """
+        Get Scores
+
+        Retrieve the scores data. The entire dictionary of of 2D matrices can be returned or a single matrix if c is
+        specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
+        return self.__get_k_level_matrices(item='scores', c=c)
+
+    def get_coverage(self, c=None):
+        """
+        Get Coverage
+
+        Retrieve the coverage data. The entire dictionary of of 2D matrices can be returned or a single matrix if
+        c is specified.
+
+        Args:
+            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+        Returns:
+            np.array or dict. The specified data requested from the dictionary of 2D arrays.
+        """
+        return self.__get_k_level_matrices(item='coverage', c=c)
+    ####################################################################################################################
+
     def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',
                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}):
         """
@@ -185,123 +344,6 @@ class ETMIPC(object):
             self.branch_scores[res[0]] = {}
             self.branch_scores[res[0]]['scores'] = res[1]
             self.branch_scores[res[0]]['time'] = res[2]
-
-    def get_sub_alignment(self, branch, cluster):
-        return self.unique_clusters[self.cluster_mapping[(branch, cluster)]]['sub_alignment']
-
-    def get_raw_scores(self, c=None, k=None, three_dim=False):
-        """
-        Get Raw Scores
-
-        Retrieve the raw score data. The entire dictionary of dictionaries of 2D matrices can be returned, or just the
-        dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single matrix
-        f both k and c are specified.
-
-        Args:
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
-            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
-            specified.
-        Returns:
-            np.array or dict. The specified data requested from self.raw_scores
-        """
-        return self.__get_c_level_matrices(item='raw_scores', c=c, k=k, three_dim=three_dim)
-
-    def get_evidence_counts(self, c=None, k=None, three_dim=False):
-        """
-        Get Evidence Counts
-
-        Retrieve the evidence counts data. The entire dictionary of dictionaries of 2D matrices can be returned, or just
-        the dictionary of matrices for a specific value of c, or a 3D matrix for a specified value of c, or a single
-        matrix f both k and c are specified.
-
-        Args:
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
-            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
-            specified.
-        Returns:
-            np.array or dict. The specified data requested from self.evidence_counts
-        """
-        return self.__get_c_level_matrices(item='evidence_counts', c=c, k=k, three_dim=three_dim)
-
-    def __get_c_level_matrices(self, item, c=None, k=None, three_dim=False):
-        """
-        Get C Level Matrices
-
-        A general class method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
-        dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
-        3D matrix for a specified value of c, or a single matrix if both k and c are specified.
-
-        Args:
-            item (str): the class attribute to work with.
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-            k (int): the second level specifier for the data to extract (corresponds to a single cluster).
-            three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
-            specified.
-        Returns:
-            np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
-        """
-        attr = self.__getattribute__(item)
-        return get_c_level_matrices(input=attr, low_mem=self.low_mem, c=c, k=k, three_dim=three_dim)
-
-    def get_result_matrices(self, c=None):
-        """
-        Get Result Matrices
-
-        Retrieve the result matrices data. The entire dictionary of of 2D matrices can be returned or a single matrix if
-        c is specified.
-
-        Args:
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-        Returns:
-            np.array or dict. The specified data requested from the dictionary of 2D arrays.
-        """
-        return self.__get_k_level_matrices(item='result_matrices', c=c)
-
-    def get_scores(self, c=None):
-        """
-        Get Scores
-
-        Retrieve the scores data. The entire dictionary of of 2D matrices can be returned or a single matrix if c is
-        specified.
-
-        Args:
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-        Returns:
-            np.array or dict. The specified data requested from the dictionary of 2D arrays.
-        """
-        return self.__get_k_level_matrices(item='scores', c=c)
-
-    def get_coverage(self, c=None):
-        """
-        Get Coverage
-
-        Retrieve the coverage data. The entire dictionary of of 2D matrices can be returned or a single matrix if
-        c is specified.
-
-        Args:
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-        Returns:
-            np.array or dict. The specified data requested from the dictionary of 2D arrays.
-        """
-        return self.__get_k_level_matrices(item='coverage', c=c)
-
-    def __get_k_level_matrices(self, item, c=None):
-        """
-        Get K Level Matrices
-
-        A general class method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices
-        can be returned or a single matrix if c is specified.
-
-        Args:
-            item (str): the class variable to work with.
-            c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-        Returns:
-            np.array or dict. The specified data requested from the dictionary of 2D arrays.
-        """
-        attr = self.__getattribute__(item)
-        return get_k_level_matrices(input=attr, low_mem=self.low_mem, c=c)
 
     def combine_clustering_results(self, combination):
         """
@@ -720,7 +762,7 @@ def init_calculate_branch_score(curr_instance, combine_clusters):
     combination_method = combine_clusters
 
 
-def _calculate_branch_score(branch):
+def calculate_branch_score(branch):
     start = time()
     branch_score_fn_bool = exists_single_matrix(name='Result', k=branch, out_dir=instance.output_dir)
     if instance.low_mem and branch_score_fn_bool:
@@ -747,6 +789,9 @@ def _calculate_branch_score(branch):
             # Weighted average over clusters based on evidence counts at each pair vs. the entire size of the alignment.
             elif combination_method == 'evidence_vs_size':
                 res_matrix = (np.sum(curr_raw_scores * curr_evidence, axis=0) / float(instance.alignment.size))
+            else:
+                print 'Combination method not yet implemented'
+                raise NotImplementedError()
         else:
             print 'Combination method not yet implemented'
             raise NotImplementedError()
@@ -758,221 +803,221 @@ def _calculate_branch_score(branch):
     return branch, branch_score, (end - start)
 
 
-def get_k_level_matrices(input, low_mem, c=None):
-    """
-    Get K Level Matrices
-
-    A general method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices can be
-    returned or a single matrix if c is specified.
-
-    Args:
-        input (dict): dictionary of 2D arrays containing data of interest.
-        low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
-        c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-    Returns:
-        np.array or dict. The specified data requested from the dictionary of 2D arrays.
-    """
-    if low_mem:
-        if c:
-            return ETMIPC._load_single_matrix(input[c])
-        else:
-            return {c: ETMIPC._load_single_matrix(input[c]) for c in input}
-    else:
-        if c:
-            return input[c]
-        else:
-            return input
-
-
-def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
-    """
-    Get C Level Matrices
-
-    A general method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
-    dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
-    3D matrix for a specified value of c, or a single matrix if both k and c are specified.
-
-    Args:
-        input (dict): dictionary of dictionaries of 2D arrays containing data of interest.
-        low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
-        c (int): the first level specifier for the data to extract (corresponds to clustering constants).
-        k (int): the second level specifier for the data to extract (corresponds to a single cluster).
-        three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
-        specified.
-    Returns:
-        np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
-    """
-    if c is not None:
-        if k is not None:
-            if low_mem:
-                return ETMIPC._load_single_matrix(input[c][k])
-            else:
-                return input[c][k]
-        if low_mem:
-            curr_matrices = {k: ETMIPC._load_single_matrix(input[c][k]) for k in range(c)}
-        else:
-            curr_matrices = input[c]
-        if three_dim:
-            return np.vstack(tuple([curr_matrices[k][np.newaxis, :, :] for k in curr_matrices]))
-        else:
-            return curr_matrices
-    else:
-        if low_mem:
-            return {c: {k: ETMIPC._load_single_matrix(input[c][k]) for k in input[c]} for c in input}
-        else:
-            return input
+# def get_k_level_matrices(input, low_mem, c=None):
+#     """
+#     Get K Level Matrices
+#
+#     A general method to retrieve data from a dictionary  2D arrays. The entire dictionary of of 2D matrices can be
+#     returned or a single matrix if c is specified.
+#
+#     Args:
+#         input (dict): dictionary of 2D arrays containing data of interest.
+#         low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
+#         c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+#     Returns:
+#         np.array or dict. The specified data requested from the dictionary of 2D arrays.
+#     """
+#     if low_mem:
+#         if c:
+#             return ETMIPC._load_single_matrix(input[c])
+#         else:
+#             return {c: ETMIPC._load_single_matrix(input[c]) for c in input}
+#     else:
+#         if c:
+#             return input[c]
+#         else:
+#             return input
 
 
-def pool_init2(out_dir, low_mem):
-    """
-    pool_init2
-
-    A function which initializes processes spawned in a worker pool performing the et_mip_worker2 function.  This
-    provides a set of variables to all working processes which are shared.
-
-    Args:
-        output_dir (str): The full path to where the output generated by this process should be stored. If None
-        (default) the current working directory will be used.
-        low_mem (bool): Whether low memory mode is active during this score computation.
-    """
-    global w2_out_dir
-    w2_out_dir = out_dir
-    global worker2_low_mem
-    worker2_low_mem = low_mem
-
-
-def et_mip_worker2(in_tup):
-    """
-    ET-MIp Worker 2
-
-    Performs clustering and calculation of cluster dependent sequence distances. This function requires initialization
-    of threads with poolInit, or setting of global variables as described in that function.
-
-    Args:
-        in_tup (tuple): Tuple containing the number of clusters to form during agglomerative clustering and a matrix
-        which is the result of summing the original MIP matrix and the matrix resulting from clustering at this
-        clustering and lower clusterings.
-    Returns:
-        int. Number of clusters.
-        list. Coverage values for this clustering.
-        float. The time in seconds which it took to perform clustering.
-        list. List of false positive rates.
-        list. List of true positive rates.
-        float. The ROCAUC value for this clustering.
-    """
-    c, all_summed_matrix = in_tup
-    summed_matrix = get_k_level_matrices(input=all_summed_matrix, low_mem=worker2_low_mem, c=c)
-    start = time()
-    curr_coverage = np.zeros(summed_matrix.shape)
-    test_mat = np.triu(summed_matrix)
-    mask = np.triu(np.ones(summed_matrix.shape), k=1)
-    normalization = ((summed_matrix.shape[0]**2 - summed_matrix.shape[0]) / 2.0)
-    for i in range(summed_matrix.shape[0]):
-        for j in range(i + 1, summed_matrix.shape[0]):
-            bool_mat = (test_mat[i, j] >= test_mat) * 1.0
-            corrected_mat = bool_mat * mask
-            compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
-            curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
-    end = time()
-    time_elapsed = end - start
-    print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
-    if worker2_low_mem:
-        curr_coverage = ETMIPC._save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
-    return c, curr_coverage, time_elapsed
+# def get_c_level_matrices(input, low_mem, c=None, k=None, three_dim=False):
+#     """
+#     Get C Level Matrices
+#
+#     A general method to retrieve data from a dictionary of dictionaries of 2D arrays. The entire dictionary of
+#     dictionaries of 2D matrices can be returned, or just the dictionary of matrices for a specific value of c, or a
+#     3D matrix for a specified value of c, or a single matrix if both k and c are specified.
+#
+#     Args:
+#         input (dict): dictionary of dictionaries of 2D arrays containing data of interest.
+#         low_mem (bool): whether or not low_memory mode was used when producing the data of interest.
+#         c (int): the first level specifier for the data to extract (corresponds to clustering constants).
+#         k (int): the second level specifier for the data to extract (corresponds to a single cluster).
+#         three_dim (bool): whether or not to return a 3D array instead of a dictionary of 2D arrays if c is
+#         specified.
+#     Returns:
+#         np.array or dict. The specified data requested from the dictionary of dictionaries of 2D arrays.
+#     """
+#     if c is not None:
+#         if k is not None:
+#             if low_mem:
+#                 return ETMIPC._load_single_matrix(input[c][k])
+#             else:
+#                 return input[c][k]
+#         if low_mem:
+#             curr_matrices = {k: ETMIPC._load_single_matrix(input[c][k]) for k in range(c)}
+#         else:
+#             curr_matrices = input[c]
+#         if three_dim:
+#             return np.vstack(tuple([curr_matrices[k][np.newaxis, :, :] for k in curr_matrices]))
+#         else:
+#             return curr_matrices
+#     else:
+#         if low_mem:
+#             return {c: {k: ETMIPC._load_single_matrix(input[c][k]) for k in input[c]} for c in input}
+#         else:
+#             return input
 
 
-def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
-               class_coverage, class_summary, class_alignment, output_dir, low_mem):
-    """
-    Pool Init 3
-
-    A function which initializes processes spawned in a worker pool performing the et_mip_worker3 function.  This
-    provides a set of variables to all working processes which are shared.
-
-    Args:
-        cluster_queue (multiprocessing.Manager.Queue()): Queue used for tracking the k's for which output still needs to
-        be generated.
-        q_name (str): The name of the query string.
-        today (str): The current date which will be used for identifying the proper directory to store files in.
-        cut_off (float): Distance in Angstroms between residues considered as a preliminary positive set of coupled
-        residues based on spatial positions in the PDB file if provided.
-        class_mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as
-        computed over all sequences in the input alignment.
-        class_raw_scores (dict): The dictionary mapping clustering constant to coupling scores for all positions in the
-        query sequences at the specified clustering constant created by hierarchical clustering.
-        class_result_matrices (dict): A dictionary mapping clustering constants to matrices which represent the
-        integration of coupling scores across all clusters defined at that clustering constant.
-        class_coverage (dict): This dictionary maps clustering constants to a matrix of normalized coupling scores
-        between 0 and 100, computed from the summary_matrices.
-        class_summary (dict): This dictionary maps clustering constants to a matrix which combines the scores from the
-        whole_mip_matrix, all lower clustering constants, and this clustering constant.
-        class_subalignments (dict): A dictionary mapping a clustering constant (k) to another dictionary which maps a
-        cluster label (0 to k-1) to a SeqAlignment object containing only the sequences for that specific cluster.
-        class_alignment (SeqAlignment): The SeqAlignment object containing relevant information for this cET-MIp
-        analysis.
-        output_dir (str): The full path to where the output generated by this process should be stored. If None
-        (default) the plot will be stored in the current working directory.
-        low_mem (bool): Whether low memory mode is active during this score computation.
-    """
-    global queue1
-    queue1 = cluster_queue
-    global query_n
-    query_n = q_name
-    global date
-    date = today
-    global mip_matrix
-    mip_matrix = class_mip_matrix
-    global raw_scores
-    raw_scores = class_raw_scores
-    global res_mat
-    res_mat = class_result_matrices
-    global alignment
-    alignment = class_alignment
-    global coverage
-    coverage = class_coverage
-    global summary
-    summary = class_summary
-    global out_dir
-    out_dir = output_dir
-    global worker3_low_mem
-    worker3_low_mem = low_mem
+# def pool_init2(out_dir, low_mem):
+#     """
+#     pool_init2
+#
+#     A function which initializes processes spawned in a worker pool performing the et_mip_worker2 function.  This
+#     provides a set of variables to all working processes which are shared.
+#
+#     Args:
+#         output_dir (str): The full path to where the output generated by this process should be stored. If None
+#         (default) the current working directory will be used.
+#         low_mem (bool): Whether low memory mode is active during this score computation.
+#     """
+#     global w2_out_dir
+#     w2_out_dir = out_dir
+#     global worker2_low_mem
+#     worker2_low_mem = low_mem
 
 
-def et_mip_worker3(input_tuple):
-    """
-    ET-MIp Worker 3
+# def et_mip_worker2(in_tup):
+#     """
+#     ET-MIp Worker 2
+#
+#     Performs clustering and calculation of cluster dependent sequence distances. This function requires initialization
+#     of threads with poolInit, or setting of global variables as described in that function.
+#
+#     Args:
+#         in_tup (tuple): Tuple containing the number of clusters to form during agglomerative clustering and a matrix
+#         which is the result of summing the original MIP matrix and the matrix resulting from clustering at this
+#         clustering and lower clusterings.
+#     Returns:
+#         int. Number of clusters.
+#         list. Coverage values for this clustering.
+#         float. The time in seconds which it took to perform clustering.
+#         list. List of false positive rates.
+#         list. List of true positive rates.
+#         float. The ROCAUC value for this clustering.
+#     """
+#     c, all_summed_matrix = in_tup
+#     summed_matrix = get_k_level_matrices(input=all_summed_matrix, low_mem=worker2_low_mem, c=c)
+#     start = time()
+#     curr_coverage = np.zeros(summed_matrix.shape)
+#     test_mat = np.triu(summed_matrix)
+#     mask = np.triu(np.ones(summed_matrix.shape), k=1)
+#     normalization = ((summed_matrix.shape[0]**2 - summed_matrix.shape[0]) / 2.0)
+#     for i in range(summed_matrix.shape[0]):
+#         for j in range(i + 1, summed_matrix.shape[0]):
+#             bool_mat = (test_mat[i, j] >= test_mat) * 1.0
+#             corrected_mat = bool_mat * mask
+#             compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
+#             curr_coverage[i, j] = curr_coverage[j, i] = compute_coverage2
+#     end = time()
+#     time_elapsed = end - start
+#     print('ETMIP worker 2 took {} min'.format(time_elapsed / 60.0))
+#     if worker2_low_mem:
+#         curr_coverage = ETMIPC._save_single_matrix('Coverage', c, curr_coverage, w2_out_dir)
+#     return c, curr_coverage, time_elapsed
 
-    This method uses queues to generate the jobs necessary to create the final output of the cET-MIp class
-    write_out_scores method. One queue is used to hold the clustering constants to be processed (producer) and the data
-    for that clustering constant is written to file, while the time taken is saved to a dictionary.
 
-    Args:
-        input_tuple (tuple): Tuple containing the one int specifying which process this is, and a second int specifying
-        the number of active processes.
-    Returns:
-        dict. Mapping of k to the time spent working on data from that k by this process.
-    """
-    curr_process, total_processes = input_tuple
-    times = {}
-    while not queue1.empty():
-        try:
-            c = queue1.get_nowait()
-            print('Process {} of {} writing scores for cluster {}'.format(curr_process, total_processes, c))
-            start = time()
-            c_out_dir = os.path.join(out_dir, str(c))
-            c_summary = get_k_level_matrices(input=summary, low_mem=worker3_low_mem, c=c)
-            c_coverage = get_k_level_matrices(input=coverage, low_mem=worker3_low_mem, c=c)
-            c_result = get_k_level_matrices(input=res_mat, low_mem=worker3_low_mem, c=c)
-            c_raw = get_c_level_matrices(input=raw_scores, low_mem=worker3_low_mem, c=c, k=None, three_dim=False)
-            res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
-            write_out_contact_scoring(date, alignment, c_result, c_coverage, mip_matrix, c_raw, c_summary, res_fn,
-                                      c_out_dir)
-            end = time()
-            time_elapsed = end - start
-            if c not in times:
-                times[c] = time_elapsed
-            else:
-                times[c] += time_elapsed
-        except Queue.Empty:
-            pass
-    return times
+# def pool_init3(cluster_queue, q_name, today, class_mip_matrix, class_raw_scores, class_result_matrices,
+#                class_coverage, class_summary, class_alignment, output_dir, low_mem):
+#     """
+#     Pool Init 3
+#
+#     A function which initializes processes spawned in a worker pool performing the et_mip_worker3 function.  This
+#     provides a set of variables to all working processes which are shared.
+#
+#     Args:
+#         cluster_queue (multiprocessing.Manager.Queue()): Queue used for tracking the k's for which output still needs to
+#         be generated.
+#         q_name (str): The name of the query string.
+#         today (str): The current date which will be used for identifying the proper directory to store files in.
+#         cut_off (float): Distance in Angstroms between residues considered as a preliminary positive set of coupled
+#         residues based on spatial positions in the PDB file if provided.
+#         class_mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as
+#         computed over all sequences in the input alignment.
+#         class_raw_scores (dict): The dictionary mapping clustering constant to coupling scores for all positions in the
+#         query sequences at the specified clustering constant created by hierarchical clustering.
+#         class_result_matrices (dict): A dictionary mapping clustering constants to matrices which represent the
+#         integration of coupling scores across all clusters defined at that clustering constant.
+#         class_coverage (dict): This dictionary maps clustering constants to a matrix of normalized coupling scores
+#         between 0 and 100, computed from the summary_matrices.
+#         class_summary (dict): This dictionary maps clustering constants to a matrix which combines the scores from the
+#         whole_mip_matrix, all lower clustering constants, and this clustering constant.
+#         class_subalignments (dict): A dictionary mapping a clustering constant (k) to another dictionary which maps a
+#         cluster label (0 to k-1) to a SeqAlignment object containing only the sequences for that specific cluster.
+#         class_alignment (SeqAlignment): The SeqAlignment object containing relevant information for this cET-MIp
+#         analysis.
+#         output_dir (str): The full path to where the output generated by this process should be stored. If None
+#         (default) the plot will be stored in the current working directory.
+#         low_mem (bool): Whether low memory mode is active during this score computation.
+#     """
+#     global queue1
+#     queue1 = cluster_queue
+#     global query_n
+#     query_n = q_name
+#     global date
+#     date = today
+#     global mip_matrix
+#     mip_matrix = class_mip_matrix
+#     global raw_scores
+#     raw_scores = class_raw_scores
+#     global res_mat
+#     res_mat = class_result_matrices
+#     global alignment
+#     alignment = class_alignment
+#     global coverage
+#     coverage = class_coverage
+#     global summary
+#     summary = class_summary
+#     global out_dir
+#     out_dir = output_dir
+#     global worker3_low_mem
+#     worker3_low_mem = low_mem
+
+
+# def et_mip_worker3(input_tuple):
+#     """
+#     ET-MIp Worker 3
+#
+#     This method uses queues to generate the jobs necessary to create the final output of the cET-MIp class
+#     write_out_scores method. One queue is used to hold the clustering constants to be processed (producer) and the data
+#     for that clustering constant is written to file, while the time taken is saved to a dictionary.
+#
+#     Args:
+#         input_tuple (tuple): Tuple containing the one int specifying which process this is, and a second int specifying
+#         the number of active processes.
+#     Returns:
+#         dict. Mapping of k to the time spent working on data from that k by this process.
+#     """
+#     curr_process, total_processes = input_tuple
+#     times = {}
+#     while not queue1.empty():
+#         try:
+#             c = queue1.get_nowait()
+#             print('Process {} of {} writing scores for cluster {}'.format(curr_process, total_processes, c))
+#             start = time()
+#             c_out_dir = os.path.join(out_dir, str(c))
+#             c_summary = get_k_level_matrices(input=summary, low_mem=worker3_low_mem, c=c)
+#             c_coverage = get_k_level_matrices(input=coverage, low_mem=worker3_low_mem, c=c)
+#             c_result = get_k_level_matrices(input=res_mat, low_mem=worker3_low_mem, c=c)
+#             c_raw = get_c_level_matrices(input=raw_scores, low_mem=worker3_low_mem, c=c, k=None, three_dim=False)
+#             res_fn = "{}_{}_{}.all_scores.txt".format(date, query_n, c)
+#             write_out_contact_scoring(date, alignment, c_result, c_coverage, mip_matrix, c_raw, c_summary, res_fn,
+#                                       c_out_dir)
+#             end = time()
+#             time_elapsed = end - start
+#             if c not in times:
+#                 times[c] = time_elapsed
+#             else:
+#                 times[c] += time_elapsed
+#         except Queue.Empty:
+#             pass
+#     return times
