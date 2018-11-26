@@ -790,7 +790,7 @@ def calculate_branch_score(branch):
     start = time()
     branch_score_fn_bool = exists_single_matrix(name='Result', branch=branch, out_dir=instance.output_dir)
     if instance.low_mem and branch_score_fn_bool:
-        branch_score = single_matrix_filename(name='Result', branch=branch, out_dir=instance.output_dir)
+        branch_score = single_matrix_filename(name='Result', branch=branch, out_dir=instance.output_dir)[1]
     else:
         curr_raw_scores = instance.get_cluster_scores(branch=branch, three_dim=True)
         # Additive clusters

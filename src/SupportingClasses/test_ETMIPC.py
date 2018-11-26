@@ -1089,14 +1089,15 @@ class TestETMIPC(TestCase):
         scores_evidence[np.isnan(scores_evidence)] = 0.0
         scores4 = scores_evidence / etmipc2.get_nongap_counts(branch=1, cluster=0)
         scores4[np.isnan(scores4)] = 0.0
-        self.assertLess(np.sum(np.load(etmipc2_branch_res1[1][1])['mat'] - scores4), 1e-10)
+        print(etmipc2_branch_res1[1])
+        self.assertLess(np.sum(np.load(etmipc2_branch_res1[1])['mat'] - scores4), 1e-10)
         pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_vs_size')
         etmipc2_branch_res2 = calculate_branch_score(2)
         self.assertEqual(etmipc2_branch_res2[0], 2)
         self.assertGreater(etmipc2_branch_res2[2], 0)
         scores5 = scores_evidence / float(etmipc2.alignment.size)
         scores5[np.isnan(scores5)] = 0.0
-        self.assertLess(np.sum(np.load(etmipc2_branch_res2[1][1])['mat'] - scores5), 1e-10)
+        self.assertLess(np.sum(np.load(etmipc2_branch_res2[1])['mat'] - scores5), 1e-10)
         for k in etmipc2.tree_depth:
             rmtree(os.path.join(out_dir, str(k)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
