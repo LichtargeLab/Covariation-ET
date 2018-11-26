@@ -1043,35 +1043,27 @@ class TestETMIPC(TestCase):
         etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
         etmipc1.processes = 1
         etmipc1.low_mem = False
+        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='sum')
         etmipc1_branch_res1 = calculate_branch_score(2)
         self.assertEqual(etmipc1_branch_res1[0], 2)
         self.assertGreater(etmipc1_branch_res1[2], 0)
-        scores1 = None
-        for i in range(2):
-            if scores1 is None:
-                scores1 = etmipc1.get_cluster_scores(branch=2, cluster=i, three_dim=False)
-            else:
-                scores1 += etmipc1.get_cluster_scores(branch=2, cluster=i, three_dim=False)
-        self.assertLess(np.sum(etmipc1_branch_res1[1] - scores1), 1e-10)
+        scores1 = etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False) + \
+                  etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False)
         pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='average')
         etmipc1_branch_res2 = calculate_branch_score(2)
         self.assertEqual(etmipc1_branch_res2[0], 2)
         self.assertGreater(etmipc1_branch_res2[2], 0)
         scores2 = scores1 / 2.0
         self.assertLess(np.sum(etmipc1_branch_res2[1] - scores2), 1e-10)
-        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='size_eighted')
+        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='size_weighted')
         etmipc1_branch_res3 = calculate_branch_score(2)
         self.assertEqual(etmipc1_branch_res3[0], 2)
         self.assertGreater(etmipc1_branch_res3[2], 0)
-        scores3 = None
-        for i in range(2):
-            if scores3 is None:
-                scores3 = (etmipc1.get_sub_alignment(branch=2, cluster=i).size *
-                           etmipc1.get_cluster_scores(branch=2, cluster=i, three_dim=False))
-            else:
-                scores3 += (etmipc1.get_sub_alignment(branch=2, cluster=i).size *
-                            etmipc1.get_cluster_scores(branch=2, cluster=i, three_dim=False))
+        scores3 = (etmipc1.get_sub_alignment(branch=2, cluster=0).size *
+                           etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
+                  (etmipc1.get_sub_alignment(branch=2, cluster=1).size *
+                            etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False))
         scores3 /= float(etmipc1.alignment.size)
         self.assertLess(np.sum(etmipc1_branch_res3[1] - scores3), 1e-10)
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
@@ -1079,7 +1071,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         etmipc2 = ETMIPC('../Test/1h1vA.fa')
         etmipc2.tree_depth = (2, 5)
         etmipc2.output_dir = out_dir
@@ -1091,22 +1082,21 @@ class TestETMIPC(TestCase):
         etmipc2_branch_res1 = calculate_branch_score(2)
         self.assertEqual(etmipc2_branch_res1[0], 2)
         self.assertGreater(etmipc2_branch_res1[2], 0)
-        scores_evidence = None
-        for i in range(2):
-            if scores_evidence is None:
-                scores_evidence = (etmipc2.get_nongap_counts_counts(branch=2, cluster=i) *
-                                   etmipc2.get_cluster_scores(branch=2, cluster=i, three_dim=False))
-            else:
-                scores_evidence += (etmipc2.get_nongap_counts_counts(branch=2, cluster=i).size *
-                                    etmipc2.get_cluster_scores(branch=2, cluster=i, three_dim=False))
+        scores_evidence = (etmipc2.get_nongap_counts(branch=2, cluster=0) *
+                                   etmipc2.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
+                          (etmipc2.get_nongap_counts(branch=2, cluster=1) *
+                                    etmipc2.get_cluster_scores(branch=2, cluster=1, three_dim=False))
+        scores_evidence[np.isnan(scores_evidence)] = 0.0
         scores4 = scores_evidence / etmipc2.get_nongap_counts(branch=1, cluster=0)
-        self.assertLess(np.sum(etmipc2_branch_res1 - scores4), 1e-10)
+        scores4[np.isnan(scores4)] = 0.0
+        self.assertLess(np.sum(np.load(etmipc2_branch_res1[1][1])['mat'] - scores4), 1e-10)
         pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_vs_size')
         etmipc2_branch_res2 = calculate_branch_score(2)
         self.assertEqual(etmipc2_branch_res2[0], 2)
         self.assertGreater(etmipc2_branch_res2[2], 0)
         scores5 = scores_evidence / float(etmipc2.alignment.size)
-        self.assertLess(np.sum(etmipc2_branch_res2[1] - scores4), 1e-10)
+        scores5[np.isnan(scores5)] = 0.0
+        self.assertLess(np.sum(np.load(etmipc2_branch_res2[1][1])['mat'] - scores5), 1e-10)
         for k in etmipc2.tree_depth:
             rmtree(os.path.join(out_dir, str(k)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))

@@ -792,7 +792,7 @@ def calculate_branch_score(branch):
     if instance.low_mem and branch_score_fn_bool:
         branch_score = single_matrix_filename(name='Result', branch=branch, out_dir=instance.output_dir)
     else:
-        curr_raw_scores = instance.get_raw_scores(c=branch, three_dim=True)
+        curr_raw_scores = instance.get_cluster_scores(branch=branch, three_dim=True)
         # Additive clusters
         if combination_method == 'sum':
             branch_score = np.sum(curr_raw_scores, axis=0)
@@ -801,11 +801,11 @@ def calculate_branch_score(branch):
             branch_score = np.mean(curr_raw_scores, axis=0)
         # Weighted average over clusters based on cluster sizes
         elif combination_method == 'size_weighted':
-            weighting = np.array([instance.unique_clusters[branch][sub].size for sub in range(branch)])
+            weighting = np.array([instance.get_sub_alignment(branch=branch, cluster=sub).size for sub in range(branch)])
             branch_score = weighting[:, None, None] * curr_raw_scores
             branch_score = np.sum(branch_score, axis=0) / instance.alignment.size
         elif 'evidence' in combination_method:
-            curr_evidence = instance.get_nongap_counts_counts(c=branch, three_dim=True)
+            curr_evidence = instance.get_nongap_counts(branch=branch, three_dim=True)
             # Weighted average over clusters based on evidence counts at each
             # pair vs. the number of sequences with evidence for that pairing.
             if combination_method == 'evidence_weighted':
@@ -819,9 +819,9 @@ def calculate_branch_score(branch):
         else:
             print 'Combination method not yet implemented'
             raise NotImplementedError()
-            branch_score[np.isnan(branch_score)] = 0.0
+        branch_score[np.isnan(branch_score)] = 0.0
         if instance.low_mem:
-            branch_score = save_single_matrix('Result', branch, res_matrix, instance.output_dir)
+            branch_score = save_single_matrix('Result', branch, branch_score, instance.output_dir)
     end = time()
     print('Branch scoring took {} min'.format((end - start) / 60.0))
     return branch, branch_score, (end - start)
