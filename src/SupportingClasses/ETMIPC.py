@@ -360,9 +360,9 @@ class ETMIPC(object):
         self._score_clusters(evidence=evidence, aa_dict=aa_dict)
 
     def calculate_branch_scores(self, combine_clusters):
-        pool = Pool(processes=self.processes, initializer=init_calculate_branch_score,
+        pool = Pool(processes=self.processes, initializer=pool_init_calculate_branch_score,
                     initargs=(self, combine_clusters))
-        pool_res = pool.map_async(calculate_branch_score, self.clusters)
+        pool_res = pool.map_async(calculate_branch_score, self.tree_depth)
         self.branch_scores = {}
         for res in pool_res.get():
             self.branch_scores[res[0]] = {}
