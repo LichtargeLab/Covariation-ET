@@ -1168,7 +1168,7 @@ class TestETMIPC(TestCase):
         etmipc2_a.processes = 6
         etmipc2_a.low_mem = True
         etmipc2_a.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
-        etmipc2_a.calculate_branch_scores(combine_clusters='evidence_vs_size')
+        etmipc2_a.calculate_branch_scores(combine_clusters='evidence_weighted')
         for branch in etmipc2_a.tree_depth:
             scores = np.zeros((etmipc2_a.alignment.seq_length, etmipc2_a.alignment.seq_length))
             for cluster in range(branch):
@@ -1177,8 +1177,6 @@ class TestETMIPC(TestCase):
             scores[np.isnan(scores)] = 0.0
             scores /= etmipc2_a.get_nongap_counts(branch=1, cluster=0)
             scores[np.isnan(scores)] = 0.0
-            print(np.load(etmipc2_a.branch_scores[branch]['scores'])['mat'])
-            print(scores)
             self.assertLess(np.sum(np.load(etmipc2_a.branch_scores[branch]['scores'])['mat'] - scores), 1e-10)
             self.assertGreater(etmipc2_a.branch_scores[branch]['time'], 0)
             os.remove(os.path.join(os.path.abspath('../Test/'), str(branch), 'K{}_Result.npz'.format(branch)))
@@ -1189,7 +1187,7 @@ class TestETMIPC(TestCase):
         etmipc2_b.processes = 6
         etmipc2_b.low_mem = True
         etmipc2_b.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
-        etmipc2_b.calculate_branch_scores(combine_clusters='evidence_weighted')
+        etmipc2_b.calculate_branch_scores(combine_clusters='evidence_vs_size')
         for branch in etmipc2_b.tree_depth:
             scores = np.zeros((etmipc2_b.alignment.seq_length, etmipc2_b.alignment.seq_length))
             for cluster in range(branch):
