@@ -327,62 +327,74 @@ class ETMIPC(object):
             self.branch_scores[res[0]] = res[1]
             self.times[res[0]] += res[2]
 
-    def combine_clustering_results(self, combination):
-        """
-        Combine Clustering Result
+    def calculate_final_scores(self, combination):
+        pool = Pool(processes=self.processes, initializer=pool_init_calculate_score_and_coverage,
+                    initargs=(self, combination))
+        pool_res = pool.map_async(calculate_score_and_coverage, self.tree_depth)
+        self.scores = {}
+        self.coverage = {}
+        for res in pool_res.get():
+            self.scores[res[0]] = res[1]
+            self.coverage[res[0]] = res[2]
+            self.times[res[0]] += res[3]
 
-        This method combines data from whole_mip_matrix and result_matrices to populate the scores matrices.  The
-        combination occurs by simple addition but if average is specified it is normalized by the number of elements
-        added.
 
-        Args:
-            combination (str): Method by which to combine scores across clustering constants. By default only a sum is
-            performed, the option average is also supported.
-        """
-        start = time()
-        for i in range(len(self.clusters)):
-            curr_clus = self.clusters[i]
-            curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-            curr_summary += self.whole_mip_matrix
-            for j in [c for c in self.clusters if c <= curr_clus]:
-                curr_summary += self.get_result_matrices(c=j)
-            if combination == 'average':
-                curr_summary /= (i + 2)
-            if self.low_mem:
-                fn = ETMIPC._save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
-                self.scores[curr_clus] = fn
-            else:
-                self.scores[curr_clus] = curr_summary
-        end = time()
-        print('Combining data across clusters took {} min'.format(
-            (end - start) / 60.0))
+    # def combine_clustering_results(self, combination):
+    #     """
+    #     Combine Clustering Result
+    #
+    #     This method combines data from whole_mip_matrix and result_matrices to populate the scores matrices.  The
+    #     combination occurs by simple addition but if average is specified it is normalized by the number of elements
+    #     added.
+    #
+    #     Args:
+    #         combination (str): Method by which to combine scores across clustering constants. By default only a sum is
+    #         performed, the option average is also supported.
+    #     """
+    #     start = time()
+    #     for i in range(len(self.clusters)):
+    #         curr_clus = self.clusters[i]
+    #         curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+    #         curr_summary += self.whole_mip_matrix
+    #         for j in [c for c in self.clusters if c <= curr_clus]:
+    #             curr_summary += self.get_result_matrices(c=j)
+    #         if combination == 'average':
+    #             curr_summary /= (i + 2)
+    #         if self.low_mem:
+    #             fn = ETMIPC._save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
+    #             self.scores[curr_clus] = fn
+    #         else:
+    #             self.scores[curr_clus] = curr_summary
+    #     end = time()
+    #     print('Combining data across clusters took {} min'.format(
+    #         (end - start) / 60.0))
 
-    def compute_coverage(self):
-        """
-        Compute Coverage
-
-        This method computes the coverage/normalized coupling scores between residues in the query sequence as well as
-        the AUC summary values determined when comparing the coupling score to the distance between residues in the PDB
-        file. This method updates the coverage, result_times, and aucs variables.
-        """
-        start = time()
-        if self.processes == 1:
-            res2 = []
-            for clus in self.clusters:
-                pool_init2(self.output_dir, self.low_mem)
-                r = et_mip_worker2((clus, self.scores))
-                res2.append(r)
-        else:
-            pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(self.output_dir, self.low_mem))
-            res2 = pool2.map_async(et_mip_worker2, [(clus, self.scores) for clus in self.clusters])
-            pool2.close()
-            pool2.join()
-            res2 = res2.get()
-        for r in res2:
-            self.coverage[r[0]] = r[1]
-            self.time[r[0]] += r[2]
-        end = time()
-        print('Computing coverage took {} min'.format((end - start) / 60.0))
+    # def compute_coverage(self):
+    #     """
+    #     Compute Coverage
+    #
+    #     This method computes the coverage/normalized coupling scores between residues in the query sequence as well as
+    #     the AUC summary values determined when comparing the coupling score to the distance between residues in the PDB
+    #     file. This method updates the coverage, result_times, and aucs variables.
+    #     """
+    #     start = time()
+    #     if self.processes == 1:
+    #         res2 = []
+    #         for clus in self.clusters:
+    #             pool_init2(self.output_dir, self.low_mem)
+    #             r = et_mip_worker2((clus, self.scores))
+    #             res2.append(r)
+    #     else:
+    #         pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(self.output_dir, self.low_mem))
+    #         res2 = pool2.map_async(et_mip_worker2, [(clus, self.scores) for clus in self.clusters])
+    #         pool2.close()
+    #         pool2.join()
+    #         res2 = res2.get()
+    #     for r in res2:
+    #         self.coverage[r[0]] = r[1]
+    #         self.time[r[0]] += r[2]
+    #     end = time()
+    #     print('Computing coverage took {} min'.format((end - start) / 60.0))
 
     def write_out_scores(self, today):
         """
@@ -783,6 +795,37 @@ def calculate_branch_score(branch):
     end = time()
     print('Branch scoring took {} min'.format((end - start) / 60.0))
     return branch, branch_score, (end - start)
+
+
+def pool_init_calculate_score_and_coverage(curr_instance, combine_branches):
+    global instance
+    instance = curr_instance
+    global combination_method
+    combination_method = combine_branches
+
+
+def calculate_score_and_coverage(branch):
+    start = time()
+    branch_scores = instance.get_branch_scores(three_dim=True)
+    branch_index = instance.tree_depth.index(branch)
+    scores = np.sum(branch_scores[:branch_index, :, :], axis=0)
+    if combination_method == 'average':
+        scores /= float(branch_index + 1)
+    coverage = np.zeros(scores.shape)
+    test_mat = np.triu(scores)
+    mask = np.triu(np.ones(scores.shape), k=1)
+    normalization = ((scores.shape[0]**2 - scores.shape[0]) / 2.0)
+    for i in range(scores.shape[0]):
+        for j in range(i + 1, scores.shape[0]):
+            bool_mat = (test_mat[i, j] >= test_mat) * 1.0
+            corrected_mat = bool_mat * mask
+            compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
+            coverage[i, j] = coverage[j, i] = compute_coverage2
+    if instance.low_mem:
+        scores = save_single_matrix(name='Scores', branch=branch, mat=scores, out_dir=instance.output_dir)
+        coverage = save_single_matrix(name='Coverage', branch=branch, mat=coverage, out_dir=instance.output_dir)
+    end = time()
+    return branch, scores, coverage, (end - start)
 
 
 # def get_k_level_matrices(input, low_mem, c=None):
