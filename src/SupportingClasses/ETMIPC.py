@@ -193,10 +193,9 @@ class ETMIPC(object):
         Returns:
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
-        # return self.__get_k_level_matrices(item='result_matrices', c=c)
         return self.__get_c_level_matrices(item='branch_scores', branch=branch, three_dim=three_dim)
 
-    def get_scores(self, branch=None):
+    def get_scores(self, branch=None, three_dim=False):
         """
         Get Scores
 
@@ -209,9 +208,9 @@ class ETMIPC(object):
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
         # return self.__get_k_level_matrices(item='scores', c=c)
-        return self.__get_c_level_matrices(item='scores', branch=branch)
+        return self.__get_c_level_matrices(item='scores', branch=branch, three_dim=three_dim)
 
-    def get_coverage(self, branch=None):
+    def get_coverage(self, branch=None, three_dim=False):
         """
         Get Coverage
 
@@ -224,7 +223,7 @@ class ETMIPC(object):
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
         # return self.__get_k_level_matrices(item='coverage', c=c)
-        return self.__get_c_level_matrices(item='soverage', branch=branch)
+        return self.__get_c_level_matrices(item='soverage', branch=branch, three_dim=three_dim)
     ####################################################################################################################
 
     def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',

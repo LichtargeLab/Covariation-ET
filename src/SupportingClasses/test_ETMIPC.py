@@ -70,6 +70,19 @@ class TestETMIPC(TestCase):
                 MIP_matrix[i][j] = MI_matrix[i][j] - APC_matrix[i][j]
         return MIP_matrix
 
+    def calculate_coverage(self, mat):
+        coverage = np.zeros(mat.shape)
+        test_mat = np.triu(mat)
+        mask = np.triu(np.ones(mat.shape), k=1)
+        normalization = ((mat.shape[0] ** 2 - mat.shape[0]) / 2.0)
+        for i in range(mat.shape[0]):
+            for j in range(i + 1, mat.shape[0]):
+                bool_mat = (test_mat[i, j] >= test_mat) * 1.0
+                corrected_mat = bool_mat * mask
+                compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
+                coverage[i, j] = coverage[j, i] = compute_coverage2
+        return coverage
+
     def test___init__(self):
         with self.assertRaises(TypeError):
             ETMIPC()
@@ -1308,19 +1321,6 @@ class TestETMIPC(TestCase):
     #     # del (assignment_dict)
 
     def test_calculate_score_and_coverage(self):
-        def calculate_coverage(mat):
-            coverage = np.zeros(mat.shape)
-            test_mat = np.triu(mat)
-            mask = np.triu(np.ones(mat.shape), k=1)
-            normalization = ((mat.shape[0] ** 2 - mat.shape[0]) / 2.0)
-            for i in range(mat.shape[0]):
-                for j in range(i + 1, mat.shape[0]):
-                    bool_mat = (test_mat[i, j] >= test_mat) * 1.0
-                    corrected_mat = bool_mat * mask
-                    compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
-                    coverage[i, j] = coverage[j, i] = compute_coverage2
-            return coverage
-
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
@@ -1339,7 +1339,7 @@ class TestETMIPC(TestCase):
         self.assertGreater(etmipc1_res1[3], 0)
         scores1 = etmipc1.get_branch_scores(branch=1, three_dim=False) + \
                   etmipc1.get_branch_scores(branch=2, three_dim=False)
-        coverage1 = calculate_coverage(scores1)
+        coverage1 = self.calculate_coverage(scores1)
         self.assertLess(np.sum(etmipc1_res1[1] - scores1), 1e-10)
         self.assertLess(np.sum(etmipc1_res1[2] - coverage1), 1e-10)
         self.assertEqual(np.sum(rankdata(etmipc1_res1[1][np.triu_indices(n=etmipc1.alignment.seq_length, k=1)]) -
@@ -1364,13 +1364,69 @@ class TestETMIPC(TestCase):
         scores2 = etmipc2.get_branch_scores(branch=1, three_dim=False) + \
                   etmipc2.get_branch_scores(branch=2, three_dim=False)
         scores2 /= 2.0
-        coverage2 = calculate_coverage(scores2)
+        coverage2 = self.calculate_coverage(scores2)
         self.assertLess(np.sum(np.load(etmipc2_res1[1])['mat'] - scores2), 1e-10)
         self.assertLess(np.sum(np.load(etmipc2_res1[2])['mat'] - coverage2), 1e-10)
         self.assertEqual(np.sum(rankdata(np.load(etmipc2_res1[1])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)], 'dense') -
                          rankdata(np.load(etmipc2_res1[2])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)], 'dense')), 0)
         for k in etmipc2.tree_depth:
             rmtree(os.path.join(out_dir, str(k)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
+    def test_calculate_final_scores(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        etmipc1.calculate_branch_scores(combine_clusters='sum')
+        etmipc1.calculate_final_scores(combination='sum')
+        for i, branch in enumerate(etmipc1.tree_depth):
+            self.assertGreater(etmipc1.times[branch], 0)
+            scores1 = np.zeros((etmipc1.alignment.seq_length, etmipc1.alignment.seq_length))
+            for j in range(i):
+                scores1 += etmipc1.get_branch_scores(branch=etmipc1.tree_depth[j], three_dim=False)
+            coverage1 = self.calculate_coverage(scores1)
+            self.assertLess(np.sum(etmipc1.scores[branch] - scores1), 1e-10)
+            self.assertLess(np.sum(etmipc1.coverage[branch] - coverage1), 1e-10)
+            self.assertEqual(np.sum(rankdata(etmipc1.scores[branch][np.triu_indices(n=etmipc1.alignment.seq_length, k=1)]) -
+                                    rankdata(etmipc1.coverage[branch][np.triu_indices(n=etmipc1.alignment.seq_length, k=1)])), 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
+        etmipc2.calculate_final_scores(combination='average')
+        for i, branch in enumerate(etmipc2.tree_depth):
+            self.assertGreater(etmipc2.times[branch], 0)
+            scores2 = np.zeros((etmipc2.alignment.seq_length, etmipc2.alignment.seq_length))
+            for j in range(i):
+                scores2 += etmipc2.get_branch_scores(branch=etmipc2.tree_depth[j], three_dim=False)
+            coverage2 = self.calculate_coverage(scores2)
+            self.assertLess(np.sum(np.load(etmipc2.scores[branch])['mat'] - scores2), 1e-10)
+            self.assertLess(np.sum(np.load(etmipc2.coverage[branch])['mat'] - coverage2), 1e-10)
+            self.assertEqual(np.sum(rankdata(np.load(etmipc2.scores[branch])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)]) -
+                                    rankdata(np.load(etmipc2.coverage[branch])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)])), 0)
+        for branch in etmipc2.tree_depth:
+            rmtree(os.path.join(out_dir, str(branch)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
