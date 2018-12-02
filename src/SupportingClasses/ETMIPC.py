@@ -326,9 +326,9 @@ class ETMIPC(object):
             self.branch_scores[res[0]] = res[1]
             self.times[res[0]] += res[2]
 
-    def calculate_final_scores(self, combination):
+    def calculate_final_scores(self, combine_branches):
         pool = Pool(processes=self.processes, initializer=pool_init_calculate_score_and_coverage,
-                    initargs=(self, combination))
+                    initargs=(self, combine_branches))
         pool_res = pool.map_async(calculate_score_and_coverage, self.tree_depth)
         self.scores = {}
         self.coverage = {}
@@ -337,63 +337,42 @@ class ETMIPC(object):
             self.coverage[res[0]] = res[2]
             self.times[res[0]] += res[3]
 
+    def clear_intermediate_files(self):
+        """
+        Clear Intermediate Files
 
-    # def combine_clustering_results(self, combination):
-    #     """
-    #     Combine Clustering Result
-    #
-    #     This method combines data from whole_mip_matrix and result_matrices to populate the scores matrices.  The
-    #     combination occurs by simple addition but if average is specified it is normalized by the number of elements
-    #     added.
-    #
-    #     Args:
-    #         combination (str): Method by which to combine scores across clustering constants. By default only a sum is
-    #         performed, the option average is also supported.
-    #     """
-    #     start = time()
-    #     for i in range(len(self.clusters)):
-    #         curr_clus = self.clusters[i]
-    #         curr_summary = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-    #         curr_summary += self.whole_mip_matrix
-    #         for j in [c for c in self.clusters if c <= curr_clus]:
-    #             curr_summary += self.get_result_matrices(c=j)
-    #         if combination == 'average':
-    #             curr_summary /= (i + 2)
-    #         if self.low_mem:
-    #             fn = ETMIPC._save_single_matrix('Summary', curr_clus, curr_summary, self.output_dir)
-    #             self.scores[curr_clus] = fn
-    #         else:
-    #             self.scores[curr_clus] = curr_summary
-    #     end = time()
-    #     print('Combining data across clusters took {} min'.format(
-    #         (end - start) / 60.0))
+        This method is intended to be used only if the cET-MIp low_mem variable is set to True. If this is the case and
+        the complete analysis has been performed then this function will remove all intermediate file generated during
+        execution.
+        """
+        if self.low_mem:
+            for branch in self.tree_depth:
+                if os.path.isfile(self.branch_scores[branch]):
+                    os.remove(self.branch_scores[branch])
+                if os.path.isfile(self.scores[branch]):
+                    os.remove(self.scores[branch])
+                if os.path.isfile(self.coverage[branch]):
+                    os.remove(self.coverage[branch])
+            for tree_pos in self.unique_clusters:
+                if os.path.isfile():
+                    os.remove(self.unique_clusters[tree_pos]['cluster_scores'])
+                if os.path.isfile():
+                    os.remove(self.unique_clusters[tree_pos]['nongap_counts'])
 
-    # def compute_coverage(self):
-    #     """
-    #     Compute Coverage
-    #
-    #     This method computes the coverage/normalized coupling scores between residues in the query sequence as well as
-    #     the AUC summary values determined when comparing the coupling score to the distance between residues in the PDB
-    #     file. This method updates the coverage, result_times, and aucs variables.
-    #     """
-    #     start = time()
-    #     if self.processes == 1:
-    #         res2 = []
-    #         for clus in self.clusters:
-    #             pool_init2(self.output_dir, self.low_mem)
-    #             r = et_mip_worker2((clus, self.scores))
-    #             res2.append(r)
-    #     else:
-    #         pool2 = Pool(processes=self.processes, initializer=pool_init2, initargs=(self.output_dir, self.low_mem))
-    #         res2 = pool2.map_async(et_mip_worker2, [(clus, self.scores) for clus in self.clusters])
-    #         pool2.close()
-    #         pool2.join()
-    #         res2 = res2.get()
-    #     for r in res2:
-    #         self.coverage[r[0]] = r[1]
-    #         self.time[r[0]] += r[2]
-    #     end = time()
-    #     print('Computing coverage took {} min'.format((end - start) / 60.0))
+    def calculate_scores(self, query, ignore_alignment_size, clustering, clustering_args, evidence, aa_dict,
+                         combine_clusters, combine_branches, del_intermediate=False):
+        start = time()
+        self.import_alignment(query=query, ignore_alignment_size=ignore_alignment_size, clustering=clustering,
+                              clustering_args=clustering_args)
+        self.calculate_cluster_scores(evidence=evidence, aa_dict=aa_dict)
+        self.calculate_branch_scores(combine_clusters=combine_clusters)
+        self.calculate_final_scores(combine_branches=combine_branches)
+        end = time()
+        self.time['Total'] = end - start
+        print('Completing cET-MIp analysis took {} min'.format(self.time['Total'] / 60.0))
+        if self.low_mem and del_intermediate:
+            self.clear_intermediate_files()
+        return self.time['Total']
 
     def write_out_scores(self, today):
         """
@@ -429,121 +408,102 @@ class ETMIPC(object):
         finish = time()
         print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
-    def clear_intermediate_files(self):
-        """
-        Clear Intermediate Files
-
-        This method is intended to be used only if the cET-MIp low_mem variable is set to True. If this is the case and
-        the complete analysis has been performed then this function will remove all intermediate file generated during
-        execution.
-        """
-        for k in self.clusters:
-            res_path = os.path.join(self.output_dir, str(k), 'K{}_Result.npz'.format(k))
-            os.remove(res_path)
-            summary_path = os.path.join(self.output_dir, str(k), 'K{}_Summary.npz'.format(k))
-            os.remove(summary_path)
-            coverage_path = os.path.join(self.output_dir, str(k), 'K{}_Coverage.npz'.format(k))
-            os.remove(coverage_path)
-            for sub in range(k):
-                curr_path = os.path.join(self.output_dir, str(k), 'K{}_Sub{}.npz'.format(k, sub))
-                os.remove(curr_path)
-
-    def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks, processes=1,
-                         low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
-        """
-        Calculate Scores
-
-        This function initializes the remaining class variables and then computes the cET-MIp scores using the specified
-        parameters.
-
-        Args:
-            out_dir (str): The path to the directory where files should be written during this analysis.
-            today (str): The current date.
-            query (str): The query being analyzed in this analysis.
-            clusters (list): The list of clustering constants to be used in this analysis.
-            aa_dict (dict): A dictionary mapping amino acids to numerical representations.
-            combine_clusters (str): How information should be integrated across clusters resulting from the same
-            clustering constant. Current options: 'sum', 'average', 'size_weighted', 'evidence_weighted', and
-            'evidence_vs_size'.
-            combine_ks (str): The method to use when combining across the specified clustering constants. Current
-            options include: 'sum' and 'average'
-            processes (int): The number of processes to spawn when multiprocessing this analysis.
-            low_memory_mode (bool): Whether to use low memory mode or not. If low memory mode is engaged intermediate
-            values in the cET-MIp class will be written to file instead of stored in memory. This will reduce the memory
-            footprint but may increase the time to run. Only recommended for very large analyses.
-            ignore_alignment_size (bool): Whether or not to allow alignments with fewer than 125 sequences as suggested
-            by PMID:16159918.
-            del_intermediate (bool): Whether or not to delete intermediate files if using the low_mem option.
-        Returns:
-            float. The time taken to calculate cET-MIp scores in seconds.
-        """
-        self.output_dir = out_dir
-        self.processes = processes
-        serialized_path = os.path.join(self.output_dir, 'cET-MIp.npz')
-        save_file = os.path.join(self.output_dir, 'cET-MIp.pkl')
-        if os.path.isfile(serialized_path) and os.path.isfile(save_file):
-            self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
-            loaded_vars = pickle.load(open(save_file, 'rb'))
-            self.clusters = loaded_vars[0]
-            self.low_mem = loaded_vars[1]
-            self.sub_alignments = loaded_vars[2]
-            self.time = loaded_vars[3]
-            loaded_data = np.load(serialized_path)
-            self.scores = loaded_data['scores'][()]
-            self.coverage = loaded_data['coverage'][()]
-            self.raw_scores = loaded_data['raw'][()]
-            self.evidence_counts = loaded_data['counts'][()]
-            self.result_matrices = loaded_data['res'][()]
-            self.whole_mip_matrix = loaded_data['mip']
-            self.whole_evidence_matrix = loaded_data['evidence']
-        else:
-            start = time()
-            self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
-            if self.alignment.size < max(clusters):
-                raise ValueError('The analysis could not be performed because the alignment has fewer sequences than '
-                                 'the requested number of clusters ({} < {}), please provide an alignment with more '
-                                 'sequences or change the clusters requested by using the --clusters option when using ' 
-                                 'this software.'.format(self.alignment.size, max(clusters)))
-            self.determine_whole_mip(evidence=('evidence' in combine_clusters))
-            self.clusters = clusters
-            self.sub_alignments = {c: {} for c in self.clusters}
-            self.time = {c: 0.0 for c in self.clusters}
-            for k in self.clusters:
-                c_out_dir = os.path.join(self.output_dir, str(k))
-                if not os.path.exists(c_out_dir):
-                    os.mkdir(c_out_dir)
-            self.low_mem = low_memory_mode
-            if not self.low_mem:
-                self.raw_scores = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                       for k in range(c)} for c in self.clusters}
-                self.evidence_counts = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                            for k in range(c)} for c in self.clusters}
-                self.result_matrices = {c: None for c in self.clusters}
-                self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                               for c in self.clusters}
-                self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-                                 for c in self.clusters}
-            else:
-                self.raw_scores = {c: {k: None for k in range(c)} for c in self.clusters}
-                self.evidence_counts = {c: {k: None for k in range(c)} for c in self.clusters}
-                self.result_matrices = {c: None for c in self.clusters}
-                self.scores = {c: None for c in self.clusters}
-                self.coverage = {c: None for c in self.clusters}
-            self.processes = processes
-            self.calculate_clustered_mip_scores(aa_dict=aa_dict, combine_clusters=combine_clusters)
-            self.combine_clustering_results(combination=combine_ks)
-            self.compute_coverage()
-            self.write_out_scores(today=today)
-            end = time()
-            self.time['Total'] = end - start
-            pickle.dump((self.clusters, self.low_mem, self.sub_alignments, self.time), open(save_file, 'wb'),
-                        protocol=pickle.HIGHEST_PROTOCOL)
-            np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
-                     counts=self.evidence_counts, res=self.result_matrices, mip=self.whole_mip_matrix,
-                     evidence=self.whole_evidence_matrix)
-            if self.low_mem and del_intermediate:
-                self.clear_intermediate_files()
-        return self.time
+    # def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks, processes=1,
+    #                      low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
+    #     """
+    #     Calculate Scores
+    #
+    #     This function initializes the remaining class variables and then computes the cET-MIp scores using the specified
+    #     parameters.
+    #
+    #     Args:
+    #         out_dir (str): The path to the directory where files should be written during this analysis.
+    #         today (str): The current date.
+    #         query (str): The query being analyzed in this analysis.
+    #         clusters (list): The list of clustering constants to be used in this analysis.
+    #         aa_dict (dict): A dictionary mapping amino acids to numerical representations.
+    #         combine_clusters (str): How information should be integrated across clusters resulting from the same
+    #         clustering constant. Current options: 'sum', 'average', 'size_weighted', 'evidence_weighted', and
+    #         'evidence_vs_size'.
+    #         combine_ks (str): The method to use when combining across the specified clustering constants. Current
+    #         options include: 'sum' and 'average'
+    #         processes (int): The number of processes to spawn when multiprocessing this analysis.
+    #         low_memory_mode (bool): Whether to use low memory mode or not. If low memory mode is engaged intermediate
+    #         values in the cET-MIp class will be written to file instead of stored in memory. This will reduce the memory
+    #         footprint but may increase the time to run. Only recommended for very large analyses.
+    #         ignore_alignment_size (bool): Whether or not to allow alignments with fewer than 125 sequences as suggested
+    #         by PMID:16159918.
+    #         del_intermediate (bool): Whether or not to delete intermediate files if using the low_mem option.
+    #     Returns:
+    #         float. The time taken to calculate cET-MIp scores in seconds.
+    #     """
+    #     self.output_dir = out_dir
+    #     self.processes = processes
+    #     serialized_path = os.path.join(self.output_dir, 'cET-MIp.npz')
+    #     save_file = os.path.join(self.output_dir, 'cET-MIp.pkl')
+    #     if os.path.isfile(serialized_path) and os.path.isfile(save_file):
+    #         self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
+    #         loaded_vars = pickle.load(open(save_file, 'rb'))
+    #         self.clusters = loaded_vars[0]
+    #         self.low_mem = loaded_vars[1]
+    #         self.sub_alignments = loaded_vars[2]
+    #         self.time = loaded_vars[3]
+    #         loaded_data = np.load(serialized_path)
+    #         self.scores = loaded_data['scores'][()]
+    #         self.coverage = loaded_data['coverage'][()]
+    #         self.raw_scores = loaded_data['raw'][()]
+    #         self.evidence_counts = loaded_data['counts'][()]
+    #         self.result_matrices = loaded_data['res'][()]
+    #         self.whole_mip_matrix = loaded_data['mip']
+    #         self.whole_evidence_matrix = loaded_data['evidence']
+    #     else:
+    #         start = time()
+    #         self.import_alignment(query=query, aa_dict=aa_dict, ignore_alignment_size=ignore_alignment_size)
+    #         if self.alignment.size < max(clusters):
+    #             raise ValueError('The analysis could not be performed because the alignment has fewer sequences than '
+    #                              'the requested number of clusters ({} < {}), please provide an alignment with more '
+    #                              'sequences or change the clusters requested by using the --clusters option when using '
+    #                              'this software.'.format(self.alignment.size, max(clusters)))
+    #         self.determine_whole_mip(evidence=('evidence' in combine_clusters))
+    #         self.clusters = clusters
+    #         self.sub_alignments = {c: {} for c in self.clusters}
+    #         self.time = {c: 0.0 for c in self.clusters}
+    #         for k in self.clusters:
+    #             c_out_dir = os.path.join(self.output_dir, str(k))
+    #             if not os.path.exists(c_out_dir):
+    #                 os.mkdir(c_out_dir)
+    #         self.low_mem = low_memory_mode
+    #         if not self.low_mem:
+    #             self.raw_scores = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+    #                                    for k in range(c)} for c in self.clusters}
+    #             self.evidence_counts = {c: {k: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+    #                                         for k in range(c)} for c in self.clusters}
+    #             self.result_matrices = {c: None for c in self.clusters}
+    #             self.scores = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+    #                            for c in self.clusters}
+    #             self.coverage = {c: np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+    #                              for c in self.clusters}
+    #         else:
+    #             self.raw_scores = {c: {k: None for k in range(c)} for c in self.clusters}
+    #             self.evidence_counts = {c: {k: None for k in range(c)} for c in self.clusters}
+    #             self.result_matrices = {c: None for c in self.clusters}
+    #             self.scores = {c: None for c in self.clusters}
+    #             self.coverage = {c: None for c in self.clusters}
+    #         self.processes = processes
+    #         self.calculate_clustered_mip_scores(aa_dict=aa_dict, combine_clusters=combine_clusters)
+    #         self.combine_clustering_results(combination=combine_ks)
+    #         self.compute_coverage()
+    #         self.write_out_scores(today=today)
+    #         end = time()
+    #         self.time['Total'] = end - start
+    #         pickle.dump((self.clusters, self.low_mem, self.sub_alignments, self.time), open(save_file, 'wb'),
+    #                     protocol=pickle.HIGHEST_PROTOCOL)
+    #         np.savez(serialized_path, scores=self.scores, coverage=self.coverage, raw=self.raw_scores,
+    #                  counts=self.evidence_counts, res=self.result_matrices, mip=self.whole_mip_matrix,
+    #                  evidence=self.whole_evidence_matrix)
+    #         if self.low_mem and del_intermediate:
+    #             self.clear_intermediate_files()
+    #     return self.time
 
     def explore_positions(self, i, j, aa_dict):
         out_dir = '/home/daniel/Desktop/Test/'
@@ -824,6 +784,7 @@ def calculate_score_and_coverage(branch):
         scores = save_single_matrix(name='Scores', branch=branch, mat=scores, out_dir=instance.output_dir)
         coverage = save_single_matrix(name='Coverage', branch=branch, mat=coverage, out_dir=instance.output_dir)
     end = time()
+    print('Final scoring and coverage calculation took {} min'.format((end - start) / 60.0))
     return branch, scores, coverage, (end - start)
 
 
