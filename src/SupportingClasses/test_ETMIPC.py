@@ -1432,3 +1432,64 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
+
+    def test_calculate_get_scores_coverage(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        etmipc1.calculate_branch_scores(combine_clusters='sum')
+        etmipc1.calculate_final_scores(combination='sum')
+        total_dict_scores = etmipc1.get_scores()
+        total_dict_coverages = etmipc1.get_coverage()
+        three_d_scores = etmipc1.get_scores(three_dim=True)
+        three_d_coverages = etmipc1.get_coverages(three_dim=True)
+        for branch in etmipc1.tree_depth:
+            curr_scores = etmipc1.get_scores(branch=branch, three_dim=False)
+            curr_coverage = etmipc1.get_coverage(branch=branch, three_dim=False)
+            self.assertEqual(np.sum(curr_scores - etmipc1.scores[branch]), 0)
+            self.assertEqual(np.sum(curr_coverage - etmipc1.coverage[branch]), 0)
+            self.assertEqual(np.sum(curr_scores - total_dict_scores[branch]), 0)
+            self.assertEqual(np.sum(curr_coverage - total_dict_coverages[branch]), 0)
+            self.assertEqual(np.sum(curr_scores - three_d_scores[etmipc1.tree_depth.index(branch), :, :]), 0)
+            self.assertEqual(np.sum(curr_coverage - three_d_coverages[etmipc1.tree_depth.index(branch), :, :]), 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
+        etmipc2.calculate_final_scores(combination='average')
+        total_dict_scores = etmipc2.get_scores()
+        total_dict_coverage = etmipc2.get_coverage()
+        three_d_scores = etmipc2.get_scores(three_dim=True)
+        three_d_coverage = etmipc2.get_coverage(three_dim=True)
+        for branch in etmipc2.tree_depth:
+            curr_scores = etmipc2.get_scores(branch=branch)
+            curr_coverage = etmipc2.get_coverage(branch=branch)
+            self.assertEqual(np.sum(curr_scores - np.load(etmipc2.scores[branch])['mat']), 0)
+            self.assertEqual(np.sum(curr_coverage - np.load(etmipc2.coverage[branch])['mat']), 0)
+            self.assertEqual(np.sum(curr_scores - total_dict_scores[branch]), 0)
+            self.assertEqual(np.sum(curr_coverage - total_dict_coverage[branch]), 0)
+            self.assertEqual(np.sum(curr_scores - three_d_scores[etmipc1.tree_depth.index(branch), :, :]), 0)
+            self.assertEqual(np.sum(curr_coverage - three_d_coverage[etmipc1.tree_depth.index(branch), :, :]), 0)
+            rmtree(os.path.join(out_dir, str(branch)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
