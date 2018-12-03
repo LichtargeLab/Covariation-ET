@@ -1,6 +1,7 @@
 import os
 import datetime
 import numpy as np
+from time import time
 from shutil import rmtree
 from unittest import TestCase
 from scipy.stats import rankdata
@@ -1687,6 +1688,65 @@ class TestETMIPC(TestCase):
         for branch in etmipc2.tree_depth:
             self.assertFalse(os.path.isfile(etmipc2.scores[branch]))
             self.assertFalse(os.path.isfile(etmipc2.coverage[branch]))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
+    def test_calculate_scores(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        start1 = time()
+        time1 = etmipc1.calculate_scores(today=str(datetime.date.today()),
+                                         query=etmipc1.alignment.query_id.split('_')[1], ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         evidence=False, aa_dict=aa_dict, combine_clusters='sum',
+                                         combine_branches='sum', del_intermediate=False)
+        end1 = time()
+        self.assertLessEqual(time1, end1 - start1)
+        for branch1 in etmipc1.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
+            self.assertTrue(os.path.isfile(os.path.join(
+                etmipc1.output_dir, str(branch1),
+                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc1.alignment.query_id.split('_')[1],
+                                                 branch1))))
+            rmtree(os.path.join(etmipc1.output_dir, str(branch1)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        start2 = time()
+        time2 = etmipc2.calculate_scores(today=str(datetime.date.today()), query=etmipc2.alignment.query_id.split('_')[1],
+                                 ignore_alignment_size=False, clustering='agglomerative',
+                                 clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}, evidence=True,
+                                 aa_dict=aa_dict, combine_clusters='evidence_weighted', combine_branches='average',
+                                 del_intermediate=False)
+        end2 = time()
+        self.assertLessEqual(time2, (end2 - start2))
+        for branch2 in etmipc2.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc2.output_dir, str(branch2))))
+            self.assertTrue(os.path.isfile(
+                os.path.join(etmipc2.output_dir, str(branch2),
+                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
+                                                              etmipc2.alignment.query_id.split('_')[1], branch2))))
+            rmtree(os.path.join(out_dir, str(branch2)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))

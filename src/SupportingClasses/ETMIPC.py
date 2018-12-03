@@ -375,7 +375,7 @@ class ETMIPC(object):
                 if os.path.isfile():
                     os.remove(self.unique_clusters[tree_pos]['nongap_counts'])
 
-    def calculate_scores(self, query, ignore_alignment_size, clustering, clustering_args, evidence, aa_dict,
+    def calculate_scores(self, today, query, ignore_alignment_size, clustering, clustering_args, evidence, aa_dict,
                          combine_clusters, combine_branches, del_intermediate=False):
         start = time()
         self.import_alignment(query=query, ignore_alignment_size=ignore_alignment_size, clustering=clustering,
@@ -383,6 +383,7 @@ class ETMIPC(object):
         self.calculate_cluster_scores(evidence=evidence, aa_dict=aa_dict)
         self.calculate_branch_scores(combine_clusters=combine_clusters)
         self.calculate_final_scores(combine_branches=combine_branches)
+        self.write_out_scores(today=today)
         end = time()
         self.time['Total'] = end - start
         print('Completing cET-MIp analysis took {} min'.format(self.time['Total'] / 60.0))
