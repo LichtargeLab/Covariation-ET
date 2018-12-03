@@ -337,6 +337,22 @@ class ETMIPC(object):
             self.coverage[res[0]] = res[2]
             self.times[res[0]] += res[3]
 
+    def write_out_scores(self, today):
+        """
+        Produce Final Figures
+
+        This method writes out clustering scores. This method updates the time class variable.
+
+        Args:
+            today (str): The current date which will be used for identifying the proper directory to store files in.
+        """
+        pool = Pool(processes=self.processes, initializer=pool_init_write_score, initargs=(self, today))
+        pool_res = pool.map_async(write_score, self.tree_depth)
+        self.scores = {}
+        self.coverage = {}
+        for res in pool_res.get():
+            self.times[res[0]] += res[1]
+
     def clear_intermediate_files(self):
         """
         Clear Intermediate Files
@@ -374,39 +390,39 @@ class ETMIPC(object):
             self.clear_intermediate_files()
         return self.time['Total']
 
-    def write_out_scores(self, today):
-        """
-        Produce Final Figures
-
-        This method writes out clustering scores. This method updates the time class variable.
-
-        Args:
-            today (str): The current date which will be used for identifying the proper directory to store files in.
-        """
-        begin = time()
-        q_name = self.alignment.query_id.split('_')[1]
-        pool_manager = Manager()
-        cluster_queue = pool_manager.Queue()
-        for c in self.clusters:
-            cluster_queue.put_nowait(c)
-        if self.processes == 1:
-            pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
-                       self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem)
-            res = et_mip_worker3((1, 1))
-            res = [res]
-        else:
-            pool = Pool(processes=self.processes, initializer=pool_init3,
-                        initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
-                                  self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem))
-            res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
-            pool.close()
-            pool.join()
-            res = res.get()
-        for times in res:
-            for c in times:
-                self.time[c] += times[c]
-        finish = time()
-        print('Producing final figures took {} min'.format((finish - begin) / 60.0))
+    # def write_out_scores(self, today):
+    #     """
+    #     Produce Final Figures
+    #
+    #     This method writes out clustering scores. This method updates the time class variable.
+    #
+    #     Args:
+    #         today (str): The current date which will be used for identifying the proper directory to store files in.
+    #     """
+    #     begin = time()
+    #     q_name = self.alignment.query_id.split('_')[1]
+    #     pool_manager = Manager()
+    #     cluster_queue = pool_manager.Queue()
+    #     for c in self.clusters:
+    #         cluster_queue.put_nowait(c)
+    #     if self.processes == 1:
+    #         pool_init3(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores, self.result_matrices,
+    #                    self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem)
+    #         res = et_mip_worker3((1, 1))
+    #         res = [res]
+    #     else:
+    #         pool = Pool(processes=self.processes, initializer=pool_init3,
+    #                     initargs=(cluster_queue, q_name, today, self.whole_mip_matrix, self.raw_scores,
+    #                               self.result_matrices, self.coverage, self.scores, self.alignment, self.output_dir, self.low_mem))
+    #         res = pool.map_async(et_mip_worker3, [(x + 1, self.processes) for x in range(self.processes)])
+    #         pool.close()
+    #         pool.join()
+    #         res = res.get()
+    #     for times in res:
+    #         for c in times:
+    #             self.time[c] += times[c]
+    #     finish = time()
+    #     print('Producing final figures took {} min'.format((finish - begin) / 60.0))
 
     # def calculate_scores(self, out_dir, today, query, clusters, aa_dict, combine_clusters, combine_ks, processes=1,
     #                      low_memory_mode=False, ignore_alignment_size=False, del_intermediate=False):
@@ -786,6 +802,27 @@ def calculate_score_and_coverage(branch):
     end = time()
     print('Final scoring and coverage calculation took {} min'.format((end - start) / 60.0))
     return branch, scores, coverage, (end - start)
+
+
+def pool_init_write_score(curr_instance, curr_date):
+    global instance
+    instance = curr_instance
+    global today
+    today = curr_date
+
+
+def write_score(branch):
+    start = time()
+    res_fn = "{}_{}_{}.all_scores.txt".format(today, instance.alignment.query_id.split('_')[1], branch)
+    write_out_contact_scoring(today=today, alignment=instance.alignment,
+                              c_raw_scores=instance.get_scores(branch=branch),
+                              c_coverage=instance.get_coverage(branch=branch),
+                              mip_matrix=instance.get_cluster_scores(branch=1, cluster=0),
+                              c_raw_sub_scores=instance.get_cluster_scores(branch=branch),
+                              c_integrated_scores=instance.get_branch_scores(branch=branch), file_name=res_fn, output_dir=os.path.join(instance.output_dir, str(branch)))
+    end = time()
+    print('Writing scores took {} min'.format((end - start) / 60.0))
+    return branch, (end - start)
 
 
 # def get_k_level_matrices(input, low_mem, c=None):
