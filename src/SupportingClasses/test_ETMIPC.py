@@ -1,4 +1,5 @@
 import os
+import datetime
 import numpy as np
 from shutil import rmtree
 from unittest import TestCase
@@ -7,8 +8,8 @@ from Bio.Align import MultipleSeqAlignment
 from sklearn.metrics import mutual_info_score
 from ETMIPC import (ETMIPC, pool_init_sub_aln, generate_sub_alignment, pool_init_score, mip_score,
                     pool_init_calculate_branch_score, calculate_branch_score, pool_init_calculate_score_and_coverage,
-                    calculate_score_and_coverage, single_matrix_filename, exists_single_matrix, save_single_matrix,
-                    load_single_matrix)
+                    calculate_score_and_coverage, pool_init_write_score, write_score, single_matrix_filename,
+                    exists_single_matrix, save_single_matrix, load_single_matrix)
 from SeqAlignment import SeqAlignment
 
 
@@ -22,15 +23,6 @@ class TestETMIPC(TestCase):
         MMI = np.zeros([seq_length, 1])  # Vector of 1 column
         APC_matrix = np.zeros([seq_length, seq_length])
         MIP_matrix = np.zeros([seq_length, seq_length])
-
-        # alignment2Num = []
-        #
-        # for key in alignment:
-        #     seq2Num = []
-        #     for idc, c in enumerate(alignment[key]):
-        #         seq2Num.append(aa_list.index(c))
-        #     alignment2Num.append(seq2Num)
-
         for i in range(0, seq_length):
             MMI[i][0] = 0.0
             column_i = []
@@ -1493,6 +1485,50 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
+
+    # Could not properly test this method, not sure how to check the global variables in another module like this
+    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
+    # def test_pool_init_write_score(self):
+    #
+    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+    #                '-']
+    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #     out_dir = os.path.abspath('../Test/')
+    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
+    #     etmipc1.tree_depth = (2, 5)
+    #     etmipc1.output_dir = os.path.abspath('../Test/')
+    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+    #     etmipc1.processes = 6
+    #     etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+    #     etmipc1.calculate_branch_scores(combine_clusters='sum')
+    #     etmipc1.calculate_final_scores(combine_branches='sum')
+    #     pool_init_write_score(curr_instance=etmipc1, curr_date=str(datetime.date.today()))
+    #     self.assertTrue('instance' in globals())
+    #     self.assertTrue('today' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
+    #     etmipc2.tree_depth = (2, 5)
+    #     etmipc2.output_dir = os.path.abspath('../Test/')
+    #     etmipc2.import_alignment(query='1h1vA')
+    #     etmipc2.processes = 6
+    #     etmipc2.low_mem = True
+    #     etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+    #     etmipc2.calculate_branch_scores(combine_clusters='evidence_weigthed')
+    #     etmipc2.calculate_final_scores(combine_branches='average')
+    #     pool_init_write_score(curr_instance=etmipc2, curr_date=str(datetime.date.today()))
+    #     self.assertTrue('instance' in globals())
+    #     self.assertTrue('today' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     for k in etmipc2.tree_depth:
+    #         rmtree(os.path.join(out_dir, str(k)))
+    #     # del (full_aln)
+    #     # del (assignment_dict)
 
     def test_clear_intermediate_files(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
