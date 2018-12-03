@@ -813,6 +813,9 @@ def pool_init_write_score(curr_instance, curr_date):
 
 def write_score(branch):
     start = time()
+    curr_out_dir = os.path.join(instance.output_dir, str(branch))
+    if not os.path.isdir(curr_out_dir):
+        os.mkdir(curr_out_dir)
     res_fn = "{}_{}_{}.all_scores.txt".format(today, instance.alignment.query_id.split('_')[1], branch)
     write_out_contact_scoring(today=today, alignment=instance.alignment,
                               c_raw_scores=instance.get_scores(branch=branch),
