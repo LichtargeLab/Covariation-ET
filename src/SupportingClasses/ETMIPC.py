@@ -223,7 +223,7 @@ class ETMIPC(object):
             np.array or dict. The specified data requested from the dictionary of 2D arrays.
         """
         # return self.__get_k_level_matrices(item='coverage', c=c)
-        return self.__get_c_level_matrices(item='soverage', branch=branch, three_dim=three_dim)
+        return self.__get_c_level_matrices(item='coverage', branch=branch, three_dim=three_dim)
     ####################################################################################################################
 
     def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',
@@ -244,6 +244,7 @@ class ETMIPC(object):
         """
         print 'Importing alignment'
         # Create SeqAlignment object to represent the alignment for this analysis.
+        print(self.alignment)
         query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
         # Import alignment information from file.
         query_alignment.import_alignment(save_file=os.path.join(self.output_dir, 'alignment.pkl'))
@@ -363,21 +364,24 @@ class ETMIPC(object):
         """
         if self.low_mem:
             for branch in self.tree_depth:
-                if os.path.isfile(self.branch_scores[branch]):
+                if self.branch_scores and os.path.isfile(self.branch_scores[branch]):
                     os.remove(self.branch_scores[branch])
-                if os.path.isfile(self.scores[branch]):
+                if self.scores and os.path.isfile(self.scores[branch]):
                     os.remove(self.scores[branch])
-                if os.path.isfile(self.coverage[branch]):
+                if self.coverage and os.path.isfile(self.coverage[branch]):
                     os.remove(self.coverage[branch])
             for tree_pos in self.unique_clusters:
-                if os.path.isfile():
+                if self.unique_clusters[tree_pos]['cluster_scores'] and \
+                        os.path.isfile(self.unique_clusters[tree_pos]['cluster_scores']):
                     os.remove(self.unique_clusters[tree_pos]['cluster_scores'])
-                if os.path.isfile():
+                if self.unique_clusters[tree_pos]['nongap_counts'] and \
+                        os.path.isfile(self.unique_clusters[tree_pos]['nongap_counts']):
                     os.remove(self.unique_clusters[tree_pos]['nongap_counts'])
 
     def calculate_scores(self, today, query, ignore_alignment_size, clustering, clustering_args, evidence, aa_dict,
                          combine_clusters, combine_branches, del_intermediate=False):
         start = time()
+        print(self.alignment)
         self.import_alignment(query=query, ignore_alignment_size=ignore_alignment_size, clustering=clustering,
                               clustering_args=clustering_args)
         self.calculate_cluster_scores(evidence=evidence, aa_dict=aa_dict)
@@ -385,11 +389,11 @@ class ETMIPC(object):
         self.calculate_final_scores(combine_branches=combine_branches)
         self.write_out_scores(today=today)
         end = time()
-        self.time['Total'] = end - start
-        print('Completing cET-MIp analysis took {} min'.format(self.time['Total'] / 60.0))
+        self.times['Total'] = end - start
+        print('Completing cET-MIp analysis took {} min'.format(self.times['Total'] / 60.0))
         if self.low_mem and del_intermediate:
             self.clear_intermediate_files()
-        return self.time['Total']
+        return self.times['Total']
 
     # def write_out_scores(self, today):
     #     """

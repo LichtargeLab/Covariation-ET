@@ -396,13 +396,14 @@ class TestETMIPC(TestCase):
 
     def test_single_matrix_filename(self):
         out_dir = os.path.abspath('../Test/')
-        parent_dir, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
         self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
-        self.assertEqual(os.path.join(out_dir, str(1),'K1_Dummy.npz'), fn)
+        self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
 
     def test_exists_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
-        self.assertFalse(exists_single_matrix(name='Dummy', k=1, out_dir=out_dir))
+        self.assertFalse(exists_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        os.mkdir(os.path.join(out_dir, str(1)))
         dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
         dummy_handle = open(dummy_fn, 'wb')
         dummy_handle.write('Testing')
@@ -412,8 +413,8 @@ class TestETMIPC(TestCase):
     def test_save_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
         dummy = np.random.rand(10,10)
-        save_single_matrix(mat=dummy, name='Dummy', k=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
         self.assertTrue(os.path.isfile(fn))
         dummy_prime = np.load(fn)['mat']
         self.assertEqual(np.sum(dummy - dummy_prime), 0)
@@ -422,11 +423,11 @@ class TestETMIPC(TestCase):
     def test_load_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
         dummy = np.random.rand(10, 10)
-        self.assertIsNone(load_single_matrix(name='Dummy', k=1, out_dir=out_dir))
-        save_single_matrix(mat=dummy, name='Dummy', k=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', k=1, out_dir=out_dir)
+        self.assertIsNone(load_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
         self.assertTrue(os.path.isfile(fn))
-        dummy_prime = load_single_matrix(name='Dummy', k=1, out_dir=out_dir)
+        dummy_prime = load_single_matrix(name='Dummy', branch=1, out_dir=out_dir)
         self.assertEqual(np.sum(dummy - dummy_prime), 0)
         rmtree(os.path.join(out_dir, str(1)))
 
@@ -438,31 +439,31 @@ class TestETMIPC(TestCase):
     #     etmipc1.output_dir = os.path.abspath('../Test/')
     #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
     #     pool_init_sub_aln(etmipc1.alignment, etmipc1.unique_clusters)
-    #     # self.assertIs(full_aln, etmipc1.alignment)
-    #     # self.assertIs(assignment_dict, etmipc1.unique_clusters)
     #     self.assertTrue('assignment_dict' in globals())
     #     self.assertTrue('full_aln' in globals())
+    #     self.assertIs(globals()['assignment_dict'], etmipc1.unique_clusters)
+    #     self.assertIs(globals()['full_aln'], etmipc1.alignment)
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     # del(full_aln)
-    #     # del(assignment_dict)
+    #     del globals()['assignment_dict']
+    #     del globals()['full_aln']
     #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
     #     etmipc2.tree_depth = (2, 5)
     #     etmipc2.output_dir = os.path.abspath('../Test/')
     #     etmipc2.import_alignment(query='1h1vA')
     #     pool_init_sub_aln(etmipc2.alignment, etmipc2.unique_clusters)
-    #     # self.assertIs(full_aln, etmipc2.alignment)
-    #     # self.assertIs(assignment_dict, etmipc2.unique_clusters)
     #     self.assertTrue('assignment_dict' in globals())
     #     self.assertTrue('full_aln' in globals())
+    #     self.assertIs(globals()['assignment_dict'], etmipc2.unique_clusters)
+    #     self.assertIs(globals()['full_aln'], etmipc2.alignment)
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     # del (full_aln)
-    #     # del (assignment_dict)
+    #     del globals()['assignment_dict']
+    #     del globals()['full_aln']
 
     def test__generate_sub_alignment(self):
         etmipc1 = ETMIPC('../Test/1c17A.fa')
@@ -1216,6 +1217,7 @@ class TestETMIPC(TestCase):
             self.assertLess(np.sum(np.load(etmipc2_b.branch_scores[branch])['mat'] - scores), 1e-10)
             self.assertGreater(etmipc2_b.times[branch], 0)
             os.remove(os.path.join(os.path.abspath('../Test/'), str(branch), 'K{}_Result.npz'.format(branch)))
+        for branch in etmipc2_b.tree_depth:
             rmtree(os.path.join(out_dir, str(branch)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
@@ -1383,7 +1385,7 @@ class TestETMIPC(TestCase):
         etmipc1.low_mem = False
         etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
-        etmipc1.calculate_final_scores(combination='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
         for i, branch in enumerate(etmipc1.tree_depth):
             self.assertGreater(etmipc1.times[branch], 0)
             scores1 = np.zeros((etmipc1.alignment.seq_length, etmipc1.alignment.seq_length))
@@ -1407,7 +1409,7 @@ class TestETMIPC(TestCase):
         etmipc2.low_mem = True
         etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combination='average')
+        etmipc2.calculate_final_scores(combine_branches='average')
         for i, branch in enumerate(etmipc2.tree_depth):
             self.assertGreater(etmipc2.times[branch], 0)
             scores2 = np.zeros((etmipc2.alignment.seq_length, etmipc2.alignment.seq_length))
@@ -1426,7 +1428,7 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
 
-    def test_calculate_get_scores_coverage(self):
+    def test_get_scores_and_coverage(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
         aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
@@ -1439,11 +1441,11 @@ class TestETMIPC(TestCase):
         etmipc1.low_mem = False
         etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
-        etmipc1.calculate_final_scores(combination='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
         total_dict_scores = etmipc1.get_scores()
         total_dict_coverages = etmipc1.get_coverage()
         three_d_scores = etmipc1.get_scores(three_dim=True)
-        three_d_coverages = etmipc1.get_coverages(three_dim=True)
+        three_d_coverages = etmipc1.get_coverage(three_dim=True)
         for branch in etmipc1.tree_depth:
             curr_scores = etmipc1.get_scores(branch=branch, three_dim=False)
             curr_coverage = etmipc1.get_coverage(branch=branch, three_dim=False)
@@ -1466,7 +1468,7 @@ class TestETMIPC(TestCase):
         etmipc2.low_mem = True
         etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combination='average')
+        etmipc2.calculate_final_scores(combine_branches='average')
         total_dict_scores = etmipc2.get_scores()
         total_dict_coverage = etmipc2.get_coverage()
         three_d_scores = etmipc2.get_scores(three_dim=True)
@@ -1544,7 +1546,7 @@ class TestETMIPC(TestCase):
         etmipc1.low_mem = False
         etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
-        etmipc1.calculate_final_scores(combination='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
         pool_init_write_score(curr_instance=etmipc1, curr_date=str(datetime.date.today()))
         branch1, time1 = write_score(branch=2)
         self.assertEqual(branch1, 2)
@@ -1567,7 +1569,7 @@ class TestETMIPC(TestCase):
         etmipc2.low_mem = True
         etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combination='average')
+        etmipc2.calculate_final_scores(combine_branches='average')
         pool_init_write_score(curr_instance=etmipc2, curr_date=str(datetime.date.today()))
         branch2, time2 = write_score(branch=2)
         self.assertEqual(branch2, 2)
@@ -1598,7 +1600,7 @@ class TestETMIPC(TestCase):
         etmipc1.low_mem = False
         etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
-        etmipc1.calculate_final_scores(combination='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
         etmipc1.write_out_scores(today=str(datetime.date.today()))
         for branch1 in etmipc1.tree_depth:
             self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
@@ -1620,7 +1622,7 @@ class TestETMIPC(TestCase):
         etmipc2.low_mem = True
         etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combination='average')
+        etmipc2.calculate_final_scores(combine_branches='average')
         etmipc2.write_out_scores(today=str(datetime.date.today()))
         for branch2 in etmipc2.tree_depth:
             self.assertTrue(os.path.isdir(os.path.join(etmipc2.output_dir, str(branch2))))
@@ -1650,7 +1652,7 @@ class TestETMIPC(TestCase):
         etmipc1.clear_intermediate_files()
         etmipc1.calculate_branch_scores(combine_clusters='sum')
         etmipc1.clear_intermediate_files()
-        etmipc1.calculate_final_scores(combination='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
         etmipc1.clear_intermediate_files()
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
@@ -1680,7 +1682,7 @@ class TestETMIPC(TestCase):
             self.assertFalse(os.path.isfile(etmipc2.branch_scores[branch]))
         etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combination='average')
+        etmipc2.calculate_final_scores(combine_branches='average')
         for branch in etmipc2.tree_depth:
             self.assertTrue(os.path.isfile(etmipc2.scores[branch]))
             self.assertTrue(os.path.isfile(etmipc2.coverage[branch]))
@@ -1702,12 +1704,10 @@ class TestETMIPC(TestCase):
         etmipc1 = ETMIPC('../Test/1c17A.fa')
         etmipc1.tree_depth = (2, 5)
         etmipc1.output_dir = out_dir
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
         etmipc1.processes = 1
         etmipc1.low_mem = False
         start1 = time()
-        time1 = etmipc1.calculate_scores(today=str(datetime.date.today()),
-                                         query=etmipc1.alignment.query_id.split('_')[1], ignore_alignment_size=True,
+        time1 = etmipc1.calculate_scores(today=str(datetime.date.today()), query='1c17A', ignore_alignment_size=True,
                                          clustering='agglomerative', clustering_args={'affinity': 'euclidean',
                                                                                       'linkage': 'ward'},
                                          evidence=False, aa_dict=aa_dict, combine_clusters='sum',
@@ -1729,15 +1729,14 @@ class TestETMIPC(TestCase):
         etmipc2 = ETMIPC('../Test/1h1vA.fa')
         etmipc2.tree_depth = (2, 5)
         etmipc2.output_dir = out_dir
-        etmipc2.import_alignment(query='1h1vA')
         etmipc2.processes = 6
         etmipc2.low_mem = True
         start2 = time()
-        time2 = etmipc2.calculate_scores(today=str(datetime.date.today()), query=etmipc2.alignment.query_id.split('_')[1],
-                                 ignore_alignment_size=False, clustering='agglomerative',
-                                 clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}, evidence=True,
-                                 aa_dict=aa_dict, combine_clusters='evidence_weighted', combine_branches='average',
-                                 del_intermediate=False)
+        time2 = etmipc2.calculate_scores(today=str(datetime.date.today()), query='1h1vA', ignore_alignment_size=False,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'}, evidence=True,
+                                         aa_dict=aa_dict, combine_clusters='evidence_weighted',
+                                         combine_branches='average', del_intermediate=False)
         end2 = time()
         self.assertLessEqual(time2, (end2 - start2))
         for branch2 in etmipc2.tree_depth:
