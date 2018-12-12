@@ -14,62 +14,60 @@ from Bio.PDB.Polypeptide import is_aa
 
 class PDBReference(object):
     """
-    classdocs
+    This class contains the data for a single PDB entry which can be loaded from a specified .pdb file. Each instance is
+    meant to serve as a reference for sequence based analyses performed within the lab.
+
+    Attributes:
+        file_name: str
+            The file name or path to the desired PDB file.
+        structure: Bio.PDB.Structure.Structure
+            The Structure object parsed in from the PDB file, all other data in this class can be parsed out of this
+            object but additional class attributes are generated (described below) to make these easier to access.
+        chains : set
+            The chains which are present in this proteins structure.
+        seq: dict
+            Sequence of the structure parsed in from the PDB file. For each chain in the structure (dict key) one
+            sequence is stored (dict value).
+        pdb_residue_list : dict
+            A sorted list of residue numbers (dict value) from the PDB file stored for each chain (dict key) in the
+            structure.
+        residue_pos : dict
+            A dictionary mapping chain identifier to another dictionary that maps residue number to the name of the
+            residue (amino acid) at that position.
+        size: dict
+            The length (dict value) of each amino acid chain (dict key) defining this structure.
     """
 
     def __init__(self, pdb_file):
         """
         Constructor
 
-        Initiates an instance of the PDBReference class which stores the
-        following data:
+        Initiates an instance of the PDBReference class which stores structural data for reference.
 
-        file_name: str
-            The file name or path to the desired PDB file.
-        residue_3d : dict
-            A dictionary mapping a residue number to its spatial position in 3D.
-        pdb_residue_list : list
-            A sorted list of residue numbers from the PDB file.
-        residue_pos : dict
-            A dictionary mapping residue number to the name of the residue at that
-            position.
-        seq:
-            Sequence of the structure parsed in from the PDB file.
-        query_pdb_mapping : dict
-            A structure mapping the index of the positions in the fasta sequence
-            which align to positions in the PDB sequence based on a local alignment
-            with no mismatches allowed.
-        residue_dists : list
-            List of minimum distances between residues, sorted by the ordering
-            of residues in pdb_residue_list.
-        chains : set
-            The chains which are present in this proteins structure.
-        size : int
-            The length of the amino acid chain defining this structure.
+        Args:
+            pdb_file : str
+                Path to the pdb file being represented by this instance.
         """
         if pdb_file.startswith('..'):
             pdb_file = os.path.abspath(os.path.join(os.getcwd(), pdb_file))
         self.file_name = pdb_file
+        self.structure = None
+        self.chains = None
+        self.seq = None
         self.pdb_residue_list = None
         self.residue_pos = None
-        self.seq = None
-        self.query_pdb_mapping = None
-        self.residue_dists = None
-        self.chains = None
-        self.size = 0
-        self.structure = None
-        self.best_chain = None
+        self.size = None
 
     def import_pdb(self, structure_id, save_file=None):
         """
         import_pdb
 
-        This method imports a PDB files information generating a list of lists.
-        Each list contains the Amino Acid 3-letter abbreviation, residue number,
-        x, y, and z coordinate. This method updates the following class
-        variables: residue_3d, pdb_residue_list, residue_pos, and seq.
+        This method imports a PDB files information generating all data described in the Attribute list. Each list
+        contains the Amino Acid 1-letter abbreviations and residue number. This method updates the following class
+        variables: structure, chains, seq, pdb_residue_list, residue_pos, size.
 
         Args:
+            structure_id (str): The name of the query which the structure represents.
             save_file (str): The file path to a previously stored PDB file data structure.
         """
         start = time()
