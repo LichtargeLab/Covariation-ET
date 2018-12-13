@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
+from SeqAlignment import SeqAlignment
+from PDBReference import PDBReference
 
 
 class ContactScorer(object):
@@ -27,7 +29,7 @@ class ContactScorer(object):
     ContactScorer
 
     This class is meant to abstract the process of scoring a set of contact predictions away from the actual method
-    (at the moment it is included in the ETMIPC class).  This is beind done for two main reasons. First, contact
+    (at the moment it is included in the ETMIPC class).  This is being done for two main reasons. First, contact
     predictions are being made with several different methods and so their scoring should be performed consistently by
     an other object or function. Second, there are many ways to score contact predictions and at the moment only
     overall AUROC is being used. This class will support several other scoring methods such as the Precision at L/K
@@ -35,7 +37,7 @@ class ContactScorer(object):
     prior ET work.
     """
 
-    def __init__(self, seq_alignment, pdb_reference, cutoff):
+    def __init__(self, query, seq_alignment, pdb_reference, cutoff):
         """
         Init
 
@@ -48,7 +50,12 @@ class ContactScorer(object):
             pdb_reference (SupportingClasses.PDBReference): The object containing the PDB structure of interest.
             cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
         """
+        self.query = query
+        if seq_alignment.startswith('..'):
+            seq_alignment = os.path.abspath(seq_alignment)
         self.query_alignment = seq_alignment
+        if pdb_reference.startswith('..'):
+            pdb_reference = os.path.abspath(pdb_reference)
         self.query_structure = pdb_reference
         self.cutoff = cutoff
         self.best_chain = None
@@ -67,11 +74,14 @@ class ContactScorer(object):
             str. Simple string summarizing the contents of the ContactScorer.
 
         Usage Example:
-        >>> scorer = ContactScorer(p53_sequence, p53_structure)
+        >>> scorer = ContactScorer(p53_sequence, p53_structure, query='P53', cutoff=8.0)
+        >>> scorer.fit()
         >>> str(scorer)
         """
+        if (self.best_chain is None) or (self.query_pdb_mapping is None):
+            raise ValueError('Scorer not yet fitted.')
         return 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
-            self.query_alignment.query_sequence, self.query_structure.seq, self.best_chain)
+            self.query_alignment.seq_length, len(self.query_structure.chains), self.best_chain)
 
     def fit(self):
         """
@@ -82,37 +92,49 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_pdb_mapping class variable.
         """
-        best_chain = None
-        best_alignment = None
-        f_to_p_map = None
-        if self.query_structure is None:
-            print('Scorer cannot be fit, because no PDB was provided.')
-        elif self.best_chain and self.query_pdb_mapping:
-            best_chain = self.best_chain
-            f_to_p_map = self.query_pdb_mapping
-        else:
+        if (self.best_chain is None) or (self.query_pdb_mapping is None):
             start = time()
-            for ch in self.query_structure.seq:
-                curr_align = pairwise2.align.globalxs(self.query_alignment.query_sequence,
-                                                      self.query_structure.seq[ch], -1, 0)
-                if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
-                    best_alignment = curr_align
-                    best_chain = ch
-            print(format_alignment(*best_alignment[0]))
-            f_counter = 0
-            p_counter = 0
-            f_to_p_map = {}
-            for i in range(len(best_alignment[0][0])):
-                if (best_alignment[0][0][i] != '-') and (best_alignment[0][1][i] != '-'):
-                    f_to_p_map[f_counter] = p_counter
-                if best_alignment[0][0][i] != '-':
-                    f_counter += 1
-                if best_alignment[0][1][i] != '-':
-                    p_counter += 1
+            if self.query_alignment is None:
+                raise ValueError('Scorer cannot be fit, because no alignment was provided.')
+            else:
+                if isinstance(self.query_alignment, str):
+                    self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
+                self.query_alignment.import_alignment()
+                self.query_alignment.remove_gaps()
+            if self.query_structure is None:
+                raise ValueError('Scorer cannot be fit, because no PDB was provided.')
+            else:
+                if isinstance(self.query_structure, str):
+                    self.query_structure = PDBReference(pdb_file=self.query_structure)
+                self.query_structure.import_pdb(structure_id=self.query)
+            if self.best_chain is None:
+                best_chain = None
+                best_alignment = None
+                for ch in self.query_structure.seq:
+                    curr_align = pairwise2.align.globalxs(self.query_alignment.query_sequence,
+                                                          self.query_structure.seq[ch], -1, 0)
+                    if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
+                        best_alignment = curr_align
+                        best_chain = ch
+                print(format_alignment(*best_alignment[0]))
+                self.best_chain = best_chain
+            else:
+                best_alignment = pairwise2.align.globalxs(self.query_alignment.query_sequence,
+                                                          self.query_structure.seq[self.best_chain], -1, 0)
+            if self.query_pdb_mapping is None:
+                f_counter = 0
+                p_counter = 0
+                f_to_p_map = {}
+                for i in range(len(best_alignment[0][0])):
+                    if (best_alignment[0][0][i] != '-') and (best_alignment[0][1][i] != '-'):
+                        f_to_p_map[f_counter] = p_counter
+                    if best_alignment[0][0][i] != '-':
+                        f_counter += 1
+                    if best_alignment[0][1][i] != '-':
+                        p_counter += 1
+                self.query_pdb_mapping = f_to_p_map
             end = time()
             print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
-        self.best_chain = best_chain
-        self.query_pdb_mapping = f_to_p_map
 
     @staticmethod
     def _get_all_coords(residue):
@@ -220,8 +242,7 @@ class ContactScorer(object):
     """
         start = time()
         if self.query_structure is None:
-            print('Distance cannot be measured, because no PDB was provided.')
-            return
+            raise ValueError('Distance cannot be measured, because no PDB was provided.')
         elif (self.distances is not None) and (self.dist_type == method):
             return
         elif (save_file is not None) and os.path.exists(save_file):
@@ -279,7 +300,8 @@ class ContactScorer(object):
             list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
         """
         if category not in {'Neighbors', 'Short', 'Medium', 'Long', 'Any'}:
-            raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', 'Any'".format(
+            raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', "
+                             "'Any'".format(
                     category))
         pairs = []
         for i in range(self.query_alignment.seq_length):
@@ -319,6 +341,8 @@ class ContactScorer(object):
         """
         # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
         # the PDB Structure.
+        if self.distances is None:
+            raise ValueError('Distances not yet measured!')
         if self._specific_mapping is None:
             self._specific_mapping = {}
         if category not in self._specific_mapping:
