@@ -286,9 +286,28 @@ class TestContactScorer(TestCase):
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
 
-
     def test__map_predictions_to_pdb(self):
-        self.fail()
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='CB')
+        scores1 = np.random.rand(79, 79)[np.triu(79, 1)]
+        scores1 += scores1.T
+        scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+        mask1a = np.zeros((79, 79))
+
+        scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
+                                                                               category='Neighbors')
+        mask1b = np.zeros((79, 79))
+        scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
+        mask1c = np.zeros((79, 79))
+        scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
+        mask1d = np.zeros((79, 79))
+        scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
+        mask1e = np.zeros((79, 79))
+
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='CB')
+        scores2 = np.random.rand(368, 368)[np.triu(368, 1)]
+        scores2 += scores2.T
 
     def test_score_auc(self):
         self.fail()
