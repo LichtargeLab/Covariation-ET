@@ -347,7 +347,7 @@ class ContactScorer(object):
             self._specific_mapping = {}
         if category not in self._specific_mapping:
             if predictions.shape[0] != self.query_alignment.seq_length:
-                raise ValueError('Size of predictions does not match expectations based on query sequence!')
+                raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
             # indices = np.triu_indices(predictions.shape[0], 1)
             indices = np.triu_indices(self.query_alignment.seq_length, 1)
             mappable_pos = np.array(self.query_pdb_mapping.keys())

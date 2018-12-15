@@ -289,25 +289,45 @@ class TestContactScorer(TestCase):
     def test__map_predictions_to_pdb(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
-        scores1 = np.random.rand(79, 79)[np.triu(79, 1)]
+        scores1 = np.random.rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
         scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-        mask1a = np.zeros((79, 79))
-
+        pairs1a = self.scorer1.find_pairs_by_separation(category='Any')
+        expected_scores1a = scores1[[x[0] for x in pairs1a], [x[1] for x in pairs1a]]
+        expected_dists1a = self.scorer1.distances[[x[0] for x in pairs1a], [x[1] for x in pairs1a]]
+        self.assertLess(np.sum(expected_scores1a - scores_mapped1a), 1e-5)
+        self.assertLess(np.sum(expected_dists1a - dists_mapped1a), 1e-5)
         scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
                                                                                category='Neighbors')
-        mask1b = np.zeros((79, 79))
+        pairs1b = self.scorer1.find_pairs_by_separation(category='Neighbors')
+        expected_scores1b = scores1[[x[0] for x in pairs1b], [x[1] for x in pairs1b]]
+        expected_dists1b = self.scorer1.distances[[x[0] for x in pairs1b], [x[1] for x in pairs1b]]
+        self.assertLess(np.sum(expected_scores1b - scores_mapped1b), 1e-5)
+        self.assertLess(np.sum(expected_dists1b - dists_mapped1b), 1e-5)
         scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-        mask1c = np.zeros((79, 79))
+        pairs1c = self.scorer1.find_pairs_by_separation(category='Short')
+        expected_scores1c = scores1[[x[0] for x in pairs1c], [x[1] for x in pairs1c]]
+        expected_dists1c = self.scorer1.distances[[x[0] for x in pairs1c], [x[1] for x in pairs1c]]
+        self.assertLess(np.sum(expected_scores1c - scores_mapped1c), 1e-5)
+        self.assertLess(np.sum(expected_dists1c - dists_mapped1c), 1e-5)
         scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-        mask1d = np.zeros((79, 79))
+        pairs1d = self.scorer1.find_pairs_by_separation(category='Medium')
+        expected_scores1d = scores1[[x[0] for x in pairs1d], [x[1] for x in pairs1d]]
+        expected_dists1d = self.scorer1.distances[[x[0] for x in pairs1d], [x[1] for x in pairs1d]]
+        self.assertLess(np.sum(expected_scores1d - scores_mapped1d), 1e-5)
+        self.assertLess(np.sum(expected_dists1d - dists_mapped1d), 1e-5)
         scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-        mask1e = np.zeros((79, 79))
-
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='CB')
-        scores2 = np.random.rand(368, 368)[np.triu(368, 1)]
-        scores2 += scores2.T
+        pairs1e = self.scorer1.find_pairs_by_separation(category='Long')
+        expected_scores1e = scores1[[x[0] for x in pairs1e], [x[1] for x in pairs1e]]
+        expected_dists1e = self.scorer1.distances[[x[0] for x in pairs1e], [x[1] for x in pairs1e]]
+        self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
+        self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
+        #
+        # self.scorer2.fit()
+        # self.scorer2.measure_distance(method='CB')
+        # scores2 = np.triu(np.random.rand(368, 368))
+        # scores2 += scores2.T
 
     def test_score_auc(self):
         self.fail()
