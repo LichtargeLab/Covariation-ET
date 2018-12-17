@@ -442,6 +442,8 @@ class ContactScorer(object):
             return
         if file_name is None:
             file_name = '{}_Cutoff{}A_roc.eps'.format(query_name, self.cutoff)
+        if not file_name.endswith('.eps'):
+            file_name = file_name + '.eps'
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         # If the figure has already been plotted return
@@ -492,12 +494,16 @@ class ContactScorer(object):
         if self.query_structure is None:
             print('Precision cannot be measured, because no PDB was provided.')
             return '-'
-        if (k is not None) and (n is not None):
-            raise ValueError('Both k and n were set for score_precision which is not a valid option.')
-        else:
-            n = int(floor(self.query_alignment.seq_length / float(k)))
         mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
         ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        if (k is not None) and (n is not None):
+            raise ValueError('Both k and n were set for score_precision which is not a valid option.')
+        elif k:
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        elif n is None:
+            n = mapped_distances.shape[0]
+        else:
+            pass
         ind = np.where(ranks <= n)
         top_predictions = mapped_predictions[ind]
         y_pred1 = ((top_predictions > 0.0) * 1)

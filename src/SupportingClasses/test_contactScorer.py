@@ -1,7 +1,10 @@
 import os
+import math
 import numpy as np
+from math import floor
 from unittest import TestCase
-from sklearn.metrics import auc, roc_curve
+from scipy.stats import rankdata
+from sklearn.metrics import auc, roc_curve, precision_score
 from SeqAlignment import SeqAlignment
 from PDBReference import PDBReference
 from ContactScorer import ContactScorer
@@ -38,6 +41,19 @@ class TestContactScorer(TestCase):
         del self.pdb_file2
         # del self.pdb_obj2
         del self.scorer2
+
+    @staticmethod
+    def check_precision(mapped_scores, mapped_dists, count=None):
+        if count is None:
+            count = mapped_dists.shape[0]
+        ranked_scores = rankdata(-1 * np.array(mapped_scores), method='dense')
+        ind = np.where(ranked_scores <= count)
+        mapped_scores = mapped_scores[ind]
+        preds = (mapped_scores > 0.0) * 1.0
+        mapped_dists = mapped_dists[ind]
+        truth = (mapped_dists <= 8.0) * 1.0
+        precision = precision_score(truth, preds)
+        return precision
 
     def test__init__(self):
         with self.assertRaises(TypeError):
@@ -481,43 +497,78 @@ class TestContactScorer(TestCase):
         scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
         scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+        expected_precision1a_all = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
         precision1a_all = self.scorer1.score_precision(predictions=scores1, category='Any')
+        print(expected_precision1a_all)
+        print(precision1a_all)
+        self.assertEqual(expected_precision1a_all, precision1a_all)
+        expected_precision1a_k10 = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+                                                   count=floor(self.scorer1.query_alignment.seq_length / 10.0))
         precision1a_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Any')
+        self.assertEqual(expected_precision1a_k10, precision1a_k10)
+        expected_precision1a_n10 = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+                                                   count=10.0)
         precision1a_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Any')
+        self.assertEqual(expected_precision1a_n10, precision1a_n10)
         with self.assertRaises(ValueError):
-            precision1a_error = self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Any')
-
-
-
+            self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Any')
         scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
                                                                                category='Neighbors')
-        fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
-        auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
-        tpr1b, fpr1b, auroc1b = self.scorer1.score_auc(scores1, category='Neighbors')
-        self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
-        self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
-        self.assertEqual(auroc_expected1b, auroc1b)
+        expected_precision1b_all = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
+        precision1b_all = self.scorer1.score_precision(predictions=scores1, category='Neighbors')
+        self.assertEqual(expected_precision1b_all, precision1b_all)
+        expected_precision1b_k10 = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+                                                   count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        precision1b_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Neighbors')
+        self.assertEqual(expected_precision1b_k10, precision1b_k10)
+        expected_precision1b_n10 = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+                                                   count=10.0)
+        precision1b_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Neighbors')
+        self.assertEqual(expected_precision1b_n10, precision1b_n10)
+        with self.assertRaises(ValueError):
+            self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Neighbors')
         scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-        fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
-        auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
-        tpr1c, fpr1c, auroc1c = self.scorer1.score_auc(scores1, category='Short')
-        self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
-        self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
-        self.assertEqual(auroc_expected1c, auroc1c)
+        expected_precision1c_all = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
+        precision1c_all = self.scorer1.score_precision(predictions=scores1, category='Short')
+        self.assertEqual(expected_precision1c_all, precision1c_all)
+        precision1c_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Short')
+        expected_precision1c_k10 = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+                                                   count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        self.assertEqual(expected_precision1c_k10, precision1c_k10)
+        expected_precision1c_n10 = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+                                                   count=10.0)
+        precision1c_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Short')
+        self.assertEqual(expected_precision1c_n10, precision1c_n10)
+        with self.assertRaises(ValueError):
+            self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Short')
         scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-        fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
-        auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
-        tpr1d, fpr1d, auroc1d = self.scorer1.score_auc(scores1, category='Medium')
-        self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
-        self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
-        self.assertEqual(auroc_expected1d, auroc1d)
+        expected_precision1d_all = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
+        precision1d_all = self.scorer1.score_precision(predictions=scores1, category='Medium')
+        self.assertEqual(expected_precision1d_all, precision1d_all)
+        expected_precision1d_k10 = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+                                                   count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        precision1d_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Medium')
+        self.assertEqual(expected_precision1d_k10, precision1d_k10)
+        expected_precision1d_n10 = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+                                                   count=10.0)
+        precision1d_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Medium')
+        self.assertEqual(expected_precision1d_n10, precision1d_n10)
+        with self.assertRaises(ValueError):
+            self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Medium')
         scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-        fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
-        auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
-        tpr1e, fpr1e, auroc1e = self.scorer1.score_auc(scores1, category='Long')
-        self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
-        self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
-        self.assertEqual(auroc_expected1e, auroc1e)
+        expected_precision1e_all = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
+        precision1e_all = self.scorer1.score_precision(predictions=scores1, category='Long')
+        self.assertEqual(expected_precision1e_all, precision1e_all)
+        expected_precision1e_k10 = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+                                                   count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        precision1e_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Long')
+        self.assertEqual(expected_precision1e_k10, precision1e_k10)
+        expected_precision1e_n10 = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+                                                   count=10.0)
+        precision1e_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Long')
+        self.assertEqual(expected_precision1e_n10, precision1e_n10)
+        with self.assertRaises(ValueError):
+            self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Long')
         #
         self.scorer2.fit()
         self.scorer2.measure_distance(method='CB')
@@ -525,41 +576,76 @@ class TestContactScorer(TestCase):
         scores2[np.tril_indices(368, 1)] = 0
         scores2 += scores2.T
         scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-        fpr_expected2a, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
-        auroc_expected2a = auc(fpr_expected2a, tpr_expected2a)
-        tpr2a, fpr2a, auroc2a = self.scorer2.score_auc(scores2, category='Any')
-        self.assertEqual(np.sum(fpr_expected2a - fpr2a), 0)
-        self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
-        self.assertEqual(auroc_expected2a, auroc2a)
+        expected_precision2a_all = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
+        precision2a_all = self.scorer2.score_precision(predictions=scores2, category='Any')
+        self.assertEqual(expected_precision2a_all, precision2a_all)
+        expected_precision2a_k10 = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+                                                   count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        precision2a_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Any')
+        self.assertEqual(expected_precision2a_k10, precision2a_k10)
+        expected_precision2a_n10 = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+                                                   count=10.0)
+        precision2a_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Any')
+        self.assertEqual(expected_precision2a_n10, precision2a_n10)
+        with self.assertRaises(ValueError):
+            self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Any')
         scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
                                                                                category='Neighbors')
-        fpr_expected2b, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
-        auroc_expected2b = auc(fpr_expected2b, tpr_expected2b)
-        tpr2b, fpr2b, auroc2b = self.scorer2.score_auc(scores2, category='Neighbors')
-        self.assertEqual(np.sum(fpr_expected2b - fpr2b), 0)
-        self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
-        self.assertEqual(auroc_expected2b, auroc2b)
+        expected_precision2b_all = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
+        precision2b_all = self.scorer2.score_precision(predictions=scores2, category='Neighbors')
+        self.assertEqual(expected_precision2b_all, precision2b_all)
+        expected_precision2b_k10 = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+                                                   count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        precision2b_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Neighbors')
+        self.assertEqual(expected_precision2b_k10, precision2b_k10)
+        expected_precision2b_n10 = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+                                                   count=10.0)
+        precision2b_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Neighbors')
+        self.assertEqual(expected_precision2b_n10, precision2b_n10)
+        with self.assertRaises(ValueError):
+            self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Neighbors')
         scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-        fpr_expected2c, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
-        auroc_expected2c = auc(fpr_expected2c, tpr_expected2c)
-        tpr2c, fpr2c, auroc2c = self.scorer2.score_auc(scores2, category='Short')
-        self.assertEqual(np.sum(fpr_expected2c - fpr2c), 0)
-        self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
-        self.assertEqual(auroc_expected2c, auroc2c)
+        expected_precision2c_all = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
+        precision2c_all = self.scorer2.score_precision(predictions=scores2, category='Short')
+        self.assertEqual(expected_precision2c_all, precision2c_all)
+        precision2c_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Short')
+        expected_precision2c_k10 = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+                                                   count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        self.assertEqual(expected_precision2c_k10, precision2c_k10)
+        expected_precision2c_n10 = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+                                                   count=10.0)
+        precision2c_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Short')
+        self.assertEqual(expected_precision2c_n10, precision2c_n10)
+        with self.assertRaises(ValueError):
+            self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Short')
         scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-        fpr_expected2d, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
-        auroc_expected2d = auc(fpr_expected2d, tpr_expected2d)
-        tpr2d, fpr2d, auroc2d = self.scorer2.score_auc(scores2, category='Medium')
-        self.assertEqual(np.sum(fpr_expected2d - fpr2d), 0)
-        self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
-        self.assertEqual(auroc_expected2d, auroc2d)
+        expected_precision2d_all = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
+        precision2d_all = self.scorer2.score_precision(predictions=scores2, category='Medium')
+        self.assertEqual(expected_precision2d_all, precision2d_all)
+        expected_precision2d_k10 = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+                                                   count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        precision2d_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Medium')
+        self.assertEqual(expected_precision2d_k10, precision2d_k10)
+        expected_precision2d_n10 = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+                                                   count=10.0)
+        precision2d_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Medium')
+        self.assertEqual(expected_precision2d_n10, precision2d_n10)
+        with self.assertRaises(ValueError):
+            self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Medium')
         scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-        fpr_expected2e, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
-        auroc_expected2e = auc(fpr_expected2e, tpr_expected2e)
-        tpr2e, fpr2e, auroc2e = self.scorer2.score_auc(scores2, category='Long')
-        self.assertEqual(np.sum(fpr_expected2e - fpr2e), 0)
-        self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
-        self.assertEqual(auroc_expected2e, auroc2e)
+        expected_precision2e_all = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
+        precision2e_all = self.scorer2.score_precision(predictions=scores2, category='Long')
+        self.assertEqual(expected_precision2e_all, precision2e_all)
+        expected_precision2e_k10 = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+                                                   count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        precision2e_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Long')
+        self.assertEqual(expected_precision2e_k10, precision2e_k10)
+        expected_precision2e_n10 = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+                                                   count=10.0)
+        precision2e_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Long')
+        self.assertEqual(expected_precision2e_n10, precision2e_n10)
+        with self.assertRaises(ValueError):
+            self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
 
     def test_score_clustering_of_contact_predictions(self):
         self.fail()
