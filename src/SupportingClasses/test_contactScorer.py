@@ -27,6 +27,7 @@ class TestContactScorer(TestCase):
         # self.pdb_obj2 = PDBReference(pdb_file=self.pdb_file2)
         self.scorer2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2,
                                      cutoff=8.0)
+        self.CONTACT_DISTANCE2 = 16.0
 
     def tearDown(self):
         del self.query1
@@ -41,6 +42,7 @@ class TestContactScorer(TestCase):
         del self.pdb_file2
         # del self.pdb_obj2
         del self.scorer2
+        del self.CONTACT_DISTANCE2
 
     @staticmethod
     def check_precision(mapped_scores, mapped_dists, count=None):
@@ -54,6 +56,140 @@ class TestContactScorer(TestCase):
         truth = (mapped_dists <= 8.0) * 1.0
         precision = precision_score(truth, preds)
         return precision
+
+    @staticmethod
+    def _et_calcZScore(reslist, L, A, bias=1):
+        """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
+        z_S = (w-<w>_S)/sigma_S
+        The steps are:
+        1. Calculate Selection Clustering Weight (SCW) 'w'
+        2. Calculate mean SCW (<w>_S) in the ensemble of random
+        selections of len(reslist) residues
+        3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
+        Reference: Mihalek, Res, Yao, Lichtarge (2003)
+
+        reslist - a list of int's of protein residue numbers, e.g. ET residues
+        L - length of protein
+        A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
+        bias - option to calculate with bias or nobias (j-i factor)"""
+        w = 0
+        if bias == 1:
+            for resi in reslist:
+                for resj in reslist:
+                    if resi < resj:
+                        try:
+                            Aij = A[resi][resj]  # A(i,j)==1
+                            w += (resj - resi)
+                        except KeyError:
+                            pass
+        elif bias == 0:
+            for resi in reslist:
+                for resj in reslist:
+                    if resi < resj:
+                        try:
+                            Aij = A[resi][resj]  # A(i,j)==1
+                            w += 1
+                        except KeyError:
+                            pass
+        M = len(reslist)
+        pi1 = M * (M - 1.0) / (L * (L - 1.0))
+        pi2 = pi1 * (M - 2.0) / (L - 2.0)
+        pi3 = pi2 * (M - 3.0) / (L - 3.0)
+        w_ave = 0
+        w2_ave = 0
+        if bias == 1:
+            for resi, neighborsj in A.items():
+                for resj in neighborsj:
+                    w_ave += (resj - resi)
+                    for resk, neighborsl in A.items():
+                        for resl in neighborsl:
+                            if (resi == resk and resj == resl) or \
+                                    (resi == resl and resj == resk):
+                                w2_ave += pi1 * (resj - resi) * (resl - resk)
+                            elif (resi == resk) or (resj == resl) or \
+                                    (resi == resl) or (resj == resk):
+                                w2_ave += pi2 * (resj - resi) * (resl - resk)
+                            else:
+                                w2_ave += pi3 * (resj - resi) * (resl - resk)
+        elif bias == 0:
+            for resi, neighborsj in A.items():
+                w_ave += len(neighborsj)
+                for resj in neighborsj:
+                    for resk, neighborsl in A.items():
+                        for resl in neighborsl:
+                            if (resi == resk and resj == resl) or \
+                                    (resi == resl and resj == resk):
+                                w2_ave += pi1
+                            elif (resi == resk) or (resj == resl) or \
+                                    (resi == resl) or (resj == resk):
+                                w2_ave += pi2
+                            else:
+                                w2_ave += pi3
+        w_ave = w_ave * pi1
+        sigma = math.sqrt(w2_ave - w_ave * w_ave)
+        if sigma == 0:
+            return 'NA'
+        return (w - w_ave) / sigma
+
+    @staticmethod
+    def _et_computeAdjacency(self, model):
+        """Compute the pairs of contacting residues
+        A(i,j) implemented as a hash of hash of residue numbers"""
+        three2one = {
+            "ALA": 'A',
+            "ARG": 'R',
+            "ASN": 'N',
+            "ASP": 'D',
+            "CYS": 'C',
+            "GLN": 'Q',
+            "GLU": 'E',
+            "GLY": 'G',
+            "HIS": 'H',
+            "ILE": 'I',
+            "LEU": 'L',
+            "LYS": 'K',
+            "MET": 'M',
+            "PHE": 'F',
+            "PRO": 'P',
+            "SER": 'S',
+            "THR": 'T',
+            "TRP": 'W',
+            "TYR": 'Y',
+            "VAL": 'V',
+            "A": "A",
+            "G": "G",
+            "T": "T",
+            "U": "U",
+            "C": "C", }
+
+        ResAtoms = {}
+        for i in range(len(model.atom)):
+            atom = model.atom[i]
+            try:
+                aa = three2one[atom.resn]
+            except KeyError:
+                continue
+            try:
+                ResAtoms[int(atom.resi)].append(atom.coord)
+            except KeyError:
+                ResAtoms[int(atom.resi)] = [atom.coord]
+
+        A = {}
+        A_recip = {}
+        for resi in ResAtoms.keys():
+            for resj in ResAtoms.keys():
+                if resi < resj:
+                    if (self.calcDist(ResAtoms[resi],
+                                      ResAtoms[resj]) < self.CONTACT_DISTANCE2):
+                        try:
+                            A[resi][resj] = 1
+                        except KeyError:
+                            A[resi] = {resj: 1}
+                        try:
+                            A_recip[resj][resi] = 1
+                        except KeyError:
+                            A_recip[resj] = {resi: 1}
+        return A, ResAtoms, A_recip
 
     def test__init__(self):
         with self.assertRaises(TypeError):
