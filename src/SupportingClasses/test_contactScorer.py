@@ -131,7 +131,6 @@ class TestContactScorer(TestCase):
             return 'NA'
         return (w - w_ave) / sigma
 
-    @staticmethod
     def _et_computeAdjacency(self, model):
         """Compute the pairs of contacting residues
         A(i,j) implemented as a hash of hash of residue numbers"""
@@ -179,8 +178,7 @@ class TestContactScorer(TestCase):
         for resi in ResAtoms.keys():
             for resj in ResAtoms.keys():
                 if resi < resj:
-                    if (self.calcDist(ResAtoms[resi],
-                                      ResAtoms[resj]) < self.CONTACT_DISTANCE2):
+                    if self._et_calcDist(ResAtoms[resi], ResAtoms[resj]) < self.CONTACT_DISTANCE2:
                         try:
                             A[resi][resj] = 1
                         except KeyError:
@@ -190,6 +188,24 @@ class TestContactScorer(TestCase):
                         except KeyError:
                             A_recip[resj] = {resi: 1}
         return A, ResAtoms, A_recip
+
+    def _et_calcDist(self, atoms1, atoms2):
+        """return smallest distance (squared) between two groups of atoms"""
+        # (not distant by more than ~100 A)
+        # mind2=CONTACT_DISTANCE2+100
+        c1 = atoms1[0]  # atoms must not be empty
+        c2 = atoms2[0]
+        mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                (c1[2] - c2[2]) * (c1[2] - c2[2])
+        for c1 in atoms1:
+            for c2 in atoms2:
+                d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                     (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                     (c1[2] - c2[2]) * (c1[2] - c2[2])
+                if d2 < mind2:
+                    mind2 = d2
+        return mind2  # Square of distance between most proximate atoms
 
     def test__init__(self):
         with self.assertRaises(TypeError):
@@ -787,7 +803,9 @@ class TestContactScorer(TestCase):
         self.fail()
 
     def test__clustering_z_score(self):
-        self.fail()
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='CB')
+        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
 
     def test_write_out_clustering_results(self):
         self.fail()
