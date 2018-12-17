@@ -97,8 +97,8 @@ def analyze_alignment(args):
     # Combine the clustering results across all clustering constants tested.
     # Compute normalized scores for ETMIPC
     # Write out cluster specific scores
-    cetmip_obj.calculate_scores(out_dir=query_dir, today=today, query=args['query'][0], clusters=args['clusters'],
-                                aa_dict=aa_dict, combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
+    cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], clusters=args['clusters'],
+                                aa_mapping=aa_dict, combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
                                 processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
                                 ignore_alignment_size=args['ignoreAlignmentSize'])
 
