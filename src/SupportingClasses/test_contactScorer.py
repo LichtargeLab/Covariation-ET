@@ -128,10 +128,10 @@ class TestContactScorer(TestCase):
         w_ave = w_ave * pi1
         sigma = math.sqrt(w2_ave - w_ave * w_ave)
         if sigma == 0:
-            return 'NA'
-        return (w - w_ave) / sigma
+            return 'NA', w, w_ave, w2_ave, sigma
+        return (w - w_ave) / sigma, w, w_ave, w2_ave, sigma
 
-    def _et_computeAdjacency(self, model):
+    def _et_computeAdjacency(self, chain):
         """Compute the pairs of contacting residues
         A(i,j) implemented as a hash of hash of residue numbers"""
         three2one = {
@@ -162,16 +162,19 @@ class TestContactScorer(TestCase):
             "C": "C", }
 
         ResAtoms = {}
-        for i in range(len(model.atom)):
-            atom = model.atom[i]
+        for residue in chain:
             try:
-                aa = three2one[atom.resn]
+                aa = three2one[residue.get_resname()]
             except KeyError:
                 continue
-            try:
-                ResAtoms[int(atom.resi)].append(atom.coord)
-            except KeyError:
-                ResAtoms[int(atom.resi)] = [atom.coord]
+            resi = residue.get_id()[1]
+            for atom in residue:
+                try:
+                    # ResAtoms[int(atom.resi)].append(atom.coord)
+                    ResAtoms[resi].append(atom.coord)
+                except KeyError:
+                    # ResAtoms[int(atom.resi)] = [atom.coord]
+                    ResAtoms[resi] = [atom.coord]
 
         A = {}
         A_recip = {}
@@ -799,19 +802,111 @@ class TestContactScorer(TestCase):
         with self.assertRaises(ValueError):
             self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
 
-    def test_score_clustering_of_contact_predictions(self):
-        self.fail()
+    # def test_score_clustering_of_contact_predictions(self):
+    #     self.fail()
 
     def test__clustering_z_score(self):
         self.scorer1.fit()
-        self.scorer1.measure_distance(method='CB')
+        self.scorer1.measure_distance(method='Any')
         A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
+        z_scores_e1b, w_e1b, w_ave_e1b, w2_ave_e1b, sigma_e1b = self._et_calcZScore(
+            reslist=self.scorer1.query_structure.pdb_residue_list, L=self.scorer1.query_alignment.seq_length, A=A,
+            bias=1)
+        z_scores_1b, w_1b, w_ave_1b, w2_ave_1b, sigma_1b, _ = self.scorer1._clustering_z_score(
+            res_list=self.scorer1.query_structure.pdb_residue_list, bias=True, w2_ave_sub=None)
+        if isinstance(z_scores_1b, str):
+            self.assertEqual(z_scores_1b, '-')
+            self.assertEqual(z_scores_e1b, 'NA')
+            self.assertEqual(w_1b, None)
+            self.assertEqual(w_e1b, 0)
+            self.assertEqual(w_ave_1b, None)
+            self.assertEqual(w_ave_e1b, 0)
+            self.assertEqual(w2_ave_1b, None)
+            self.assertEqual(w2_ave_e1b, 0)
+            self.assertEqual(sigma_1b, None)
+            self.assertEqual(sigma_e1b, 0)
+        else:
+            self.assertEqual(z_scores_1b, z_scores_e1b)
+            self.assertEqual(w_1b, w_e1b)
+            self.assertEqual(w_ave_1b, w_ave_e1b)
+            self.assertEqual(w2_ave_1b, w2_ave_e1b)
+            self.assertEqual(sigma_1b, sigma_e1b)
+        z_scores_e1u, w_e1u, w_ave_e1u, w2_ave_e1u, sigma_e1u = self._et_calcZScore(
+            reslist=self.scorer1.query_structure.pdb_residue_list, L=self.scorer1.query_alignment.seq_length, A=A,
+            bias=0)
+        z_scores_1u, w_1u, w_ave_1u, w2_ave_1u, sigma_1u, _ = self.scorer1._clustering_z_score(
+            res_list=self.scorer1.query_structure.pdb_residue_list, bias=False, w2_ave_sub=None)
+        if isinstance(z_scores_1u, str):
+            self.assertEqual(z_scores_1u, '-')
+            self.assertEqual(z_scores_e1u, 'NA')
+            self.assertEqual(w_1u, None)
+            self.assertEqual(w_e1u, 0)
+            self.assertEqual(w_ave_1u, None)
+            self.assertEqual(w_ave_e1u, 0)
+            self.assertEqual(w2_ave_1u, None)
+            self.assertEqual(w2_ave_e1u, 0)
+            self.assertEqual(sigma_1u, None)
+            self.assertEqual(sigma_e1u, 0)
+        else:
+            self.assertEqual(z_scores_1u, z_scores_e1u)
+            self.assertEqual(w_1u, w_e1u)
+            self.assertEqual(w_ave_1u, w_ave_e1u)
+            self.assertEqual(w2_ave_1u, w2_ave_e1u)
+            self.assertEqual(sigma_1u, sigma_e1u)
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        A, _, _ = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain])
+        z_scores_e2b, w_e2b, w_ave_e2b, w2_ave_e2b, sigma_e2b = self._et_calcZScore(
+            reslist=self.scorer2.query_structure.pdb_residue_list, L=self.scorer2.query_alignment.seq_length, A=A,
+            bias=1)
+        z_scores_2b, w_2b, w_ave_2b, w2_ave_2b, sigma_2b, _ = self.scorer2._clustering_z_score(
+            res_list=self.scorer2.query_structure.pdb_residue_list, bias=True, w2_ave_sub=None)
+        if isinstance(z_scores_2b, str):
+            self.assertEqual(z_scores_2b, '-')
+            self.assertEqual(z_scores_e2b, 'NA')
+            self.assertEqual(w_2b, None)
+            self.assertEqual(w_e2b, 0)
+            self.assertEqual(w_ave_2b, None)
+            self.assertEqual(w_ave_e2b, 0)
+            self.assertEqual(w2_ave_2b, None)
+            self.assertEqual(w2_ave_e2b, 0)
+            self.assertEqual(sigma_2b, None)
+            self.assertEqual(sigma_e2b, 0)
+        else:
+            self.assertEqual(z_scores_2b, z_scores_e2b)
+            self.assertEqual(w_2b, w_e2b)
+            self.assertEqual(w_ave_2b, w_ave_e2b)
+            self.assertEqual(w2_ave_2b, w2_ave_e2b)
+            self.assertEqual(sigma_2b, sigma_e2b)
+        z_scores_e2u, w_e2u, w_ave_e2u, w2_ave_e2u, sigma_e2u = self._et_calcZScore(
+            reslist=self.scorer2.query_structure.pdb_residue_list, L=self.scorer2.query_alignment.seq_length, A=A,
+            bias=0)
+        z_scores_2u, w_2u, w_ave_2u, w2_ave_2u, sigma_2u, _ = self.scorer2._clustering_z_score(
+            res_list=self.scorer2.query_structure.pdb_residue_list, bias=False, w2_ave_sub=None)
+        if isinstance(z_scores_2u, str):
+            self.assertEqual(z_scores_2u, '-')
+            self.assertEqual(z_scores_e2u, 'NA')
+            self.assertEqual(w_2u, None)
+            self.assertEqual(w_e2u, 0)
+            self.assertEqual(w_ave_2u, None)
+            self.assertEqual(w_ave_e2u, 0)
+            self.assertEqual(w2_ave_2u, None)
+            self.assertEqual(w2_ave_e2u, 0)
+            self.assertEqual(sigma_2u, None)
+            self.assertEqual(sigma_e2u, 0)
+        else:
+            self.assertEqual(z_scores_2u, z_scores_e2u)
+            self.assertEqual(w_2u, w_e2u)
+            self.assertEqual(w_ave_2u, w_ave_e2u)
+            self.assertEqual(w2_ave_2u, w2_ave_e2u)
+            self.assertEqual(sigma_2u, sigma_e2u)
 
-    def test_write_out_clustering_results(self):
-        self.fail()
 
-    def test_evaluate_predictor(self):
-        self.fail()
-
-    def test_evaluate_predictions(self):
-        self.fail()
+    # def test_write_out_clustering_results(self):
+    #     self.fail()
+    #
+    # def test_evaluate_predictor(self):
+    #     self.fail()
+    #
+    # def test_evaluate_predictions(self):
+    #     self.fail()
