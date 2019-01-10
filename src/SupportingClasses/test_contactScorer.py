@@ -1,6 +1,7 @@
 import os
 import math
 import numpy as np
+import pandas as pd
 from math import floor
 from unittest import TestCase
 from scipy.stats import rankdata
@@ -27,7 +28,7 @@ class TestContactScorer(TestCase):
         # self.pdb_obj2 = PDBReference(pdb_file=self.pdb_file2)
         self.scorer2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2,
                                      cutoff=8.0)
-        self.CONTACT_DISTANCE2 = 16.0
+        self.CONTACT_DISTANCE2 = 64
 
     def tearDown(self):
         del self.query1
@@ -73,13 +74,25 @@ class TestContactScorer(TestCase):
         A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
         bias - option to calculate with bias or nobias (j-i factor)"""
         w = 0
+        #
+        # print(A.keys())
+        bias_mat = np.zeros((L, L))
+        #
         if bias == 1:
             for resi in reslist:
                 for resj in reslist:
                     if resi < resj:
                         try:
                             Aij = A[resi][resj]  # A(i,j)==1
-                            w += (resj - resi)
+                            # w += (resj - resi)
+                            #
+                            b_curr = (resj - resi)
+                            # bias_mat[resi - 1, resj - 1] = b_curr
+                            # bias_mat[resj - 1, resi - 1] = b_curr
+                            bias_mat[resi, resj] = b_curr
+                            bias_mat[resj, resi] = b_curr
+                            w += b_curr
+                            #
                         except KeyError:
                             pass
         elif bias == 0:
@@ -89,8 +102,18 @@ class TestContactScorer(TestCase):
                         try:
                             Aij = A[resi][resj]  # A(i,j)==1
                             w += 1
+                            #
+                            # bias_mat[resi - 1, resj - 1] = 1
+                            # bias_mat[resj - 1, resi - 1] = 1
+                            bias_mat[resi, resj] = 1
+                            bias_mat[resj, resi] = 1
+                            #
                         except KeyError:
                             pass
+        #
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_Bias_{}_Mat.csv'.format(len(reslist)), bias_mat,
+                   delimiter='\t')
+        #
         M = len(reslist)
         pi1 = M * (M - 1.0) / (L * (L - 1.0))
         pi2 = pi1 * (M - 2.0) / (L - 2.0)
@@ -162,34 +185,67 @@ class TestContactScorer(TestCase):
             "C": "C", }
 
         ResAtoms = {}
+        count = 0
+        count2 = 0
         for residue in chain:
+            count += 1
             try:
                 aa = three2one[residue.get_resname()]
+                count2 += 1
             except KeyError:
                 continue
             resi = residue.get_id()[1]
             for atom in residue:
                 try:
                     # ResAtoms[int(atom.resi)].append(atom.coord)
-                    ResAtoms[resi].append(atom.coord)
+                    ResAtoms[resi - 1].append(atom.coord)
                 except KeyError:
                     # ResAtoms[int(atom.resi)] = [atom.coord]
-                    ResAtoms[resi] = [atom.coord]
-
+                    ResAtoms[resi - 1] = [atom.coord]
+        print('Residue Counts: {} and {}'.format(count, count2))
         A = {}
         A_recip = {}
+        #
+        a = np.zeros((len(ResAtoms), len(ResAtoms)))
+        dists = np.zeros(a.shape)
+        #
+        count = 0
+        count2 = 0
+        count3 = 0
         for resi in ResAtoms.keys():
+            count += 1
             for resj in ResAtoms.keys():
+                count2 += 1
                 if resi < resj:
-                    if self._et_calcDist(ResAtoms[resi], ResAtoms[resj]) < self.CONTACT_DISTANCE2:
+                    count3 += 1
+                    #
+                    curr_dist = self._et_calcDist(ResAtoms[resi], ResAtoms[resj])
+                    dists[resi, resj] = curr_dist
+                    #
+                    # if self._et_calcDist(ResAtoms[resi], ResAtoms[resj]) < self.CONTACT_DISTANCE2:
+                    if curr_dist < self.CONTACT_DISTANCE2:
+                        #
+                        a[resi, resj] = 1
+                        #
                         try:
                             A[resi][resj] = 1
-                        except KeyError:
-                            A[resi] = {resj: 1}
-                        try:
                             A_recip[resj][resi] = 1
                         except KeyError:
+                            A[resi] = {resj: 1}
                             A_recip[resj] = {resi: 1}
+                if (resi == 0) and (resj == 1):
+                    print('###########################################################################################')
+                    print('resi < resj: {}'.format(resi < resj))
+                    print('curr_dist: {}'.format(self._et_calcDist(ResAtoms[resi], ResAtoms[resj])))
+                    print('curr_dist < self.CONTACT_DISTANCE2: {}'.format(
+                        self._et_calcDist(ResAtoms[resi], ResAtoms[resj])< self.CONTACT_DISTANCE2))
+                    print('A[resi][resj]: {}'.format(A[resi][resj]))
+                    print('###########################################################################################')
+        #
+        print('Second set of residue count: {} and {} and {}'.format(count, count2, count3))
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_A_Mat.csv', a, delimiter='\t')
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_Dist_Mat.csv', dists, delimiter='\t')
+        #
         return A, ResAtoms, A_recip
 
     def _et_calcDist(self, atoms1, atoms2):
@@ -802,8 +858,198 @@ class TestContactScorer(TestCase):
         with self.assertRaises(ValueError):
             self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
 
-    # def test_score_clustering_of_contact_predictions(self):
-    #     self.fail()
+    def test_measure_distance_2(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        self.assertEqual(self.scorer1.dist_type, 'Any')
+        residue_coords = {}
+        dists = np.zeros((79, 79))
+        dists2 = np.zeros((79, 79))
+        for residue in self.scorer1.query_structure.structure[0][self.scorer1.best_chain]:
+            res_num = residue.id[1] - 1
+            coords = self.scorer1._get_all_coords(residue)
+            residue_coords[res_num] = coords
+            for residue2 in residue_coords:
+                if residue2 == res_num:
+                    continue
+                else:
+                    dist = self._et_calcDist(coords, residue_coords[residue2])
+                    dist2 = np.sqrt(dist)
+                    dists[res_num, residue2] = dist
+                    dists[residue2, res_num] = dist
+                    dists2[res_num, residue2] = dist2
+                    dists2[residue2, res_num] = dist2
+        distance_diff = np.square(self.scorer1.distances) - dists
+        # self.assertEqual(len(np.nonzero(distance_diff)[0]), 0)
+        self.assertLess(np.max(distance_diff), 1e-3)
+        adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < 64) -
+                    (dists[np.nonzero(distance_diff)] < 64))
+        self.assertEqual(np.sum(adj_diff), 0)
+        self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
+        distance_diff2 = self.scorer1.distances - dists2
+        self.assertEqual(np.sum(distance_diff2), 0.0)
+        self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+
+    def test_adjacency_determination(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scorer1_a = self.scorer1.distances < self.scorer1.cutoff
+        scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[1])] = 0
+        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
+        scorer1_a_pos = np.nonzero(scorer1_a)
+        scorer1_in_dict = 0
+        scorer1_not_in_dict = 0
+        scorer1_missed_pos = ([], [])
+        for i in range(len(scorer1_a_pos[0])):
+            if scorer1_a_pos[0][i] < scorer1_a_pos[1][i]:
+                try:
+                    scorer1_in_dict += A[scorer1_a_pos[0][i]][scorer1_a_pos[1][i]]
+                except KeyError:
+                    try:
+                        scorer1_in_dict += A[scorer1_a_pos[1][i]][scorer1_a_pos[0][i]]
+                    except KeyError:
+                        scorer1_not_in_dict += 1
+                        scorer1_missed_pos[0].append(scorer1_a_pos[0][i])
+                        scorer1_missed_pos[1].append(scorer1_a_pos[1][i])
+        rhonald1_in_dict = 0
+        rhonald1_not_in_dict = 0
+        for i in A.keys():
+            for j in A[i].keys():
+                if A[i][j] == scorer1_a[i, j]:
+                    rhonald1_in_dict += 1
+                else:
+                    rhonald1_not_in_dict += 1
+        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer1_in_dict, scorer1_not_in_dict))
+        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald1_in_dict, rhonald1_not_in_dict))
+        print(scorer1_a[scorer1_missed_pos])
+        print(self.scorer1.distances[scorer1_missed_pos])
+        #
+        residue_coords = {}
+        dists = np.zeros((79, 79))
+        dists2 = np.zeros((79, 79))
+        for residue in self.scorer1.query_structure.structure[0][self.scorer1.best_chain]:
+            res_num = residue.id[1] - 1
+            coords = self.scorer1._get_all_coords(residue)
+            residue_coords[res_num] = coords
+            for residue2 in residue_coords:
+                if residue2 == res_num:
+                    continue
+                else:
+                    dist = self._et_calcDist(coords, residue_coords[residue2])
+                    dist2 = np.sqrt(dist)
+                    dists[res_num, residue2] = dist
+                    dists[residue2, res_num] = dist
+                    dists2[res_num, residue2] = dist2
+                    dists2[residue2, res_num] = dist2
+        print(dists2[scorer1_missed_pos])
+        #
+        print(scorer1_missed_pos[0])
+        print(scorer1_missed_pos[1])
+        final_check = []
+        for i in range(len(scorer1_missed_pos[0])):
+            pos1 = scorer1_missed_pos[0][i]
+            pos2 = scorer1_missed_pos[1][i]
+            curr_check = False
+            if pos1 in A:
+                if pos2 in A[pos1]:
+                    curr_check = True
+            if pos2 in A:
+                if pos1 in A[pos2]:
+                    curr_check = True
+            final_check.append(curr_check)
+        print(final_check)
+        self.assertEqual(scorer1_in_dict, rhonald1_in_dict)
+        self.assertEqual(scorer1_not_in_dict, 0)
+        self.assertEqual(rhonald1_not_in_dict, 0)
+
+    def test_score_clustering_of_contact_predictions(self):
+        def all_z_scores(A, L, bias, res_i, res_j, scores):
+            # res_i = list(np.array(res_i) + 1)
+            # res_j = list(np.array(res_j) + 1)
+            data = {'Res_i': res_i, 'Res_j': res_j, 'Covariance_Score': scores, 'Z-Score': [], 'W': [], 'W_Ave': [],
+                    'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
+            res_list = []
+            res_set = set()
+            for i in range(len(scores)):
+                curr_i = res_i[i]
+                if curr_i not in res_set:
+                    res_list.append(curr_i)
+                    res_set.add(curr_i)
+                curr_j = res_j[i]
+                if curr_j not in res_set:
+                    res_list.append(curr_j)
+                    res_set.add(curr_j)
+                z_score, w, w_ave, w2_ave, sigma = self._et_calcZScore(reslist=res_list, L=L, A=A, bias=bias)
+                data['Z-Score'].append(z_score)
+                data['W'].append(w)
+                data['W_Ave'].append(w_ave)
+                data['W2_Ave'].append(w2_ave)
+                data['Sigma'].append(sigma)
+                data['Num_Residues'].append(len(res_list))
+            return pd.DataFrame(data)
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scores1 = np.random.rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
+        #
+        scorer1_a = self.scorer1.distances < self.scorer1.cutoff
+        scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[0])] = 0
+        scorer1_a = np.triu(scorer1_a, k=1)
+        scorer1_a_pos = np.nonzero(scorer1_a)
+        print(scorer1_a_pos)
+        scorer1_a_size = len(scorer1_a_pos[0])
+        print(A)
+        expected1_a_size = np.sum([len(A[k]) for k in A.keys()])
+        self.assertEqual(scorer1_a_size, expected1_a_size)
+        content_comp = np.sum([A[scorer1_a_pos[0][i]][scorer1_a_pos[1][i]] for i in range(scorer1_a_size)])
+        self.assertEqual(scorer1_a_size, content_comp)
+        #
+        zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            w2_ave_sub=None)
+        zscore_df_1be = all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
+                                     res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
+                                     scores=list(zscore_df_1b['Covariance_Score']))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
+        zscore_df_1b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_DF.csv'))
+        zscore_df_1be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_DF.csv'))
+        pd.testing.assert_frame_equal(zscore_df_1b, zscore_df_1be)
+        zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            w2_ave_sub=None)
+        zscore_df_1ue = all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
+                                     res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
+                                     scores=list(zscore_df_1u['Covariance_Score']))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
+        pd.testing.assert_frame_equal(zscore_df_1u, zscore_df_1ue)
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        scores2 = np.random.rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        A, _, _ = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain])
+        zscore_df_2b, _ = self.scorer2.score_clustering_of_contact_predictions(
+            predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            w2_ave_sub=None)
+        zscore_df_2be = all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
+                                     res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
+                                     scores=list(zscore_df_2b['Covariance_Score']))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
+        pd.testing.assert_frame_equal(zscore_df_2b, zscore_df_2be)
+        zscore_df_2u, _ = self.scorer2.score_clustering_of_contact_predictions(
+            predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            w2_ave_sub=None)
+        zscore_df_2ue = all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
+                                     res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
+                                     scores=list(zscore_df_2b['Covariance_Score']))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
+        pd.testing.assert_frame_equal(zscore_df_2u, zscore_df_2ue)
 
     def test__clustering_z_score(self):
         self.scorer1.fit()
@@ -910,3 +1156,43 @@ class TestContactScorer(TestCase):
     #
     # def test_evaluate_predictions(self):
     #     self.fail()
+
+
+import numpy as np
+
+
+def check_adjacency(total_size):
+    contact_adjacency = np.loadtxt('ContactScorer_A_Mat.csv', delimiter='\t')
+    rhonald_adjacency = np.loadtxt('Rhonald_A_Mat.csv', delimiter='\t')
+    diff_adjacency = contact_adjacency - rhonald_adjacency
+    check = True
+    for i in range(total_size):
+        try:
+            contact_adjacency_curr = np.loadtxt('Contact_Scorer_A_{}_Mat.csv'.format(i), delimiter='\t')
+        except IOError:
+            continue
+        diff_adjacency2 = contact_adjacency - contact_adjacency_curr
+        if len(np.nonzero(diff_adjacency2)) > 0:
+            check = False
+            break
+    if np.sum(diff_adjacency) == 0 and len(np.nonzero(diff_adjacency)[0]) == 0 and check:
+        return True
+    else:
+        return False
+
+
+def check_bias(size, contact_bias=None):
+    if contact_bias is None:
+        contact_bias = np.loadtxt('ContactScorer_Bias_Mat.csv', delimiter='\t')
+    contact_relevant_curr = np.loadtxt('ContactScorer_Relevant_{}_Mat.csv'.format(size), delimiter='\t')
+    contact_adjacency = np.loadtxt('ContactScorer_A_Mat.csv', delimiter='\t')
+    contact_bias_curr = contact_bias * contact_relevant_curr
+    contact_intermediate_curr = np.loadtxt('ContactScorer_Intermediate_{}_Mat.csv'.format(size), delimiter='\t')
+    if len(np.nonzero((contact_adjacency * contact_bias_curr) - contact_intermediate_curr)[0]) != 0:
+        raise ValueError('Intermediate Contact Values do not match')
+    rhonald_bias_curr = np.loadtxt('Rhonald_Bias_{}_Mat.csv'.format(size), delimiter='\t')
+    diff_bias = contact_intermediate_curr - rhonald_bias_curr
+    if np.sum(diff_bias) == 0 and len(np.nonzero(diff_bias)[0]) == 0:
+        return True, (contact_bias, contact_bias_curr, contact_relevant_curr, rhonald_bias_curr)
+    else:
+        return False, (contact_bias, contact_bias_curr, contact_relevant_curr, rhonald_bias_curr)

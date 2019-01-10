@@ -636,13 +636,32 @@ class ContactScorer(object):
         positions = range(self.distances.shape[0])
         a = self.distances < self.cutoff
         a[positions, positions] = 0
+        #
+        a_write = np.zeros(a.shape)
+        a_write[np.triu_indices(a.shape[0], 1)] = a[np.triu_indices(a.shape[0], 1)]
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_A_Mat.csv', a_write, delimiter='\t')
+        dist_write = np.zeros(self.distances.shape)
+        dist_write[np.triu_indices(self.distances.shape[0])] = self.distances[np.triu_indices(self.distances.shape[0])]
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_Dist_Mat.csv', dist_write, delimiter='\t')
+        #
         s_i = np.in1d(positions, res_list)
         s_ij = np.outer(s_i, s_i)
         s_ij[positions, positions] = 0
         if bias:
             bias_ij = np.subtract.outer(positions, positions)
+            bias_ij[np.triu_indices(self.distances.shape[0], 1)] *= -1
         else:
             bias_ij = np.ones(s_ij.shape)
+        #
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_Relevant_{}_Mat.csv'.format(len(res_list)),
+                   s_ij, delimiter='\t')
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_Bias_{}_Mat.csv'.format(len(res_list)),
+                   bias_ij, delimiter='\t')
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_Adjacency_{}_Mat.csv'.format(len(res_list)),
+                   a, delimiter='\t')
+        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/ContactScorer_Intermediate_{}_Mat.csv'.format(len(res_list)),
+                   a * s_ij * bias_ij, delimiter='\t')
+        #
         w = np.sum(np.tril(a * s_ij * bias_ij))
         # Calculate w, <w>_S, and <w^2>_S.
         # Use expressions (3),(4),(5),(6) in Reference.
