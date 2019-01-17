@@ -1044,7 +1044,7 @@ def plot_z_scores(df, file_path=None):
     if df.empty:
         return
     if file_path is None:
-        file_path = './zscore_plot.pdf'
+        file_path = './zscore_plot.eps'
     # If the figure has already been plotted return
     if os.path.isfile(file_path):
         return
@@ -1069,7 +1069,7 @@ def heatmap_plot(name, data_mat, output_dir=None):
         output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    image_name = name.replace(' ', '_') + '.pdf'
+    image_name = name.replace(' ', '_') + '.eps'
     if output_dir:
         image_name = os.path.join(output_dir, image_name)
     # If the figure has already been plotted return

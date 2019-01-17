@@ -11,7 +11,7 @@ from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score
 from SeqAlignment import SeqAlignment
 from PDBReference import PDBReference
-from ContactScorer import ContactScorer, surface_plot
+from ContactScorer import ContactScorer, surface_plot, heatmap_plot, plot_z_scores
 
 
 class TestContactScorer(TestCase):
@@ -1407,12 +1407,57 @@ class TestContactScorer(TestCase):
     # def test_write_out_contact_scoring(self):
     #     self.fail()
     #
-    # def test_plot_z_score(self):
-    #     self.fail()
-    #
-    # def test_heatmap_plot(self):
-    #     self.fail()
-    #
+    def test_plot_z_score(self):
+        save_dir = os.path.abspath('../Test')
+        #
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scores1 = np.random.RandomState(1234567890).rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        start1 = time()
+        curr_path1a = os.path.join(save_dir, 'z_score1.tsv')
+        zscore_df_1, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=True, file_path=curr_path1a, w2_ave_sub=None)
+        end1 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+        self.assertTrue(os.path.isfile(curr_path1a))
+        os.remove(curr_path1a)
+        curr_path1b = os.path.join(save_dir, 'z_score1.eps')
+        plot_z_scores(zscore_df_1, file_path=curr_path1b)
+        self.assertTrue(os.path.isfile(curr_path1b))
+        os.remove(curr_path1b)
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        start2 = time()
+        curr_path2a = os.path.join(save_dir, 'z_score2.tsv')
+        zscore_df_2, _ = self.scorer2.score_clustering_of_contact_predictions(
+            predictions=scores2, bias=True, file_path=curr_path2a, w2_ave_sub=None)
+        end2 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end2 - start2) / 60.0))
+        self.assertTrue(os.path.isfile(curr_path2a))
+        os.remove(curr_path2a)
+        curr_path2b = os.path.join(save_dir, 'z_score2.eps')
+        plot_z_scores(zscore_df_2, file_path=curr_path2b)
+        self.assertTrue(os.path.isfile(curr_path2b))
+        os.remove(curr_path2b)
+
+    def test_heatmap_plot(self):
+        save_dir = os.path.abspath('../Test')
+        #
+        scores1 = np.random.rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        heatmap_plot(name='Score 1 Heatmap Plot', data_mat=scores1, output_dir=save_dir)
+        expected_path1 = os.path.abspath(os.path.join(save_dir, 'Score_1_Heatmap_Plot.eps'))
+        print(expected_path1)
+        self.assertTrue(os.path.isfile(expected_path1))
+        os.remove(expected_path1)
+
     def test_surface_plot(self):
         save_dir = os.path.abspath('../Test')
         #
