@@ -1,10 +1,13 @@
 import os
 import math
+import datetime
 import numpy as np
 import pandas as pd
+from time import time
 from math import floor
 from unittest import TestCase
 from scipy.stats import rankdata
+from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score
 from SeqAlignment import SeqAlignment
 from PDBReference import PDBReference
@@ -58,6 +61,80 @@ class TestContactScorer(TestCase):
         precision = precision_score(truth, preds)
         return precision
 
+    def _et_calcDist(self, atoms1, atoms2):
+        """return smallest distance (squared) between two groups of atoms"""
+        # (not distant by more than ~100 A)
+        # mind2=CONTACT_DISTANCE2+100
+        c1 = atoms1[0]  # atoms must not be empty
+        c2 = atoms2[0]
+        mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                (c1[2] - c2[2]) * (c1[2] - c2[2])
+        for c1 in atoms1:
+            for c2 in atoms2:
+                d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+                     (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+                     (c1[2] - c2[2]) * (c1[2] - c2[2])
+                if d2 < mind2:
+                    mind2 = d2
+        return mind2  # Square of distance between most proximate atoms
+
+    def _et_computeAdjacency(self, chain, mapping):
+        """Compute the pairs of contacting residues
+        A(i,j) implemented as a hash of hash of residue numbers"""
+        three2one = {
+            "ALA": 'A',
+            "ARG": 'R',
+            "ASN": 'N',
+            "ASP": 'D',
+            "CYS": 'C',
+            "GLN": 'Q',
+            "GLU": 'E',
+            "GLY": 'G',
+            "HIS": 'H',
+            "ILE": 'I',
+            "LEU": 'L',
+            "LYS": 'K',
+            "MET": 'M',
+            "PHE": 'F',
+            "PRO": 'P',
+            "SER": 'S',
+            "THR": 'T',
+            "TRP": 'W',
+            "TYR": 'Y',
+            "VAL": 'V',
+            "A": "A",
+            "G": "G",
+            "T": "T",
+            "U": "U",
+            "C": "C", }
+
+        ResAtoms = {}
+        for residue in chain:
+            try:
+                aa = three2one[residue.get_resname()]
+            except KeyError:
+                continue
+            # resi = residue.get_id()[1]
+            resi = mapping[residue.get_id()[1]]
+            for atom in residue:
+                try:
+                    # ResAtoms[resi - 1].append(atom.coord)
+                    ResAtoms[resi].append(atom.coord)
+                except KeyError:
+                    # ResAtoms[resi - 1] = [atom.coord]
+                    ResAtoms[resi] = [atom.coord]
+        A = {}
+        for resi in ResAtoms.keys():
+            for resj in ResAtoms.keys():
+                if resi < resj:
+                    if self._et_calcDist(ResAtoms[resi], ResAtoms[resj]) < self.CONTACT_DISTANCE2:
+                        try:
+                            A[resi][resj] = 1
+                        except KeyError:
+                            A[resi] = {resj: 1}
+        return A, ResAtoms
+
     @staticmethod
     def _et_calcZScore(reslist, L, A, bias=1):
         """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
@@ -74,25 +151,13 @@ class TestContactScorer(TestCase):
         A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
         bias - option to calculate with bias or nobias (j-i factor)"""
         w = 0
-        #
-        # print(A.keys())
-        bias_mat = np.zeros((L, L))
-        #
         if bias == 1:
             for resi in reslist:
                 for resj in reslist:
                     if resi < resj:
                         try:
                             Aij = A[resi][resj]  # A(i,j)==1
-                            # w += (resj - resi)
-                            #
-                            b_curr = (resj - resi)
-                            # bias_mat[resi - 1, resj - 1] = b_curr
-                            # bias_mat[resj - 1, resi - 1] = b_curr
-                            bias_mat[resi, resj] = b_curr
-                            bias_mat[resj, resi] = b_curr
-                            w += b_curr
-                            #
+                            w += (resj - resi)
                         except KeyError:
                             pass
         elif bias == 0:
@@ -102,18 +167,8 @@ class TestContactScorer(TestCase):
                         try:
                             Aij = A[resi][resj]  # A(i,j)==1
                             w += 1
-                            #
-                            # bias_mat[resi - 1, resj - 1] = 1
-                            # bias_mat[resj - 1, resi - 1] = 1
-                            bias_mat[resi, resj] = 1
-                            bias_mat[resj, resi] = 1
-                            #
                         except KeyError:
                             pass
-        #
-        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_Bias_{}_Mat.csv'.format(len(reslist)), bias_mat,
-                   delimiter='\t')
-        #
         M = len(reslist)
         pi1 = M * (M - 1.0) / (L * (L - 1.0))
         pi2 = pi1 * (M - 2.0) / (L - 2.0)
@@ -154,117 +209,35 @@ class TestContactScorer(TestCase):
             return 'NA', w, w_ave, w2_ave, sigma
         return (w - w_ave) / sigma, w, w_ave, w2_ave, sigma
 
-    def _et_computeAdjacency(self, chain):
-        """Compute the pairs of contacting residues
-        A(i,j) implemented as a hash of hash of residue numbers"""
-        three2one = {
-            "ALA": 'A',
-            "ARG": 'R',
-            "ASN": 'N',
-            "ASP": 'D',
-            "CYS": 'C',
-            "GLN": 'Q',
-            "GLU": 'E',
-            "GLY": 'G',
-            "HIS": 'H',
-            "ILE": 'I',
-            "LEU": 'L',
-            "LYS": 'K',
-            "MET": 'M',
-            "PHE": 'F',
-            "PRO": 'P',
-            "SER": 'S',
-            "THR": 'T',
-            "TRP": 'W',
-            "TYR": 'Y',
-            "VAL": 'V',
-            "A": "A",
-            "G": "G",
-            "T": "T",
-            "U": "U",
-            "C": "C", }
-
-        ResAtoms = {}
-        count = 0
-        count2 = 0
-        for residue in chain:
-            count += 1
-            try:
-                aa = three2one[residue.get_resname()]
-                count2 += 1
-            except KeyError:
-                continue
-            resi = residue.get_id()[1]
-            for atom in residue:
-                try:
-                    # ResAtoms[int(atom.resi)].append(atom.coord)
-                    ResAtoms[resi - 1].append(atom.coord)
-                except KeyError:
-                    # ResAtoms[int(atom.resi)] = [atom.coord]
-                    ResAtoms[resi - 1] = [atom.coord]
-        print('Residue Counts: {} and {}'.format(count, count2))
-        A = {}
-        A_recip = {}
-        #
-        a = np.zeros((len(ResAtoms), len(ResAtoms)))
-        dists = np.zeros(a.shape)
-        #
-        count = 0
-        count2 = 0
-        count3 = 0
-        for resi in ResAtoms.keys():
-            count += 1
-            for resj in ResAtoms.keys():
-                count2 += 1
-                if resi < resj:
-                    count3 += 1
-                    #
-                    curr_dist = self._et_calcDist(ResAtoms[resi], ResAtoms[resj])
-                    dists[resi, resj] = curr_dist
-                    #
-                    # if self._et_calcDist(ResAtoms[resi], ResAtoms[resj]) < self.CONTACT_DISTANCE2:
-                    if curr_dist < self.CONTACT_DISTANCE2:
-                        #
-                        a[resi, resj] = 1
-                        #
-                        try:
-                            A[resi][resj] = 1
-                            A_recip[resj][resi] = 1
-                        except KeyError:
-                            A[resi] = {resj: 1}
-                            A_recip[resj] = {resi: 1}
-                if (resi == 0) and (resj == 1):
-                    print('###########################################################################################')
-                    print('resi < resj: {}'.format(resi < resj))
-                    print('curr_dist: {}'.format(self._et_calcDist(ResAtoms[resi], ResAtoms[resj])))
-                    print('curr_dist < self.CONTACT_DISTANCE2: {}'.format(
-                        self._et_calcDist(ResAtoms[resi], ResAtoms[resj])< self.CONTACT_DISTANCE2))
-                    print('A[resi][resj]: {}'.format(A[resi][resj]))
-                    print('###########################################################################################')
-        #
-        print('Second set of residue count: {} and {} and {}'.format(count, count2, count3))
-        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_A_Mat.csv', a, delimiter='\t')
-        np.savetxt('/home/daniel/Documents/git/ETMIP/src/Test/Rhonald_Dist_Mat.csv', dists, delimiter='\t')
-        #
-        return A, ResAtoms, A_recip
-
-    def _et_calcDist(self, atoms1, atoms2):
-        """return smallest distance (squared) between two groups of atoms"""
-        # (not distant by more than ~100 A)
-        # mind2=CONTACT_DISTANCE2+100
-        c1 = atoms1[0]  # atoms must not be empty
-        c2 = atoms2[0]
-        mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
-                (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
-                (c1[2] - c2[2]) * (c1[2] - c2[2])
-        for c1 in atoms1:
-            for c2 in atoms2:
-                d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
-                     (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
-                     (c1[2] - c2[2]) * (c1[2] - c2[2])
-                if d2 < mind2:
-                    mind2 = d2
-        return mind2  # Square of distance between most proximate atoms
+    def all_z_scores(self, A, L, bias, res_i, res_j, scores):
+        data = {'Res_i': res_i, 'Res_j': res_j, 'Covariance_Score': scores, 'Z-Score': [], 'W': [], 'W_Ave': [],
+                'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
+        res_list = []
+        res_set = set()
+        prev_size = 0
+        prev_score = None
+        for i in range(len(scores)):
+            curr_i = res_i[i]
+            if curr_i not in res_set:
+                res_list.append(curr_i)
+                res_set.add(curr_i)
+            curr_j = res_j[i]
+            if curr_j not in res_set:
+                res_list.append(curr_j)
+                res_set.add(curr_j)
+            if len(res_set) == prev_size:
+                score_data = prev_score
+            else:
+                score_data = self._et_calcZScore(reslist=res_list, L=L, A=A, bias=bias)
+            data['Z-Score'].append(score_data[0])
+            data['W'].append(score_data[1])
+            data['W_Ave'].append(score_data[2])
+            data['W2_Ave'].append(score_data[3])
+            data['Sigma'].append(score_data[4])
+            data['Num_Residues'].append(len(res_list))
+            prev_size = len(res_set)
+            prev_score = score_data
+        return pd.DataFrame(data)
 
     def test__init__(self):
         with self.assertRaises(TypeError):
@@ -895,7 +868,12 @@ class TestContactScorer(TestCase):
         self.scorer1.measure_distance(method='Any')
         scorer1_a = self.scorer1.distances < self.scorer1.cutoff
         scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[1])] = 0
-        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
         scorer1_a_pos = np.nonzero(scorer1_a)
         scorer1_in_dict = 0
         scorer1_not_in_dict = 0
@@ -913,6 +891,7 @@ class TestContactScorer(TestCase):
                         scorer1_missed_pos[1].append(scorer1_a_pos[1][i])
         rhonald1_in_dict = 0
         rhonald1_not_in_dict = 0
+        rhonald1_not_mapped = 0
         for i in A.keys():
             for j in A[i].keys():
                 if A[i][j] == scorer1_a[i, j]:
@@ -921,278 +900,518 @@ class TestContactScorer(TestCase):
                     rhonald1_not_in_dict += 1
         print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer1_in_dict, scorer1_not_in_dict))
         print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald1_in_dict, rhonald1_not_in_dict))
-        print(scorer1_a[scorer1_missed_pos])
-        print(self.scorer1.distances[scorer1_missed_pos])
-        #
-        residue_coords = {}
-        dists = np.zeros((79, 79))
-        dists2 = np.zeros((79, 79))
-        for residue in self.scorer1.query_structure.structure[0][self.scorer1.best_chain]:
-            res_num = residue.id[1] - 1
-            coords = self.scorer1._get_all_coords(residue)
-            residue_coords[res_num] = coords
-            for residue2 in residue_coords:
-                if residue2 == res_num:
-                    continue
-                else:
-                    dist = self._et_calcDist(coords, residue_coords[residue2])
-                    dist2 = np.sqrt(dist)
-                    dists[res_num, residue2] = dist
-                    dists[residue2, res_num] = dist
-                    dists2[res_num, residue2] = dist2
-                    dists2[residue2, res_num] = dist2
-        print(dists2[scorer1_missed_pos])
-        #
-        print(scorer1_missed_pos[0])
-        print(scorer1_missed_pos[1])
-        final_check = []
-        for i in range(len(scorer1_missed_pos[0])):
-            pos1 = scorer1_missed_pos[0][i]
-            pos2 = scorer1_missed_pos[1][i]
-            curr_check = False
-            if pos1 in A:
-                if pos2 in A[pos1]:
-                    curr_check = True
-            if pos2 in A:
-                if pos1 in A[pos2]:
-                    curr_check = True
-            final_check.append(curr_check)
-        print(final_check)
+        print('{} residues not mapped from Rhonald to ContactScorer'.format(rhonald1_not_mapped))
         self.assertEqual(scorer1_in_dict, rhonald1_in_dict)
         self.assertEqual(scorer1_not_in_dict, 0)
         self.assertEqual(rhonald1_not_in_dict, 0)
-
-    def test_score_clustering_of_contact_predictions(self):
-        def all_z_scores(A, L, bias, res_i, res_j, scores):
-            # res_i = list(np.array(res_i) + 1)
-            # res_j = list(np.array(res_j) + 1)
-            data = {'Res_i': res_i, 'Res_j': res_j, 'Covariance_Score': scores, 'Z-Score': [], 'W': [], 'W_Ave': [],
-                    'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
-            res_list = []
-            res_set = set()
-            for i in range(len(scores)):
-                curr_i = res_i[i]
-                if curr_i not in res_set:
-                    res_list.append(curr_i)
-                    res_set.add(curr_i)
-                curr_j = res_j[i]
-                if curr_j not in res_set:
-                    res_list.append(curr_j)
-                    res_set.add(curr_j)
-                z_score, w, w_ave, w2_ave, sigma = self._et_calcZScore(reslist=res_list, L=L, A=A, bias=bias)
-                data['Z-Score'].append(z_score)
-                data['W'].append(w)
-                data['W_Ave'].append(w_ave)
-                data['W2_Ave'].append(w2_ave)
-                data['Sigma'].append(sigma)
-                data['Num_Residues'].append(len(res_list))
-            return pd.DataFrame(data)
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        scores1 = np.random.rand(79, 79)
-        scores1[np.tril_indices(79, 1)] = 0
-        scores1 += scores1.T
-        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
         #
-        scorer1_a = self.scorer1.distances < self.scorer1.cutoff
-        scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[0])] = 0
-        scorer1_a = np.triu(scorer1_a, k=1)
-        scorer1_a_pos = np.nonzero(scorer1_a)
-        print(scorer1_a_pos)
-        scorer1_a_size = len(scorer1_a_pos[0])
-        print(A)
-        expected1_a_size = np.sum([len(A[k]) for k in A.keys()])
-        self.assertEqual(scorer1_a_size, expected1_a_size)
-        content_comp = np.sum([A[scorer1_a_pos[0][i]][scorer1_a_pos[1][i]] for i in range(scorer1_a_size)])
-        self.assertEqual(scorer1_a_size, content_comp)
-        #
-        zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
-            predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
-            w2_ave_sub=None)
-        zscore_df_1be = all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
-                                     res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
-                                     scores=list(zscore_df_1b['Covariance_Score']))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
-        zscore_df_1b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_DF.csv'))
-        zscore_df_1be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_DF.csv'))
-        pd.testing.assert_frame_equal(zscore_df_1b, zscore_df_1be)
-        zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
-            predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
-            w2_ave_sub=None)
-        zscore_df_1ue = all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
-                                     res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
-                                     scores=list(zscore_df_1u['Covariance_Score']))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
-        pd.testing.assert_frame_equal(zscore_df_1u, zscore_df_1ue)
         self.scorer2.fit()
         self.scorer2.measure_distance(method='Any')
-        scores2 = np.random.rand(368, 368)
+        scorer2_a = self.scorer2.distances < self.scorer2.cutoff
+        scorer2_a[range(scorer2_a.shape[0]), range(scorer2_a.shape[1])] = 0
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
+        scorer2_a_pos = np.nonzero(scorer2_a)
+        scorer2_in_dict = 0
+        scorer2_not_in_dict = 0
+        scorer2_missed_pos = ([], [])
+        for i in range(len(scorer2_a_pos[0])):
+            if scorer2_a_pos[0][i] < scorer2_a_pos[1][i]:
+                try:
+                    scorer2_in_dict += A[scorer2_a_pos[0][i]][scorer2_a_pos[1][i]]
+                except KeyError:
+                    try:
+                        scorer2_in_dict += A[scorer2_a_pos[1][i]][scorer2_a_pos[0][i]]
+                    except KeyError:
+                        scorer2_not_in_dict += 1
+                        scorer2_missed_pos[0].append(scorer2_a_pos[0][i])
+                        scorer2_missed_pos[1].append(scorer2_a_pos[1][i])
+        rhonald2_in_dict = 0
+        rhonald2_not_in_dict = 0
+        for i in A.keys():
+            for j in A[i].keys():
+                if A[i][j] == scorer2_a[i, j]:
+                    rhonald2_in_dict += 1
+                else:
+                    rhonald2_not_in_dict += 1
+        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer2_in_dict, scorer2_not_in_dict))
+        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald2_in_dict, rhonald2_not_in_dict))
+        self.assertEqual(scorer2_in_dict, rhonald2_in_dict)
+        self.assertEqual(scorer2_not_in_dict, 0)
+        self.assertEqual(rhonald2_not_in_dict, 0)
+
+    def test_score_clustering_of_contact_predictions(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scores1 = np.random.RandomState(1234567890).rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
+        start1 = time()
+        zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'),
+            w2_ave_sub=None)
+        end1 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'))
+        # zscore_df_1b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_1B_DF.csv'), index=False)
+        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv')):
+        #     zscore_df_1be = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv'))
+        # else:
+        start2 = time()
+        zscore_df_1be = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
+                                          res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
+                                          scores=list(zscore_df_1b['Covariance_Score']))
+        end2 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end2 - start2) / 60.0))
+        # zscore_df_1be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv'), index=False)
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_1b['Covariance_Score']) -
+                                np.array(zscore_df_1be['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Num_Residues']) -
+                                        np.array(zscore_df_1be['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_i']) -
+                                        np.array(zscore_df_1be['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_j']) -
+                                        np.array(zscore_df_1be['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_1b['W']) - np.array(zscore_df_1be['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_1b['W_Ave']) - np.array(zscore_df_1be['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_1b['W2_Ave']) - np.array(zscore_df_1be['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-3
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_1b['Sigma']) - np.array(zscore_df_1be['Sigma']))
+        sigma_diff = sigma_diff > 1e-6
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_1b['Z-Score'].replace('NA', np.nan)) -\
+                       np.array(zscore_df_1be['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-7
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        start3 = time()
+        zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'),
+            w2_ave_sub=None)
+        end3 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end3 - start3) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'))
+        # zscore_df_1u.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_1U_DF.csv'))
+        # if os.path.isfile(os.path.join(os.path.abspath('../Test'), 'Rhonald_1U_DF.csv')):
+        #     zscore_df_1ue = pd.read_csv(os.path.join(os.path.abspath('../Test'), 'Rhonald_1U_DF.csv'))
+        # else:
+        start4 = time()
+        zscore_df_1ue = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
+                                          res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
+                                          scores=list(zscore_df_1u['Covariance_Score']))
+        end4 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end4 - start4) / 60.0))
+        # zscore_df_1ue.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1U_DF.csv'))
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_1u['Covariance_Score']) -
+                                np.array(zscore_df_1ue['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Num_Residues']) -
+                                        np.array(zscore_df_1ue['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_i']) -
+                                        np.array(zscore_df_1ue['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_j']) -
+                                        np.array(zscore_df_1ue['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_1u['W']) - np.array(zscore_df_1ue['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_1u['W_Ave']) - np.array(zscore_df_1ue['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_1u['W2_Ave']) - np.array(zscore_df_1ue['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-3
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_1u['Sigma']) - np.array(zscore_df_1ue['Sigma']))
+        sigma_diff = sigma_diff > 1e-6
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_1u['Z-Score'].replace('NA', np.nan)) -\
+                       np.array(zscore_df_1ue['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-7
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
         scores2[np.tril_indices(368, 1)] = 0
         scores2 += scores2.T
-        A, _, _ = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain])
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
+        start5 = time()
         zscore_df_2b, _ = self.scorer2.score_clustering_of_contact_predictions(
-            predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'),
             w2_ave_sub=None)
-        zscore_df_2be = all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
-                                     res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
-                                     scores=list(zscore_df_2b['Covariance_Score']))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
-        pd.testing.assert_frame_equal(zscore_df_2b, zscore_df_2be)
+        end5 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end5 - start5) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'))
+        # zscore_df_2b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_2B_DF.csv'), index=False)
+        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv')):
+        #     zscore_df_2be = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv'))
+        # else:
+        start6 = time()
+        zscore_df_2be = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
+                                          res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
+                                          scores=list(zscore_df_2b['Covariance_Score']))
+        end6 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end6 - start6) / 60.0))
+        # zscore_df_2be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv'), index=False)
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_2b['Covariance_Score']) -
+                                np.array(zscore_df_2be['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Num_Residues']) -
+                                        np.array(zscore_df_2be['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_i']) -
+                                        np.array(zscore_df_2be['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_j']) -
+                                        np.array(zscore_df_2be['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_2b['W']) - np.array(zscore_df_2be['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_2b['W_Ave']) - np.array(zscore_df_2be['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-6
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_2b['W2_Ave']) - np.array(zscore_df_2be['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 5
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_2b['Sigma']) - np.array(zscore_df_2be['Sigma']))
+        sigma_diff = sigma_diff > 1e-3
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_2b['Z-Score'].replace('NA', np.nan)) -\
+                              np.array(zscore_df_2be['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-1
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        start7 = time()
         zscore_df_2u, _ = self.scorer2.score_clustering_of_contact_predictions(
-            predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'),
+            predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'),
             w2_ave_sub=None)
-        zscore_df_2ue = all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
-                                     res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
-                                     scores=list(zscore_df_2b['Covariance_Score']))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score.tsv'))
-        pd.testing.assert_frame_equal(zscore_df_2u, zscore_df_2ue)
+        end7 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end7 - start7) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'))
+        # zscore_df_2b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_2U_DF.csv'), index=False)
+        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv')):
+        #     zscore_df_2ue = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv'))
+        # else:
+        start8 = time()
+        zscore_df_2ue = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
+                                          res_i=list(zscore_df_2u['Res_i']), res_j=list(zscore_df_2u['Res_j']),
+                                          scores=list(zscore_df_2u['Covariance_Score']))
+        end8 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end8 - start8) / 60.0))
+        # zscore_df_2ue.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv'), index=False)
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_2u['Covariance_Score']) -
+                                np.array(zscore_df_2ue['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Num_Residues']) -
+                                        np.array(zscore_df_2ue['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_i']) -
+                                        np.array(zscore_df_2ue['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_j']) -
+                                        np.array(zscore_df_2ue['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_2u['W']) - np.array(zscore_df_2ue['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_2u['W_Ave']) - np.array(zscore_df_2ue['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_2u['W2_Ave']) - np.array(zscore_df_2ue['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-1
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_2u['Sigma']) - np.array(zscore_df_2ue['Sigma']))
+        sigma_diff = sigma_diff > 1e-3
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_2u['Z-Score'].replace('NA', np.nan)) - \
+                              np.array(zscore_df_2ue['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-3
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
 
     def test__clustering_z_score(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='Any')
-        A, _, _ = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain])
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
         z_scores_e1b, w_e1b, w_ave_e1b, w2_ave_e1b, sigma_e1b = self._et_calcZScore(
-            reslist=self.scorer1.query_structure.pdb_residue_list, L=self.scorer1.query_alignment.seq_length, A=A,
+            reslist=range(self.scorer1.query_alignment.seq_length), L=self.scorer1.query_alignment.seq_length, A=A,
             bias=1)
         z_scores_1b, w_1b, w_ave_1b, w2_ave_1b, sigma_1b, _ = self.scorer1._clustering_z_score(
-            res_list=self.scorer1.query_structure.pdb_residue_list, bias=True, w2_ave_sub=None)
+            res_list=range(self.scorer1.query_alignment.seq_length), bias=True, w2_ave_sub=None)
         if isinstance(z_scores_1b, str):
-            self.assertEqual(z_scores_1b, '-')
+            self.assertEqual(z_scores_1b, 'NA')
             self.assertEqual(z_scores_e1b, 'NA')
-            self.assertEqual(w_1b, None)
-            self.assertEqual(w_e1b, 0)
-            self.assertEqual(w_ave_1b, None)
-            self.assertEqual(w_ave_e1b, 0)
-            self.assertEqual(w2_ave_1b, None)
-            self.assertEqual(w2_ave_e1b, 0)
-            self.assertEqual(sigma_1b, None)
-            self.assertEqual(sigma_e1b, 0)
         else:
             self.assertEqual(z_scores_1b, z_scores_e1b)
-            self.assertEqual(w_1b, w_e1b)
-            self.assertEqual(w_ave_1b, w_ave_e1b)
-            self.assertEqual(w2_ave_1b, w2_ave_e1b)
-            self.assertEqual(sigma_1b, sigma_e1b)
+        self.assertEqual(w_1b, w_e1b)
+        self.assertEqual(w_ave_1b, w_ave_e1b)
+        self.assertEqual(w2_ave_1b, w2_ave_e1b)
+        self.assertEqual(sigma_1b, sigma_e1b)
         z_scores_e1u, w_e1u, w_ave_e1u, w2_ave_e1u, sigma_e1u = self._et_calcZScore(
-            reslist=self.scorer1.query_structure.pdb_residue_list, L=self.scorer1.query_alignment.seq_length, A=A,
+            reslist=range(self.scorer1.query_alignment.seq_length), L=self.scorer1.query_alignment.seq_length, A=A,
             bias=0)
         z_scores_1u, w_1u, w_ave_1u, w2_ave_1u, sigma_1u, _ = self.scorer1._clustering_z_score(
-            res_list=self.scorer1.query_structure.pdb_residue_list, bias=False, w2_ave_sub=None)
+            res_list=range(self.scorer1.query_alignment.seq_length), bias=False, w2_ave_sub=None)
         if isinstance(z_scores_1u, str):
-            self.assertEqual(z_scores_1u, '-')
+            self.assertEqual(z_scores_1u, 'NA')
             self.assertEqual(z_scores_e1u, 'NA')
-            self.assertEqual(w_1u, None)
-            self.assertEqual(w_e1u, 0)
-            self.assertEqual(w_ave_1u, None)
-            self.assertEqual(w_ave_e1u, 0)
-            self.assertEqual(w2_ave_1u, None)
-            self.assertEqual(w2_ave_e1u, 0)
-            self.assertEqual(sigma_1u, None)
-            self.assertEqual(sigma_e1u, 0)
         else:
             self.assertEqual(z_scores_1u, z_scores_e1u)
-            self.assertEqual(w_1u, w_e1u)
-            self.assertEqual(w_ave_1u, w_ave_e1u)
-            self.assertEqual(w2_ave_1u, w2_ave_e1u)
-            self.assertEqual(sigma_1u, sigma_e1u)
+        self.assertEqual(w_1u, w_e1u)
+        self.assertEqual(w_ave_1u, w_ave_e1u)
+        self.assertEqual(w2_ave_1u, w2_ave_e1u)
+        self.assertEqual(sigma_1u, sigma_e1u)
         self.scorer2.fit()
         self.scorer2.measure_distance(method='Any')
-        A, _, _ = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain])
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
         z_scores_e2b, w_e2b, w_ave_e2b, w2_ave_e2b, sigma_e2b = self._et_calcZScore(
-            reslist=self.scorer2.query_structure.pdb_residue_list, L=self.scorer2.query_alignment.seq_length, A=A,
+            reslist=range(self.scorer2.query_alignment.seq_length), L=self.scorer2.query_alignment.seq_length, A=A,
             bias=1)
         z_scores_2b, w_2b, w_ave_2b, w2_ave_2b, sigma_2b, _ = self.scorer2._clustering_z_score(
-            res_list=self.scorer2.query_structure.pdb_residue_list, bias=True, w2_ave_sub=None)
+            res_list=range(self.scorer2.query_alignment.seq_length), bias=True, w2_ave_sub=None)
         if isinstance(z_scores_2b, str):
-            self.assertEqual(z_scores_2b, '-')
+            self.assertEqual(z_scores_2b, 'NA')
             self.assertEqual(z_scores_e2b, 'NA')
-            self.assertEqual(w_2b, None)
-            self.assertEqual(w_e2b, 0)
-            self.assertEqual(w_ave_2b, None)
-            self.assertEqual(w_ave_e2b, 0)
-            self.assertEqual(w2_ave_2b, None)
-            self.assertEqual(w2_ave_e2b, 0)
-            self.assertEqual(sigma_2b, None)
-            self.assertEqual(sigma_e2b, 0)
         else:
             self.assertEqual(z_scores_2b, z_scores_e2b)
-            self.assertEqual(w_2b, w_e2b)
-            self.assertEqual(w_ave_2b, w_ave_e2b)
-            self.assertEqual(w2_ave_2b, w2_ave_e2b)
-            self.assertEqual(sigma_2b, sigma_e2b)
+        self.assertEqual(w_2b, w_e2b)
+        self.assertEqual(w_ave_2b, w_ave_e2b)
+        self.assertEqual(w2_ave_2b, w2_ave_e2b)
+        self.assertEqual(sigma_2b, sigma_e2b)
         z_scores_e2u, w_e2u, w_ave_e2u, w2_ave_e2u, sigma_e2u = self._et_calcZScore(
-            reslist=self.scorer2.query_structure.pdb_residue_list, L=self.scorer2.query_alignment.seq_length, A=A,
+            reslist=range(self.scorer2.query_alignment.seq_length), L=self.scorer2.query_alignment.seq_length, A=A,
             bias=0)
         z_scores_2u, w_2u, w_ave_2u, w2_ave_2u, sigma_2u, _ = self.scorer2._clustering_z_score(
-            res_list=self.scorer2.query_structure.pdb_residue_list, bias=False, w2_ave_sub=None)
+            res_list=range(self.scorer2.query_alignment.seq_length), bias=False, w2_ave_sub=None)
         if isinstance(z_scores_2u, str):
-            self.assertEqual(z_scores_2u, '-')
+            self.assertEqual(z_scores_2u, 'NA')
             self.assertEqual(z_scores_e2u, 'NA')
-            self.assertEqual(w_2u, None)
-            self.assertEqual(w_e2u, 0)
-            self.assertEqual(w_ave_2u, None)
-            self.assertEqual(w_ave_e2u, 0)
-            self.assertEqual(w2_ave_2u, None)
-            self.assertEqual(w2_ave_e2u, 0)
-            self.assertEqual(sigma_2u, None)
-            self.assertEqual(sigma_e2u, 0)
         else:
             self.assertEqual(z_scores_2u, z_scores_e2u)
-            self.assertEqual(w_2u, w_e2u)
-            self.assertEqual(w_ave_2u, w_ave_e2u)
-            self.assertEqual(w2_ave_2u, w2_ave_e2u)
-            self.assertEqual(sigma_2u, sigma_e2u)
+        self.assertEqual(w_2u, w_e2u)
+        self.assertEqual(w_ave_2u, w_ave_e2u)
+        self.assertEqual(w2_ave_2u, w2_ave_e2u)
+        self.assertEqual(sigma_2u, sigma_e2u)
 
 
-    # def test_write_out_clustering_results(self):
-    #     self.fail()
-    #
+    def test_write_out_clustering_results(self):
+        def comp_function(df, q_ind_map, q_to_s_map, seq_pdb_map, seq, scores, coverages, distances, adjacencies):
+            for i in df.index:
+                # Mapping to Structure
+                # pos1 = df.loc[i, 'Pos1'] - 1
+                pos1 = q_to_s_map[q_ind_map[df.loc[i, 'Pos1']]]
+                # pos2 = df.loc[i, 'Pos2'] - 1
+                pos2 = q_to_s_map[q_ind_map[df.loc[i, 'Pos2']]]
+                # print(seq)
+                # print(df.loc[i, '(AA1)'])
+                # print('({})'.format(one_to_three(seq[seq_pdb_map[pos1]])))
+                self.assertEqual(df.loc[i, '(AA1)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos1]])),
+                                 'Positions: {}\t{}'.format(pos1, pos2))
+                self.assertEqual(df.loc[i, '(AA2)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos2]])),
+                                 'Positions: {}\t{}'.format(pos1, pos2))
+                # Scores
+                self.assertLess(np.abs(df.loc[i, 'Raw_Score'] - scores[pos1, pos2]), 1e-3,
+                                'Positions: {}\t{}'.format(pos1, pos2))
+                # Coverages
+                self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
+                                'Positions: {}\t{}'.format(pos1, pos2))
+                # Distances
+                self.assertLess(np.abs(df.loc[i, 'Residue_Dist'] - distances[pos1, pos2]), 1e-4,
+                                'Positions: {}\t{}'.format(pos1, pos2))
+                # Contacts
+                if df.loc[i, 'Within_Threshold'] == 1:
+                    try:
+                        self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos1][pos2],
+                                         'Positions: {}\t{}'.format(pos1, pos2))
+                    except KeyError:
+                        self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos2][pos1],
+                                         'Positions: {}\t{}'.format(pos1, pos2))
+                else:
+                    with self.assertRaises(KeyError):
+                        adjacencies[pos2][pos1]
+
+        today = str(datetime.date.today())
+        save_dir = os.path.abspath('../Test')
+        #
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
+        pdb_query_mapping = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        pdb_index_mapping = {k: i for i, k in enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        scores1 = np.random.RandomState(1234567890).rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        coverages1 = np.random.RandomState(179424691).rand(79, 79)
+        coverages1[np.tril_indices(79, 1)] = 0
+        coverages1 += coverages1.T
+        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
+                                                  coverage_scores=coverages1, file_name='Contact_1a_Scores.tsv',
+                                                  output_dir=save_dir)
+        curr_path = os.path.join(save_dir, 'Contact_1a_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer1.query_pdb_mapping,
+                      seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
+                      distances=self.scorer1.distances, adjacencies=A)
+        os.remove(curr_path)
+        self.scorer1.write_out_clustering_results(today=None, q_name=None, raw_scores=scores1,
+                                                  coverage_scores=coverages1, file_name='Contact_1b_Scores.tsv',
+                                                  output_dir=save_dir)
+        curr_path = os.path.join(save_dir, 'Contact_1b_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer1.query_pdb_mapping,
+                      seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
+                      distances=self.scorer1.distances, adjacencies=A)
+        os.remove(curr_path)
+
+        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
+                                                  coverage_scores=coverages1, file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer1.query))
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer1.query_pdb_mapping,
+                      seq=self.scorer1.query_alignment.query_sequence, scores=scores1,coverages=coverages1,
+                      distances=self.scorer1.distances, adjacencies=A)
+        os.remove(curr_path)
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
+        pdb_query_mapping = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        pdb_index_mapping = {k: i for i, k in
+                             enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        coverages2 = np.random.RandomState(179424691).rand(368, 368)
+        coverages2[np.tril_indices(368, 1)] = 0
+        coverages2 += coverages2.T
+        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
+                                                  coverage_scores=coverages2, file_name='Contact_2a_Scores.tsv',
+                                                  output_dir=save_dir)
+        curr_path = os.path.join(save_dir, 'Contact_2a_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer2.query_pdb_mapping,
+                      seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+                      distances=self.scorer2.distances, adjacencies=A)
+        os.remove(curr_path)
+        self.scorer2.write_out_clustering_results(today=None, q_name=None, raw_scores=scores2,
+                                                  coverage_scores=coverages2, file_name='Contact_2b_Scores.tsv',
+                                                  output_dir=save_dir)
+        curr_path = os.path.join(save_dir, 'Contact_2b_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer2.query_pdb_mapping,
+                      seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+                      distances=self.scorer2.distances, adjacencies=A)
+        os.remove(curr_path)
+        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
+                                                  coverage_scores=coverages2, file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer2.query))
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                      seq_pdb_map=self.scorer2.query_pdb_mapping,
+                      seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+                      distances=self.scorer2.distances, adjacencies=A)
+        os.remove(curr_path)
+
     # def test_evaluate_predictor(self):
     #     self.fail()
     #
     # def test_evaluate_predictions(self):
     #     self.fail()
-
-
-import numpy as np
-
-
-def check_adjacency(total_size):
-    contact_adjacency = np.loadtxt('ContactScorer_A_Mat.csv', delimiter='\t')
-    rhonald_adjacency = np.loadtxt('Rhonald_A_Mat.csv', delimiter='\t')
-    diff_adjacency = contact_adjacency - rhonald_adjacency
-    check = True
-    for i in range(total_size):
-        try:
-            contact_adjacency_curr = np.loadtxt('Contact_Scorer_A_{}_Mat.csv'.format(i), delimiter='\t')
-        except IOError:
-            continue
-        diff_adjacency2 = contact_adjacency - contact_adjacency_curr
-        if len(np.nonzero(diff_adjacency2)) > 0:
-            check = False
-            break
-    if np.sum(diff_adjacency) == 0 and len(np.nonzero(diff_adjacency)[0]) == 0 and check:
-        return True
-    else:
-        return False
-
-
-def check_bias(size, contact_bias=None):
-    if contact_bias is None:
-        contact_bias = np.loadtxt('ContactScorer_Bias_Mat.csv', delimiter='\t')
-    contact_relevant_curr = np.loadtxt('ContactScorer_Relevant_{}_Mat.csv'.format(size), delimiter='\t')
-    contact_adjacency = np.loadtxt('ContactScorer_A_Mat.csv', delimiter='\t')
-    contact_bias_curr = contact_bias * contact_relevant_curr
-    contact_intermediate_curr = np.loadtxt('ContactScorer_Intermediate_{}_Mat.csv'.format(size), delimiter='\t')
-    if len(np.nonzero((contact_adjacency * contact_bias_curr) - contact_intermediate_curr)[0]) != 0:
-        raise ValueError('Intermediate Contact Values do not match')
-    rhonald_bias_curr = np.loadtxt('Rhonald_Bias_{}_Mat.csv'.format(size), delimiter='\t')
-    diff_bias = contact_intermediate_curr - rhonald_bias_curr
-    if np.sum(diff_bias) == 0 and len(np.nonzero(diff_bias)[0]) == 0:
-        return True, (contact_bias, contact_bias_curr, contact_relevant_curr, rhonald_bias_curr)
-    else:
-        return False, (contact_bias, contact_bias_curr, contact_relevant_curr, rhonald_bias_curr)
+    #
+    # def test_write_out_contact_scoring(self):
+    #     self.fail()
+    #
+    # def test_plot_z_score(self):
+    #     self.fail()
+    #
+    # def test_heatmap_plot(self):
+    #     self.fail()
+    #
+    # def test_surface_plot(self):
+    #     self.fail()
