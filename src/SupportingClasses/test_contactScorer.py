@@ -11,7 +11,7 @@ from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score
 from SeqAlignment import SeqAlignment
 from PDBReference import PDBReference
-from ContactScorer import ContactScorer
+from ContactScorer import ContactScorer, surface_plot
 
 
 class TestContactScorer(TestCase):
@@ -1413,5 +1413,14 @@ class TestContactScorer(TestCase):
     # def test_heatmap_plot(self):
     #     self.fail()
     #
-    # def test_surface_plot(self):
-    #     self.fail()
+    def test_surface_plot(self):
+        save_dir = os.path.abspath('../Test')
+        #
+        scores1 = np.random.rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        surface_plot(name='Score 1 Surface Plot', data_mat=scores1, output_dir=save_dir)
+        expected_path1 = os.path.abspath(os.path.join(save_dir, 'Score_1_Surface_Plot.eps'))
+        print(expected_path1)
+        self.assertTrue(os.path.isfile(expected_path1))
+        os.remove(expected_path1)
