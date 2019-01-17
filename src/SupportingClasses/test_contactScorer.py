@@ -1296,6 +1296,7 @@ class TestContactScorer(TestCase):
                         adjacencies[pos2][pos1]
 
         today = str(datetime.date.today())
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
         save_dir = os.path.abspath('../Test')
         #
         self.scorer1.fit()
@@ -1320,6 +1321,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, 'Contact_1a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer1.query_pdb_mapping,
                       seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
@@ -1331,6 +1333,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, 'Contact_1b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer1.query_pdb_mapping,
                       seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
@@ -1342,6 +1345,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer1.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer1.query_pdb_mapping,
                       seq=self.scorer1.query_alignment.query_sequence, scores=scores1,coverages=coverages1,
@@ -1371,6 +1375,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, 'Contact_2a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer2.query_pdb_mapping,
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
@@ -1382,6 +1387,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, 'Contact_2b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer2.query_pdb_mapping,
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
@@ -1392,6 +1398,7 @@ class TestContactScorer(TestCase):
         curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer2.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
         comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
                       seq_pdb_map=self.scorer2.query_pdb_mapping,
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
