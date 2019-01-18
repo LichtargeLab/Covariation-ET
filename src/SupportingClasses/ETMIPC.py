@@ -914,7 +914,7 @@ def calculate_score_and_coverage(branch):
     """
     start = time()
     branch_scores = instance.get_branch_scores(three_dim=True)
-    branch_index = instance.tree_depth.index(branch)
+    branch_index = instance.tree_depth.index(branch) + 1
     scores = np.sum(branch_scores[:branch_index, :, :], axis=0)
     if combination_method == 'average':
         scores /= float(branch_index + 1)
