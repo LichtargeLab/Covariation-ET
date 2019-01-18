@@ -359,7 +359,7 @@ class ETMIPC(object):
             aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
         """
         self._generate_sub_alignments()
-        self._score_clusters(evidence=evidence, aa_dict=aa_mapping)
+        self._score_clusters(evidence=evidence, aa_mapping=aa_mapping)
         self.nongap_counts = {}
         self.cluster_scores = {}
         self.times = {}
@@ -426,8 +426,6 @@ class ETMIPC(object):
         """
         pool = Pool(processes=self.processes, initializer=pool_init_write_score, initargs=(self, curr_date))
         pool_res = pool.map_async(write_score, self.tree_depth)
-        self.scores = {}
-        self.coverage = {}
         for res in pool_res.get():
             self.times[res[0]] += res[1]
 
@@ -516,10 +514,10 @@ class ETMIPC(object):
             self.tree_depth = tree_depth
             self.import_alignment(query=query, ignore_alignment_size=ignore_alignment_size, clustering=clustering,
                                   clustering_args=clustering_args)
-            self.calculate_cluster_scores(evidence=('evidence' in combine_clusters), aa_dict=aa_mapping)
+            self.calculate_cluster_scores(evidence=('evidence' in combine_clusters), aa_mapping=aa_mapping)
             self.calculate_branch_scores(combine_clusters=combine_clusters)
             self.calculate_final_scores(combine_branches=combine_branches)
-            self.write_out_scores(today=curr_date)
+            self.write_out_scores(curr_date=curr_date)
             end = time()
             self.times['Total'] = end - start
             pickle.dump((self.tree_depth, self.low_mem, self.unique_clusters, self.cluster_mapping, self.times),
@@ -976,12 +974,18 @@ def write_score(branch):
     if not os.path.isdir(curr_out_dir):
         os.mkdir(curr_out_dir)
     res_fn = "{}_{}_{}.all_scores.txt".format(today, instance.alignment.query_id.split('_')[1], branch)
+    # write_out_contact_scoring(today=today, alignment=instance.alignment,
+    #                           c_raw_scores=instance.get_scores(branch=branch),
+    #                           c_coverage=instance.get_coverage(branch=branch),
+    #                           mip_matrix=instance.get_cluster_scores(branch=1, cluster=0),
+    #                           c_raw_sub_scores=instance.get_cluster_scores(branch=branch),
+    #                           c_integrated_scores=instance.get_branch_scores(branch=branch), file_name=res_fn,
+    #                           output_dir=os.path.join(instance.output_dir, str(branch)))
     write_out_contact_scoring(today=today, alignment=instance.alignment,
-                              c_raw_scores=instance.get_scores(branch=branch),
-                              c_coverage=instance.get_coverage(branch=branch),
-                              mip_matrix=instance.get_cluster_scores(branch=1, cluster=0),
-                              c_raw_sub_scores=instance.get_cluster_scores(branch=branch),
-                              c_integrated_scores=instance.get_branch_scores(branch=branch), file_name=res_fn,
+                              scores=instance.get_scores(branch=branch),
+                              coverages=instance.get_coverage(branch=branch),
+                              cluster_scores=instance.get_cluster_scores(branch=branch),
+                              branch_scores=instance.get_branch_scores(branch=branch), file_name=res_fn,
                               output_dir=os.path.join(instance.output_dir, str(branch)))
     end = time()
     print('Writing scores took {} min'.format((end - start) / 60.0))
