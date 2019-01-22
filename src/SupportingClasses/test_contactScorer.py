@@ -5,12 +5,14 @@ import numpy as np
 import pandas as pd
 from time import time
 from math import floor
+from shutil import rmtree
 from unittest import TestCase
 from scipy.stats import rankdata
 from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score
 from SeqAlignment import SeqAlignment
 from PDBReference import PDBReference
+from ETMIPC import ETMIPC
 from ContactScorer import ContactScorer, surface_plot, heatmap_plot, plot_z_scores
 
 
@@ -1263,13 +1265,8 @@ class TestContactScorer(TestCase):
         def comp_function(df, q_ind_map, q_to_s_map, seq_pdb_map, seq, scores, coverages, distances, adjacencies):
             for i in df.index:
                 # Mapping to Structure
-                # pos1 = df.loc[i, 'Pos1'] - 1
                 pos1 = q_to_s_map[q_ind_map[df.loc[i, 'Pos1']]]
-                # pos2 = df.loc[i, 'Pos2'] - 1
                 pos2 = q_to_s_map[q_ind_map[df.loc[i, 'Pos2']]]
-                # print(seq)
-                # print(df.loc[i, '(AA1)'])
-                # print('({})'.format(one_to_three(seq[seq_pdb_map[pos1]])))
                 self.assertEqual(df.loc[i, '(AA1)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos1]])),
                                  'Positions: {}\t{}'.format(pos1, pos2))
                 self.assertEqual(df.loc[i, '(AA2)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos2]])),
@@ -1411,9 +1408,138 @@ class TestContactScorer(TestCase):
     # def test_evaluate_predictions(self):
     #     self.fail()
     #
-    # def test_write_out_contact_scoring(self):
-    #     self.fail()
-    #
+    def test_write_out_contact_scoring(self):
+        def comp_function(df, seq, clusters, branches, scores, coverages):
+            for i in df.index:
+                # Mapping to Structure
+                pos1 = df.loc[i, 'Pos1'] - 1
+                pos2 = df.loc[i, 'Pos2'] - 1
+                self.assertEqual(df.loc[i, 'AA1'], '{}'.format(one_to_three(seq[pos1])),
+                                 'Positions: {}\t{}'.format(pos1, pos2))
+                self.assertEqual(df.loc[i, 'AA2'], '{}'.format(one_to_three(seq[pos2])),
+                                 'Positions: {}\t{}'.format(pos1, pos2))
+                # Cluster Scores
+                for c in clusters:
+                    self.assertLess(np.abs(df.loc[i, 'Raw_Score_{}'.format(c + 1)] - clusters[c][pos1, pos2]), 1e-4)
+                # Branch Scores
+                self.assertLess(np.abs(df.loc[i, 'Integrated_Score'] - branches[pos1, pos2]), 1e-4)
+                # Scores
+                self.assertLess(np.abs(df.loc[i, 'Final_Score'] - scores[pos1, pos2]), 1e-3,
+                                'Positions: {}\t{}'.format(pos1, pos2))
+                # Coverages
+                self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
+                                'Positions: {}\t{}'.format(pos1, pos2))
+
+
+        def comp_nonunique_cluster_files(df1, df2, cluster1, cluster2):
+            index1 = 'Raw_Score_{}'.format(cluster1 + 1)
+            index2 = 'Raw_Score_{}'.format(cluster2 + 1)
+            col1 = np.array(df1.loc[:, index1])
+            col2 = np.array(df2.loc[:, index2])
+            diff = np.sum(np.abs(col1 - col2))
+            self.assertLess(diff, 1e-10)
+
+
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        today = str(datetime.date.today())
+        headers = {1: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
+                   2: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
+                   3: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Raw_Score_3', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
+                   4: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Raw_Score_3', 'Raw_Score_4', 'Integrated_Score', 'Final_Score', 'Coverage_Score']}
+        #
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        path1 = os.path.join(out_dir, '1c17A.fa')
+        etmipc1 = ETMIPC(path1)
+        start1 = time()
+        time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
+                                         del_intermediate=False, low_mem=False)
+        end1 = time()
+        print(time1)
+        print(end1 - start1)
+        self.assertLessEqual(time1, end1 - start1)
+        for branch1 in etmipc1.tree_depth:
+            branch_dir = os.path.join(etmipc1.output_dir, str(branch1))
+            self.assertTrue(os.path.isdir(branch_dir))
+            score_path = os.path.join(branch_dir,
+                                      "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, branch1))
+            self.assertTrue(os.path.isfile(score_path))
+            test_df = pd.read_csv(score_path, index_col=None, delimiter='\t')
+            self.assertEqual(list(test_df.columns), headers[branch1])
+            comp_function(df=test_df, seq=self.scorer1.query_alignment.query_sequence,
+                          clusters=etmipc1.get_cluster_scores(branch=branch1),
+                          branches=etmipc1.get_branch_scores(branch=branch1), scores=etmipc1.get_scores(branch=branch1),
+                          coverages=etmipc1.get_coverage(branch=branch1))
+        for curr_pos, mapped_pos in etmipc1.cluster_mapping.items():
+            curr_path = os.path.join(etmipc1.output_dir, str(curr_pos[0]),
+                                     "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, curr_pos[0]))
+            mapped_path = os.path.join(etmipc1.output_dir, str(mapped_pos[0]),
+                                       "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, mapped_pos[0]))
+            curr_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+            mapped_df = pd.read_csv(mapped_path, index_col=None, delimiter='\t')
+            comp_nonunique_cluster_files(df1=curr_df, df2=mapped_df, cluster1=curr_pos[1], cluster2=mapped_pos[1])
+        for branch1 in etmipc1.tree_depth:
+            rmtree(os.path.join(etmipc1.output_dir, str(branch1)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1c17A')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1c17A')))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        path2 = os.path.join(out_dir, '1h1vA.fa')
+        etmipc2 = ETMIPC(path2)
+        start2 = time()
+        time2 = etmipc2.calculate_scores(curr_date=today, query='1h1vA', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
+                                         del_intermediate=False, low_mem=False)
+        end2 = time()
+        print(time2)
+        print(end2 - start2)
+        self.assertLessEqual(time2, end2 - start2)
+        for branch2 in etmipc2.tree_depth:
+            branch_dir = os.path.join(etmipc2.output_dir, str(branch2))
+            self.assertTrue(os.path.isdir(branch_dir))
+            score_path = os.path.join(branch_dir,
+                                      "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, branch2))
+            self.assertTrue(os.path.isfile(score_path))
+            test_df = pd.read_csv(score_path, index_col=None, delimiter='\t')
+            self.assertEqual(list(test_df.columns), headers[branch2])
+            comp_function(df=test_df, seq=self.scorer2.query_alignment.query_sequence,
+                          clusters=etmipc2.get_cluster_scores(branch=branch2),
+                          branches=etmipc2.get_branch_scores(branch=branch2), scores=etmipc2.get_scores(branch=branch2),
+                          coverages=etmipc2.get_coverage(branch=branch2))
+        for curr_pos, mapped_pos in etmipc2.cluster_mapping.items():
+            curr_path = os.path.join(etmipc2.output_dir, str(curr_pos[0]),
+                                     "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, curr_pos[0]))
+            mapped_path = os.path.join(etmipc2.output_dir, str(mapped_pos[0]),
+                                       "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, mapped_pos[0]))
+            curr_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+            mapped_df = pd.read_csv(mapped_path, index_col=None, delimiter='\t')
+            comp_nonunique_cluster_files(df1=curr_df, df2=mapped_df, cluster1=curr_pos[1], cluster2=mapped_pos[1])
+        for branch2 in etmipc2.tree_depth:
+            rmtree(os.path.join(etmipc2.output_dir, str(branch2)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1h1vA')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
     def test_plot_z_score(self):
         save_dir = os.path.abspath('../Test')
         #

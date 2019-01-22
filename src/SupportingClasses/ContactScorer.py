@@ -967,8 +967,9 @@ class ContactScorer(object):
         return stats, biased_w2_ave, unbiased_w2_ave
 
 
-def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
-                              c_integrated_scores=None, file_name=None, output_dir=None):
+# def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
+def write_out_contact_scoring(today, alignment, scores, coverages, cluster_scores=None,
+                              branch_scores=None, file_name=None, output_dir=None):
     """
     Write out clustering scoring results
 
@@ -977,8 +978,8 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
     Args:
         today (date): Todays date.
         alignment (SeqAlignment): Alignment associated with the scores being written to file.
-        mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as computed
-        over all sequences in the input alignment.
+#        mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as computed
+#        over all sequences in the input alignment.
         c_raw_sub_scores (numpy.array): The coupling scores for all positions in the query sequences at the specified
         clustering constant created by hierarchical clustering.
         c_raw_scores (numpy.array): A matrix which represents the integration of coupling scores across all clusters
@@ -993,14 +994,17 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
         stored in the current working directory.
     """
     start = time()
-    header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
-    if c_raw_sub_scores is not None:
+    # header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
+    header = ['Pos1', 'AA1', 'Pos2', 'AA2']
+    if cluster_scores is not None:
         # header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
-        header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, [k + 1 for k in sorted(c_raw_sub_scores.keys())])]
-    if c_integrated_scores is not None:
-        header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
+        header += ['Raw_Score_{}'.format(i) for i in map(str, [k + 1 for k in sorted(cluster_scores.keys())])]
+    if branch_scores is not None:
+        # header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
+        header += ['Integrated_Score', 'Final_Score', 'Coverage_Score']
     else:
-        header += ['Raw_Score', 'Coverage_Score']
+        # header += ['Raw_Score', 'Coverage_Score']
+        header += ['Final_Score', 'Coverage_Score']
     file_dict = {key: [] for key in header}
     for i in range(0, alignment.seq_length):
         for j in range(i + 1, alignment.seq_length):
@@ -1010,14 +1014,16 @@ def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_ma
             file_dict['AA1'].append(one_to_three(alignment.query_sequence[i]))
             file_dict['Pos2'].append(res2)
             file_dict['AA2'].append(one_to_three(alignment.query_sequence[j]))
-            file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
-            if c_raw_sub_scores is not None:
-                for c in c_raw_sub_scores:
-                    file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(c_raw_sub_scores[c][i, j], 4))
-            file_dict['Raw_Score'].append(round(c_raw_scores[i, j], 4))
-            if c_integrated_scores is not None:
-                file_dict['Integrated_Score'].append(round(c_integrated_scores[i, j], 4))
-            file_dict['Coverage_Score'].append(round(c_coverage[i, j], 4))
+            # file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
+            if cluster_scores is not None:
+                for c in cluster_scores:
+                    # file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(cluster_scores[c][i, j], 4))
+                    file_dict['Raw_Score_{}'.format(c + 1)].append(round(cluster_scores[c][i, j], 4))
+            # file_dict['Raw_Score'].append(round(scores[i, j], 4))
+            file_dict['Final_Score'].append(round(scores[i, j], 4))
+            if branch_scores is not None:
+                file_dict['Integrated_Score'].append(round(branch_scores[i, j], 4))
+            file_dict['Coverage_Score'].append(round(coverages[i, j], 4))
     if file_name is None:
         file_name = "{}_{}.all_scores.txt".format(today, alignment.query_id.split('_')[1])
     if output_dir:
