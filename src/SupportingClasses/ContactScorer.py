@@ -348,7 +348,6 @@ class ContactScorer(object):
         if category not in self._specific_mapping:
             if predictions.shape[0] != self.query_alignment.seq_length:
                 raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
-            # indices = np.triu_indices(predictions.shape[0], 1)
             indices = np.triu_indices(self.query_alignment.seq_length, 1)
             mappable_pos = np.array(self.query_pdb_mapping.keys())
             x_mappable = np.in1d(indices[0], mappable_pos)
@@ -420,16 +419,15 @@ class ContactScorer(object):
         auroc = auc(fpr, tpr)
         return tpr, fpr, auroc
 
-    def plot_auc(self, query_name, auc_data, title=None, file_name=None, output_dir=None):
+    def plot_auc(self, auc_data, title=None, file_name=None, output_dir=None):
         """
         Plot AUC
 
         This function plots and saves the AUCROC.  The image will be stored in
-        the eps format with dpi=1000 using a name specified by the query name,
+        the eps format with dpi=1000 using a name specified by the ContactScorer query name,
         cutoff, clustering constant, and date.
 
         Args:
-            query_name (str): Name of the query protein
             auc_data (dictionary): AUC values stored in the ETMIPC class, used to identify the specific values for the
             specified clustering constant (clus).
             title (str): The title for the AUC plot.
@@ -441,7 +439,7 @@ class ContactScorer(object):
         if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_roc.eps'.format(query_name, self.cutoff)
+            file_name = '{}_Cutoff{}A_roc.eps'.format(self.query, self.cutoff)
         if not file_name.endswith('.eps'):
             file_name = file_name + '.eps'
         if output_dir:
@@ -456,7 +454,7 @@ class ContactScorer(object):
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         if title is None:
-            title = 'Ability to predict positive contacts in {}'.format(query_name)
+            title = 'Ability to predict positive contacts in {}'.format(self.query)
         plt.title(title)
         plt.legend(loc="lower right")
         plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
@@ -756,13 +754,12 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
-    def evaluate_predictor(self, query, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
+    def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
                            unbiased_w2_ave=None):
         """
         Evaluate Predictor
 
         Args:
-            query (str): The name of the query sequence.
             predictor (ETMIPC/ETMIPWrapper/DCAWrapper): A predictor which has already calculated its covariance scores.
             verbosity (int): What level of output to produce.
                 1. writes scores for all tested clustering constants
@@ -811,7 +808,7 @@ class ContactScorer(object):
                 if not os.path.isdir(c_out_dir):
                     os.mkdir(c_out_dir)
                 score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                    query=query, scores=predictor.get_scores(c=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
+                    scores=predictor.get_scores(c=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                     file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
                     unbiased_w2_ave=unbiased_w2_ave)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
@@ -828,9 +825,9 @@ class ContactScorer(object):
                 score_stats['Time'] += time_array
                 try:
                     coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                        query=query, scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir,
-                        dist=dist, file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats,
-                        biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+                        scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
+                        file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
+                        unbiased_w2_ave=unbiased_w2_ave)
                     if (biased_w2_ave is None) and (b_w2_ave is not None):
                         biased_w2_ave = b_w2_ave
                     if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -844,8 +841,8 @@ class ContactScorer(object):
                     pass
         else:
             score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                query=query, scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist,
-                file_prefix='Scores_', stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+                scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
+                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -857,9 +854,8 @@ class ContactScorer(object):
             score_stats['Time'] += time_array
             try:
                 coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                    query=query, scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist,
-                    file_prefix='Coverage_', stats=coverage_stats, biased_w2_ave=biased_w2_ave,
-                    unbiased_w2_ave=unbiased_w2_ave)
+                    scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
+                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
                     biased_w2_ave = b_w2_ave
                 if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -879,7 +875,7 @@ class ContactScorer(object):
             coverage_df = None
         return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, query, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
+    def evaluate_predictions(self, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
                              biased_w2_ave=None, unbiased_w2_ave=None):
         """
         Evaluate Predictions
@@ -887,7 +883,6 @@ class ContactScorer(object):
         This function evaluates a matrix of covariance predictions to the specified verbosity level.
 
         Args:
-            query (str): The name of the query sequence.
             scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
             verbosity (int): What level of output to produce.
                 1. writes scores for all tested clustering constants
@@ -939,7 +934,7 @@ class ContactScorer(object):
             # AUC Evaluation
             if verbosity >= 3:
                 auc_roc = self.score_auc(scores, category=separation)
-                self.plot_auc(query_name=query, auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
+                self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
             else:
                 auc_roc = (None, None, '-')
@@ -967,9 +962,8 @@ class ContactScorer(object):
         return stats, biased_w2_ave, unbiased_w2_ave
 
 
-# def write_out_contact_scoring(today, alignment, c_raw_scores, c_coverage, mip_matrix=None, c_raw_sub_scores=None,
-def write_out_contact_scoring(today, alignment, scores, coverages, cluster_scores=None,
-                              branch_scores=None, file_name=None, output_dir=None):
+def write_out_contact_scoring(today, alignment, scores, coverages, cluster_scores=None, branch_scores=None,
+                              file_name=None, output_dir=None):
     """
     Write out clustering scoring results
 
@@ -978,32 +972,26 @@ def write_out_contact_scoring(today, alignment, scores, coverages, cluster_score
     Args:
         today (date): Todays date.
         alignment (SeqAlignment): Alignment associated with the scores being written to file.
-#        mip_matrix (np.ndarray): Matrix scoring the coupling between all positions in the query sequence, as computed
-#        over all sequences in the input alignment.
-        c_raw_sub_scores (numpy.array): The coupling scores for all positions in the query sequences at the specified
-        clustering constant created by hierarchical clustering.
-        c_raw_scores (numpy.array): A matrix which represents the integration of coupling scores across all clusters
+        scores (numpy.array): A matrix which represents the integration of coupling scores across all clusters
         defined at that clustering constant.
-        c_integrated_scores (numpy.array): This dictionary maps clustering constants to a matrix which combines the
-        scores from the whole_mip_matrix, all lower clustering constants, and this clustering constant.
-        c_coverage (numpy.array): This dictionary maps clustering constants to a matrix of normalized coupling scores
+        coverages (numpy.array): This dictionary maps clustering constants to a matrix of normalized coupling scores
         between 0 and 100, computed from the summary_matrices.
+        cluster_scores (numpy.array): The coupling scores for all positions in the query sequences at the specified
+        clustering constant created by hierarchical clustering.
+        branch_scores (numpy.array): This dictionary maps clustering constants to a matrix which combines the
+        scores from the whole_mip_matrix, all lower clustering constants, and this clustering constant.
         file_name (str): The name with which to save the file. If None the following string template will be used:
         "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
         output_dir (str): The full path to where the output file should be stored. If None (default) the plot will be
         stored in the current working directory.
     """
     start = time()
-    # header = ['Pos1', 'AA1', 'Pos2', 'AA2', 'OriginalScore']
     header = ['Pos1', 'AA1', 'Pos2', 'AA2']
     if cluster_scores is not None:
-        # header += ['Raw_Score_Sub_{}'.format(i) for i in map(str, range(1, c_raw_sub_scores.shape[0] + 1))]
         header += ['Raw_Score_{}'.format(i) for i in map(str, [k + 1 for k in sorted(cluster_scores.keys())])]
     if branch_scores is not None:
-        # header += ['Raw_Score', 'Integrated_Score', 'Coverage_Score']
         header += ['Integrated_Score', 'Final_Score', 'Coverage_Score']
     else:
-        # header += ['Raw_Score', 'Coverage_Score']
         header += ['Final_Score', 'Coverage_Score']
     file_dict = {key: [] for key in header}
     for i in range(0, alignment.seq_length):
@@ -1014,12 +1002,9 @@ def write_out_contact_scoring(today, alignment, scores, coverages, cluster_score
             file_dict['AA1'].append(one_to_three(alignment.query_sequence[i]))
             file_dict['Pos2'].append(res2)
             file_dict['AA2'].append(one_to_three(alignment.query_sequence[j]))
-            # file_dict['OriginalScore'].append(round(mip_matrix[i, j], 4))
             if cluster_scores is not None:
                 for c in cluster_scores:
-                    # file_dict['Raw_Score_Sub_{}'.format(c + 1)].append(round(cluster_scores[c][i, j], 4))
                     file_dict['Raw_Score_{}'.format(c + 1)].append(round(cluster_scores[c][i, j], 4))
-            # file_dict['Raw_Score'].append(round(scores[i, j], 4))
             file_dict['Final_Score'].append(round(scores[i, j], 4))
             if branch_scores is not None:
                 file_dict['Integrated_Score'].append(round(branch_scores[i, j], 4))
@@ -1057,7 +1042,6 @@ def plot_z_scores(df, file_path=None):
     plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
     scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
     plt.savefig(file_path)
-    # plt.clf()
     plt.close()
 
 
@@ -1088,7 +1072,6 @@ def heatmap_plot(name, data_mat, output_dir=None):
             vmax=plot_max, cbar=True, square=True)
     plt.title(name)
     plt.savefig(image_name)
-    # plt.clf()
     plt.close()
 
 
@@ -1125,5 +1108,4 @@ def surface_plot(name, data_mat, output_dir=None):
     ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
     fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.savefig(image_name)
-    # plt.clf()
     plt.close()
