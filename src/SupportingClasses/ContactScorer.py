@@ -5,6 +5,7 @@ Created on Sep 1, 2018
 """
 import os
 import math
+import datetime
 import numpy as np
 import pandas as pd
 from time import time
@@ -684,7 +685,8 @@ class ContactScorer(object):
         z_score = (w - w_ave) / sigma
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
-    def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
+    # def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
+    def write_out_clustering_results(self, today, raw_scores, coverage_scores, file_name, output_dir):
         """
         Write out clustering results
 
@@ -692,7 +694,7 @@ class ContactScorer(object):
 
         Args:
             today (date/str): Todays date.
-            q_name (str): The name of the query protein
+#            q_name (str): The name of the query protein
             raw_scores (dict): A dictionary of the clustering constants mapped to a matrix of the raw values from the
             whole MIp matrix through all clustering constants <= clus. See ETMIPC class description.
             coverage_scores (dict): A dictionary of the clustering constants mapped to a matrix of the coverage_scores
@@ -702,6 +704,15 @@ class ContactScorer(object):
             be stored in the current working directory.
         """
         start = time()
+        if file_name is None:
+            file_name = "{}_{}.etmipCVG.clustered.txt".format(today, self.query)
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        if os.path.isfile(file_name):
+            end = time()
+            print('Contact prediction scores and structural validation data already written {} min'.format(
+                (end - start) / 60.0))
+            return
         header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
         file_dict = {key: [] for key in header}
         mapped_chain = self.best_chain
@@ -744,10 +755,6 @@ class ContactScorer(object):
                         r = 0
                 file_dict['Residue_Dist'].append(dist)
                 file_dict['Within_Threshold'].append(r)
-        if file_name is None:
-            file_name = "{}_{}.etmipCVG.clustered.txt".format(today, q_name)
-        if output_dir:
-            file_name = os.path.join(output_dir, file_name)
         df = pd.DataFrame(file_dict)
         df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
         end = time()
@@ -755,7 +762,7 @@ class ContactScorer(object):
             (end - start) / 60.0))
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None):
+                           unbiased_w2_ave=None, today=None):
         """
         Evaluate Predictor
 
@@ -786,6 +793,8 @@ class ContactScorer(object):
             dict. A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
+        if today is None:
+            today = str(datetime.date.today())
         score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
         coverage_fn = os.path.join(out_dir, 'Coverage_Evaluation_Dist-{}.txt'.format(dist))
         # If the evaluation has already been performed load the data and return it
@@ -810,7 +819,7 @@ class ContactScorer(object):
                 score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                     scores=predictor.get_scores(c=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                     file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
-                    unbiased_w2_ave=unbiased_w2_ave)
+                    unbiased_w2_ave=unbiased_w2_ave, today=today)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
                     biased_w2_ave = b_w2_ave
                 if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -827,7 +836,7 @@ class ContactScorer(object):
                     coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                         scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                         file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
-                        unbiased_w2_ave=unbiased_w2_ave)
+                        unbiased_w2_ave=unbiased_w2_ave, today=today)
                     if (biased_w2_ave is None) and (b_w2_ave is not None):
                         biased_w2_ave = b_w2_ave
                     if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -842,7 +851,7 @@ class ContactScorer(object):
         else:
             score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                 scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
-                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -855,7 +864,7 @@ class ContactScorer(object):
             try:
                 coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                     scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
-                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave)
+                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
                     biased_w2_ave = b_w2_ave
                 if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -875,8 +884,8 @@ class ContactScorer(object):
             coverage_df = None
         return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, scores, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
-                             biased_w2_ave=None, unbiased_w2_ave=None):
+    def evaluate_predictions(self, scores, coverages, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
+                             biased_w2_ave=None, unbiased_w2_ave=None, today=None):
         """
         Evaluate Predictions
 
@@ -884,6 +893,8 @@ class ContactScorer(object):
 
         Args:
             scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
+            coverages (np.array): The coverage adjusted scores for predictions on pairs of residues in a sequence
+            alignment.
             verbosity (int): What level of output to produce.
                 1. writes scores for all tested clustering constants
                 2. tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
@@ -913,8 +924,14 @@ class ContactScorer(object):
         """
         if stats is None:
             stats = {'AUROC': [], 'Distance': [], 'Sequence_Separation': []}
+        if today is None:
+            today = str(datetime.date.today())
         self.fit()
         self.measure_distance(method=dist)
+        # Verbosity 1
+        self.write_out_clustering_results(today=today, raw_scores=scores,
+                                          coverage_scores=coverages, file_name='Clustering_Results.tsv',
+                                          output_dir=out_dir)
         if verbosity >= 2:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
