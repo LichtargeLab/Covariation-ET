@@ -657,7 +657,7 @@ class TestContactScorer(TestCase):
         scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
         auroc1a = self.scorer1.score_auc(scores1, category='Any')
-        self.scorer1.plot_auc(query_name='1c17A', auc_data=auroc1a, title='1c17A AUROC for All Pairs',
+        self.scorer1.plot_auc(auc_data=auroc1a, title='1c17A AUROC for All Pairs',
                               file_name='1c17A_Any_AUROC', output_dir=os.path.abspath('../Test'))
         expected_path1 = os.path.abspath(os.path.join('../Test', '1c17A_Any_AUROC.eps'))
         print(expected_path1)
@@ -670,7 +670,7 @@ class TestContactScorer(TestCase):
         scores2[np.tril_indices(368, 1)] = 0
         scores2 += scores2.T
         auroc2a = self.scorer2.score_auc(scores2, category='Any')
-        self.scorer2.plot_auc(query_name='1h1vA', auc_data=auroc2a, title='1h1vA AUROC for All Pairs',
+        self.scorer2.plot_auc(auc_data=auroc2a, title='1h1vA AUROC for All Pairs',
                               file_name='1h1vA_Any_AUROC', output_dir=os.path.abspath('../Test'))
         expected_path2 = os.path.abspath(os.path.join('../Test', '1h1vA_Any_AUROC.eps'))
         self.assertTrue(os.path.isfile(expected_path2))
@@ -1405,9 +1405,39 @@ class TestContactScorer(TestCase):
     # def test_evaluate_predictor(self):
     #     self.fail()
     #
-    # def test_evaluate_predictions(self):
-    #     self.fail()
-    #
+    def test_evaluate_predictions(self):
+        #
+        scores1 = np.random.RandomState(1234567890).rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        out_dir = os.path.abspath('../Test')
+        #
+        prev_stats = None
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        for v in range(1, 6):
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(scores=scores1, verbosity=v,
+                                                                                         out_dir=out_dir, dist='CB',
+                                                                                         file_prefix='SCORER1_TEST',
+                                                                                         stats=prev_stats,
+                                                                                         biased_w2_ave=prev_b_w2_ave,
+                                                                                         unbiased_w2_ave=prev_u_w2_ave)
+            self.assertTrue('AUROC' in curr_stats)
+            self.assertTrue('Distance' in curr_stats)
+            self.assertTrue('Sequence_Separation' in curr_stats)
+            # Tests
+            # Update
+            prev_stats = curr_stats
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
+        # Test Verbosity 1, stats=None
+        # Test Verbosity 2, stats= prev_stats
+        # Test Verbosity 3, stats= prev_stats
+        # Test Verbosity 4, stats= prev_stats
+        # Test Verbosity 5, stats= prev_stats
+
+        self.fail()
+
     def test_write_out_contact_scoring(self):
         def comp_function(df, seq, clusters, branches, scores, coverages):
             for i in df.index:
