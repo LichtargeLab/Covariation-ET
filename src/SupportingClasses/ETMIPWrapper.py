@@ -62,7 +62,7 @@ class ETMIPWrapper(object):
         self.msf_path = None
         self.scores = None
         # self.raw_scores = None
-        self.coverage_scores = None
+        self.coverage = None
         self.time = None
 
     def check_alignment(self):
@@ -93,7 +93,7 @@ class ETMIPWrapper(object):
 
         This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
         and written to file. This file is then imported using Pandas and is then used to fill in the scores and
-        coverage_scores matrices.
+        coverage matrices.
 
         Args:
             out_dir (str): The path to the directory where the ET-MIp scores have been written.
@@ -109,12 +109,12 @@ class ETMIPWrapper(object):
                                                                      'Raw_Scores', 'Coverage_Scores', 'Interface',
                                                                      'Contact', 'Number', 'Average_Contact'])
         self.scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        self.coverage_scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        self.coverage = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
         for ind in data.index:
             i = data.loc[ind, 'Res_i'] - 1
             j = data.loc[ind, 'Res_j'] - 1
             self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
-            self.coverage_scores[i, j] = self.coverage_scores[j, i] = data.loc[ind, 'Coverage_Scores']
+            self.coverage[i, j] = self.coverage[j, i] = data.loc[ind, 'Coverage_Scores']
 
     def calculate_scores(self, out_dir, delete_files=True):
         """
@@ -136,7 +136,7 @@ class ETMIPWrapper(object):
         if os.path.isfile(serialized_path):
             loaded_data = np.load(serialized_path)
             self.scores = loaded_data['scores']
-            self.coverage_scores = loaded_data['coverage']
+            self.coverage = loaded_data['coverage']
             self.time = loaded_data['time']
         else:
             self.check_alignment()
@@ -159,7 +159,7 @@ class ETMIPWrapper(object):
             self.import_covariance_scores(out_dir=out_dir)
             if delete_files:
                 self.remove_ouptut(out_dir=out_dir)
-            np.savez(serialized_path, time=self.time, scores=self.scores, coverage=self.coverage_scores)
+            np.savez(serialized_path, time=self.time, scores=self.scores, coverage=self.coverage)
         print(self.time)
         return self.time
 
