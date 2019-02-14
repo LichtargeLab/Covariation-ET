@@ -1406,37 +1406,198 @@ class TestContactScorer(TestCase):
     #     self.fail()
     #
     def test_evaluate_predictions(self):
+        out_dir = os.path.abspath('../Test')
+        today = str(datetime.date.today())
         #
         scores1 = np.random.RandomState(1234567890).rand(79, 79)
         scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
-        out_dir = os.path.abspath('../Test')
         #
         prev_stats = None
         prev_b_w2_ave = None
         prev_u_w2_ave = None
+        full_len = None
         for v in range(1, 6):
-            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(scores=scores1, verbosity=v,
-                                                                                         out_dir=out_dir, dist='CB',
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(verbosity=v, out_dir=out_dir,
+                                                                                         scores=scores1,  dist='CB',
                                                                                          file_prefix='SCORER1_TEST',
                                                                                          stats=prev_stats,
                                                                                          biased_w2_ave=prev_b_w2_ave,
-                                                                                         unbiased_w2_ave=prev_u_w2_ave)
-            self.assertTrue('AUROC' in curr_stats)
-            self.assertTrue('Distance' in curr_stats)
-            self.assertTrue('Sequence_Separation' in curr_stats)
+                                                                                         unbiased_w2_ave=prev_u_w2_ave,
+                                                                                         today=today)
             # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            if v >= 1:
+                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
+                if v == 1:
+                    self.assertTrue(curr_stats == {})
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                fn2 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn2))
+                os.remove(fn2)
+                fn3 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn3))
+                os.remove(fn3)
+                fn4 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                if v == 2:
+                    self.assertTrue(curr_stats == {})
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            if v >= 3:
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                # Check that lengths are even multiples of previous runs
+                if full_len is None and curr_stats != {}:
+                    full_len = len(curr_stats['AUROC'])
+                self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
+                for key in curr_stats:
+                    # print(curr_stats['AUROC'])
+                    # print(curr_stats[key])
+                    self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
+                                     '{} does not match AUROC length'.format(key))
+                fn6 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Any'))
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Neighbors'))
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                fn8 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Short'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
+                fn9 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Medium'))
+                self.assertTrue(os.path.isfile(fn9))
+                os.remove(fn9)
+                fn10 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Long'))
+                self.assertTrue(os.path.isfile(fn10))
+                os.remove(fn10)
+            if v >= 4:
+                precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
+                                    'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
+                                    'Precision (L/9)', 'Precision (L/10)']
+                for l in precision_labels:
+                    self.assertTrue(l in curr_stats)
+                    self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
+            if v == 5:
+                fn11 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Heatmap.eps')
+                self.assertTrue(os.path.isfile(fn11))
+                os.remove(fn11)
+                fn12 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Surface.eps')
+                self.assertTrue(os.path.isfile(fn12))
+                os.remove(fn12)
             # Update
             prev_stats = curr_stats
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
-        # Test Verbosity 1, stats=None
-        # Test Verbosity 2, stats= prev_stats
-        # Test Verbosity 3, stats= prev_stats
-        # Test Verbosity 4, stats= prev_stats
-        # Test Verbosity 5, stats= prev_stats
-
-        self.fail()
+        #
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        #
+        prev_stats = None
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        full_len = None
+        for v in range(1, 6):
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(verbosity=v, out_dir=out_dir,
+                                                                                         scores=scores2, dist='CB',
+                                                                                         file_prefix='SCORER2_TEST',
+                                                                                         stats=prev_stats,
+                                                                                         biased_w2_ave=prev_b_w2_ave,
+                                                                                         unbiased_w2_ave=prev_u_w2_ave,
+                                                                                         today=today)
+            # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            if v >= 1:
+                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
+                if v == 1:
+                    self.assertTrue(curr_stats == {})
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                fn2 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn2))
+                os.remove(fn2)
+                fn3 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn3))
+                os.remove(fn3)
+                fn4 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                if v == 2:
+                    self.assertTrue(curr_stats == {})
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            if v >= 3:
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                # Check that lengths are even multiples of previous runs
+                if full_len is None and curr_stats != {}:
+                    full_len = len(curr_stats['AUROC'])
+                self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
+                for key in curr_stats:
+                    # print(curr_stats['AUROC'])
+                    # print(curr_stats[key])
+                    self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
+                                     '{} does not match AUROC length'.format(key))
+                fn6 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Any'))
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Neighbors'))
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                fn8 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Short'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
+                fn9 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Medium'))
+                self.assertTrue(os.path.isfile(fn9))
+                os.remove(fn9)
+                fn10 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                             'Long'))
+                self.assertTrue(os.path.isfile(fn10))
+                os.remove(fn10)
+            if v >= 4:
+                precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
+                                    'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
+                                    'Precision (L/9)', 'Precision (L/10)']
+                for l in precision_labels:
+                    self.assertTrue(l in curr_stats)
+                    self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
+            if v == 5:
+                fn11 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Heatmap.eps')
+                self.assertTrue(os.path.isfile(fn11))
+                os.remove(fn11)
+                fn12 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Surface.eps')
+                self.assertTrue(os.path.isfile(fn12))
+                os.remove(fn12)
+            # Update
+            prev_stats = curr_stats
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
 
     def test_write_out_contact_scoring(self):
         def comp_function(df, seq, clusters, branches, scores, coverages):
@@ -1460,7 +1621,6 @@ class TestContactScorer(TestCase):
                 self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
                                 'Positions: {}\t{}'.format(pos1, pos2))
 
-
         def comp_nonunique_cluster_files(df1, df2, cluster1, cluster2):
             index1 = 'Raw_Score_{}'.format(cluster1 + 1)
             index2 = 'Raw_Score_{}'.format(cluster2 + 1)
@@ -1468,7 +1628,6 @@ class TestContactScorer(TestCase):
             col2 = np.array(df2.loc[:, index2])
             diff = np.sum(np.abs(col1 - col2))
             self.assertLess(diff, 1e-10)
-
 
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']

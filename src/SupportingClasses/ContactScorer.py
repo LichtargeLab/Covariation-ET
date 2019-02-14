@@ -685,8 +685,7 @@ class ContactScorer(object):
         z_score = (w - w_ave) / sigma
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
-    # def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
-    def write_out_clustering_results(self, today, raw_scores, coverage_scores, file_name, output_dir):
+    def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None):
         """
         Write out clustering results
 
@@ -705,7 +704,7 @@ class ContactScorer(object):
         """
         start = time()
         if file_name is None:
-            file_name = "{}_{}.etmipCVG.clustered.txt".format(today, self.query)
+            file_name = "{}_{}.Covariance_vs_Structure.txt".format(today, self.query)
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         if os.path.isfile(file_name):
@@ -713,7 +712,10 @@ class ContactScorer(object):
             print('Contact prediction scores and structural validation data already written {} min'.format(
                 (end - start) / 60.0))
             return
-        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score']
+        if coverage_scores is not None:
+            header += ['Coverage_Score']
+        header += ['Residue_Dist', 'Within_Threshold']
         file_dict = {key: [] for key in header}
         mapped_chain = self.best_chain
         for i in range(0, self.query_alignment.seq_length):
@@ -721,7 +723,8 @@ class ContactScorer(object):
                 file_dict['(AA1)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[i])))
                 file_dict['(AA2)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[j])))
                 file_dict['Raw_Score'].append(round(raw_scores[i, j], 4))
-                file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
+                if coverage_scores is not None:
+                    file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
                 if (self.query_structure is None) and (self.query_pdb_mapping is None):
                     file_dict['Pos1'].append(i + 1)
                     file_dict['Pos2'].append(j + 1)
@@ -884,7 +887,7 @@ class ContactScorer(object):
             coverage_df = None
         return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, scores, coverages, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
+    def evaluate_predictions(self, verbosity, out_dir, scores, coverages=None, dist='Any', file_prefix='', stats=None,
                              biased_w2_ave=None, unbiased_w2_ave=None, today=None):
         """
         Evaluate Predictions
@@ -923,14 +926,13 @@ class ContactScorer(object):
             dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
         if stats is None:
-            stats = {'AUROC': [], 'Distance': [], 'Sequence_Separation': []}
+            stats = {}
         if today is None:
             today = str(datetime.date.today())
         self.fit()
         self.measure_distance(method=dist)
         # Verbosity 1
-        self.write_out_clustering_results(today=today, raw_scores=scores,
-                                          coverage_scores=coverages, file_name='Clustering_Results.tsv',
+        self.write_out_clustering_results(today=today, raw_scores=scores, coverage_scores=coverages,
                                           output_dir=out_dir)
         if verbosity >= 2:
             # Score Prediction Clustering
@@ -947,30 +949,33 @@ class ContactScorer(object):
                 unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         # Evaluating scores
-        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-            # AUC Evaluation
-            if verbosity >= 3:
+        if verbosity >= 3:
+            if 'AUROC' not in stats:
+                stats['AUROC'] = []
+                stats['Distance'] = []
+                stats['Sequence_Separation'] = []
+            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                # AUC Evaluation
                 auc_roc = self.score_auc(scores, category=separation)
                 self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
-            else:
-                auc_roc = (None, None, '-')
-            stats['AUROC'].append(auc_roc[2])
-            stats['Distance'].append(dist)
-            stats['Sequence_Separation'].append(separation)
-            # Precision Evaluation
-            for k in range(1, 11):
-                if k == 1:
-                    precision_label = 'Precision (L)'
-                else:
-                    precision_label = 'Precision (L/{})'.format(k)
-                if precision_label not in stats:
-                    stats[precision_label] = []
+                stats['AUROC'].append(auc_roc[2])
+                stats['Distance'].append(dist)
+                stats['Sequence_Separation'].append(separation)
+                # Precision Evaluation
                 if verbosity >= 4:
-                    precision = self.score_precision(predictions=scores, k=k, category=separation)
-                else:
-                    precision = '-'
-                stats[precision_label].append(precision)
+                    for k in range(1, 11):
+                        if k == 1:
+                            precision_label = 'Precision (L)'
+                        else:
+                            precision_label = 'Precision (L/{})'.format(k)
+                        if precision_label not in stats:
+                            if len(stats['AUROC']) > 1:
+                                stats[precision_label] = ['-'] * (len(stats['AUROC']) - 1)
+                            else:
+                                stats[precision_label] = []
+                        precision = self.score_precision(predictions=scores, k=k, category=separation)
+                        stats[precision_label].append(precision)
         if verbosity >= 5:
             heatmap_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Heatmap'.format(dist), data_mat=scores,
                          output_dir=out_dir)
