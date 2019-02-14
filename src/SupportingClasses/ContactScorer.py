@@ -712,10 +712,7 @@ class ContactScorer(object):
             print('Contact prediction scores and structural validation data already written {} min'.format(
                 (end - start) / 60.0))
             return
-        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score']
-        if coverage_scores is not None:
-            header += ['Coverage_Score']
-        header += ['Residue_Dist', 'Within_Threshold']
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
         file_dict = {key: [] for key in header}
         mapped_chain = self.best_chain
         for i in range(0, self.query_alignment.seq_length):
@@ -725,6 +722,8 @@ class ContactScorer(object):
                 file_dict['Raw_Score'].append(round(raw_scores[i, j], 4))
                 if coverage_scores is not None:
                     file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
+                else:
+                    file_dict['Coverage_Score'].append(np.nan)
                 if (self.query_structure is None) and (self.query_pdb_mapping is None):
                     file_dict['Pos1'].append(i + 1)
                     file_dict['Pos2'].append(j + 1)

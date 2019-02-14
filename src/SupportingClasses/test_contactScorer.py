@@ -1312,9 +1312,8 @@ class TestContactScorer(TestCase):
         coverages1 = np.random.RandomState(179424691).rand(79, 79)
         coverages1[np.tril_indices(79, 1)] = 0
         coverages1 += coverages1.T
-        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name='Contact_1a_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name='Contact_1a_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_1a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1324,9 +1323,8 @@ class TestContactScorer(TestCase):
                       seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
                       distances=self.scorer1.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer1.write_out_clustering_results(today=None, q_name=None, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name='Contact_1b_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer1.write_out_clustering_results(today=None, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name='Contact_1b_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_1b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1337,9 +1335,9 @@ class TestContactScorer(TestCase):
                       distances=self.scorer1.distances, adjacencies=A)
         os.remove(curr_path)
 
-        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name=None, output_dir=save_dir)
-        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer1.query))
+        self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer1.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
         self.assertEqual(list(test_df.columns), header)
@@ -1366,9 +1364,8 @@ class TestContactScorer(TestCase):
         coverages2 = np.random.RandomState(179424691).rand(368, 368)
         coverages2[np.tril_indices(368, 1)] = 0
         coverages2 += coverages2.T
-        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name='Contact_2a_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name='Contact_2a_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_2a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1378,9 +1375,8 @@ class TestContactScorer(TestCase):
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer2.write_out_clustering_results(today=None, q_name=None, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name='Contact_2b_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer2.write_out_clustering_results(today=None, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name='Contact_2b_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_2b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1390,9 +1386,9 @@ class TestContactScorer(TestCase):
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name=None, output_dir=save_dir)
-        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer2.query))
+        self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer2.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
         self.assertEqual(list(test_df.columns), header)
@@ -1403,8 +1399,33 @@ class TestContactScorer(TestCase):
         os.remove(curr_path)
 
     # def test_evaluate_predictor(self):
-    #     self.fail()
-    #
+    #     out_dir = os.path.abspath('../Test')
+    #     today = str(datetime.date.today())
+    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+    #                '-']
+    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #     #
+    #     path1 = os.path.join(out_dir, '1c17A.fa')
+    #     etmipc1 = ETMIPC(path1)
+    #     time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
+    #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
+    #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+    #                                                                                   'linkage': 'ward'},
+    #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
+    #                                      del_intermediate=False, low_mem=False)
+    #     print(time1)
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='Any')
+    #     for v in range(1, 6):
+    #         self.scorer1.evaluate_predictor(predictor=etmipc1, verbosity=v, out_dir=out_dir, dist='Any',
+    #                                         biased_w2_ave=None, unbiased_w2_ave=None, today=today)
+    #         for c in etmipc1.tree_depth:
+    #             c_out_dir = os.path.join(out_dir, c)
+    #             self.assertTrue(os.path.isdir(c_out_dir))
+    #     #
+    #     self.scorer2.fit()
+    #     self.scorer2.measure_distance(method='Any')
+
     def test_evaluate_predictions(self):
         out_dir = os.path.abspath('../Test')
         today = str(datetime.date.today())
@@ -1412,6 +1433,8 @@ class TestContactScorer(TestCase):
         scores1 = np.random.RandomState(1234567890).rand(79, 79)
         scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
         #
         prev_stats = None
         prev_b_w2_ave = None
@@ -1507,13 +1530,15 @@ class TestContactScorer(TestCase):
         scores2 = np.random.RandomState(1234567890).rand(368, 368)
         scores2[np.tril_indices(368, 1)] = 0
         scores2 += scores2.T
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
         #
         prev_stats = None
         prev_b_w2_ave = None
         prev_u_w2_ave = None
         full_len = None
         for v in range(1, 6):
-            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(verbosity=v, out_dir=out_dir,
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictions(verbosity=v, out_dir=out_dir,
                                                                                          scores=scores2, dist='CB',
                                                                                          file_prefix='SCORER2_TEST',
                                                                                          stats=prev_stats,
@@ -1524,6 +1549,8 @@ class TestContactScorer(TestCase):
             # Check that the correct data is in the dataframe according to the verbosity
             if v >= 1:
                 fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
+                print(self.query2)
+                print(fn1)
                 self.assertTrue(os.path.isfile(fn1))
                 os.remove(fn1)
                 if v == 1:
