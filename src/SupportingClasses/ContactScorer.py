@@ -685,8 +685,7 @@ class ContactScorer(object):
         z_score = (w - w_ave) / sigma
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
-    # def write_out_clustering_results(self, today, q_name, raw_scores, coverage_scores, file_name, output_dir):
-    def write_out_clustering_results(self, today, raw_scores, coverage_scores, file_name, output_dir):
+    def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None):
         """
         Write out clustering results
 
@@ -705,7 +704,7 @@ class ContactScorer(object):
         """
         start = time()
         if file_name is None:
-            file_name = "{}_{}.etmipCVG.clustered.txt".format(today, self.query)
+            file_name = "{}_{}.Covariance_vs_Structure.txt".format(today, self.query)
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         if os.path.isfile(file_name):
@@ -721,7 +720,10 @@ class ContactScorer(object):
                 file_dict['(AA1)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[i])))
                 file_dict['(AA2)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[j])))
                 file_dict['Raw_Score'].append(round(raw_scores[i, j], 4))
-                file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
+                if coverage_scores is not None:
+                    file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
+                else:
+                    file_dict['Coverage_Score'].append(np.nan)
                 if (self.query_structure is None) and (self.query_pdb_mapping is None):
                     file_dict['Pos1'].append(i + 1)
                     file_dict['Pos2'].append(j + 1)
@@ -796,18 +798,17 @@ class ContactScorer(object):
         if today is None:
             today = str(datetime.date.today())
         score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
-        # coverage_fn = os.path.join(out_dir, 'Coverage_Evaluation_Dist-{}.txt'.format(dist))
+        coverage_fn = os.path.join(out_dir, 'Coverage_Evaluation_Dist-{}.txt'.format(dist))
         # If the evaluation has already been performed load the data and return it
-        if os.path.isfile(score_fn):
-            score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
-            # if os.path.isfile(coverage_fn):
-            #     coverage_df = pd.read_csv(coverage_fn, sep='\t', header=0, index_col=False)
-            # else:
-            #     coverage_df = None
-            # return score_df, coverage_df, None, None
-            return score_df, None, None
+        # if os.path.isfile(score_fn):
+        #     score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
+        #     if os.path.isfile(coverage_fn):
+        #         coverage_df = pd.read_csv(coverage_fn, sep='\t', header=0, index_col=False)
+        #     else:
+        #         coverage_df = None
+        #     return score_df, coverage_df, None, None
         score_stats = None
-        # coverage_stats = None
+        coverage_stats = None
         columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
                    'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
                    'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)']
@@ -817,12 +818,8 @@ class ContactScorer(object):
                 c_out_dir = os.path.join(out_dir, str(c))
                 if not os.path.isdir(c_out_dir):
                     os.mkdir(c_out_dir)
-                try:
-                    coverages = predictor.get_coverage(c=c)
-                except AttributeError:
-                    coverages = None
                 score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                    scores=predictor.get_scores(c=c), coverages=coverages, verbosity=verbosity, out_dir=c_out_dir, dist=dist,
+                    scores=predictor.get_scores(c=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                     file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
                     unbiased_w2_ave=unbiased_w2_ave, today=today)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
@@ -837,29 +834,25 @@ class ContactScorer(object):
                 time_array = [predictor.time[c]] * diff_len
                 score_stats['K'] += c_array
                 score_stats['Time'] += time_array
-                # try:
-                #     coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                #         scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
-                #         file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
-                #         unbiased_w2_ave=unbiased_w2_ave, today=today)
-                #     if (biased_w2_ave is None) and (b_w2_ave is not None):
-                #         biased_w2_ave = b_w2_ave
-                #     if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-                #         unbiased_w2_ave = u_w2_ave
-                #     if 'K' not in coverage_stats:
-                #         coverage_stats['K'] = []
-                #         coverage_stats['Time'] = []
-                #     coverage_stats['K'] += c_array
-                #     coverage_stats['Time'] += time_array
-                # except AttributeError:
-                #     pass
+                try:
+                    coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                        scores=predictor.get_coverage(c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
+                        file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
+                        unbiased_w2_ave=unbiased_w2_ave, today=today)
+                    if (biased_w2_ave is None) and (b_w2_ave is not None):
+                        biased_w2_ave = b_w2_ave
+                    if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                        unbiased_w2_ave = u_w2_ave
+                    if 'K' not in coverage_stats:
+                        coverage_stats['K'] = []
+                        coverage_stats['Time'] = []
+                    coverage_stats['K'] += c_array
+                    coverage_stats['Time'] += time_array
+                except AttributeError:
+                    pass
         else:
-            try:
-                coverages = predictor.coverage
-            except AttributeError:
-                coverages = None
             score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                scores=predictor.scores, coverages=coverages, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
+                scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
                 stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
@@ -870,31 +863,30 @@ class ContactScorer(object):
             diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
             time_array = [predictor.time] * diff_len
             score_stats['Time'] += time_array
-            # try:
-            #     coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-            #         scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
-            #         stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
-            #     if (biased_w2_ave is None) and (b_w2_ave is not None):
-            #         biased_w2_ave = b_w2_ave
-            #     if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-            #         unbiased_w2_ave = u_w2_ave
-            #     if 'K' not in coverage_stats:
-            #         coverage_stats['K'] = []
-            #         coverage_stats['Time'] = []
-            #     coverage_stats['Time'] += time_array
-            # except AttributeError:
-            #     pass
+            try:
+                coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+                    scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
+                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
+                if (biased_w2_ave is None) and (b_w2_ave is not None):
+                    biased_w2_ave = b_w2_ave
+                if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+                    unbiased_w2_ave = u_w2_ave
+                if 'K' not in coverage_stats:
+                    coverage_stats['K'] = []
+                    coverage_stats['Time'] = []
+                coverage_stats['Time'] += time_array
+            except AttributeError:
+                pass
         score_df = pd.DataFrame(score_stats)
         score_df.to_csv(path_or_buf=score_fn, columns=columns, sep='\t', header=True, index=False)
-        # if coverage_stats is not None:
-        #     coverage_df = pd.DataFrame(coverage_stats)
-        #     coverage_df.to_csv(path_or_buf=coverage_fn, columns=columns, sep='\t', header=True, index=False)
-        # else:
-        #     coverage_df = None
-        # return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
-        return score_df, biased_w2_ave, unbiased_w2_ave
+        if coverage_stats is not None:
+            coverage_df = pd.DataFrame(coverage_stats)
+            coverage_df.to_csv(path_or_buf=coverage_fn, columns=columns, sep='\t', header=True, index=False)
+        else:
+            coverage_df = None
+        return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, scores, coverages, verbosity, out_dir, dist='Any', file_prefix='', stats=None,
+    def evaluate_predictions(self, verbosity, out_dir, scores, coverages=None, dist='Any', file_prefix='', stats=None,
                              biased_w2_ave=None, unbiased_w2_ave=None, today=None):
         """
         Evaluate Predictions
@@ -933,15 +925,14 @@ class ContactScorer(object):
             dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
         if stats is None:
-            stats = {'AUROC': [], 'Distance': [], 'Sequence_Separation': []}
+            stats = {}
         if today is None:
             today = str(datetime.date.today())
         self.fit()
         self.measure_distance(method=dist)
         # Verbosity 1
-        self.write_out_clustering_results(today=today, raw_scores=scores, coverage_scores=coverages, output_dir=out_dir,
-                                          file_name="{}{}_{}.etmipCVG.clustered.txt".format(file_prefix, today,
-                                                                                            self.query))
+        self.write_out_clustering_results(today=today, raw_scores=scores, coverage_scores=coverages,
+                                          output_dir=out_dir)
         if verbosity >= 2:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
@@ -957,30 +948,33 @@ class ContactScorer(object):
                 unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         # Evaluating scores
-        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-            # AUC Evaluation
-            if verbosity >= 3:
+        if verbosity >= 3:
+            if 'AUROC' not in stats:
+                stats['AUROC'] = []
+                stats['Distance'] = []
+                stats['Sequence_Separation'] = []
+            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                # AUC Evaluation
                 auc_roc = self.score_auc(scores, category=separation)
                 self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
-            else:
-                auc_roc = (None, None, '-')
-            stats['AUROC'].append(auc_roc[2])
-            stats['Distance'].append(dist)
-            stats['Sequence_Separation'].append(separation)
-            # Precision Evaluation
-            for k in range(1, 11):
-                if k == 1:
-                    precision_label = 'Precision (L)'
-                else:
-                    precision_label = 'Precision (L/{})'.format(k)
-                if precision_label not in stats:
-                    stats[precision_label] = []
+                stats['AUROC'].append(auc_roc[2])
+                stats['Distance'].append(dist)
+                stats['Sequence_Separation'].append(separation)
+                # Precision Evaluation
                 if verbosity >= 4:
-                    precision = self.score_precision(predictions=scores, k=k, category=separation)
-                else:
-                    precision = '-'
-                stats[precision_label].append(precision)
+                    for k in range(1, 11):
+                        if k == 1:
+                            precision_label = 'Precision (L)'
+                        else:
+                            precision_label = 'Precision (L/{})'.format(k)
+                        if precision_label not in stats:
+                            if len(stats['AUROC']) > 1:
+                                stats[precision_label] = ['-'] * (len(stats['AUROC']) - 1)
+                            else:
+                                stats[precision_label] = []
+                        precision = self.score_precision(predictions=scores, k=k, category=separation)
+                        stats[precision_label].append(precision)
         if verbosity >= 5:
             heatmap_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Heatmap'.format(dist), data_mat=scores,
                          output_dir=out_dir)

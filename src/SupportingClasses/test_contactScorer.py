@@ -1312,9 +1312,8 @@ class TestContactScorer(TestCase):
         coverages1 = np.random.RandomState(179424691).rand(79, 79)
         coverages1[np.tril_indices(79, 1)] = 0
         coverages1 += coverages1.T
-        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name='Contact_1a_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name='Contact_1a_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_1a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1324,9 +1323,8 @@ class TestContactScorer(TestCase):
                       seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
                       distances=self.scorer1.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer1.write_out_clustering_results(today=None, q_name=None, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name='Contact_1b_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer1.write_out_clustering_results(today=None, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name='Contact_1b_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_1b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1337,9 +1335,9 @@ class TestContactScorer(TestCase):
                       distances=self.scorer1.distances, adjacencies=A)
         os.remove(curr_path)
 
-        self.scorer1.write_out_clustering_results(today=today, q_name=self.scorer1.query, raw_scores=scores1,
-                                                  coverage_scores=coverages1, file_name=None, output_dir=save_dir)
-        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer1.query))
+        self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
+                                                  file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer1.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
         self.assertEqual(list(test_df.columns), header)
@@ -1366,9 +1364,8 @@ class TestContactScorer(TestCase):
         coverages2 = np.random.RandomState(179424691).rand(368, 368)
         coverages2[np.tril_indices(368, 1)] = 0
         coverages2 += coverages2.T
-        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name='Contact_2a_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name='Contact_2a_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_2a_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1378,9 +1375,8 @@ class TestContactScorer(TestCase):
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer2.write_out_clustering_results(today=None, q_name=None, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name='Contact_2b_Scores.tsv',
-                                                  output_dir=save_dir)
+        self.scorer2.write_out_clustering_results(today=None, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name='Contact_2b_Scores.tsv', output_dir=save_dir)
         curr_path = os.path.join(save_dir, 'Contact_2b_Scores.tsv')
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
@@ -1390,9 +1386,9 @@ class TestContactScorer(TestCase):
                       seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
-        self.scorer2.write_out_clustering_results(today=today, q_name=self.scorer2.query, raw_scores=scores2,
-                                                  coverage_scores=coverages2, file_name=None, output_dir=save_dir)
-        curr_path = os.path.join(save_dir, "{}_{}.etmipCVG.clustered.txt".format(today, self.scorer2.query))
+        self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
+                                                  file_name=None, output_dir=save_dir)
+        curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer2.query))
         self.assertTrue(os.path.isfile(curr_path))
         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
         self.assertEqual(list(test_df.columns), header)
@@ -1402,41 +1398,283 @@ class TestContactScorer(TestCase):
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
 
-    # def test_evaluate_predictor(self):
-    #     self.fail()
-    #
+    def test_evaluate_predictor(self):
+        out_dir = os.path.abspath('../Test')
+        today = str(datetime.date.today())
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        #
+        path1 = os.path.join(out_dir, '1c17A.fa')
+        etmipc1 = ETMIPC(path1)
+        time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
+                                         del_intermediate=False, low_mem=False)
+        print(time1)
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        for v in range(1, 6):
+            self.scorer1.evaluate_predictor(predictor=etmipc1, verbosity=v, out_dir=out_dir, dist='Any',
+                                            biased_w2_ave=None, unbiased_w2_ave=None, today=today)
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'Score_Evaluation_Dist-Any.txt')))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'Coverage_Evaluation_Dist-Any.txt')))
+            for c in etmipc1.tree_depth:
+                c_out_dir = os.path.join(out_dir, c)
+                self.assertTrue(os.path.isdir(c_out_dir))
+                if v >= 1:
+                    fn3 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
+                    self.assertTrue(os.path.isfile(fn3))
+                    os.remove(fn3)
+                if v >= 2:
+                    fn4 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.tsv')
+                    self.assertTrue(os.path.isfile(fn4))
+                    os.remove(fn4)
+                    fn5 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.eps')
+                    self.assertTrue(os.path.isfile(fn5))
+                    os.remove(fn5)
+                    fn6 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.tsv')
+                    self.assertTrue(os.path.isfile(fn6))
+                    os.remove(fn6)
+                    fn7 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.eps')
+                    self.assertTrue(os.path.isfile(fn7))
+                    os.remove(fn7)
+                if v >= 3:
+                    fn8 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Any'))
+                    self.assertTrue(os.path.isfile(fn8))
+                    os.remove(fn8)
+                    fn9 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Neighbors'))
+                    self.assertTrue(os.path.isfile(fn9))
+                    os.remove(fn9)
+                    fn10 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Short'))
+                    self.assertTrue(os.path.isfile(fn10))
+                    os.remove(fn10)
+                    fn11 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Medium'))
+                    self.assertTrue(os.path.isfile(fn11))
+                    os.remove(fn11)
+                    fn12 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Long'))
+                    self.assertTrue(os.path.isfile(fn12))
+                    os.remove(fn12)
+                if v >= 4:
+                    pass
+                if v == 5:
+                    fn13 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Heatmap.eps')
+                    self.assertTrue(os.path.isfile(fn13))
+                    os.remove(fn13)
+                    fn14 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Surface.eps')
+                    self.assertTrue(os.path.isfile(fn14))
+                    os.remove(fn14)
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+
     def test_evaluate_predictions(self):
+        out_dir = os.path.abspath('../Test')
+        today = str(datetime.date.today())
         #
         scores1 = np.random.RandomState(1234567890).rand(79, 79)
         scores1[np.tril_indices(79, 1)] = 0
         scores1 += scores1.T
-        out_dir = os.path.abspath('../Test')
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
         #
         prev_stats = None
         prev_b_w2_ave = None
         prev_u_w2_ave = None
+        full_len = None
         for v in range(1, 6):
-            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(scores=scores1, verbosity=v,
-                                                                                         out_dir=out_dir, dist='CB',
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(verbosity=v, out_dir=out_dir,
+                                                                                         scores=scores1,  dist='CB',
                                                                                          file_prefix='SCORER1_TEST',
                                                                                          stats=prev_stats,
                                                                                          biased_w2_ave=prev_b_w2_ave,
-                                                                                         unbiased_w2_ave=prev_u_w2_ave)
-            self.assertTrue('AUROC' in curr_stats)
-            self.assertTrue('Distance' in curr_stats)
-            self.assertTrue('Sequence_Separation' in curr_stats)
+                                                                                         unbiased_w2_ave=prev_u_w2_ave,
+                                                                                         today=today)
             # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            if v >= 1:
+                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
+                if v == 1:
+                    self.assertTrue(curr_stats == {})
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                fn2 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn2))
+                os.remove(fn2)
+                fn3 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn3))
+                os.remove(fn3)
+                fn4 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                if v == 2:
+                    self.assertTrue(curr_stats == {})
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            if v >= 3:
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                # Check that lengths are even multiples of previous runs
+                if full_len is None and curr_stats != {}:
+                    full_len = len(curr_stats['AUROC'])
+                self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
+                for key in curr_stats:
+                    # print(curr_stats['AUROC'])
+                    # print(curr_stats[key])
+                    self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
+                                     '{} does not match AUROC length'.format(key))
+                fn6 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Any'))
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Neighbors'))
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                fn8 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Short'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
+                fn9 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Medium'))
+                self.assertTrue(os.path.isfile(fn9))
+                os.remove(fn9)
+                fn10 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Long'))
+                self.assertTrue(os.path.isfile(fn10))
+                os.remove(fn10)
+            if v >= 4:
+                precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
+                                    'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
+                                    'Precision (L/9)', 'Precision (L/10)']
+                for l in precision_labels:
+                    self.assertTrue(l in curr_stats)
+                    self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
+            if v == 5:
+                fn11 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Heatmap.eps')
+                self.assertTrue(os.path.isfile(fn11))
+                os.remove(fn11)
+                fn12 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Surface.eps')
+                self.assertTrue(os.path.isfile(fn12))
+                os.remove(fn12)
             # Update
             prev_stats = curr_stats
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
-        # Test Verbosity 1, stats=None
-        # Test Verbosity 2, stats= prev_stats
-        # Test Verbosity 3, stats= prev_stats
-        # Test Verbosity 4, stats= prev_stats
-        # Test Verbosity 5, stats= prev_stats
-
-        self.fail()
+        #
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        #
+        prev_stats = None
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        full_len = None
+        for v in range(1, 6):
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictions(verbosity=v, out_dir=out_dir,
+                                                                                         scores=scores2, dist='CB',
+                                                                                         file_prefix='SCORER2_TEST',
+                                                                                         stats=prev_stats,
+                                                                                         biased_w2_ave=prev_b_w2_ave,
+                                                                                         unbiased_w2_ave=prev_u_w2_ave,
+                                                                                         today=today)
+            # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            if v >= 1:
+                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
+                print(self.query2)
+                print(fn1)
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
+                if v == 1:
+                    self.assertTrue(curr_stats == {})
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                fn2 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn2))
+                os.remove(fn2)
+                fn3 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn3))
+                os.remove(fn3)
+                fn4 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                if v == 2:
+                    self.assertTrue(curr_stats == {})
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            if v >= 3:
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                # Check that lengths are even multiples of previous runs
+                if full_len is None and curr_stats != {}:
+                    full_len = len(curr_stats['AUROC'])
+                self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
+                for key in curr_stats:
+                    # print(curr_stats['AUROC'])
+                    # print(curr_stats[key])
+                    self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
+                                     '{} does not match AUROC length'.format(key))
+                fn6 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Any'))
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Neighbors'))
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                fn8 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Short'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
+                fn9 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                            'Medium'))
+                self.assertTrue(os.path.isfile(fn9))
+                os.remove(fn9)
+                fn10 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
+                                                                                                             'Long'))
+                self.assertTrue(os.path.isfile(fn10))
+                os.remove(fn10)
+            if v >= 4:
+                precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
+                                    'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
+                                    'Precision (L/9)', 'Precision (L/10)']
+                for l in precision_labels:
+                    self.assertTrue(l in curr_stats)
+                    self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
+            if v == 5:
+                fn11 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Heatmap.eps')
+                self.assertTrue(os.path.isfile(fn11))
+                os.remove(fn11)
+                fn12 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Surface.eps')
+                self.assertTrue(os.path.isfile(fn12))
+                os.remove(fn12)
+            # Update
+            prev_stats = curr_stats
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
 
     def test_write_out_contact_scoring(self):
         def comp_function(df, seq, clusters, branches, scores, coverages):
@@ -1460,7 +1698,6 @@ class TestContactScorer(TestCase):
                 self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
                                 'Positions: {}\t{}'.format(pos1, pos2))
 
-
         def comp_nonunique_cluster_files(df1, df2, cluster1, cluster2):
             index1 = 'Raw_Score_{}'.format(cluster1 + 1)
             index2 = 'Raw_Score_{}'.format(cluster2 + 1)
@@ -1468,7 +1705,6 @@ class TestContactScorer(TestCase):
             col2 = np.array(df2.loc[:, index2])
             diff = np.sum(np.abs(col1 - col2))
             self.assertLess(diff, 1e-10)
-
 
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
