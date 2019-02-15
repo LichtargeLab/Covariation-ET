@@ -1398,33 +1398,83 @@ class TestContactScorer(TestCase):
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
 
-    # def test_evaluate_predictor(self):
-    #     out_dir = os.path.abspath('../Test')
-    #     today = str(datetime.date.today())
-    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-    #                '-']
-    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #     #
-    #     path1 = os.path.join(out_dir, '1c17A.fa')
-    #     etmipc1 = ETMIPC(path1)
-    #     time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
-    #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
-    #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-    #                                                                                   'linkage': 'ward'},
-    #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
-    #                                      del_intermediate=False, low_mem=False)
-    #     print(time1)
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     for v in range(1, 6):
-    #         self.scorer1.evaluate_predictor(predictor=etmipc1, verbosity=v, out_dir=out_dir, dist='Any',
-    #                                         biased_w2_ave=None, unbiased_w2_ave=None, today=today)
-    #         for c in etmipc1.tree_depth:
-    #             c_out_dir = os.path.join(out_dir, c)
-    #             self.assertTrue(os.path.isdir(c_out_dir))
-    #     #
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
+    def test_evaluate_predictor(self):
+        out_dir = os.path.abspath('../Test')
+        today = str(datetime.date.today())
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        #
+        path1 = os.path.join(out_dir, '1c17A.fa')
+        etmipc1 = ETMIPC(path1)
+        time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
+                                         del_intermediate=False, low_mem=False)
+        print(time1)
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        for v in range(1, 6):
+            self.scorer1.evaluate_predictor(predictor=etmipc1, verbosity=v, out_dir=out_dir, dist='Any',
+                                            biased_w2_ave=None, unbiased_w2_ave=None, today=today)
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'Score_Evaluation_Dist-Any.txt')))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'Coverage_Evaluation_Dist-Any.txt')))
+            for c in etmipc1.tree_depth:
+                c_out_dir = os.path.join(out_dir, c)
+                self.assertTrue(os.path.isdir(c_out_dir))
+                if v >= 1:
+                    fn3 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
+                    self.assertTrue(os.path.isfile(fn3))
+                    os.remove(fn3)
+                if v >= 2:
+                    fn4 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.tsv')
+                    self.assertTrue(os.path.isfile(fn4))
+                    os.remove(fn4)
+                    fn5 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.eps')
+                    self.assertTrue(os.path.isfile(fn5))
+                    os.remove(fn5)
+                    fn6 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.tsv')
+                    self.assertTrue(os.path.isfile(fn6))
+                    os.remove(fn6)
+                    fn7 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.eps')
+                    self.assertTrue(os.path.isfile(fn7))
+                    os.remove(fn7)
+                if v >= 3:
+                    fn8 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Any'))
+                    self.assertTrue(os.path.isfile(fn8))
+                    os.remove(fn8)
+                    fn9 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                       'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Neighbors'))
+                    self.assertTrue(os.path.isfile(fn9))
+                    os.remove(fn9)
+                    fn10 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Short'))
+                    self.assertTrue(os.path.isfile(fn10))
+                    os.remove(fn10)
+                    fn11 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Medium'))
+                    self.assertTrue(os.path.isfile(fn11))
+                    os.remove(fn11)
+                    fn12 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
+                                        'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Long'))
+                    self.assertTrue(os.path.isfile(fn12))
+                    os.remove(fn12)
+                if v >= 4:
+                    pass
+                if v == 5:
+                    fn13 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Heatmap.eps')
+                    self.assertTrue(os.path.isfile(fn13))
+                    os.remove(fn13)
+                    fn14 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Surface.eps')
+                    self.assertTrue(os.path.isfile(fn14))
+                    os.remove(fn14)
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
 
     def test_evaluate_predictions(self):
         out_dir = os.path.abspath('../Test')
