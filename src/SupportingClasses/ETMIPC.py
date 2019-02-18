@@ -85,7 +85,7 @@ class ETMIPC(object):
         self.branch_scores = None
         self.scores = None
         self.coverage = None
-        self.times = None
+        self.time = None
         self.processes = None
         self.low_mem = None
         self.output_dir = None
@@ -362,15 +362,15 @@ class ETMIPC(object):
         self._score_clusters(evidence=evidence, aa_mapping=aa_mapping)
         self.nongap_counts = {}
         self.cluster_scores = {}
-        self.times = {}
+        self.time = {}
         for c in self.cluster_mapping:
             if c[0] not in self.nongap_counts:
                 self.nongap_counts[c[0]] = {}
                 self.cluster_scores[c[0]] = {}
-                self.times[c[0]] = 0
+                self.time[c[0]] = 0
             self.nongap_counts[c[0]][c[1]] = self.unique_clusters[self.cluster_mapping[c]]['nongap_counts']
             self.cluster_scores[c[0]][c[1]] = self.unique_clusters[self.cluster_mapping[c]]['cluster_scores']
-            self.times[c[0]] += self.unique_clusters[self.cluster_mapping[c]]['time']
+            self.time[c[0]] += self.unique_clusters[self.cluster_mapping[c]]['time']
 
     def calculate_branch_scores(self, combine_clusters):
         """
@@ -389,7 +389,7 @@ class ETMIPC(object):
         self.branch_scores = {}
         for res in pool_res.get():
             self.branch_scores[res[0]] = res[1]
-            self.times[res[0]] += res[2]
+            self.time[res[0]] += res[2]
 
     def calculate_final_scores(self, combine_branches):
         """
@@ -412,7 +412,7 @@ class ETMIPC(object):
         for res in pool_res.get():
             self.scores[res[0]] = res[1]
             self.coverage[res[0]] = res[2]
-            self.times[res[0]] += res[3]
+            self.time[res[0]] += res[3]
 
     def write_out_scores(self, curr_date):
         """
@@ -427,7 +427,7 @@ class ETMIPC(object):
         pool = Pool(processes=self.processes, initializer=pool_init_write_score, initargs=(self, curr_date))
         pool_res = pool.map_async(write_score, self.tree_depth)
         for res in pool_res.get():
-            self.times[res[0]] += res[1]
+            self.time[res[0]] += res[1]
 
     def clear_intermediate_files(self):
         """
@@ -502,7 +502,7 @@ class ETMIPC(object):
             self.low_mem = loaded_vars[1]
             self.unique_clusters = loaded_vars[2]
             self.cluster_mapping = loaded_vars[3]
-            self.times = loaded_vars[4]
+            self.time = loaded_vars[4]
             loaded_data = np.load(serialized_path)
             self.scores = loaded_data['scores'][()]
             self.coverage = loaded_data['coverage'][()]
@@ -519,15 +519,15 @@ class ETMIPC(object):
             self.calculate_final_scores(combine_branches=combine_branches)
             self.write_out_scores(curr_date=curr_date)
             end = time()
-            self.times['Total'] = end - start
-            pickle.dump((self.tree_depth, self.low_mem, self.unique_clusters, self.cluster_mapping, self.times),
+            self.time['Total'] = end - start
+            pickle.dump((self.tree_depth, self.low_mem, self.unique_clusters, self.cluster_mapping, self.time),
                         open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
             np.savez(serialized_path, scores=self.scores, coverage=self.coverage, branches=self.branch_scores,
                      clusters=self.cluster_scores, nongap_counts=self.nongap_counts)
             if self.low_mem and del_intermediate:
                 self.clear_intermediate_files()
-        print('Completing cET-MIp analysis took {} min'.format(self.times['Total'] / 60.0))
-        return self.times['Total']
+        print('Completing cET-MIp analysis took {} min'.format(self.time['Total'] / 60.0))
+        return self.time['Total']
 
     # def explore_positions(self, i, j, aa_dict):
     #     """
