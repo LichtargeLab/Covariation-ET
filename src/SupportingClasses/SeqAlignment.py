@@ -225,7 +225,7 @@ class SeqAlignment(object):
         Args:
             identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
         Returns:
-            float. The effective alignment size of the current alignment (must be <= SeqAlignment.size)
+            float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)
         """
         if self.distance_matrix is None:
             self.compute_distance_matrix()
