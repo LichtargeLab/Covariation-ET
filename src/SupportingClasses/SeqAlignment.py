@@ -539,14 +539,16 @@ class SeqAlignment(object):
 
     def determine_usable_positions(self, ratio):
         """
-        Determine which positions in the alignment can be used for analysis.
+        Determine Usable Positions
+
+        Determine which positions in the alignment can be used for analysis if number of gaps is being considered.
 
         Args:
             ratio (float): The maximum percentage of sequences which can have a gap at a specific position before it can
             no longer be used for analysis.
         Returns:
-            numpy ndarray. The positions for which this alignment meets the specified ratio.
-            numpy ndarray. The number of sequences which do not have gaps at each position in the sequence alignment.
+            numpy ndarray: The positions for which this alignment meets the specified ratio.
+            numpy ndarray: The number of sequences which do not have gaps at each position in the sequence alignment.
         """
         per_column = np.array([self.alignment[:, x].count('-') for x in range(self.seq_length)], dtype=float)
         percent_gaps = per_column / self.size
