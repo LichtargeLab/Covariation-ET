@@ -361,38 +361,29 @@ class SeqAlignment(object):
         new_labels = [curr_to_new[c] for c in curr]
         return new_labels
 
-    # def set_tree_ordering(self, t_order=None):
-    #     """
-    #     Determine the ordering of the sequences from the full clustering tree
-    #     used when separating the alignment into sub-clusters.
-    #
-    #     Args:
-    #         t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
-    #         SeqAlignment.
-    #     """
-    #     if t_order is not None:
-    #         self.tree_order = [x for x in t_order if x in self.seq_order]
-    #     elif self.tree_order is None:
-    #         df = pd.DataFrame(self.alignment_matrix,
-    #                           columns=list(self.query_sequence),
-    #                           index=self.tree_order)
-    #         hm = clustermap(df, method='ward', metric='euclidean',
-    #                         z_score=None, standard_scale=None, row_cluster=True,
-    #                         col_cluster=False, cmap='jet')
-    #         re_indexing = hm.dendrogram_row.reordered_ind
-    #         plt.clf()
-    #         self.tree_order = [self.seq_order[i] for i in re_indexing]
-    #     else:
-    #         pass
-
     def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
         """
         Determine the ordering of the sequences from the full clustering tree
         used when separating the alignment into sub-clusters.
 
         Args:
-            t_order (list): An ordered list of sequence IDs which contains at least the sequence IDs represented in this
-            SeqAlignment.
+            tree_depth (None, tuple, or list): The levels of the phylogenetic tree to consider when analyzing this
+            alignment, which determines the attributes sequence_assignments and tree_ordering. The following options are
+            available:
+                None: All branches from the top of the tree (1) to the leaves (size) will be analyzed.
+                tuple: If a tuple is provided with two ints these will be taken as a range, the top of the tree (1), and
+                all branches between the first and second (non-inclusive) integer will be analyzed.
+                list: All branches listed will be analyzed, as well as the top of the tree (1) even if not listed.
+            cache_dir (str): The path to the directory where the clustering model can be stored for access later when
+            identifying different numbers of clusters.
+            clustering_args (dict): Additional arguments needed by various clustering/tree building algorithms. If no
+            other arguments are needed (as is the case when using 'random' or default settings for 'agglomerative') the
+            dictionary can be left empty.
+            clustering (str): The type of clustering/tree building to use. Current options are:
+                agglomerative
+                random
+        Return:
+            list: The explicit list of tree levels analyzed, as described above in the tree_depth Args section.
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'random': self._random_assignment}
         curr_order = [0] * self.size
@@ -416,14 +407,6 @@ class SeqAlignment(object):
             remove_dir = False
         for k in tree_depth:
             cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, **clustering_args)
-            # if clustering == 'agglomerative':
-            #     print(cache_dir)
-            #     print(clustering_args)
-            #     cluster_list = self._agglomerative_clustering(n_cluster=k, cache_dir=cache_dir, **clustering_args)
-            # elif clustering == 'random':
-            #     cluster_list = self._random_assignment(new_clusters=k, cache_dir=cache_dir)
-            # else:
-            #     raise NotImplemented('{} clustering method not implemented'.format(clustering))
             new_clusters = self._re_label_clusters(curr_order, cluster_list)
             curr_order = new_clusters
             sequence_assignments[k] = {}
