@@ -421,6 +421,18 @@ class SeqAlignment(object):
         return tree_depth
 
     def visualize_tree(self, out_dir=None):
+        """
+        Visualize Tree
+
+        This method takes the sequence_assignments attribute and visualizes them as a heatmap so that the way clusters
+        change throughout the tree can be easily seen.
+
+        Args:
+            out_dir (str): The location to which the tree visualization should be saved.
+        Returns:
+            pd.Dataframe: The data used for generating the heatmap, with sequence IDs as the index and tree level/branch
+            as the columns.
+        """
         if out_dir is None:
             out_dir = os.getcwd()
         if self.sequence_assignments is None:
