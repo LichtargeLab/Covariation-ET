@@ -21,7 +21,26 @@ import os
 
 class SeqAlignment(object):
     """
-    classdocs
+    This class is meant to represent the type of alignment which is usually used within our lab. The sequence of
+    interest is represented by an ID that begins with ">query_" followed by the chosen identifier for that sequence.
+
+    Attributes:
+        file_name (str): The path to the file from which the alignment can be parsed.
+        query_id (str): A sequence identifier prepended with ">query_", which should be the identifier for query
+        sequence in the alignment file.
+        alignment (Bio.Align.MultipleSeqAlignment): A biopython representation for a multiple sequence alignment and its
+        sequences.
+        seq_order (list): List of sequence ids in the order in which they were parsed from the alignment file.
+        query_sequence (str): The sequence matching the sequence identifier given by the query_id attribute.
+        seq_length (int): The length of the query sequence.
+        size (int): The number of sequences in the alignment represented by this object.
+        distance_matrix (np.array): A matrix with the identity scores between sequences in the alignment.
+        tree_order (list): A list of sequence IDs ordered as they would be in the leaves of a phylogenetic tree, or some
+        other purposeful ordering, which should be observed when writing the alignment to file.
+        sequence_assignments (dict): An attribute used to track the assignment of sequences to clusters or branches at
+        different levels of a phylogenetic/clustering tree. The key for the first level of the dictionary corresponds to
+        the level of the tree, while the key in the second level corresponds to the specific branch cluster, and the
+        value corresponds to the sequence ID.
     """
 
     def __init__(self, file_name, query_id):
@@ -31,31 +50,7 @@ class SeqAlignment(object):
         Initiates an instance of the SeqAlignment class which stores the
         following data:
 
-        file_name: str
-            The file path to the file from which the alignment can be parsed.
-        query_id: str
-            The provided query_id prepended with >query_, which should be the
-            identifier for query sequence in the alignment file.
-        alignment: dict
-            A dictionary mapping sequence IDs with their sequences as parsed
-            from the alignment file.
-        seq_order: list
-            List of sequence ids in the order in which they were parsed from the
-            alignment file.
-        query_sequence: str
-            The sequence matching the sequence identifier give by the query_id
-            variable.
-        seq_length: int
-            The length of the query sequence.
-        size: int
-            The number of sequences in the alignment represented by this object.
-        distance_matrix: np.array
-            A matrix with the identity scores between sequences in the
-            alignment.
-        tree_order: list
-            A list of query IDs ordered as they should be for sequence writing
-            to file. This should reflect some purposeful ordering of the
-            sequences such as sequence clustering/phylogeny.
+
         """
         if file_name.startswith('..'):
             file_name = os.path.abspath(os.path.join(os.getcwd(), file_name))
