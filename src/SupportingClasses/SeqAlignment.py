@@ -109,9 +109,8 @@ class SeqAlignment(object):
 
     def write_out_alignment(self, file_name):
         """
-        This method writes out the alignment in the standard fa format.  Any
-        sequence which is longer than 60 positions will be split over multiple
-        lines with 60 characters per line.
+        This method writes out the alignment in the standard fa format.  Any sequence which is longer than 60 positions
+        will be split over multiple lines with 60 characters per line.
 
         Args:
             file_name (str): Path to file where the alignment should be written.
