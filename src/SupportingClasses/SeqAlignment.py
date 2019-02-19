@@ -603,13 +603,22 @@ class SeqAlignment(object):
         """
         Heatmap Plot
 
-        This method creates a heatmap using the Seaborn plotting package. The
-        data used can come from the summary_matrices or coverage data.
+        This method creates a heatmap of the alignment so it can be easily visualized. A numerical representation of the
+        amino acids is used so that cells can be colored differently for each amino acid. The ordering along the y-axis
+        reflects the tree_order attribute, while the ordering along the x-axis represents the sequence positions from
+        0 to seq_length.
 
         Args:
-            name (str): Name used as the title of the plot and the filename for the saved figure.
+            name (str): Name used as the title of the plot and the filename for the saved figure (spaces will be
+            replaced by underscores when saving the plot).
+            aa_dict (dict): Dictionary mapping characters which can appear in the alignment to digits for
+            representation.
             out_dir (str): Path to directory where the heatmap image file should be saved. If None (default) then the
             image will be stored in the current working directory.
+            save (bool): Whether or not to save the plot to file.
+        Returns:
+            pd.Dataframe: The data used to generate the heatmap.
+            matplotlib.Axes: The plotting object created when generating the heatmap.
         """
         start = time()
         df = pd.DataFrame(self._alignment_to_num(aa_dict), index=self.seq_order,
@@ -620,7 +629,6 @@ class SeqAlignment(object):
             cmap = matplotlib.cm.get_cmap('jet', len(aa_dict))
         else:
             cmap = 'jet'
-        # hm = heatmap(data=df, cmap='jet', center=10.0, vmin=0.0, vmax=20.0,
         hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
