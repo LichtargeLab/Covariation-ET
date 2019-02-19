@@ -131,7 +131,8 @@ class SeqAlignment(object):
             indices_to_keep (list, numpy.array, or iterable in sorted order): The indices to keep when creating a new
             alignment.
         Returns:
-            Bio.Align. A new alignment which is a subset of self.alignment, specified by the passed in list or array.
+            Bio.Align.MultipleSeqAlignment: A new alignment which is a subset of self.alignment, specified by the passed
+            in list or array.
 
         Example Usage:
         >>> self._subset_columns(query_ungapped_ind)
