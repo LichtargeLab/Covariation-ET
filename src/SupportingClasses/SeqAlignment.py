@@ -583,12 +583,14 @@ class SeqAlignment(object):
         """
         Alignment to num
 
-        Converts an alignment dictionary to a numerical representation.  This
-        method updates the alignment_matrix class variable.
+        Converts an Bio.Align.MultipleSeqAlignment object into a numerical matrix representation.
 
         Args:
             aa_dict (dict): Dictionary mapping characters which can appear in the alignment to digits for
             representation.
+        Returns:
+            np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
+            and gaps from the current alignment.
         """
         alignment_to_num = np.zeros((self.size, self.seq_length))
         for i in range(self.size):
