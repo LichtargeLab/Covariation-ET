@@ -514,6 +514,19 @@ class SeqAlignment(object):
         return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
 
     def generate_positional_sub_alignment(self, i, j):
+        """
+        Generate Positional Sub Alignment
+
+        This method generates an alignment with only two specified columns, meant to enable the interrogation of
+        covariance scores.
+
+        Args:
+            i (int): The first position to consider when making a sub alignment of two specific positions.
+            j (int): The first position to consider when making a sub alignment of two specific positions.
+        Returns:
+            SeqAlignment: A new subalignment containing all sequences from the current SeqAlignment object but with
+            only the two sequence positions (columns) specified.
+        """
         new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
         new_alignment.query_id = self.query_id
         new_alignment.query_sequence = self.query_sequence[i] + self.query_sequence[j]
