@@ -45,15 +45,20 @@ class SeqAlignment(object):
 
     def __init__(self, file_name, query_id):
         """
-        Constructor
+        __init__
 
-        Initiates an instance of the SeqAlignment class which stores the
-        following data:
+        Initiates an instance of the SeqAlignment class represents a multiple sequence alignment such that common
+        actions taken on an alignment in the lab are simple to perform.
 
-
+        Args:
+            file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is
+                used (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
+            query_id (str): The sequence identifier of interest. When stored by the class ">query_" will be prepended
+                because it is assumed that alignments used within the lab highlight the sequence of interest in this
+                way.
         """
         if file_name.startswith('..'):
-            file_name = os.path.abspath(os.path.join(os.getcwd(), file_name))
+            file_name = os.path.abspath(file_name)
         self.file_name = file_name
         self.query_id = '>query_' + query_id
         self.alignment = None
