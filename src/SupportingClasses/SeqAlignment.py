@@ -492,6 +492,22 @@ class SeqAlignment(object):
         return new_alignment
 
     def get_branch_cluster(self, k, c):
+        """
+        Get Branch Cluster
+
+        Thus method generates a sub alignment based on a specific level/branch of the tree being analyzed and a specific
+        node/cluster within that level/branch.
+
+        Args:
+            k (int): The branching level (root <= k <= leaves where root = 1, leaves = size) to which the desired
+            set of sequences belongs.
+            c (int): The cluster/node in the specified branching level (1 <= c <= k) to which the desired set of
+            sequences belongs.
+        Returns:
+            SeqAlignment: A new SeqAlignment object which is a subset of the current SeqAlignment corresponding to the
+            sequences in a specific branching level and cluster of the phylogenetic tree based on this multiple sequence
+            alignment.
+        """
         if self.sequence_assignments is None:
             self.set_tree_ordering()
         cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
