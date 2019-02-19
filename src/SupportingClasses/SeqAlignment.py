@@ -558,20 +558,19 @@ class SeqAlignment(object):
 
     def identify_comparable_sequences(self, pos1, pos2):
         """
-        For two specified sequence positions identify the sequences which are
-        not gaps in either and return them.
+        For two specified sequence positions identify the sequences which are not gaps in either and return them.
 
         Args:
             pos1 (int): First position to check in the sequence alignment.
             pos2 (int): Second position to check in the sequence alignment.
         Returns:
-            np.array. The column for position 1 which was specified, where the amino acids are not gaps in position 1 or
+            np.array: The column for position 1 which was specified, where the amino acids are not gaps in position 1 or
             position 2.
-            np.array. The column for position 2 which was specified, where the amino acids are not gaps in position 1 or
+            np.array: The column for position 2 which was specified, where the amino acids are not gaps in position 1 or
             position 2.
-            np.array. The array of indices for which the positions were not gapped.  This corresponds to the sequences
+            np.array: The array of indices for which the positions were not gapped.  This corresponds to the sequences
             where there were no gaps in the alignment at those positions.
-            int. Number of comparable positions, this will be less than or equal to the SeqAlignment.size variable.
+            int: Number of comparable positions, this will be less than or equal to the SeqAlignment.size variable.
         """
         column_i = np.array(list(self.alignment[:, pos1]), dtype=str)
         indices1 = (column_i != '-') * 1
