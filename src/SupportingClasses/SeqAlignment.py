@@ -74,13 +74,14 @@ class SeqAlignment(object):
         """
         Import alignments:
 
-        This method imports the alignments into the class and forces all
-        non-amino acids to take on the standard gap character "-".  This
-        updates the alignment, seq_order, query_sequence, seq_length, and size
-        class variables.
+        This method imports the alignments using the AlignIO.read method expecting the 'fasta' format. It then updates
+        the alignment, seq_order, query_sequence, seq_length, and size class class attributes.
 
         Args:
-            save_file (str): Path to file in which the desired alignment was stored previously.
+            save_file (str, optional): Path to file in which the desired alignment was should be stored, or was stored
+            previously. If the alignment was previously imported and stored at this location it will be loaded via
+            pickle instead of reprocessing the the file in the file_name attribute.
+            verbose (bool, optional): Whether or not to print the time spent while importing the alignment or not.
         """
         if verbose:
             start = time()
@@ -89,6 +90,7 @@ class SeqAlignment(object):
         else:
             alignment = AlignIO.read(self.file_name, 'fasta')
             seq_order = []
+            query_sequence = None
             for record in alignment:
                 seq_order.append(record.id)
                 if record.id == self.query_id[1:]:
