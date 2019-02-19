@@ -457,14 +457,13 @@ class SeqAlignment(object):
         """
         Initializes a new alignment which is a subset of the current alignment.
 
-        This method creates a new alignment which contains only sequences
-        relating to a set of provided sequence ids.
+        This method creates a new alignment which contains only sequences relating to a set of provided sequence ids.
 
         Args:
             sequence_ids (list): A list of strings which are sequence identifiers for sequences in the current
             alignment. Other sequence ids will be skipped.
         Returns:
-            SeqAlignment. A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
+            SeqAlignment: A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
             sequence.  The seq_order will be updated to only those passed in ids which are also in the current
             alignment, preserving their ordering from the current SeqAlignment object. The alignment will contain only
             the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
@@ -486,13 +485,10 @@ class SeqAlignment(object):
                 sub_seq_order.append(self.alignment[i].id)
             if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
                 sub_tree_order.append(self.tree_order[i])
-        # sub_records = [rec for rec in self.alignment if rec.id in sequence_ids]
-        # new_alignment.seq_order = [x.id for x in sub_records]
         new_alignment.alignment = MultipleSeqAlignment(sub_records)
         new_alignment.seq_order = sub_seq_order
         new_alignment.tree_order = sub_tree_order
         new_alignment.size = len(new_alignment.seq_order)
-        # new_alignment.tree_order = [x for x in self.tree_order if x in sequence_ids]
         return new_alignment
 
     def get_branch_cluster(self, k, c):
