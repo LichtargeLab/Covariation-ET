@@ -161,13 +161,13 @@ class SeqAlignment(object):
         """
         Remove Gaps
 
-        Removes all gaps from the query sequence and removes characters at the
-        corresponding positions in all other sequences. This method updates the
-        class variables alignment, query_sequence, and seq_length.
+        Removes all gaps from the query sequence and removes characters at the corresponding positions in all other
+        sequences. This method updates the class variables alignment, query_sequence, and seq_length.
 
         Args:
-            save_file (str): Path to a file where the alignment with gaps in the query sequence removed was stored
-            previously.
+            save_file (str): Path to a file where the alignment with gaps in the query sequence removed should be stored
+            or was stored previously. If the updated alignment was stored previously it will be loaded from the
+            specified save_file instead of processing the current alignment.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
@@ -178,7 +178,7 @@ class SeqAlignment(object):
             if len(query_ungapped_ind) > 0:
                 new_alignment = self._subset_columns(query_ungapped_ind)
             else:
-                pass
+                new_alignment = self.alignment
             if save_file is not None:
                 pickle.dump(new_alignment, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         self.alignment = new_alignment
