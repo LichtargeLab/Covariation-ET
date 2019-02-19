@@ -191,17 +191,19 @@ class SeqAlignment(object):
         """
         Distance matrix
 
-        Computes the sequence identity distance between a set of sequences and
-        returns a matrix of the pairwise distances.  This method updates the
-        distance_matrix class variable.
+        Computes the sequence identity distance between a set of sequences and returns a matrix of the pairwise
+        distances.  This method updates the distance_matrix class variable.
 
         Args:
-            save_file (str): The path for an .npz file containing distances between sequences in the alignment (leave
-            out the .npz as it will be added automatically.
+            save_file (str): The path for an .npz file containing distances between sequences in the alignment, when
+            saving the ".npz" suffix will be added if left out of the provided path.
         """
         start = time()
-        if (save_file is not None) and os.path.exists(save_file + '.npz'):
-            value_matrix = np.load(save_file + '.npz')['X']
+        if (save_file is not None) and (os.path.exists(save_file) or os.path.exists(save_file + '.npz')):
+            if save_file.endswith(".npz"):
+                value_matrix = np.load(save_file)['X']
+            else:
+                value_matrix = np.load(save_file + '.npz')['X']
         else:
             calculator = DistanceCalculator('identity')
             value_matrix = np.array(calculator.get_distance(self.alignment))
