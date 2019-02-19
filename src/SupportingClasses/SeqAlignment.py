@@ -238,70 +238,35 @@ class SeqAlignment(object):
             raise ValueError('Effective alignment size is greater than the original alignment size.')
         return effective_alignment_size
 
-    # def agg_clustering(self, n_cluster, cache_dir):
-    #     """
-    #     Agglomerative clustering
-    #
-    #     Performs agglomerative clustering on a matrix of pairwise distances
-    #     between sequences in the alignment being analyzed.
-    #
-    #     Args:
-    #         n_cluster (int): The number of clusters to separate sequences into.
-    #         cache_dir (str): The path to the directory where the clustering model can be stored for access later when
-    #         identifying different numbers of clusters.
-    #     Returns:
-    #         dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
-    #         value.
-    #         set. A unique sorted set of the cluster values.
-    #     """
-    #     start = time()
-    #     affinity = 'euclidean'
-    #     linkage = 'ward'
-    #     model = AgglomerativeClustering(affinity=affinity, linkage=linkage,
-    #                                     n_clusters=n_cluster, memory=cache_dir,
-    #                                     compute_full_tree=True)
-    #     model.fit(self.distance_matrix)
-    #     # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
-    #     cluster_list = model.labels_.tolist()
-    #     ################################################################################################################
-    #     #       Mapping Clusters to Sequences
-    #     ################################################################################################################
-    #     cluster_labels = set(cluster_list)
-    #     cluster_dict = {}
-    #     cluster_ordering = {}
-    #     for i in range(len(cluster_list)):
-    #         seq_id = self.seq_order[i]
-    #         index = self.tree_order.index(seq_id)
-    #         key = cluster_list[i]
-    #         if key not in cluster_dict:
-    #             cluster_dict[key] = []
-    #             cluster_ordering[key] = index
-    #         if index < cluster_ordering[key]:
-    #             cluster_ordering[key] = index
-    #         cluster_dict[key].append(self.seq_order[i])
-    #     sorted_cluster_labels = sorted(cluster_ordering, key=lambda k: cluster_ordering[k])
-    #     cluster_dict2 = {}
-    #     for i in range(len(cluster_labels)):
-    #         cluster_dict2[i] = cluster_dict[sorted_cluster_labels[i]]
-    #     end = time()
-    #     print('Performing agglomerative clustering took {} min'.format((end - start) / 60.0))
-    #     return cluster_dict2, cluster_labels
-
     def _agglomerative_clustering(self, n_cluster, cache_dir=None, affinity='euclidean', linkage='ward'):
         """
         Agglomerative clustering
 
-        Performs agglomerative clustering on a matrix of pairwise distances
-        between sequences in the alignment being analyzed.
+        Performs agglomerative clustering on a matrix of pairwise distances between sequences in the alignment being
+        analyzed.
 
         Args:
             n_cluster (int): The number of clusters to separate sequences into.
             cache_dir (str): The path to the directory where the clustering model can be stored for access later when
             identifying different numbers of clusters.
+            affinity (str): The affinity/distance calculation method to use when operating on the distance values for
+            clustering. Further details can be found at: https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html#sklearn.cluster.AgglomerativeClustering.
+            The options are:
+                euclidean (default)
+                l1
+                l2
+                manhattan
+                cosin
+                precomputed
+            linkage (str): The linkage algorithm to use when building the agglomerative clustering tree structure.
+            Further details can be found at: https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html#sklearn.cluster.AgglomerativeClustering.
+            The options are:
+                ward (default)
+                complete
+                average
+                single
         Returns:
-            dict. A dictionary with cluster number as the key and a list of sequences in the specified cluster as a
-            value.
-            set. A unique sorted set of the cluster values.
+            list: The cluster assignments for each sequence in the alignment.
         """
         if self.distance_matrix is None:
             self.compute_distance_matrix()
