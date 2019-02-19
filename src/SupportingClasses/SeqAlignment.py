@@ -322,11 +322,24 @@ class SeqAlignment(object):
 
     @staticmethod
     def _re_label_clusters(prev, curr):
+        """
+        Relabel Clusters
+
+        This method takes in a two sets of cluster labels and ensures that the new one (curr) aggrees in its ordering
+        with the previous one (prev). This makes for easier tracking of matching clusters when using methods which do
+        not have stable cluster labels even if the clusters themselves are stable.
+
+        Args:
+            prev (list): A list of cluster labels.
+            curr (list): A list of cluster labels which may need to change, must have the same length as prev.
+        Returns:
+            list: A new list of cluster labels based on the passed in list (curr). Cluster assignment does not change,
+            i.e. the same elements are together in clusters, but the labels change to represent the labels of those
+            clusters in the previous (prev) set of labels.
+        """
         if len(prev) != len(curr):
             raise ValueError('Cluster labels do not match in length: {} vs {}.'.format(len(prev), len(curr)))
         prev_labels = sorted(set(prev))
-        # print('Prev Labels')
-        # print(prev_labels)
         curr_labels = set()
         prev_to_curr = {}
         for i in range(len(prev)):
@@ -338,8 +351,6 @@ class SeqAlignment(object):
                 curr_labels.add(curr_c)
                 prev_to_curr[prev_c]['clusters'].append(curr_c)
                 prev_to_curr[prev_c]['indices'].append(i)
-        # print('Prev_To_Curr')
-        # print(prev_to_curr)
         curr_to_new = {}
         counter = 0
         for c in prev_labels:
@@ -347,8 +358,6 @@ class SeqAlignment(object):
                                       key=lambda x: x[1]))[0]:
                 curr_to_new[curr_c] = counter
                 counter += 1
-        # print('Curr_To_New')
-        # print(curr_to_new)
         new_labels = [curr_to_new[c] for c in curr]
         return new_labels
 
