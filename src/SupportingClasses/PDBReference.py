@@ -53,11 +53,10 @@ class PDBReference(object):
 
     def import_pdb(self, structure_id, save_file=None):
         """
-        import_pdb
+        Import PDB
 
-        This method imports a PDB files information generating all data described in the Attribute list. Each list
-        contains the Amino Acid 1-letter abbreviations and residue number. This method updates the following class
-        variables: structure, chains, seq, pdb_residue_list, residue_pos, size.
+        This method imports a PDB file's information generating all data described in the Attribute list. This is
+        achieved using the Bio.PDB package.
 
         Args:
             structure_id (str): The name of the query which the structure represents.
