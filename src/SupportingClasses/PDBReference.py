@@ -34,13 +34,12 @@ class PDBReference(object):
 
     def __init__(self, pdb_file):
         """
-        Constructor
+        __init__
 
         Initiates an instance of the PDBReference class which stores structural data for reference.
 
         Args:
-            pdb_file : str
-                Path to the pdb file being represented by this instance.
+            pdb_file (str): Path to the pdb file being represented by this instance.
         """
         if pdb_file.startswith('..'):
             pdb_file = os.path.abspath(os.path.join(os.getcwd(), pdb_file))
