@@ -18,24 +18,18 @@ class PDBReference(object):
     meant to serve as a reference for sequence based analyses performed within the lab.
 
     Attributes:
-        file_name: str
-            The file name or path to the desired PDB file.
-        structure: Bio.PDB.Structure.Structure
-            The Structure object parsed in from the PDB file, all other data in this class can be parsed out of this
-            object but additional class attributes are generated (described below) to make these easier to access.
-        chains : set
-            The chains which are present in this proteins structure.
-        seq: dict
-            Sequence of the structure parsed in from the PDB file. For each chain in the structure (dict key) one
-            sequence is stored (dict value).
-        pdb_residue_list : dict
-            A sorted list of residue numbers (dict value) from the PDB file stored for each chain (dict key) in the
-            structure.
-        residue_pos : dict
-            A dictionary mapping chain identifier to another dictionary that maps residue number to the name of the
-            residue (amino acid) at that position.
-        size: dict
-            The length (dict value) of each amino acid chain (dict key) defining this structure.
+        file_name (str): The file name or path to the desired PDB file.
+        structure (Bio.PDB.Structure.Structure): The Structure object parsed in from the PDB file, all other data in
+        this class can be parsed out of this object but additional class attributes are generated (described below) to
+        make these easier to access.
+        chains (set): The chains which are present in this proteins structure.
+        seq (dict): Sequence of the structure parsed in from the PDB file. For each chain in the structure (dict key)
+        one sequence is stored (dict value).
+        pdb_residue_list (dict): A sorted list of residue numbers (dict value) from the PDB file stored for each chain
+        (dict key) in the structure.
+        residue_pos (dict): A dictionary mapping chain identifier to another dictionary that maps residue number to the
+        name of the residue (amino acid) at that position.
+        size (dict): The length (dict value) of each amino acid chain (dict key) defining this structure.
     """
 
     def __init__(self, pdb_file):
