@@ -106,6 +106,40 @@ class TestETMIPC(TestCase):
         self.assertIsNone(etmipc2.low_mem)
         self.assertIsNone(etmipc2.output_dir)
 
+    def test_get_sub_alignment(self):
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = os.path.abspath('../Test/')
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 6
+        etmipc1._generate_sub_alignments()
+        for tree_position in etmipc1.unique_clusters:
+            self.assertEqual(etmipc1.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
+                             etmipc1.unique_clusters[tree_position]['sub_alignment'])
+            for tree_position2 in etmipc1.unique_clusters[tree_position]['tree_positions']:
+                self.assertEqual(etmipc1.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
+                                 etmipc1.get_sub_alignment(branch=tree_position2[0], cluster=tree_position2[1]))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = os.path.abspath('../Test/')
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2._generate_sub_alignments()
+        for tree_position in etmipc2.unique_clusters:
+            self.assertEqual(etmipc2.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
+                             etmipc2.unique_clusters[tree_position]['sub_alignment'])
+            for tree_position2 in etmipc2.unique_clusters[tree_position]['tree_positions']:
+                self.assertEqual(etmipc2.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
+                                 etmipc2.get_sub_alignment(branch=tree_position2[0], cluster=tree_position2[1]))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+
     def test_import_alignment(self):
         def check_tree(seq_dict, curr, prev=None):
             if prev is None:
@@ -608,40 +642,6 @@ class TestETMIPC(TestCase):
                                                  if x in etmipc2.alignment.sequence_assignments[k][c]])
             self.assertEqual(sub_aln.tree_order, [x for x in etmipc2.alignment.tree_order
                                                   if (x in etmipc2.alignment.sequence_assignments[k][c])])
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-
-    def test_get_sub_alignment(self):
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = os.path.abspath('../Test/')
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        etmipc1.processes = 6
-        etmipc1._generate_sub_alignments()
-        for tree_position in etmipc1.unique_clusters:
-            self.assertEqual(etmipc1.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
-                             etmipc1.unique_clusters[tree_position]['sub_alignment'])
-            for tree_position2 in etmipc1.unique_clusters[tree_position]['tree_positions']:
-                self.assertEqual(etmipc1.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
-                                 etmipc1.get_sub_alignment(branch=tree_position2[0], cluster=tree_position2[1]))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = os.path.abspath('../Test/')
-        etmipc2.import_alignment(query='1h1vA')
-        etmipc2.processes = 6
-        etmipc2._generate_sub_alignments()
-        for tree_position in etmipc2.unique_clusters:
-            self.assertEqual(etmipc2.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
-                             etmipc2.unique_clusters[tree_position]['sub_alignment'])
-            for tree_position2 in etmipc2.unique_clusters[tree_position]['tree_positions']:
-                self.assertEqual(etmipc2.get_sub_alignment(branch=tree_position[0], cluster=tree_position[1]),
-                                 etmipc2.get_sub_alignment(branch=tree_position2[0], cluster=tree_position2[1]))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
