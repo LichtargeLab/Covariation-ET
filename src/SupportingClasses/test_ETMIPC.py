@@ -1096,6 +1096,56 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
 
+    def test_write_out_scores(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        etmipc1.calculate_branch_scores(combine_clusters='sum')
+        etmipc1.calculate_final_scores(combine_branches='sum')
+        etmipc1.write_out_scores(today=str(datetime.date.today()))
+        for branch1 in etmipc1.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
+            self.assertTrue(os.path.isfile(os.path.join(
+                etmipc1.output_dir, str(branch1),
+                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc1.alignment.query_id.split('_')[1],
+                                                 branch1))))
+            rmtree(os.path.join(etmipc1.output_dir, str(branch1)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
+        etmipc2.calculate_final_scores(combine_branches='average')
+        etmipc2.write_out_scores(today=str(datetime.date.today()))
+        for branch2 in etmipc2.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc2.output_dir, str(branch2))))
+            self.assertTrue(os.path.isfile(
+                os.path.join(etmipc2.output_dir, str(branch2),
+                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
+                                                              etmipc2.alignment.query_id.split('_')[1], branch2))))
+            rmtree(os.path.join(out_dir, str(branch2)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1585,56 +1635,6 @@ class TestETMIPC(TestCase):
                                                                                          '_')[1], 2))))
         for branch in etmipc2.tree_depth:
             rmtree(os.path.join(out_dir, str(branch)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_write_out_scores(self):
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-                   '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        out_dir = os.path.abspath('../Test/')
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = out_dir
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        etmipc1.processes = 1
-        etmipc1.low_mem = False
-        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
-        etmipc1.calculate_branch_scores(combine_clusters='sum')
-        etmipc1.calculate_final_scores(combine_branches='sum')
-        etmipc1.write_out_scores(today=str(datetime.date.today()))
-        for branch1 in etmipc1.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
-            self.assertTrue(os.path.isfile(os.path.join(
-                etmipc1.output_dir, str(branch1),
-                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc1.alignment.query_id.split('_')[1],
-                                                 branch1))))
-            rmtree(os.path.join(etmipc1.output_dir, str(branch1)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = out_dir
-        etmipc2.import_alignment(query='1h1vA')
-        etmipc2.processes = 6
-        etmipc2.low_mem = True
-        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
-        etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
-        etmipc2.calculate_final_scores(combine_branches='average')
-        etmipc2.write_out_scores(today=str(datetime.date.today()))
-        for branch2 in etmipc2.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc2.output_dir, str(branch2))))
-            self.assertTrue(os.path.isfile(
-                os.path.join(etmipc2.output_dir, str(branch2),
-                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
-                                                              etmipc2.alignment.query_id.split('_')[1], branch2))))
-            rmtree(os.path.join(out_dir, str(branch2)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
