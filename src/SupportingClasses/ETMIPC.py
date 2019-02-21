@@ -169,7 +169,7 @@ class ETMIPC(object):
             cluster (int): The cluster within a given branching level to return cluster score data for.
             three_dim (bool): Whether or not to return the data in a three dimensional matrix.
         Returns:
-            np.array or dict. The specified data requested from the dictionary of cluster scores.
+            np.array or dict. The specified data requested from the dictionary of nongap counts.
         """
         return self.__get_c_level_matrices(item='nongap_counts', branch=branch, cluster=cluster, three_dim=three_dim)
 
