@@ -937,6 +937,81 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
 
+    def test_calculate_branch_score(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='sum')
+        etmipc1_branch_res1 = calculate_branch_score(2)
+        self.assertEqual(etmipc1_branch_res1[0], 2)
+        self.assertGreater(etmipc1_branch_res1[2], 0)
+        scores1 = etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False) + \
+                  etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False)
+        self.assertLess(np.sum(etmipc1_branch_res1[1] - scores1), 1e-10)
+        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='average')
+        etmipc1_branch_res2 = calculate_branch_score(2)
+        self.assertEqual(etmipc1_branch_res2[0], 2)
+        self.assertGreater(etmipc1_branch_res2[2], 0)
+        scores2 = scores1 / 2.0
+        self.assertLess(np.sum(etmipc1_branch_res2[1] - scores2), 1e-10)
+        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='size_weighted')
+        etmipc1_branch_res3 = calculate_branch_score(2)
+        self.assertEqual(etmipc1_branch_res3[0], 2)
+        self.assertGreater(etmipc1_branch_res3[2], 0)
+        scores3 = (etmipc1.get_sub_alignment(branch=2, cluster=0).size *
+                           etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
+                  (etmipc1.get_sub_alignment(branch=2, cluster=1).size *
+                            etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False))
+        scores3 /= float(etmipc1.alignment.size)
+        self.assertLess(np.sum(etmipc1_branch_res3[1] - scores3), 1e-10)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_weighted')
+        etmipc2_branch_res1 = calculate_branch_score(2)
+        self.assertEqual(etmipc2_branch_res1[0], 2)
+        self.assertGreater(etmipc2_branch_res1[2], 0)
+        scores_evidence = (etmipc2.get_nongap_counts(branch=2, cluster=0) *
+                                   etmipc2.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
+                          (etmipc2.get_nongap_counts(branch=2, cluster=1) *
+                                    etmipc2.get_cluster_scores(branch=2, cluster=1, three_dim=False))
+        scores_evidence[np.isnan(scores_evidence)] = 0.0
+        scores4 = scores_evidence / etmipc2.get_nongap_counts(branch=1, cluster=0)
+        scores4[np.isnan(scores4)] = 0.0
+        print(etmipc2_branch_res1[1])
+        self.assertLess(np.sum(np.load(etmipc2_branch_res1[1])['mat'] - scores4), 1e-10)
+        pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_vs_size')
+        etmipc2_branch_res2 = calculate_branch_score(2)
+        self.assertEqual(etmipc2_branch_res2[0], 2)
+        self.assertGreater(etmipc2_branch_res2[2], 0)
+        scores5 = scores_evidence / float(etmipc2.alignment.size)
+        scores5[np.isnan(scores5)] = 0.0
+        self.assertLess(np.sum(np.load(etmipc2_branch_res2[1])['mat'] - scores5), 1e-10)
+        for k in etmipc2.tree_depth:
+            rmtree(os.path.join(out_dir, str(k)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
     def test_single_matrix_filename(self):
         out_dir = os.path.abspath('../Test/')
         parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
@@ -1158,81 +1233,6 @@ class TestETMIPC(TestCase):
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
     #     # del (full_aln)
     #     # del (assignment_dict)
-
-    def test_calculate_branch_score(self):
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-                   '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        out_dir = os.path.abspath('../Test/')
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = out_dir
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        etmipc1.processes = 1
-        etmipc1.low_mem = False
-        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
-        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='sum')
-        etmipc1_branch_res1 = calculate_branch_score(2)
-        self.assertEqual(etmipc1_branch_res1[0], 2)
-        self.assertGreater(etmipc1_branch_res1[2], 0)
-        scores1 = etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False) + \
-                  etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False)
-        self.assertLess(np.sum(etmipc1_branch_res1[1] - scores1), 1e-10)
-        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='average')
-        etmipc1_branch_res2 = calculate_branch_score(2)
-        self.assertEqual(etmipc1_branch_res2[0], 2)
-        self.assertGreater(etmipc1_branch_res2[2], 0)
-        scores2 = scores1 / 2.0
-        self.assertLess(np.sum(etmipc1_branch_res2[1] - scores2), 1e-10)
-        pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='size_weighted')
-        etmipc1_branch_res3 = calculate_branch_score(2)
-        self.assertEqual(etmipc1_branch_res3[0], 2)
-        self.assertGreater(etmipc1_branch_res3[2], 0)
-        scores3 = (etmipc1.get_sub_alignment(branch=2, cluster=0).size *
-                           etmipc1.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
-                  (etmipc1.get_sub_alignment(branch=2, cluster=1).size *
-                            etmipc1.get_cluster_scores(branch=2, cluster=1, three_dim=False))
-        scores3 /= float(etmipc1.alignment.size)
-        self.assertLess(np.sum(etmipc1_branch_res3[1] - scores3), 1e-10)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = out_dir
-        etmipc2.import_alignment(query='1h1vA')
-        etmipc2.processes = 6
-        etmipc2.low_mem = True
-        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
-        pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_weighted')
-        etmipc2_branch_res1 = calculate_branch_score(2)
-        self.assertEqual(etmipc2_branch_res1[0], 2)
-        self.assertGreater(etmipc2_branch_res1[2], 0)
-        scores_evidence = (etmipc2.get_nongap_counts(branch=2, cluster=0) *
-                                   etmipc2.get_cluster_scores(branch=2, cluster=0, three_dim=False)) + \
-                          (etmipc2.get_nongap_counts(branch=2, cluster=1) *
-                                    etmipc2.get_cluster_scores(branch=2, cluster=1, three_dim=False))
-        scores_evidence[np.isnan(scores_evidence)] = 0.0
-        scores4 = scores_evidence / etmipc2.get_nongap_counts(branch=1, cluster=0)
-        scores4[np.isnan(scores4)] = 0.0
-        print(etmipc2_branch_res1[1])
-        self.assertLess(np.sum(np.load(etmipc2_branch_res1[1])['mat'] - scores4), 1e-10)
-        pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_vs_size')
-        etmipc2_branch_res2 = calculate_branch_score(2)
-        self.assertEqual(etmipc2_branch_res2[0], 2)
-        self.assertGreater(etmipc2_branch_res2[2], 0)
-        scores5 = scores_evidence / float(etmipc2.alignment.size)
-        scores5[np.isnan(scores5)] = 0.0
-        self.assertLess(np.sum(np.load(etmipc2_branch_res2[1])['mat'] - scores5), 1e-10)
-        for k in etmipc2.tree_depth:
-            rmtree(os.path.join(out_dir, str(k)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
 
     def test_calculate_branch_scores(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',

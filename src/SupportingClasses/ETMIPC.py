@@ -382,7 +382,21 @@ class ETMIPC(object):
         sets the branch_scores attribute and updates the times attribute.
 
         Args:
-
+            combine_clusters (str): Which method to use when combining cluster scores at the branch level. The available
+            options are:
+                sum - This method simply sums all scores computed across the different clusters at a given position.
+                average - This method performs an average over all scores computed across different clusters at a given
+                postion.
+                size_weighted - This method performs a weighted average over all scores computed across different
+                clusters where the weight given to each score is the size of the sub-alignment corresponding to that
+                cluster, normalized by the size of the full alignment.
+                evidence_weighted - This method performs a weighted average over all scores computed across different
+                clusters where the weight given to each score is the number of sequences which do not have gaps at
+                either position in the cluster specific sub-alignment, normalized by the total number of sequences
+                for which neither position has a gap across the entire alignment used.
+                evidence_vs_size - This method performs a weighted average over all scores computed across different
+                clusters where the weight given to each score is the number of sequences which do not have gaps at
+                either position in the cluster specific sub-alignment, normalized by the size of the full alignment.
         """
         pool = Pool(processes=self.processes, initializer=pool_init_calculate_branch_score,
                     initargs=(self, combine_clusters))
