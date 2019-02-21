@@ -196,7 +196,7 @@ class ETMIPC(object):
         """
         Get Branch Scores
 
-        Retrieve the branch score data. The entire dictionary of of 2D matrices can be returned or a single matrix if
+        Retrieve the branch score data. The entire dictionary of 2D matrices can be returned or a single matrix if the
         branch is specified. In either case a three dimensional matrix can be returned if specified. This method relies
         on the __get_c_level_matrices method.
 
