@@ -647,77 +647,6 @@ class TestETMIPC(TestCase):
         self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'X.npz')))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
-    def test_single_matrix_filename(self):
-        out_dir = os.path.abspath('../Test/')
-        parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
-        self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
-
-    def test_exists_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        self.assertFalse(exists_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
-        os.mkdir(os.path.join(out_dir, str(1)))
-        dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
-        dummy_handle = open(dummy_fn, 'wb')
-        dummy_handle.write('Testing')
-        dummy_handle.close()
-        rmtree(os.path.join(out_dir, str(1)))
-
-    def test_save_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10,10)
-        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = np.load(fn)['mat']
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
-
-    def test_load_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10, 10)
-        self.assertIsNone(load_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
-        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = load_single_matrix(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
-
-    # Could not properly test this method, not sure how to check the global variables in another module like this
-    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
-    # def test_pool_init_sub_aln(self):
-    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
-    #     etmipc1.tree_depth = (2, 5)
-    #     etmipc1.output_dir = os.path.abspath('../Test/')
-    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-    #     pool_init_sub_aln(etmipc1.alignment, etmipc1.unique_clusters)
-    #     self.assertTrue('assignment_dict' in globals())
-    #     self.assertTrue('full_aln' in globals())
-    #     self.assertIs(globals()['assignment_dict'], etmipc1.unique_clusters)
-    #     self.assertIs(globals()['full_aln'], etmipc1.alignment)
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     del globals()['assignment_dict']
-    #     del globals()['full_aln']
-    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
-    #     etmipc2.tree_depth = (2, 5)
-    #     etmipc2.output_dir = os.path.abspath('../Test/')
-    #     etmipc2.import_alignment(query='1h1vA')
-    #     pool_init_sub_aln(etmipc2.alignment, etmipc2.unique_clusters)
-    #     self.assertTrue('assignment_dict' in globals())
-    #     self.assertTrue('full_aln' in globals())
-    #     self.assertIs(globals()['assignment_dict'], etmipc2.unique_clusters)
-    #     self.assertIs(globals()['full_aln'], etmipc2.alignment)
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     del globals()['assignment_dict']
-    #     del globals()['full_aln']
-
     def test__generate_sub_alignment(self):
         etmipc1 = ETMIPC('../Test/1c17A.fa')
         etmipc1.tree_depth = (2, 5)
@@ -865,6 +794,77 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+
+    def test_single_matrix_filename(self):
+        out_dir = os.path.abspath('../Test/')
+        parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
+        self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
+
+    def test_exists_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        self.assertFalse(exists_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        os.mkdir(os.path.join(out_dir, str(1)))
+        dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
+        dummy_handle = open(dummy_fn, 'wb')
+        dummy_handle.write('Testing')
+        dummy_handle.close()
+        rmtree(os.path.join(out_dir, str(1)))
+
+    def test_save_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10,10)
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = np.load(fn)['mat']
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
+    def test_load_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10, 10)
+        self.assertIsNone(load_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = load_single_matrix(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
+    # Could not properly test this method, not sure how to check the global variables in another module like this
+    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
+    # def test_pool_init_sub_aln(self):
+    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
+    #     etmipc1.tree_depth = (2, 5)
+    #     etmipc1.output_dir = os.path.abspath('../Test/')
+    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+    #     pool_init_sub_aln(etmipc1.alignment, etmipc1.unique_clusters)
+    #     self.assertTrue('assignment_dict' in globals())
+    #     self.assertTrue('full_aln' in globals())
+    #     self.assertIs(globals()['assignment_dict'], etmipc1.unique_clusters)
+    #     self.assertIs(globals()['full_aln'], etmipc1.alignment)
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     del globals()['assignment_dict']
+    #     del globals()['full_aln']
+    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
+    #     etmipc2.tree_depth = (2, 5)
+    #     etmipc2.output_dir = os.path.abspath('../Test/')
+    #     etmipc2.import_alignment(query='1h1vA')
+    #     pool_init_sub_aln(etmipc2.alignment, etmipc2.unique_clusters)
+    #     self.assertTrue('assignment_dict' in globals())
+    #     self.assertTrue('full_aln' in globals())
+    #     self.assertIs(globals()['assignment_dict'], etmipc2.unique_clusters)
+    #     self.assertIs(globals()['full_aln'], etmipc2.alignment)
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     del globals()['assignment_dict']
+    #     del globals()['full_aln']
 
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
