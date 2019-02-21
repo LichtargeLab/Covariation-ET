@@ -250,17 +250,19 @@ class ETMIPC(object):
         specified by query has no gaps in its sequence. This ungapped alignment is written to file. The alignment
         variable of this class instance is also updated to the imported SeqAlignment as opposed to the path
         provided upon initialization. Using the import alignment the distances (sequence identity) between all pairs of
-        sequences are computed. These distances are then used to build a hierarchical clustering/
+        sequences are computed. These distances are then used to build a hierarchical clustering/phylogentic tree for
+        further analysis. This function initializes the unique_clusters, cluster_mapping, and tree_depth attributes and
+        updates the alignment attribute.
 
         Args:
             query (str): A string specifying the name of the target query in the alignment, '>query_' will be prepended
             to the provided string to find it in the alignment.
             ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
             provided has fewer than 125 sequences a ValueError will be raised.
-            clustering (str): Which method to use for generating a hierachical clustering/phylogenetic tree. Current
+            clustering (str): Which method to use for generating a hierarchical clustering/phylogenetic tree. Current
             options are described in SeqAlignment set_tree_ordering and include 'agglomerative' and 'random'.
-            clustering_args (dict): Additional arguments for the clustering method used. This function initializes the
-            unique_clusters, cluster_mapping, and tree_depth attributes and updates the alignment attribute.
+            clustering_args (dict): Additional arguments for the clustering method used, more details cane be found in
+            the SeqAlignment class for the clustering/tree building method chosen.
         """
         print 'Importing alignment'
         # Create SeqAlignment object to represent the alignment for this analysis.
@@ -287,7 +289,6 @@ class ETMIPC(object):
         cluster_mapping = {}
         for branch in query_alignment.sequence_assignments:
             for cluster in query_alignment.sequence_assignments[branch]:
-                # assignments = '_'.join(sorted(query_alignment.sequence_assignments[branch][cluster]))
                 assignments = frozenset(query_alignment.sequence_assignments[branch][cluster])
                 tree_position = (branch, cluster)
                 # if assignments not in unique_assignments:
