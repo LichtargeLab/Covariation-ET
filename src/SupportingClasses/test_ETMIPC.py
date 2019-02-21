@@ -795,6 +795,62 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
+    def test__score_clusters(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = out_dir
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 1
+        etmipc1.low_mem = False
+        etmipc1._generate_sub_alignments()
+        etmipc1._score_clusters(evidence=False, aa_dict=aa_dict)
+        for tree_position in etmipc1.unique_clusters:
+            self.assertIsNotNone(etmipc1.unique_clusters[tree_position]['nongap_counts'])
+            self.assertEqual(np.sum(etmipc1.unique_clusters[tree_position]['nongap_counts']), 0)
+            c_mip = self.conservative_mip(
+                etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(aa_dict))
+            self.assertLess(np.sum(etmipc1.unique_clusters[tree_position]['cluster_scores'] - c_mip), 1e-10)
+            self.assertGreater(etmipc1.unique_clusters[tree_position]['time'], 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = out_dir
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2.low_mem = True
+        etmipc2._generate_sub_alignments()
+        etmipc2._score_clusters(evidence=True, aa_dict=aa_dict)
+        for tree_position in etmipc2.unique_clusters:
+            self.assertIsNotNone(etmipc2.unique_clusters[tree_position]['nongap_counts'])
+            self.assertEqual(etmipc2.unique_clusters[tree_position]['nongap_counts'],
+                             single_matrix_filename('Nongap_counts_C{}'.format(tree_position[1]),
+                                                    branch=tree_position[0], out_dir=out_dir)[1])
+            self.assertGreater(np.sum(load_single_matrix('Nongap_counts_C{}'.format(tree_position[1]),
+                                                         branch=tree_position[0], out_dir=out_dir)), 0)
+            c_mip = self.conservative_mip(
+                etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(aa_dict))
+            self.assertEqual(etmipc2.unique_clusters[tree_position]['cluster_scores'],
+                             single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+                                                out_dir=out_dir)[1])
+            self.assertLess(np.sum(load_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+                                                      out_dir=out_dir) - c_mip), 1e-9)
+            self.assertGreater(etmipc2.unique_clusters[tree_position]['time'], 0)
+        for k in etmipc2.tree_depth:
+            rmtree(os.path.join(out_dir, str(k)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
     def test_single_matrix_filename(self):
         out_dir = os.path.abspath('../Test/')
         parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
@@ -977,62 +1033,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
         rmtree(os.path.join(out_dir, '1'))
-
-    def test__score_clusters(self):
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-                   '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        out_dir = os.path.abspath('../Test/')
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = out_dir
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        etmipc1.processes = 1
-        etmipc1.low_mem = False
-        etmipc1._generate_sub_alignments()
-        etmipc1._score_clusters(evidence=False, aa_dict=aa_dict)
-        for tree_position in etmipc1.unique_clusters:
-            self.assertIsNotNone(etmipc1.unique_clusters[tree_position]['nongap_counts'])
-            self.assertEqual(np.sum(etmipc1.unique_clusters[tree_position]['nongap_counts']), 0)
-            c_mip = self.conservative_mip(
-                etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(aa_dict))
-            self.assertLess(np.sum(etmipc1.unique_clusters[tree_position]['cluster_scores'] - c_mip), 1e-10)
-            self.assertGreater(etmipc1.unique_clusters[tree_position]['time'], 0)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = out_dir
-        etmipc2.import_alignment(query='1h1vA')
-        etmipc2.processes = 6
-        etmipc2.low_mem = True
-        etmipc2._generate_sub_alignments()
-        etmipc2._score_clusters(evidence=True, aa_dict=aa_dict)
-        for tree_position in etmipc2.unique_clusters:
-            self.assertIsNotNone(etmipc2.unique_clusters[tree_position]['nongap_counts'])
-            self.assertEqual(etmipc2.unique_clusters[tree_position]['nongap_counts'],
-                             single_matrix_filename('Nongap_counts_C{}'.format(tree_position[1]),
-                                                    branch=tree_position[0], out_dir=out_dir)[1])
-            self.assertGreater(np.sum(load_single_matrix('Nongap_counts_C{}'.format(tree_position[1]),
-                                                         branch=tree_position[0], out_dir=out_dir)), 0)
-            c_mip = self.conservative_mip(
-                etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(aa_dict))
-            self.assertEqual(etmipc2.unique_clusters[tree_position]['cluster_scores'],
-                             single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
-                                                out_dir=out_dir)[1])
-            self.assertLess(np.sum(load_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
-                                                      out_dir=out_dir) - c_mip), 1e-9)
-            self.assertGreater(etmipc2.unique_clusters[tree_position]['time'], 0)
-        for k in etmipc2.tree_depth:
-            rmtree(os.path.join(out_dir, str(k)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
 
     def test_calculate_cluster_scores(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
