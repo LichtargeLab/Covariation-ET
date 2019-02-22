@@ -1596,8 +1596,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
 
-########################################################################################################################
-
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
     # def test_init_calculate_scores_and_coverage(self):
@@ -1638,6 +1636,8 @@ class TestETMIPC(TestCase):
     #         rmtree(os.path.join(out_dir, str(k)))
     #     # del (full_aln)
     #     # del (assignment_dict)
+
+########################################################################################################################
 
     def test_calculate_score_and_coverage(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
