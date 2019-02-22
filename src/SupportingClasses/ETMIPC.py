@@ -690,7 +690,7 @@ def pool_init_sub_aln(aln, cluster_dict):
 
     Args:
         aln (SeqAlignment): The full sequence alignment for an ETMIPC instance (alignment attribute).
-        cluster_dict (dict): The unique_clusters dictionary fro an ETMIPC instance which contains the sequence
+        cluster_dict (dict): The unique_clusters dictionary for an ETMIPC instance which contains the sequence
         assignments for each cluster (required for sub alignment generation).
     """
     global full_aln
