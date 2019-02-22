@@ -1303,6 +1303,16 @@ class TestETMIPC(TestCase):
         self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
         self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
 
+    def test_exists_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        self.assertFalse(exists_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        os.mkdir(os.path.join(out_dir, str(1)))
+        dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
+        dummy_handle = open(dummy_fn, 'wb')
+        dummy_handle.write('Testing')
+        dummy_handle.close()
+        rmtree(os.path.join(out_dir, str(1)))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1379,16 +1389,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_exists_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        self.assertFalse(exists_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
-        os.mkdir(os.path.join(out_dir, str(1)))
-        dummy_fn = os.path.join(out_dir, str(1), 'K1_Dummy.npz')
-        dummy_handle = open(dummy_fn, 'wb')
-        dummy_handle.write('Testing')
-        dummy_handle.close()
-        rmtree(os.path.join(out_dir, str(1)))
 
     def test_save_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
