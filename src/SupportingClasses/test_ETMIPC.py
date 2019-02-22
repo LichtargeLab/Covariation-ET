@@ -647,54 +647,6 @@ class TestETMIPC(TestCase):
         self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'X.npz')))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
-    def test__generate_sub_alignment(self):
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = os.path.abspath('../Test/')
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        pool_init_sub_aln(etmipc1.alignment, etmipc1.unique_clusters)
-        for tree_position in etmipc1.unique_clusters:
-            k, c = tree_position
-            _, sub_aln, time = generate_sub_alignment(tree_position)
-            self.assertEqual(etmipc1.alignment.file_name, sub_aln.file_name)
-            self.assertEqual(etmipc1.alignment.query_id, sub_aln.query_id)
-            self.assertEqual(etmipc1.alignment.query_sequence, sub_aln.query_sequence)
-            self.assertIsNone(sub_aln.distance_matrix)
-            self.assertIsNone(sub_aln.sequence_assignments)
-            self.assertEqual(sub_aln.size, len(etmipc1.alignment.sequence_assignments[k][c]))
-            self.assertEqual(sub_aln.seq_order, [x for x in etmipc1.alignment.seq_order
-                                                 if x in etmipc1.alignment.sequence_assignments[k][c]])
-            self.assertEqual(sub_aln.tree_order, [x for x in etmipc1.alignment.tree_order
-                                                  if (x in etmipc1.alignment.sequence_assignments[k][c])])
-            self.assertGreater(time, 0)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = os.path.abspath('../Test/')
-        etmipc2.import_alignment(query='1h1vA')
-        pool_init_sub_aln(etmipc2.alignment, etmipc2.unique_clusters)
-        for tree_position in etmipc2.unique_clusters:
-            k, c = tree_position
-            _, sub_aln, time = generate_sub_alignment(tree_position)
-            self.assertEqual(etmipc2.alignment.file_name, sub_aln.file_name)
-            self.assertEqual(etmipc2.alignment.query_id, sub_aln.query_id)
-            self.assertEqual(etmipc2.alignment.query_sequence, sub_aln.query_sequence)
-            self.assertIsNone(sub_aln.distance_matrix)
-            self.assertIsNone(sub_aln.sequence_assignments)
-            self.assertEqual(sub_aln.size, len(etmipc2.alignment.sequence_assignments[k][c]))
-            self.assertEqual(sub_aln.seq_order, [x for x in etmipc2.alignment.seq_order
-                                                 if x in etmipc2.alignment.sequence_assignments[k][c]])
-            self.assertEqual(sub_aln.tree_order, [x for x in etmipc2.alignment.tree_order
-                                                  if (x in etmipc2.alignment.sequence_assignments[k][c])])
-            self.assertGreater(time, 0)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-
     def test__generate_sub_alignments_single_process(self):
         etmipc1 = ETMIPC('../Test/1c17A.fa')
         etmipc1.tree_depth = (2, 5)
@@ -1367,6 +1319,54 @@ class TestETMIPC(TestCase):
     #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
     #     del globals()['assignment_dict']
     #     del globals()['full_aln']
+
+    def test_generate_sub_alignment(self):
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = os.path.abspath('../Test/')
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        pool_init_sub_aln(etmipc1.alignment, etmipc1.unique_clusters)
+        for tree_position in etmipc1.unique_clusters:
+            k, c = tree_position
+            _, sub_aln, time = generate_sub_alignment(tree_position)
+            self.assertEqual(etmipc1.alignment.file_name, sub_aln.file_name)
+            self.assertEqual(etmipc1.alignment.query_id, sub_aln.query_id)
+            self.assertEqual(etmipc1.alignment.query_sequence, sub_aln.query_sequence)
+            self.assertIsNone(sub_aln.distance_matrix)
+            self.assertIsNone(sub_aln.sequence_assignments)
+            self.assertEqual(sub_aln.size, len(etmipc1.alignment.sequence_assignments[k][c]))
+            self.assertEqual(sub_aln.seq_order, [x for x in etmipc1.alignment.seq_order
+                                                 if x in etmipc1.alignment.sequence_assignments[k][c]])
+            self.assertEqual(sub_aln.tree_order, [x for x in etmipc1.alignment.tree_order
+                                                  if (x in etmipc1.alignment.sequence_assignments[k][c])])
+            self.assertGreater(time, 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = os.path.abspath('../Test/')
+        etmipc2.import_alignment(query='1h1vA')
+        pool_init_sub_aln(etmipc2.alignment, etmipc2.unique_clusters)
+        for tree_position in etmipc2.unique_clusters:
+            k, c = tree_position
+            _, sub_aln, time = generate_sub_alignment(tree_position)
+            self.assertEqual(etmipc2.alignment.file_name, sub_aln.file_name)
+            self.assertEqual(etmipc2.alignment.query_id, sub_aln.query_id)
+            self.assertEqual(etmipc2.alignment.query_sequence, sub_aln.query_sequence)
+            self.assertIsNone(sub_aln.distance_matrix)
+            self.assertIsNone(sub_aln.sequence_assignments)
+            self.assertEqual(sub_aln.size, len(etmipc2.alignment.sequence_assignments[k][c]))
+            self.assertEqual(sub_aln.seq_order, [x for x in etmipc2.alignment.seq_order
+                                                 if x in etmipc2.alignment.sequence_assignments[k][c]])
+            self.assertEqual(sub_aln.tree_order, [x for x in etmipc2.alignment.tree_order
+                                                  if (x in etmipc2.alignment.sequence_assignments[k][c])])
+            self.assertGreater(time, 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
 
 ########################################################################################################################
 
