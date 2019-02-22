@@ -1412,6 +1412,74 @@ class TestETMIPC(TestCase):
     #     # del (full_aln)
     #     # del (assignment_dict)
 
+    def test_mip_score(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        etmipc1.tree_depth = (2, 5)
+        etmipc1.output_dir = os.path.abspath('../Test/')
+        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+        etmipc1.processes = 6
+        etmipc1._generate_sub_alignments()
+        pool_init_score(evidence=True, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=True)
+        etmipc1_mip_res1 = mip_score((1, 0))
+        print(etmipc1_mip_res1)
+        etmipc1_conservateive_mip = self.conservative_mip(etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num(aa_dict))
+
+        self.assertEqual(etmipc1_mip_res1[0], (1,0))
+        self.assertEqual(etmipc1_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=out_dir)[1])
+        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', branch=1, out_dir=out_dir) - etmipc1_conservateive_mip),
+                        1e-10)
+        self.assertEqual(etmipc1_mip_res1[2], single_matrix_filename(name='Nongap_counts_C0', branch=1, out_dir=out_dir)[1])
+        self.assertGreater(np.sum(load_single_matrix(name='Nongap_counts_C0', branch=1, out_dir=out_dir)), 0)
+        self.assertGreater(etmipc1_mip_res1[3], 0)
+        pool_init_score(evidence=False, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=False)
+        etmipc1_mip_res2 = mip_score((1, 0))
+        self.assertEqual(etmipc1_mip_res2[0], (1, 0))
+        self.assertLess(np.sum(etmipc1_mip_res2[1] - etmipc1_conservateive_mip), 1e-10)
+        self.assertEqual(np.sum(etmipc1_mip_res2[2]), 0)
+        self.assertGreater(etmipc1_mip_res2[3], 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        rmtree(os.path.join(out_dir, '1'))
+        etmipc2 = ETMIPC('../Test/1h1vA.fa')
+        etmipc2.tree_depth = (2, 5)
+        etmipc2.output_dir = os.path.abspath('../Test/')
+        etmipc2.import_alignment(query='1h1vA')
+        etmipc2.processes = 6
+        etmipc2._generate_sub_alignments()
+        pool_init_score(evidence=True, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=True)
+        etmipc2_mip_res1 = mip_score((1, 0))
+        etmipc2_conservateive_mip = self.conservative_mip(etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(aa_dict))
+        self.assertEqual(etmipc2_mip_res1[0], (1, 0))
+        self.assertEqual(etmipc2_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=out_dir)[1])
+        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', branch=1, out_dir=out_dir) - etmipc2_conservateive_mip),
+                        1e-10)
+        self.assertEqual(etmipc2_mip_res1[2], single_matrix_filename(name='Nongap_counts_C0', branch=1, out_dir=out_dir)[1])
+        self.assertGreater(np.sum(load_single_matrix(name='Nongap_counts_C0', branch=1, out_dir=out_dir)), 0)
+        self.assertGreater(etmipc2_mip_res1[3], 0)
+        pool_init_score(evidence=False, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
+                        out_dir=out_dir, low_mem=False)
+        etmipc2_mip_res2 = mip_score((1, 0))
+        self.assertEqual(etmipc2_mip_res2[0], (1, 0))
+        self.assertLess(np.sum(etmipc2_mip_res2[1] - etmipc2_conservateive_mip), 1e-10)
+        self.assertEqual(np.sum(etmipc2_mip_res2[2]), 0)
+        self.assertGreater(etmipc2_mip_res2[3], 0)
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        rmtree(os.path.join(out_dir, '1'))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1488,74 +1556,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_mip_score(self):
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-                   '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        out_dir = os.path.abspath('../Test/')
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        etmipc1.tree_depth = (2, 5)
-        etmipc1.output_dir = os.path.abspath('../Test/')
-        etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-        etmipc1.processes = 6
-        etmipc1._generate_sub_alignments()
-        pool_init_score(evidence=True, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
-                        out_dir=out_dir, low_mem=True)
-        etmipc1_mip_res1 = mip_score((1, 0))
-        print(etmipc1_mip_res1)
-        etmipc1_conservateive_mip = self.conservative_mip(etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num(aa_dict))
-
-        self.assertEqual(etmipc1_mip_res1[0], (1,0))
-        self.assertEqual(etmipc1_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=out_dir)[1])
-        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', branch=1, out_dir=out_dir) - etmipc1_conservateive_mip),
-                        1e-10)
-        self.assertEqual(etmipc1_mip_res1[2], single_matrix_filename(name='Nongap_counts_C0', branch=1, out_dir=out_dir)[1])
-        self.assertGreater(np.sum(load_single_matrix(name='Nongap_counts_C0', branch=1, out_dir=out_dir)), 0)
-        self.assertGreater(etmipc1_mip_res1[3], 0)
-        pool_init_score(evidence=False, cluster_dict=etmipc1.unique_clusters, amino_acid_mapping=aa_dict,
-                        out_dir=out_dir, low_mem=False)
-        etmipc1_mip_res2 = mip_score((1, 0))
-        self.assertEqual(etmipc1_mip_res2[0], (1, 0))
-        self.assertLess(np.sum(etmipc1_mip_res2[1] - etmipc1_conservateive_mip), 1e-10)
-        self.assertEqual(np.sum(etmipc1_mip_res2[2]), 0)
-        self.assertGreater(etmipc1_mip_res2[3], 0)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        rmtree(os.path.join(out_dir, '1'))
-        etmipc2 = ETMIPC('../Test/1h1vA.fa')
-        etmipc2.tree_depth = (2, 5)
-        etmipc2.output_dir = os.path.abspath('../Test/')
-        etmipc2.import_alignment(query='1h1vA')
-        etmipc2.processes = 6
-        etmipc2._generate_sub_alignments()
-        pool_init_score(evidence=True, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
-                        out_dir=out_dir, low_mem=True)
-        etmipc2_mip_res1 = mip_score((1, 0))
-        etmipc2_conservateive_mip = self.conservative_mip(etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(aa_dict))
-        self.assertEqual(etmipc2_mip_res1[0], (1, 0))
-        self.assertEqual(etmipc2_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=out_dir)[1])
-        self.assertLess(np.sum(load_single_matrix(name='Raw_C0', branch=1, out_dir=out_dir) - etmipc2_conservateive_mip),
-                        1e-10)
-        self.assertEqual(etmipc2_mip_res1[2], single_matrix_filename(name='Nongap_counts_C0', branch=1, out_dir=out_dir)[1])
-        self.assertGreater(np.sum(load_single_matrix(name='Nongap_counts_C0', branch=1, out_dir=out_dir)), 0)
-        self.assertGreater(etmipc2_mip_res1[3], 0)
-        pool_init_score(evidence=False, cluster_dict=etmipc2.unique_clusters, amino_acid_mapping=aa_dict,
-                        out_dir=out_dir, low_mem=False)
-        etmipc2_mip_res2 = mip_score((1, 0))
-        self.assertEqual(etmipc2_mip_res2[0], (1, 0))
-        self.assertLess(np.sum(etmipc2_mip_res2[1] - etmipc2_conservateive_mip), 1e-10)
-        self.assertEqual(np.sum(etmipc2_mip_res2[2]), 0)
-        self.assertGreater(etmipc2_mip_res2[3], 0)
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        rmtree(os.path.join(out_dir, '1'))
 
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
