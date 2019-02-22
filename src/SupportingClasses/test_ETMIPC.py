@@ -1637,8 +1637,6 @@ class TestETMIPC(TestCase):
     #     # del (full_aln)
     #     # del (assignment_dict)
 
-########################################################################################################################
-
     def test_calculate_score_and_coverage(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
@@ -1650,7 +1648,7 @@ class TestETMIPC(TestCase):
         etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
         etmipc1.processes = 1
         etmipc1.low_mem = False
-        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        etmipc1.calculate_cluster_scores(evidence=False, aa_mapping=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
         pool_init_calculate_score_and_coverage(curr_instance=etmipc1, combine_branches='sum')
         etmipc1_res1 = calculate_score_and_coverage(2)
@@ -1661,8 +1659,8 @@ class TestETMIPC(TestCase):
         coverage1 = self.calculate_coverage(scores1)
         self.assertLess(np.sum(etmipc1_res1[1] - scores1), 1e-10)
         self.assertLess(np.sum(etmipc1_res1[2] - coverage1), 1e-10)
-        self.assertEqual(np.sum(rankdata(etmipc1_res1[1][np.triu_indices(n=etmipc1.alignment.seq_length, k=1)]) -
-                                rankdata(etmipc1_res1[2][np.triu_indices(n=etmipc1.alignment.seq_length, k=1)])), 0)
+        tri_indices = np.triu_indices(n=etmipc1.alignment.seq_length, k=1)
+        self.assertEqual(np.sum(rankdata(etmipc1_res1[1][tri_indices]) - rankdata(etmipc1_res1[2][tri_indices])), 0)
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
@@ -1674,7 +1672,7 @@ class TestETMIPC(TestCase):
         etmipc2.import_alignment(query='1h1vA')
         etmipc2.processes = 6
         etmipc2.low_mem = True
-        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        etmipc2.calculate_cluster_scores(evidence=True, aa_mapping=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
         pool_init_calculate_score_and_coverage(curr_instance=etmipc2, combine_branches='evidence_weighted')
         etmipc2_res1 = calculate_score_and_coverage(2)
@@ -1686,8 +1684,9 @@ class TestETMIPC(TestCase):
         coverage2 = self.calculate_coverage(scores2)
         self.assertLess(np.sum(np.load(etmipc2_res1[1])['mat'] - scores2), 1e-10)
         self.assertLess(np.sum(np.load(etmipc2_res1[2])['mat'] - coverage2), 1e-10)
-        self.assertEqual(np.sum(rankdata(np.load(etmipc2_res1[1])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)], 'dense') -
-                         rankdata(np.load(etmipc2_res1[2])['mat'][np.triu_indices(n=etmipc2.alignment.seq_length, k=1)], 'dense')), 0)
+        tri_indices = np.triu_indices(n=etmipc2.alignment.seq_length, k=1)
+        self.assertEqual(np.sum(rankdata(np.load(etmipc2_res1[1])['mat'][tri_indices], 'dense') -
+                         rankdata(np.load(etmipc2_res1[2])['mat'][tri_indices], 'dense')), 0)
         for k in etmipc2.tree_depth:
             rmtree(os.path.join(out_dir, str(k)))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
@@ -1695,6 +1694,8 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
+
+########################################################################################################################
 
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
