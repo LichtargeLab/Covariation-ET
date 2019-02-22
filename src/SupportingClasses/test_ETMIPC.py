@@ -1323,6 +1323,17 @@ class TestETMIPC(TestCase):
         self.assertEqual(np.sum(dummy - dummy_prime), 0)
         rmtree(os.path.join(out_dir, str(1)))
 
+    def test_load_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10, 10)
+        self.assertIsNone(load_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = load_single_matrix(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1399,17 +1410,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_load_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10, 10)
-        self.assertIsNone(load_single_matrix(name='Dummy', branch=1, out_dir=out_dir))
-        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = load_single_matrix(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
 
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
