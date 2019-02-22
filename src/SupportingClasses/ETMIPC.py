@@ -831,7 +831,9 @@ def pool_init_calculate_branch_score(curr_instance, combine_clusters):
     combining clusters available to all workers in a multiprocessing pool.
 
     Args:
-    Returns:
+        curr_instance (ETMIPC): The ETMIPC instance executing the current analysis.
+        combine_clusters (str): The method to use for combining cluster scores to generate a branch score. Described in
+        more detail in ETMIPC.calculate_branch_scores.
     """
     global instance
     instance = curr_instance

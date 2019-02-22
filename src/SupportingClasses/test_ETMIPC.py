@@ -1480,6 +1480,45 @@ class TestETMIPC(TestCase):
         rmtree(os.path.join(out_dir, 'joblib'))
         rmtree(os.path.join(out_dir, '1'))
 
+    # Could not properly test this method, not sure how to check the global variables in another module like this
+    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
+    # def test_init_calculate_branch_score(self):
+    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+    #                '-']
+    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+    #     out_dir = os.path.abspath('../Test/')
+    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
+    #     etmipc1.tree_depth = (2, 5)
+    #     etmipc1.output_dir = os.path.abspath('../Test/')
+    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
+    #     etmipc1.processes = 6
+    #     etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+    #     pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='sum')
+    #     self.assertTrue('instance' in globals())
+    #     self.assertTrue('combination_method' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     # del(full_aln)
+    #     # del(assignment_dict)
+    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
+    #     etmipc2.tree_depth = (2, 5)
+    #     etmipc2.output_dir = os.path.abspath('../Test/')
+    #     etmipc2.import_alignment(query='1h1vA')
+    #     etmipc2.processes = 6
+    #     etmipc2.low_mem = True
+    #     etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+    #     pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_weighted')
+    #     self.assertTrue('instance' in globals())
+    #     self.assertTrue('combination_method' in globals())
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+    #     # del (full_aln)
+    #     # del (assignment_dict)
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1556,45 +1595,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    # Could not properly test this method, not sure how to check the global variables in another module like this
-    # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
-    # def test_init_calculate_branch_score(self):
-    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-    #                '-']
-    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #     out_dir = os.path.abspath('../Test/')
-    #     etmipc1 = ETMIPC('../Test/1c17A.fa')
-    #     etmipc1.tree_depth = (2, 5)
-    #     etmipc1.output_dir = os.path.abspath('../Test/')
-    #     etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
-    #     etmipc1.processes = 6
-    #     etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
-    #     pool_init_calculate_branch_score(curr_instance=etmipc1, combine_clusters='sum')
-    #     self.assertTrue('instance' in globals())
-    #     self.assertTrue('combination_method' in globals())
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     # del(full_aln)
-    #     # del(assignment_dict)
-    #     etmipc2 = ETMIPC('../Test/1h1vA.fa')
-    #     etmipc2.tree_depth = (2, 5)
-    #     etmipc2.output_dir = os.path.abspath('../Test/')
-    #     etmipc2.import_alignment(query='1h1vA')
-    #     etmipc2.processes = 6
-    #     etmipc2.low_mem = True
-    #     etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
-    #     pool_init_calculate_branch_score(curr_instance=etmipc2, combine_clusters='evidence_weighted')
-    #     self.assertTrue('instance' in globals())
-    #     self.assertTrue('combination_method' in globals())
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-    #     # del (full_aln)
-    #     # del (assignment_dict)
 
     # Could not properly test this method, not sure how to check the global variables in another module like this
     # explicitly, will try to figure it out later. For now the next tests will evaluate if this works or not by proxy.
