@@ -1313,6 +1313,16 @@ class TestETMIPC(TestCase):
         dummy_handle.close()
         rmtree(os.path.join(out_dir, str(1)))
 
+    def test_save_single_matrix(self):
+        out_dir = os.path.abspath('../Test/')
+        dummy = np.random.rand(10,10)
+        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
+        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertTrue(os.path.isfile(fn))
+        dummy_prime = np.load(fn)['mat']
+        self.assertEqual(np.sum(dummy - dummy_prime), 0)
+        rmtree(os.path.join(out_dir, str(1)))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1389,16 +1399,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_save_single_matrix(self):
-        out_dir = os.path.abspath('../Test/')
-        dummy = np.random.rand(10,10)
-        save_single_matrix(mat=dummy, name='Dummy', branch=1, out_dir=out_dir)
-        _, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertTrue(os.path.isfile(fn))
-        dummy_prime = np.load(fn)['mat']
-        self.assertEqual(np.sum(dummy - dummy_prime), 0)
-        rmtree(os.path.join(out_dir, str(1)))
 
     def test_load_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
