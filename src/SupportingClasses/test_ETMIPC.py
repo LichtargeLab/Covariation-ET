@@ -1205,6 +1205,98 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
 
+    def test_calculate_scores(self):
+        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
+                   '-']
+        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
+        out_dir = os.path.abspath('../Test/')
+        etmipc1 = ETMIPC('../Test/1c17A.fa')
+        start1 = time()
+        time1 = etmipc1.calculate_scores(curr_date=str(datetime.date.today()), query='1c17A', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum',
+                                         combine_branches='sum', del_intermediate=False, low_mem=False)
+        end1 = time()
+        print(time1)
+        print(end1 - start1)
+        self.assertLessEqual(time1, end1 - start1)
+        for branch1 in etmipc1.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
+            self.assertTrue(os.path.isfile(os.path.join(
+                etmipc1.output_dir, str(branch1),
+                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc1.alignment.query_id.split('_')[1],
+                                                 branch1))))
+        # Repeat test on serialized data.
+        etmipc2 = ETMIPC('../Test/1c17A.fa')
+        start2 = time()
+        time2 = etmipc2.calculate_scores(curr_date=str(datetime.date.today()), query='1c17A', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='sum',
+                                         combine_branches='sum', del_intermediate=False, low_mem=False)
+        end2 = time()
+        self.assertGreaterEqual(time2, end2 - start2)
+        for branch2 in etmipc2.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch2))))
+            self.assertTrue(os.path.isfile(os.path.join(
+                etmipc1.output_dir, str(branch2),
+                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc2.alignment.query_id.split('_')[1],
+                                                 branch2))))
+        for branch2 in etmipc1.tree_depth:
+            rmtree(os.path.join(etmipc1.output_dir, str(branch2)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1c17A')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1c17A')))
+        rmtree(os.path.join(out_dir, 'joblib'))
+        etmipc3 = ETMIPC('../Test/1h1vA.fa')
+        start3 = time()
+        time3 = etmipc3.calculate_scores(curr_date=str(datetime.date.today()), query='1h1vA', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=6, ignore_alignment_size=False,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='evidence_weighted',
+                                         combine_branches='average', del_intermediate=False, low_mem=True)
+        end3 = time()
+        self.assertLessEqual(time3, (end3 - start3))
+        for branch3 in etmipc3.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc3.output_dir, str(branch3))))
+            self.assertTrue(os.path.isfile(
+                os.path.join(etmipc3.output_dir, str(branch3),
+                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
+                                                              etmipc3.alignment.query_id.split('_')[1], branch3))))
+        # Repeat test on serialized data.
+        etmipc4 = ETMIPC('../Test/1h1vA.fa')
+        start4 = time()
+        time4 = etmipc4.calculate_scores(curr_date=str(datetime.date.today()), query='1h1vA', tree_depth=(2, 5),
+                                         out_dir=out_dir, processes=6, ignore_alignment_size=False,
+                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
+                                                                                      'linkage': 'ward'},
+                                         aa_mapping=aa_dict, combine_clusters='evidence_weighted',
+                                         combine_branches='average', del_intermediate=False, low_mem=True)
+        end4 = time()
+        self.assertGreaterEqual(time4, (end4 - start4))
+        for branch4 in etmipc4.tree_depth:
+            self.assertTrue(os.path.isdir(os.path.join(etmipc4.output_dir, str(branch4))))
+            self.assertTrue(os.path.isfile(
+                os.path.join(etmipc4.output_dir, str(branch4),
+                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
+                                                              etmipc4.alignment.query_id.split('_')[1], branch4))))
+        for branch4 in etmipc4.tree_depth:
+            rmtree(os.path.join(out_dir, str(branch4)))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1h1vA')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
+        rmtree(os.path.join(out_dir, 'joblib'))
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1698,96 +1790,4 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_calculate_scores(self):
-        aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-                   '-']
-        aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-        out_dir = os.path.abspath('../Test/')
-        etmipc1 = ETMIPC('../Test/1c17A.fa')
-        start1 = time()
-        time1 = etmipc1.calculate_scores(curr_date=str(datetime.date.today()), query='1c17A', tree_depth=(2, 5),
-                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
-                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-                                                                                      'linkage': 'ward'},
-                                         aa_mapping=aa_dict, combine_clusters='sum',
-                                         combine_branches='sum', del_intermediate=False, low_mem=False)
-        end1 = time()
-        print(time1)
-        print(end1 - start1)
-        self.assertLessEqual(time1, end1 - start1)
-        for branch1 in etmipc1.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch1))))
-            self.assertTrue(os.path.isfile(os.path.join(
-                etmipc1.output_dir, str(branch1),
-                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc1.alignment.query_id.split('_')[1],
-                                                 branch1))))
-        # Repeat test on serialized data.
-        etmipc2 = ETMIPC('../Test/1c17A.fa')
-        start2 = time()
-        time2 = etmipc2.calculate_scores(curr_date=str(datetime.date.today()), query='1c17A', tree_depth=(2, 5),
-                                         out_dir=out_dir, processes=1, ignore_alignment_size=True,
-                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-                                                                                      'linkage': 'ward'},
-                                         aa_mapping=aa_dict, combine_clusters='sum',
-                                         combine_branches='sum', del_intermediate=False, low_mem=False)
-        end2 = time()
-        self.assertGreaterEqual(time2, end2 - start2)
-        for branch2 in etmipc2.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc1.output_dir, str(branch2))))
-            self.assertTrue(os.path.isfile(os.path.join(
-                etmipc1.output_dir, str(branch2),
-                "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()), etmipc2.alignment.query_id.split('_')[1],
-                                                 branch2))))
-        for branch2 in etmipc1.tree_depth:
-            rmtree(os.path.join(etmipc1.output_dir, str(branch2)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1c17A')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1c17A')))
-        rmtree(os.path.join(out_dir, 'joblib'))
-        etmipc3 = ETMIPC('../Test/1h1vA.fa')
-        start3 = time()
-        time3 = etmipc3.calculate_scores(curr_date=str(datetime.date.today()), query='1h1vA', tree_depth=(2, 5),
-                                         out_dir=out_dir, processes=6, ignore_alignment_size=False,
-                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-                                                                                      'linkage': 'ward'},
-                                         aa_mapping=aa_dict, combine_clusters='evidence_weighted',
-                                         combine_branches='average', del_intermediate=False, low_mem=True)
-        end3 = time()
-        self.assertLessEqual(time3, (end3 - start3))
-        for branch3 in etmipc3.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc3.output_dir, str(branch3))))
-            self.assertTrue(os.path.isfile(
-                os.path.join(etmipc3.output_dir, str(branch3),
-                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
-                                                              etmipc3.alignment.query_id.split('_')[1], branch3))))
-        # Repeat test on serialized data.
-        etmipc4 = ETMIPC('../Test/1h1vA.fa')
-        start4 = time()
-        time4 = etmipc4.calculate_scores(curr_date=str(datetime.date.today()), query='1h1vA', tree_depth=(2, 5),
-                                         out_dir=out_dir, processes=6, ignore_alignment_size=False,
-                                         clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-                                                                                      'linkage': 'ward'},
-                                         aa_mapping=aa_dict, combine_clusters='evidence_weighted',
-                                         combine_branches='average', del_intermediate=False, low_mem=True)
-        end4 = time()
-        self.assertGreaterEqual(time4, (end4 - start4))
-        for branch4 in etmipc4.tree_depth:
-            self.assertTrue(os.path.isdir(os.path.join(etmipc4.output_dir, str(branch4))))
-            self.assertTrue(os.path.isfile(
-                os.path.join(etmipc4.output_dir, str(branch4),
-                             "{}_{}_{}.all_scores.txt".format(str(datetime.date.today()),
-                                                              etmipc4.alignment.query_id.split('_')[1], branch4))))
-        for branch4 in etmipc4.tree_depth:
-            rmtree(os.path.join(out_dir, str(branch4)))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1h1vA')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
         rmtree(os.path.join(out_dir, 'joblib'))

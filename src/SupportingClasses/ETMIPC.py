@@ -473,27 +473,28 @@ class ETMIPC(object):
         """
         Calculate Scores
 
-        This method generates all raw, intermediate, and final scores for the ETMIPC class by calling on other methods.
-        This method is meant to be the main interface for generating these scores, while other methods are meant as
-        support. At the ended of the calculation the state of this object is serialized in pickle and npz files which
-        can be loaded if the same analysis is performed again.
+        This method generates all cluster, branch, and final and coverage scores for the ETMIPC class by calling on
+        other methods. This method is meant to be the main interface for generating these scores, while other methods
+        are meant as support. At the ended of the calculation the state of this object is serialized in pickle and npz
+        files which can be loaded if the same analysis is performed again.
 
         Args:
             curr_date (str): The date on which this run is being performed (used for file naming).
             query (str): The query in the alignment to center this analysis on.
             tree_depth (None, tuple, list): If None then the full tree will be computed for this analysis, if a tuple is
             passed then the tree will be computed from the first element in the tuple to the second (non-inclusive, see
-            range behavior), and if a list each branch specified in that list will be analyzed.
+            range behavior), and if a list each branch specified in that list will be analyzed. In all cases the root
+            node will be analyzed, whether it is specified or not.
             out_dir (str): The top level directory in which results for this analysis should be saved.
             ignore_alignment_size (bool): Whether or not to ignore the size of the alignment specified for this
-            ETMIPC instance, the recomended length is 125 sequences.
+            ETMIPC instance, the recommended length is 125 sequences.
             clustering (str): Which method to use when clustering to create the tree analyzed here. Current options are
             detailed in the SeqAlignment set_tree_ordering method.
             clustering_args (dict): Additional arguments for the SeqAlignment set_tree_ordering method.
             aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
             combine_clusters (str): A method for combining clusters to get branch scores. Described in more detail in
             calculate_branch_scores.
-            combine_branches (str): A method for combinging branch scores to get final scores. Described in more detail
+            combine_branches (str): A method for combining branch scores to get final scores. Described in more detail
             in calculate_final_scores.
             processes (int): The number of processes available to perform this analysis.
             low_mem (bool): Whether to perform this analysis in low memory mode, where score matrices are serialized
