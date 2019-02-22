@@ -607,7 +607,7 @@ def single_matrix_filename(name, branch, out_dir):
     Returns:
         str: The path to the parent directory of the generated filename.
         str: The full path to the filename generated for the given inputs. The name of the file has the form K{}_{}.npz
-        where the first {} is replaced by the specfied branch and the second {} is replaced by the provided filename.
+        where the first {} is replaced by the specified branch and the second {} is replaced by the provided filename.
     """
     c_out_dir = os.path.join(out_dir, str(branch))
     fn = os.path.join(c_out_dir, 'K{}_{}.npz'.format(branch, name))

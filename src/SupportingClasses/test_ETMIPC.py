@@ -1297,6 +1297,12 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
         rmtree(os.path.join(out_dir, 'joblib'))
 
+    def test_single_matrix_filename(self):
+        out_dir = os.path.abspath('../Test/')
+        parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
+        self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
+        self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
+
 ########################################################################################################################
 
     def test_calculate_branch_score(self):
@@ -1373,12 +1379,6 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-
-    def test_single_matrix_filename(self):
-        out_dir = os.path.abspath('../Test/')
-        parent_dir, fn = single_matrix_filename(name='Dummy', branch=1, out_dir=out_dir)
-        self.assertEqual(os.path.join(out_dir, str(1)), parent_dir)
-        self.assertEqual(os.path.join(out_dir, str(1), 'K1_Dummy.npz'), fn)
 
     def test_exists_single_matrix(self):
         out_dir = os.path.abspath('../Test/')
