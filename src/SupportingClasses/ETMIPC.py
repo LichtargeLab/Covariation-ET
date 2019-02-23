@@ -992,13 +992,6 @@ def write_score(branch):
     if not os.path.isdir(curr_out_dir):
         os.mkdir(curr_out_dir)
     res_fn = "{}_{}_{}.all_scores.txt".format(today, instance.alignment.query_id.split('_')[1], branch)
-    # write_out_contact_scoring(today=today, alignment=instance.alignment,
-    #                           c_raw_scores=instance.get_scores(branch=branch),
-    #                           c_coverage=instance.get_coverage(branch=branch),
-    #                           mip_matrix=instance.get_cluster_scores(branch=1, cluster=0),
-    #                           c_raw_sub_scores=instance.get_cluster_scores(branch=branch),
-    #                           c_integrated_scores=instance.get_branch_scores(branch=branch), file_name=res_fn,
-    #                           output_dir=os.path.join(instance.output_dir, str(branch)))
     write_out_contact_scoring(today=today, alignment=instance.alignment,
                               scores=instance.get_scores(branch=branch),
                               coverages=instance.get_coverage(branch=branch),

@@ -1742,8 +1742,6 @@ class TestETMIPC(TestCase):
     #     # del (full_aln)
     #     # del (assignment_dict)
 
-########################################################################################################################
-
     def test_write_score(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
@@ -1755,7 +1753,7 @@ class TestETMIPC(TestCase):
         etmipc1.import_alignment(query='1c17A', ignore_alignment_size=True)
         etmipc1.processes = 1
         etmipc1.low_mem = False
-        etmipc1.calculate_cluster_scores(evidence=False, aa_dict=aa_dict)
+        etmipc1.calculate_cluster_scores(evidence=False, aa_mapping=aa_dict)
         etmipc1.calculate_branch_scores(combine_clusters='sum')
         etmipc1.calculate_final_scores(combine_branches='sum')
         pool_init_write_score(curr_instance=etmipc1, curr_date=str(datetime.date.today()))
@@ -1778,7 +1776,7 @@ class TestETMIPC(TestCase):
         etmipc2.import_alignment(query='1h1vA')
         etmipc2.processes = 6
         etmipc2.low_mem = True
-        etmipc2.calculate_cluster_scores(evidence=True, aa_dict=aa_dict)
+        etmipc2.calculate_cluster_scores(evidence=True, aa_mapping=aa_dict)
         etmipc2.calculate_branch_scores(combine_clusters='evidence_weighted')
         etmipc2.calculate_final_scores(combine_branches='average')
         pool_init_write_score(curr_instance=etmipc2, curr_date=str(datetime.date.today()))
@@ -1797,3 +1795,4 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
+########################################################################################################################
