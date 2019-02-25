@@ -58,24 +58,28 @@ class ContactScorer(object):
 
     def __init__(self, query, seq_alignment, pdb_reference, cutoff):
         """
-        Init
+        __init__
 
-        This function overwrite the default __init__ function. It accepts a SeqAlignment and PDBReference object which
-        it will use to map between an alignment and a structure, compute distances, and ultimately score predictions
-        made on contacts within a structure.
+        This function initializes a new ContactScorer, it accepts paths to an alignment and if available a pdb file to be
+        used in the assessment of contact predictions for a given query. It also requires a cutoff which is used to
+        denote which residues are actually in contact, based on their distance to one another.
 
         Args:
-            seq_alignment (SupportingClasses.SeqAlignment): The object containing the alignment of interest.
-            pdb_reference (SupportingClasses.PDBReference): The object containing the PDB structure of interest.
+            query (str): The name of the query structure. When '>query_' is prepended, this should be the name of the
+            query in the provided alignment.
+            seq_alignment (str/path): Path to the alignment being evaluated in this contact scoring prediction task.
+            pdb_reference (str/path): The object containing the PDB structure of interest.
             cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
         """
         self.query = query
-        if seq_alignment.startswith('..'):
-            seq_alignment = os.path.abspath(seq_alignment)
-        self.query_alignment = seq_alignment
-        if pdb_reference.startswith('..'):
-            pdb_reference = os.path.abspath(pdb_reference)
-        self.query_structure = pdb_reference
+        # if seq_alignment.startswith('..'):
+        #     seq_alignment = os.path.abspath(seq_alignment)
+        # self.query_alignment = seq_alignment
+        self.query_alignment = os.path.abspath(seq_alignment)
+        # if pdb_reference.startswith('..'):
+        #     pdb_reference = os.path.abspath(pdb_reference)
+        # self.query_structure = pdb_reference
+        self.query_structure = os.path.abspath(pdb_reference)
         self.cutoff = cutoff
         self.best_chain = None
         self.query_pdb_mapping = None
