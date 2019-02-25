@@ -182,13 +182,13 @@ class ContactScorer(object):
         """
         Get C Alpha Coords
 
-        This method retrieves the 3D coordinates for the Calpha atom of a residue. If the Calpha atom is not specified
+        This method retrieves the 3D coordinates for the C alpha atom of a residue. If the C alpha atom is not specified
         for the given residue _get_all_coords is called instead.
 
         Args:
             residue (Bio.PDB.Residue): The residue for which to return coordinates.
         Returns:
-            list: A list of lists where the only sub list contains the x, y, and z coordinates of the Calpha atom.
+            list: A list of lists where the only sub list contains the x, y, and z coordinates of the C alpha atom.
         """
         c_alpha_coords = []
         try:
@@ -202,13 +202,13 @@ class ContactScorer(object):
         """
         Get C Beta Coords
 
-        This method retrieves the 3D coordinates for the Cbeta atom of a residue. If the Cbeta atom is not specified
+        This method retrieves the 3D coordinates for the C beta atom of a residue. If the C beta atom is not specified
         for the given residue _get_c_alpha_coords is called instead.
 
         Args:
             residue (Bio.PDB.Residue): The residue for which to return coordinates.
         Returns:
-            list. A list of lists where the only sub list contains the x, y, and z coordinates of the Cbeta atom.
+            list: A list of lists where the only sub list contains the x, y, and z coordinates of the C beta atom.
         """
         c_beta_coords = []
         try:
