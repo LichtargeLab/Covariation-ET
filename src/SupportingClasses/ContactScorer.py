@@ -36,6 +36,24 @@ class ContactScorer(object):
     overall AUROC is being used. This class will support several other scoring methods such as the Precision at L/K
     found commonly in the literature as well as methods internal to the lab like the clustering Z-score derived from
     prior ET work.
+
+    Attributes:
+        query (str): The name of the query structure. When '>query_' is prepended, this should be the name of the query
+        in the provided alignment.
+        query_alignment (str/SeqAlignment): Path to the alignment being evaluated in this contact scoring prediction
+        task. This is eventually updated to a SeqAlignment object, after the alignment has been imported.
+        query_structure (str/PDBReference): Path to the pdb file to use for evaluating the contact predictions made.
+        This is eventually updated to a PDBReference once the pdb file has been imported.
+        cutoff (float): Value to use as a distance cutoff for contact prediction.
+        best_chain (str): The chain in the provided pdb which most closely matches the query sequence as determined by
+        pairwise global alignment.
+        query_pdb_mapping (dict): A mapping from the index of the query sequence to the index of the pdb chain's
+        sequence for those positions which match according to a pairwise global alignment.
+        _specific_mapping (dict): A mapping for the indices of the distance matrix used to determine residue contacts.
+        distances (np.array): The distances between residues, used for determining those which are in contact in order
+        to assess predictions.
+        dist_type (str): The type of distance computed for assessement (expecting 'Any', 'CB' - Beta Carbon, 'CA' -
+        alpha carbon.
     """
 
     def __init__(self, query, seq_alignment, pdb_reference, cutoff):
