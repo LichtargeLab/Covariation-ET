@@ -30,7 +30,7 @@ class ContactScorer(object):
     ContactScorer
 
     This class is meant to abstract the process of scoring a set of contact predictions away from the actual method
-    (at the moment it is included in the ETMIPC class).  This is being done for two main reasons. First, contact
+    (previously it was included in the ETMIPC class).  This is being done for two main reasons. First, contact
     predictions are being made with several different methods and so their scoring should be performed consistently by
     an other object or function. Second, there are many ways to score contact predictions and at the moment only
     overall AUROC is being used. This class will support several other scoring methods such as the Precision at L/K
