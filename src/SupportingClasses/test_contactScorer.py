@@ -261,6 +261,18 @@ class TestContactScorer(TestCase):
         self.assertIsNone(self.scorer2.distances)
         self.assertIsNone(self.scorer2.dist_type)
 
+    def test__str__(self):
+        with self.assertRaises(ValueError):
+            str(self.scorer1)
+        self.scorer1.fit()
+        self.assertEqual(str(self.scorer1),
+                         'Query Sequence of Length: 79\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
+        with self.assertRaises(ValueError):
+            str(self.scorer2)
+        self.scorer2.fit()
+        self.assertEqual(str(self.scorer2),
+                         'Query Sequence of Length: 368\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
+
     def test_fit(self):
         self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))
         self.assertEqual(self.scorer1.query_structure, os.path.abspath(self.pdb_file1))
@@ -303,18 +315,6 @@ class TestContactScorer(TestCase):
         self.assertEqual(self.scorer2.best_chain, 'A')
 
         self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(368)})
-
-    def test__str__(self):
-        with self.assertRaises(ValueError):
-            str(self.scorer1)
-        self.scorer1.fit()
-        self.assertEqual(str(self.scorer1),
-                         'Query Sequence of Length: 79\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
-        with self.assertRaises(ValueError):
-            str(self.scorer2)
-        self.scorer2.fit()
-        self.assertEqual(str(self.scorer2),
-                         'Query Sequence of Length: 368\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
 
     def test__get_all_coords(self):
         self.scorer1.fit()
@@ -391,6 +391,9 @@ class TestContactScorer(TestCase):
         expected2c = np.vstack([[33.683, 20.497, 37.525]])
         measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
         self.assertLess(np.sum(measured2c - expected2c), 1e-5)
+
+########################################################################################################################
+########################################################################################################################
 
     def test_measure_distance(self):
         self.scorer1.fit()
