@@ -113,7 +113,7 @@ class ContactScorer(object):
         This function maps sequence positions between the query sequence from the alignment and residues in PDB file.
         If there are multiple chains for the structure in the PDB, the one which matches the query sequence best
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
-        query_pdb_mapping class variable.
+        query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
         """
         if (self.best_chain is None) or (self.query_pdb_mapping is None):
             start = time()
