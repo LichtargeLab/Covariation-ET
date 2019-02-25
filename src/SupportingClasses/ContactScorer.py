@@ -222,7 +222,7 @@ class ContactScorer(object):
         """
         Get Coords
 
-        This method servers as a switch statement, its only purpose is to reduce code duplication when calling one of
+        This method serves as a switch statement, its only purpose is to reduce code duplication when calling one of
         the three specific get (all, alpha, or beta) coord functions.
 
         Args:
@@ -230,7 +230,7 @@ class ContactScorer(object):
             method (str): Which method of coordinate extraction to use, expected values are 'Any', 'CA' for alpha
             carbon, or 'CB' for beta carbon.
         Returns:
-            list. A list of lists where each list is a single set of x, y, and z coordinates for an atom in the
+            list: A list of lists where each list is a single set of x, y, and z coordinates for an atom in the
             specified residue.
         """
         if method == 'Any':
