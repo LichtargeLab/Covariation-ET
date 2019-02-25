@@ -1637,9 +1637,6 @@ class TestETMIPC(TestCase):
     #     # del (full_aln)
     #     # del (assignment_dict)
 
-########################################################################################################################
-########################################################################################################################
-
     def test_calculate_score_and_coverage(self):
         aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
                    '-']
@@ -1681,9 +1678,8 @@ class TestETMIPC(TestCase):
         etmipc2_res1 = calculate_score_and_coverage(2)
         self.assertEqual(etmipc2_res1[0], 2)
         self.assertGreater(etmipc2_res1[3], 0)
-        scores2 = etmipc2.get_branch_scores(branch=1, three_dim=False) + \
+        scores2 = etmipc2.get_branch_scores(branch=1, three_dim=False) +\
                   etmipc2.get_branch_scores(branch=2, three_dim=False)
-        scores2 /= 2.0
         coverage2 = self.calculate_coverage(scores2)
         self.assertLess(np.sum(np.load(etmipc2_res1[1])['mat'] - scores2), 1e-10)
         self.assertLess(np.sum(np.load(etmipc2_res1[2])['mat'] - coverage2), 1e-10)
@@ -1795,4 +1791,3 @@ class TestETMIPC(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
         os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
         rmtree(os.path.join(out_dir, 'joblib'))
-########################################################################################################################
