@@ -169,7 +169,7 @@ class ContactScorer(object):
         Args:
             residue (Bio.PDB.Residue): The residue for which to return coordinates.
         Returns:
-            list. A list of lists where each sub lists contains the x, y, and z coordinates of a given atom in a
+            list: A list of lists where each sub lists contains the x, y, and z coordinates of a given atom in a
             residue.
         """
         all_coords = []
