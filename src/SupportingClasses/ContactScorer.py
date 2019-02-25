@@ -188,7 +188,7 @@ class ContactScorer(object):
         Args:
             residue (Bio.PDB.Residue): The residue for which to return coordinates.
         Returns:
-            list. A list of lists where the only sub list contains the x, y, and z coordinates of the Calpha atom.
+            list: A list of lists where the only sub list contains the x, y, and z coordinates of the Calpha atom.
         """
         c_alpha_coords = []
         try:
