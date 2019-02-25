@@ -89,12 +89,12 @@ class ContactScorer(object):
 
     def __str__(self):
         """
-        Str
+        __str__
 
         Method over writing the default __str__ method, giving a simple summary of the data held by the ContactScorer.
 
         Returns:
-            str. Simple string summarizing the contents of the ContactScorer.
+            str: Simple string summarizing the contents of the ContactScorer.
 
         Usage Example:
         >>> scorer = ContactScorer(p53_sequence, p53_structure, query='P53', cutoff=8.0)
