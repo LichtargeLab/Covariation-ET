@@ -248,18 +248,18 @@ class ContactScorer(object):
 
         This method measures the distances between residues in the chain identified as the best match to the query by
         the fit function. Distance can be measured in different ways, currently three different options are supported.
-        The first option is 'Any', this measures the distance between two residues as the shortest distance between any
-        two atoms in the two residues structure. The second option is 'CA', this measures the distance as the space
-        between the alpha carbons of two residues. If the alpha carbon for a given residue is not available in the PDB
-        structure, then the distance between any atom of that residue and the alpha carbons of all other resiudes is
-        measured. The third option is 'CB', this measures the distance as the space between the beta carbons of the two
-        residues. If the beta carbon of a given residue is not available in the PDB structure the alpha carbon is used,
-        or all atoms in the residue if the alpha carbon is also not annotated. This function updates the class variable
-        distances.
+        This function updates the class attributes distances and dist_type.
 
         Args:
-            method (str): Method by which to compute distances, see method description for more details on the options
-            and what they mean.
+            method (str): Method by which to compute distances, currently options are:
+                'Any' - this measures the distance between two residues as the shortest distance between any two atoms
+                in the two residues structure.
+                'CA' - this measures the distance as the space between the alpha carbons of two residues. If the alpha
+                carbon for a given residue is not available in the PDB structure, then the distance between any atom of
+                that residue and the alpha carbons of all other residues is measured.
+                'CB' - this measures the distance as the space between the beta carbons of the two residues. If the beta
+                carbon of a given residue is not available in the PDB structure the alpha carbon is used, or all atoms
+                in the residue if the alpha carbon is also not annotated.
             save_file (str or os.path): The path to a file where the computed distances can be stored, or may have been
             stored on a previous run.
     """
