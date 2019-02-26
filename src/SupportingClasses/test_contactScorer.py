@@ -1158,9 +1158,6 @@ class TestContactScorer(TestCase):
         self.assertEqual(w2_ave_2u, w2_ave_e2u)
         self.assertEqual(sigma_2u, sigma_e2u)
 
-########################################################################################################################
-########################################################################################################################
-
     def test_write_out_clustering_results(self):
         def comp_function(df, q_ind_map, q_to_s_map, seq_pdb_map, seq, scores, coverages, distances, adjacencies):
             for i in df.index:
@@ -1298,86 +1295,7 @@ class TestContactScorer(TestCase):
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
 
-    def test_adjacency_determination(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        scorer1_a = self.scorer1.distances < self.scorer1.cutoff
-        scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[1])] = 0
-        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-                                                 mapping=final_map)
-        scorer1_a_pos = np.nonzero(scorer1_a)
-        scorer1_in_dict = 0
-        scorer1_not_in_dict = 0
-        scorer1_missed_pos = ([], [])
-        for i in range(len(scorer1_a_pos[0])):
-            if scorer1_a_pos[0][i] < scorer1_a_pos[1][i]:
-                try:
-                    scorer1_in_dict += A[scorer1_a_pos[0][i]][scorer1_a_pos[1][i]]
-                except KeyError:
-                    try:
-                        scorer1_in_dict += A[scorer1_a_pos[1][i]][scorer1_a_pos[0][i]]
-                    except KeyError:
-                        scorer1_not_in_dict += 1
-                        scorer1_missed_pos[0].append(scorer1_a_pos[0][i])
-                        scorer1_missed_pos[1].append(scorer1_a_pos[1][i])
-        rhonald1_in_dict = 0
-        rhonald1_not_in_dict = 0
-        rhonald1_not_mapped = 0
-        for i in A.keys():
-            for j in A[i].keys():
-                if A[i][j] == scorer1_a[i, j]:
-                    rhonald1_in_dict += 1
-                else:
-                    rhonald1_not_in_dict += 1
-        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer1_in_dict, scorer1_not_in_dict))
-        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald1_in_dict, rhonald1_not_in_dict))
-        print('{} residues not mapped from Rhonald to ContactScorer'.format(rhonald1_not_mapped))
-        self.assertEqual(scorer1_in_dict, rhonald1_in_dict)
-        self.assertEqual(scorer1_not_in_dict, 0)
-        self.assertEqual(rhonald1_not_in_dict, 0)
-        #
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='Any')
-        scorer2_a = self.scorer2.distances < self.scorer2.cutoff
-        scorer2_a[range(scorer2_a.shape[0]), range(scorer2_a.shape[1])] = 0
-        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
-                                                 mapping=final_map)
-        scorer2_a_pos = np.nonzero(scorer2_a)
-        scorer2_in_dict = 0
-        scorer2_not_in_dict = 0
-        scorer2_missed_pos = ([], [])
-        for i in range(len(scorer2_a_pos[0])):
-            if scorer2_a_pos[0][i] < scorer2_a_pos[1][i]:
-                try:
-                    scorer2_in_dict += A[scorer2_a_pos[0][i]][scorer2_a_pos[1][i]]
-                except KeyError:
-                    try:
-                        scorer2_in_dict += A[scorer2_a_pos[1][i]][scorer2_a_pos[0][i]]
-                    except KeyError:
-                        scorer2_not_in_dict += 1
-                        scorer2_missed_pos[0].append(scorer2_a_pos[0][i])
-                        scorer2_missed_pos[1].append(scorer2_a_pos[1][i])
-        rhonald2_in_dict = 0
-        rhonald2_not_in_dict = 0
-        for i in A.keys():
-            for j in A[i].keys():
-                if A[i][j] == scorer2_a[i, j]:
-                    rhonald2_in_dict += 1
-                else:
-                    rhonald2_not_in_dict += 1
-        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer2_in_dict, scorer2_not_in_dict))
-        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald2_in_dict, rhonald2_not_in_dict))
-        self.assertEqual(scorer2_in_dict, rhonald2_in_dict)
-        self.assertEqual(scorer2_not_in_dict, 0)
-        self.assertEqual(rhonald2_not_in_dict, 0)
+########################################################################################################################
 
     def test_evaluate_predictor(self):
         out_dir = os.path.abspath('../Test')
@@ -1709,7 +1627,7 @@ class TestContactScorer(TestCase):
             # Tests
             # Check that the correct data is in the dataframe according to the verbosity
             if v >= 1:
-                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
+                fn1 = os.path.join(out_dir, "SCORER1_TEST{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
                 self.assertTrue(os.path.isfile(fn1))
                 os.remove(fn1)
                 if v == 1:
@@ -1806,7 +1724,7 @@ class TestContactScorer(TestCase):
             # Tests
             # Check that the correct data is in the dataframe according to the verbosity
             if v >= 1:
-                fn1 = os.path.join(out_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
+                fn1 = os.path.join(out_dir, "SCORER2_TEST{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
                 self.assertTrue(os.path.isfile(fn1))
                 os.remove(fn1)
                 if v == 1:
@@ -1881,6 +1799,8 @@ class TestContactScorer(TestCase):
             prev_stats = curr_stats
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
+
+########################################################################################################################
 
     def test_write_out_contact_scoring(self):
         def comp_function(df, seq, clusters, branches, scores, coverages):
@@ -2074,3 +1994,84 @@ class TestContactScorer(TestCase):
         print(expected_path1)
         self.assertTrue(os.path.isfile(expected_path1))
         os.remove(expected_path1)
+
+    def test_adjacency_determination(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scorer1_a = self.scorer1.distances < self.scorer1.cutoff
+        scorer1_a[range(scorer1_a.shape[0]), range(scorer1_a.shape[1])] = 0
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
+        scorer1_a_pos = np.nonzero(scorer1_a)
+        scorer1_in_dict = 0
+        scorer1_not_in_dict = 0
+        scorer1_missed_pos = ([], [])
+        for i in range(len(scorer1_a_pos[0])):
+            if scorer1_a_pos[0][i] < scorer1_a_pos[1][i]:
+                try:
+                    scorer1_in_dict += A[scorer1_a_pos[0][i]][scorer1_a_pos[1][i]]
+                except KeyError:
+                    try:
+                        scorer1_in_dict += A[scorer1_a_pos[1][i]][scorer1_a_pos[0][i]]
+                    except KeyError:
+                        scorer1_not_in_dict += 1
+                        scorer1_missed_pos[0].append(scorer1_a_pos[0][i])
+                        scorer1_missed_pos[1].append(scorer1_a_pos[1][i])
+        rhonald1_in_dict = 0
+        rhonald1_not_in_dict = 0
+        rhonald1_not_mapped = 0
+        for i in A.keys():
+            for j in A[i].keys():
+                if A[i][j] == scorer1_a[i, j]:
+                    rhonald1_in_dict += 1
+                else:
+                    rhonald1_not_in_dict += 1
+        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer1_in_dict, scorer1_not_in_dict))
+        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald1_in_dict, rhonald1_not_in_dict))
+        print('{} residues not mapped from Rhonald to ContactScorer'.format(rhonald1_not_mapped))
+        self.assertEqual(scorer1_in_dict, rhonald1_in_dict)
+        self.assertEqual(scorer1_not_in_dict, 0)
+        self.assertEqual(rhonald1_not_in_dict, 0)
+        #
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        scorer2_a = self.scorer2.distances < self.scorer2.cutoff
+        scorer2_a[range(scorer2_a.shape[0]), range(scorer2_a.shape[1])] = 0
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
+        scorer2_a_pos = np.nonzero(scorer2_a)
+        scorer2_in_dict = 0
+        scorer2_not_in_dict = 0
+        scorer2_missed_pos = ([], [])
+        for i in range(len(scorer2_a_pos[0])):
+            if scorer2_a_pos[0][i] < scorer2_a_pos[1][i]:
+                try:
+                    scorer2_in_dict += A[scorer2_a_pos[0][i]][scorer2_a_pos[1][i]]
+                except KeyError:
+                    try:
+                        scorer2_in_dict += A[scorer2_a_pos[1][i]][scorer2_a_pos[0][i]]
+                    except KeyError:
+                        scorer2_not_in_dict += 1
+                        scorer2_missed_pos[0].append(scorer2_a_pos[0][i])
+                        scorer2_missed_pos[1].append(scorer2_a_pos[1][i])
+        rhonald2_in_dict = 0
+        rhonald2_not_in_dict = 0
+        for i in A.keys():
+            for j in A[i].keys():
+                if A[i][j] == scorer2_a[i, j]:
+                    rhonald2_in_dict += 1
+                else:
+                    rhonald2_not_in_dict += 1
+        print('ContactScorer Check - In Dict: {} |Not In Dict: {}'.format(scorer2_in_dict, scorer2_not_in_dict))
+        print('Rhonald Check - In Dict: {} |Not In Dict: {}'.format(rhonald2_in_dict, rhonald2_not_in_dict))
+        self.assertEqual(scorer2_in_dict, rhonald2_in_dict)
+        self.assertEqual(scorer2_not_in_dict, 0)
+        self.assertEqual(rhonald2_not_in_dict, 0)

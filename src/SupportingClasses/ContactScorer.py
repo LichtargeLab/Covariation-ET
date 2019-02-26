@@ -942,20 +942,21 @@ class ContactScorer(object):
             coverages (np.array): The coverage adjusted scores for predictions on pairs of residues in a sequence
             alignment.
             verbosity (int): What level of output to produce.
-                1. writes scores for all tested clustering constants
-                2. tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
-                against resiude count
-                3. tests the AUROC of contact prediction at different levels of sequence separation and plots the
-                resulting curves to file
-                4. tests the precision of  contact prediction at different levels of sequence separation and list
+                1. Writes scores for all tested clustering constants.
+                2. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                against residue count.
+                3. Tests the AUROC of contact prediction at different levels of sequence separation and plots the
+                resulting curves to file.
+                4. Tests the precision of  contact prediction at different levels of sequence separation and list
                 lengths (L, L/2 ... L/10).
-                5. produces heatmaps and surface plots of scores.
+                5. Produces heatmaps and surface plots of scores.
                 In all cases a file is written out with the final evaluation of the scores, if no PDB is provided, this
                 means only times will be recorded.'
             out_dir (str/path): The path at which to save
             dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
                 Any - Measures the minimum distance between two residues considering all of their atoms.
                 CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
+                CA - Measures the distance between two residues using their Alpha Carbons as the measuring point.
             file_prefix (str): string to prepend before filenames.
             stats (dict): A dictionary of previously computed statistics and scores from a predictor.
             biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
