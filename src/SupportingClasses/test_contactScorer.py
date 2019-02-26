@@ -1928,9 +1928,6 @@ class TestContactScorer(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
         rmtree(os.path.join(out_dir, 'joblib'))
 
-########################################################################################################################
-########################################################################################################################
-
     def test_plot_z_score(self):
         save_dir = os.path.abspath('../Test')
         #
@@ -1969,6 +1966,9 @@ class TestContactScorer(TestCase):
         plot_z_scores(zscore_df_2, file_path=curr_path2b)
         self.assertTrue(os.path.isfile(curr_path2b))
         os.remove(curr_path2b)
+
+########################################################################################################################
+########################################################################################################################
 
     def test_heatmap_plot(self):
         save_dir = os.path.abspath('../Test')

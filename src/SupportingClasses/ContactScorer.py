@@ -1115,12 +1115,12 @@ def heatmap_plot(name, data_mat, output_dir=None):
     """
     Heatmap Plot
 
-    This method creates a heatmap using the Seaborn plotting package. The data used can come from the scores
-    or coverage data.
+    This method creates a heatmap using the Seaborn plotting package. The intended data are covariance raw scores or
+    coverage scores.
 
     Args:
         name (str): Name used as the title of the plot and the filename for the saved figure.
-        data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
+        data_mat (np.array): A matrix of scores. This input should either be the score or coveragematrices from a
         predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
         output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
