@@ -1145,14 +1145,14 @@ def surface_plot(name, data_mat, output_dir=None):
     """
     Surface Plot
 
-    This method creates a surface plot using the matplotlib plotting package. The data used can come from the
-    scores or coverage data.
+    This method creates a surface plot using the matplotlib plotting package. The data used is expected to come from the
+    scores or coverage data from a covariance/contact predictor.
 
     Args:
         name (str): Name used as the title of the plot and the filename for the saved figure.
         data_mat (np.array): A matrix of scores. This input should either be the coverage or score matrices from a
         predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
-        output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
+        output_dir (str): The full path to where the surface plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
     image_name = name.replace(' ', '_') + '.eps'

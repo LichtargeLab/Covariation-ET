@@ -1967,9 +1967,6 @@ class TestContactScorer(TestCase):
         self.assertTrue(os.path.isfile(curr_path2b))
         os.remove(curr_path2b)
 
-########################################################################################################################
-########################################################################################################################
-
     def test_heatmap_plot(self):
         save_dir = os.path.abspath('../Test')
         #
@@ -1981,6 +1978,9 @@ class TestContactScorer(TestCase):
         print(expected_path1)
         self.assertTrue(os.path.isfile(expected_path1))
         os.remove(expected_path1)
+
+########################################################################################################################
+########################################################################################################################
 
     def test_surface_plot(self):
         save_dir = os.path.abspath('../Test')
