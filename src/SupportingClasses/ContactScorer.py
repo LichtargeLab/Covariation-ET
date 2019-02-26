@@ -307,25 +307,24 @@ class ContactScorer(object):
         """
         Find Pairs By Separation
 
-        This method returns all pairs of residues falling into a given category of sequence separation. At the moment
-        the following categories are supported:
-            Neighbors : Residues 1 to 5 sequence positions apart.
-            Short : Residues 6 to 12 sequences positions apart.
-            Medium : Residues 13 to 24 sequences positions apart.
-            Long : Residues more than 24 sequence positions apart.
-            Any : Any/All pairs of residues.
+        This method returns all pairs of residues falling into a given category of sequence separation.
 
         Args:
-            category (str): The category (described above) for which to return residue pairs.
+            category (str): The category for which to return residue pairs. At the moment the following categories are
+            supported:
+                Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
             mappable_only (boolean): If True only pairs which are mappable to the PDB structure provided to the scorer
             will be returned.
         Returns:
-            list. A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
+            list: A list of tuples where the tuples are pairs of residue positions which meet the category criteria.
         """
         if category not in {'Neighbors', 'Short', 'Medium', 'Long', 'Any'}:
             raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', "
-                             "'Any'".format(
-                    category))
+                             "'Any'".format(category))
         pairs = []
         for i in range(self.query_alignment.seq_length):
             if mappable_only and (i not in self.query_pdb_mapping):

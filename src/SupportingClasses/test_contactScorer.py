@@ -392,9 +392,6 @@ class TestContactScorer(TestCase):
         measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
         self.assertLess(np.sum(measured2c - expected2c), 1e-5)
 
-########################################################################################################################
-########################################################################################################################
-
     def test_measure_distance(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='Any')
@@ -491,6 +488,9 @@ class TestContactScorer(TestCase):
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
+
+########################################################################################################################
+########################################################################################################################
 
     def test__map_predictions_to_pdb(self):
         self.scorer1.fit()
