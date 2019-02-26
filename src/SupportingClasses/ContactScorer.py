@@ -719,12 +719,9 @@ class ContactScorer(object):
         This method writes the covariation scores to file along with the structural validation data if available.
 
         Args:
-            today (date/str): Todays date.
-#            q_name (str): The name of the query protein
-            raw_scores (dict): A dictionary of the clustering constants mapped to a matrix of the raw values from the
-            whole MIp matrix through all clustering constants <= clus. See ETMIPC class description.
-            coverage_scores (dict): A dictionary of the clustering constants mapped to a matrix of the coverage_scores
-            values computed on the raw_scores matrices. See ETMIPC class description.
+            today (date/str): Today's date.
+            raw_scores (np.array): A matrix  the raw values from the covariance/contact prediction process.
+            coverage_scores (dict): A matrix of the coverage_scores computed based on the raw_scores matrices.
             file_name (str): The filename under which to save the results.
             output_dir (str): The full path to where the output file should be stored. If None (default) the plot will
             be stored in the current working directory.
