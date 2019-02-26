@@ -443,6 +443,38 @@ class TestContactScorer(TestCase):
         expected2c = np.sqrt(np.power(33.683 - 32.070, 2) + np.power(20.497 - 22.322, 2) + np.power(37.525 - 42.924, 2))
         self.assertLess(expected2c - self.scorer2.distances[0, 1], 1e-5)
 
+    def test_measure_distance_2(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        self.assertEqual(self.scorer1.dist_type, 'Any')
+        residue_coords = {}
+        dists = np.zeros((79, 79))
+        dists2 = np.zeros((79, 79))
+        for residue in self.scorer1.query_structure.structure[0][self.scorer1.best_chain]:
+            res_num = residue.id[1] - 1
+            coords = self.scorer1._get_all_coords(residue)
+            residue_coords[res_num] = coords
+            for residue2 in residue_coords:
+                if residue2 == res_num:
+                    continue
+                else:
+                    dist = self._et_calcDist(coords, residue_coords[residue2])
+                    dist2 = np.sqrt(dist)
+                    dists[res_num, residue2] = dist
+                    dists[residue2, res_num] = dist
+                    dists2[res_num, residue2] = dist2
+                    dists2[residue2, res_num] = dist2
+        distance_diff = np.square(self.scorer1.distances) - dists
+        # self.assertEqual(len(np.nonzero(distance_diff)[0]), 0)
+        self.assertLess(np.max(distance_diff), 1e-3)
+        adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < 64) -
+                    (dists[np.nonzero(distance_diff)] < 64))
+        self.assertEqual(np.sum(adj_diff), 0)
+        self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
+        distance_diff2 = self.scorer1.distances - dists2
+        self.assertEqual(np.sum(distance_diff2), 0.0)
+        self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+
     def test_find_pairs_by_separation(self):
         self.scorer1.fit()
         with self.assertRaises(ValueError):
@@ -675,9 +707,6 @@ class TestContactScorer(TestCase):
         self.assertTrue(os.path.isfile(expected_path2))
         os.remove(expected_path2)
 
-    ########################################################################################################################
-    ########################################################################################################################
-
     def test_score_precision(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
@@ -835,37 +864,8 @@ class TestContactScorer(TestCase):
         with self.assertRaises(ValueError):
             self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
 
-    def test_measure_distance_2(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        self.assertEqual(self.scorer1.dist_type, 'Any')
-        residue_coords = {}
-        dists = np.zeros((79, 79))
-        dists2 = np.zeros((79, 79))
-        for residue in self.scorer1.query_structure.structure[0][self.scorer1.best_chain]:
-            res_num = residue.id[1] - 1
-            coords = self.scorer1._get_all_coords(residue)
-            residue_coords[res_num] = coords
-            for residue2 in residue_coords:
-                if residue2 == res_num:
-                    continue
-                else:
-                    dist = self._et_calcDist(coords, residue_coords[residue2])
-                    dist2 = np.sqrt(dist)
-                    dists[res_num, residue2] = dist
-                    dists[residue2, res_num] = dist
-                    dists2[res_num, residue2] = dist2
-                    dists2[residue2, res_num] = dist2
-        distance_diff = np.square(self.scorer1.distances) - dists
-        # self.assertEqual(len(np.nonzero(distance_diff)[0]), 0)
-        self.assertLess(np.max(distance_diff), 1e-3)
-        adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < 64) -
-                    (dists[np.nonzero(distance_diff)] < 64))
-        self.assertEqual(np.sum(adj_diff), 0)
-        self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
-        distance_diff2 = self.scorer1.distances - dists2
-        self.assertEqual(np.sum(distance_diff2), 0.0)
-        self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+    ########################################################################################################################
+    ########################################################################################################################
 
     def test_adjacency_determination(self):
         self.scorer1.fit()

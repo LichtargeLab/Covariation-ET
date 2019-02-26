@@ -502,13 +502,13 @@ class ContactScorer(object):
             n (int): This value should only be specified if k is not specified. This is the number of predictions to
             test.
             category (str): The sequence separation category to score, the options are as follows:
-                 Neighbors : Residues 1 to 5 sequence positions apart.
-                Short : Residues 6 to 12 sequences positions apart.
-                Medium : Residues 13 to 24 sequences positions apart.
-                Long : Residues more than 24 sequence positions apart.
-                Any : Any/All pairs of residues.
+                 Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
         Returns:
-            float. The precision value computed for the predictions provided.
+            float: The precision value computed for the predictions provided.
         """
         if self.query_structure is None:
             print('Precision cannot be measured, because no PDB was provided.')
