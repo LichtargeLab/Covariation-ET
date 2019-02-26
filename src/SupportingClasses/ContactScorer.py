@@ -357,8 +357,8 @@ class ContactScorer(object):
             predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
             is the length of the query sequence used when initializing the ContactScorer.
         Returns:
-            np.array. A set of predictions which can be scored because they map successfully to the PDB.
-            np.array. A set of distances which can be used for scoring because they map successfully to the query
+            np.array: A set of predictions which can be scored because they map successfully to the PDB.
+            np.array: A set of distances which can be used for scoring because they map successfully to the query
             sequence.
         """
         # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
