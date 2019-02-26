@@ -489,9 +489,6 @@ class TestContactScorer(TestCase):
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
         self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
 
-########################################################################################################################
-########################################################################################################################
-
     def test__map_predictions_to_pdb(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
@@ -566,6 +563,9 @@ class TestContactScorer(TestCase):
         expected_dists2e = self.scorer2.distances[[x[0] for x in pairs2e], [x[1] for x in pairs2e]]
         self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
         self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
+
+    ########################################################################################################################
+    ########################################################################################################################
 
     def test_score_auc(self):
         self.scorer1.fit()

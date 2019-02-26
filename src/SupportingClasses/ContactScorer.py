@@ -423,9 +423,9 @@ class ContactScorer(object):
                 Long : Residues more than 24 sequence positions apart.
                 Any : Any/All pairs of residues.
         Returns:
-            np.array. The list of true positive rate values calculated when computing the roc curve.
-            np.array. The list of false positive rate value calculated when computing the roc curve.
-            float. The auroc determined for the roc curve.
+            np.array: The list of true positive rate values calculated when computing the roc curve.
+            np.array: The list of false positive rate value calculated when computing the roc curve.
+            float: The auroc determined for the roc curve.
         """
         if self.query_structure is None:
             print('AUC cannot be measured, because no PDB was provided.')
