@@ -1295,8 +1295,6 @@ class TestContactScorer(TestCase):
                       distances=self.scorer2.distances, adjacencies=A)
         os.remove(curr_path)
 
-########################################################################################################################
-
     def test_evaluate_predictor(self):
         out_dir = os.path.abspath('../Test')
         today = str(datetime.date.today())
@@ -1800,6 +1798,7 @@ class TestContactScorer(TestCase):
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
 
+########################################################################################################################
 ########################################################################################################################
 
     def test_write_out_contact_scoring(self):

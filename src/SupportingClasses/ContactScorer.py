@@ -1031,7 +1031,7 @@ class ContactScorer(object):
 def write_out_contact_scoring(today, alignment, scores, coverages, cluster_scores=None, branch_scores=None,
                               file_name=None, output_dir=None):
     """
-    Write out clustering scoring results
+    Write out contact scoring
 
     This method writes the results of covariation scoring to file.
 
@@ -1041,14 +1041,14 @@ def write_out_contact_scoring(today, alignment, scores, coverages, cluster_score
         scores (numpy.array): A matrix which represents the integration of coupling scores across all clusters
         defined at that clustering constant.
         coverages (numpy.array): This dictionary maps clustering constants to a matrix of normalized coupling scores
-        between 0 and 100, computed from the summary_matrices.
+        between 0 and 100, computed from the scores matrices.
         cluster_scores (numpy.array): The coupling scores for all positions in the query sequences at the specified
         clustering constant created by hierarchical clustering.
         branch_scores (numpy.array): This dictionary maps clustering constants to a matrix which combines the
         scores from the whole_mip_matrix, all lower clustering constants, and this clustering constant.
         file_name (str): The name with which to save the file. If None the following string template will be used:
         "{}_{}.all_scores.txt".format(today, self.query_alignment.query_id.split('_')[1])
-        output_dir (str): The full path to where the output file should be stored. If None (default) the plot will be
+        output_dir (str): The full path to where the output file should be stored. If None (default) the file will be
         stored in the current working directory.
     """
     start = time()
