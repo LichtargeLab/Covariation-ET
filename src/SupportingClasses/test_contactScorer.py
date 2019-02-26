@@ -1798,9 +1798,6 @@ class TestContactScorer(TestCase):
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
 
-########################################################################################################################
-########################################################################################################################
-
     def test_write_out_contact_scoring(self):
         def comp_function(df, seq, clusters, branches, scores, coverages):
             for i in df.index:
@@ -1930,6 +1927,9 @@ class TestContactScorer(TestCase):
         os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1h1vA')))
         os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
         rmtree(os.path.join(out_dir, 'joblib'))
+
+########################################################################################################################
+########################################################################################################################
 
     def test_plot_z_score(self):
         save_dir = os.path.abspath('../Test')

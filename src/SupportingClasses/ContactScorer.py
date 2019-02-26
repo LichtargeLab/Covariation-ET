@@ -1089,12 +1089,12 @@ def plot_z_scores(df, file_path=None):
     """
     Plot Z-Scores
 
-    This method accepts a dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
-    running the score_clustering_of_contact_predictions method. These are used to plot a scatter plot.
+    This method accepts a DataFrame residue positions and z-scores produced by score_clustering_of_contact_predictions
+    to plot a scatter plot.
 
     Args:
-        df (Pandas.DataFrame): Dataframe containing at least the 'Num_Residues' and 'Z-Score' columns produced after
-        running the score_clustering_of_contact_predictions method
+        df (pd.DataFrame): DataFrame containing at least the 'Num_Residues' and 'Z-Score' columns produced after
+        running the score_clustering_of_contact_predictions method.
         file_path (str): Path at which to save the plot produced by this call.
     """
     # If there is no data to plot return
