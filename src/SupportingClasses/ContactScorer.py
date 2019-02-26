@@ -445,9 +445,8 @@ class ContactScorer(object):
         """
         Plot AUC
 
-        This function plots and saves the AUCROC.  The image will be stored in
-        the eps format with dpi=1000 using a name specified by the ContactScorer query name,
-        cutoff, clustering constant, and date.
+        This function plots and saves the AUROC.  The image will be stored in the eps format with dpi=1000 using a name
+        specified by the ContactScorer query name, cutoff, clustering constant, and date.
 
         Args:
             auc_data (dictionary): AUC values stored in the ETMIPC class, used to identify the specific values for the

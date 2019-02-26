@@ -564,9 +564,6 @@ class TestContactScorer(TestCase):
         self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
         self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
 
-    ########################################################################################################################
-    ########################################################################################################################
-
     def test_score_auc(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
@@ -652,7 +649,6 @@ class TestContactScorer(TestCase):
         self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
         self.assertEqual(auroc_expected2e, auroc2e)
 
-
     def test_plot_auc(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
@@ -678,6 +674,9 @@ class TestContactScorer(TestCase):
         expected_path2 = os.path.abspath(os.path.join('../Test', '1h1vA_Any_AUROC.eps'))
         self.assertTrue(os.path.isfile(expected_path2))
         os.remove(expected_path2)
+
+    ########################################################################################################################
+    ########################################################################################################################
 
     def test_score_precision(self):
         self.scorer1.fit()
