@@ -537,19 +537,23 @@ class ContactScorer(object):
         Score Clustering Of Contact Predictions
 
         This method employs the _clustering_z_score method to score all pairs for which predictions are made. A z-score
-        of '-' means either that the pair did not map to the provided PDB while 'NA' means that the sigma computed for
-        that pair was equal to 0. The residues belonging to each pair are added
+        of '-' means that the pair did not map to the provided PDB while 'NA' means that the sigma computed for that
+        pair was equal to 0. The residues belonging to each pair are added to a set in order of pair covariance score.
+        That set of residues is evaluated for clustering z-score after each pair is added.
 
         Args:
-            predictions (numpy.array):
-            bias (int or bool): option to calculate z_scores with bias or nobias (j-i factor)
+            predictions (numpy.array): An array of predictions for contacts between protein residues with size nxn where
+            n is the length of the query sequence used when initializing the ContactScorer.
+            bias (int or bool): option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+            factor accounting for the sequence separation of residues, as well as their distance, is added to the
+            calculation.
             file_path (str): path where the z-scoring results should be written to.
             w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
         Returns:
-            pd.DataFrame. Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
+            pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
             the clustering Z-Score, the w score, E[w], E[w^2], sigma, and the number of residues of interest up to that
             point.
-            dict. The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+            dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
             3).
         """
         if self.query_structure is None:

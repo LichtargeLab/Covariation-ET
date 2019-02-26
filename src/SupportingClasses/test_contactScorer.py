@@ -867,6 +867,226 @@ class TestContactScorer(TestCase):
     ########################################################################################################################
     ########################################################################################################################
 
+    def test_score_clustering_of_contact_predictions(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        scores1 = np.random.RandomState(1234567890).rand(79, 79)
+        scores1[np.tril_indices(79, 1)] = 0
+        scores1 += scores1.T
+        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+                                                 mapping=final_map)
+        start1 = time()
+        zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'),
+            w2_ave_sub=None)
+        end1 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'))
+        start2 = time()
+        zscore_df_1be = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
+                                          res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
+                                          scores=list(zscore_df_1b['Covariance_Score']))
+        end2 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end2 - start2) / 60.0))
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_1b['Covariance_Score']) -
+                                np.array(zscore_df_1be['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Num_Residues']) -
+                                        np.array(zscore_df_1be['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_i']) -
+                                        np.array(zscore_df_1be['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_j']) -
+                                        np.array(zscore_df_1be['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_1b['W']) - np.array(zscore_df_1be['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_1b['W_Ave']) - np.array(zscore_df_1be['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_1b['W2_Ave']) - np.array(zscore_df_1be['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-3
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_1b['Sigma']) - np.array(zscore_df_1be['Sigma']))
+        sigma_diff = sigma_diff > 1e-6
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_1b['Z-Score'].replace('NA', np.nan)) -\
+                       np.array(zscore_df_1be['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-7
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        start3 = time()
+        zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
+            predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'),
+            w2_ave_sub=None)
+        end3 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end3 - start3) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'))
+        start4 = time()
+        zscore_df_1ue = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
+                                          res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
+                                          scores=list(zscore_df_1u['Covariance_Score']))
+        end4 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end4 - start4) / 60.0))
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_1u['Covariance_Score']) -
+                                np.array(zscore_df_1ue['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Num_Residues']) -
+                                        np.array(zscore_df_1ue['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_i']) -
+                                        np.array(zscore_df_1ue['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_j']) -
+                                        np.array(zscore_df_1ue['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_1u['W']) - np.array(zscore_df_1ue['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_1u['W_Ave']) - np.array(zscore_df_1ue['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_1u['W2_Ave']) - np.array(zscore_df_1ue['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-3
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_1u['Sigma']) - np.array(zscore_df_1ue['Sigma']))
+        sigma_diff = sigma_diff > 1e-6
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_1u['Z-Score'].replace('NA', np.nan)) -\
+                       np.array(zscore_df_1ue['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-7
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        scores2 = np.random.RandomState(1234567890).rand(368, 368)
+        scores2[np.tril_indices(368, 1)] = 0
+        scores2 += scores2.T
+        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
+                                                 mapping=final_map)
+        start5 = time()
+        zscore_df_2b, _ = self.scorer2.score_clustering_of_contact_predictions(
+            predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'),
+            w2_ave_sub=None)
+        end5 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end5 - start5) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'))
+        start6 = time()
+        zscore_df_2be = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
+                                          res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
+                                          scores=list(zscore_df_2b['Covariance_Score']))
+        end6 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end6 - start6) / 60.0))
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_2b['Covariance_Score']) -
+                                np.array(zscore_df_2be['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Num_Residues']) -
+                                        np.array(zscore_df_2be['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_i']) -
+                                        np.array(zscore_df_2be['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_j']) -
+                                        np.array(zscore_df_2be['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_2b['W']) - np.array(zscore_df_2be['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_2b['W_Ave']) - np.array(zscore_df_2be['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-6
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_2b['W2_Ave']) - np.array(zscore_df_2be['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 5
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_2b['Sigma']) - np.array(zscore_df_2be['Sigma']))
+        sigma_diff = sigma_diff > 1e-3
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_2b['Z-Score'].replace('NA', np.nan)) -\
+                              np.array(zscore_df_2be['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-1
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+        start7 = time()
+        zscore_df_2u, _ = self.scorer2.score_clustering_of_contact_predictions(
+            predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'),
+            w2_ave_sub=None)
+        end7 = time()
+        print('Time for ContactScorer to compute SCW: {}'.format((end7 - start7) / 60.0))
+        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv')))
+        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'))
+        start8 = time()
+        zscore_df_2ue = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
+                                          res_i=list(zscore_df_2u['Res_i']), res_j=list(zscore_df_2u['Res_j']),
+                                          scores=list(zscore_df_2u['Covariance_Score']))
+        end8 = time()
+        print('Time for Rhonalds method to compute SCW: {}'.format((end8 - start8) / 60.0))
+        # Covariance score comparison
+        cov_score_diff = np.abs(np.array(zscore_df_2u['Covariance_Score']) -
+                                np.array(zscore_df_2ue['Covariance_Score']))
+        cov_score_diff = cov_score_diff > 1e-10
+        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+        # Num residues comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Num_Residues']) -
+                                        np.array(zscore_df_2ue['Num_Residues']))[0]), 0)
+        # Res I comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_i']) -
+                                        np.array(zscore_df_2ue['Res_i']))[0]), 0)
+        # Res J comparison
+        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_j']) -
+                                        np.array(zscore_df_2ue['Res_j']))[0]), 0)
+        # W Comparison
+        w_diff = np.abs(np.array(zscore_df_2u['W']) - np.array(zscore_df_2ue['W']))
+        w_diff = w_diff > 1e-10
+        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
+        # W_Ave Comaparison
+        w_ave_diff = np.abs(np.array(zscore_df_2u['W_Ave']) - np.array(zscore_df_2ue['W_Ave']))
+        w_ave_diff = w_ave_diff > 1e-7
+        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+        # W2_Ave Comparison
+        w2_ave_diff = np.abs(np.array(zscore_df_2u['W2_Ave']) - np.array(zscore_df_2ue['W2_Ave']))
+        w2_ave_diff = w2_ave_diff > 1e-1
+        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+        # Sigma Comparison
+        sigma_diff = np.abs(np.array(zscore_df_2u['Sigma']) - np.array(zscore_df_2ue['Sigma']))
+        sigma_diff = sigma_diff > 1e-3
+        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+        # Z-Score Comparison
+        z_score_diff = np.abs(np.array(zscore_df_2u['Z-Score'].replace('NA', np.nan)) - \
+                              np.array(zscore_df_2ue['Z-Score'].replace('NA', np.nan)))
+        z_score_diff = z_score_diff > 1e-3
+        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+
     def test_adjacency_determination(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='Any')
@@ -947,246 +1167,6 @@ class TestContactScorer(TestCase):
         self.assertEqual(scorer2_in_dict, rhonald2_in_dict)
         self.assertEqual(scorer2_not_in_dict, 0)
         self.assertEqual(rhonald2_not_in_dict, 0)
-
-    def test_score_clustering_of_contact_predictions(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        scores1 = np.random.RandomState(1234567890).rand(79, 79)
-        scores1[np.tril_indices(79, 1)] = 0
-        scores1 += scores1.T
-        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-                                                 mapping=final_map)
-        start1 = time()
-        zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
-            predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'),
-            w2_ave_sub=None)
-        end1 = time()
-        print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'))
-        # zscore_df_1b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_1B_DF.csv'), index=False)
-        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv')):
-        #     zscore_df_1be = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv'))
-        # else:
-        start2 = time()
-        zscore_df_1be = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
-                                          res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
-                                          scores=list(zscore_df_1b['Covariance_Score']))
-        end2 = time()
-        print('Time for Rhonalds method to compute SCW: {}'.format((end2 - start2) / 60.0))
-        # zscore_df_1be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1B_DF.csv'), index=False)
-        # Covariance score comparison
-        cov_score_diff = np.abs(np.array(zscore_df_1b['Covariance_Score']) -
-                                np.array(zscore_df_1be['Covariance_Score']))
-        cov_score_diff = cov_score_diff > 1e-10
-        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
-        # Num residues comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Num_Residues']) -
-                                        np.array(zscore_df_1be['Num_Residues']))[0]), 0)
-        # Res I comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_i']) -
-                                        np.array(zscore_df_1be['Res_i']))[0]), 0)
-        # Res J comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_j']) -
-                                        np.array(zscore_df_1be['Res_j']))[0]), 0)
-        # W Comparison
-        w_diff = np.abs(np.array(zscore_df_1b['W']) - np.array(zscore_df_1be['W']))
-        w_diff = w_diff > 1e-10
-        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-        # W_Ave Comaparison
-        w_ave_diff = np.abs(np.array(zscore_df_1b['W_Ave']) - np.array(zscore_df_1be['W_Ave']))
-        w_ave_diff = w_ave_diff > 1e-7
-        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
-        # W2_Ave Comparison
-        w2_ave_diff = np.abs(np.array(zscore_df_1b['W2_Ave']) - np.array(zscore_df_1be['W2_Ave']))
-        w2_ave_diff = w2_ave_diff > 1e-3
-        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
-        # Sigma Comparison
-        sigma_diff = np.abs(np.array(zscore_df_1b['Sigma']) - np.array(zscore_df_1be['Sigma']))
-        sigma_diff = sigma_diff > 1e-6
-        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
-        # Z-Score Comparison
-        z_score_diff = np.abs(np.array(zscore_df_1b['Z-Score'].replace('NA', np.nan)) -\
-                       np.array(zscore_df_1be['Z-Score'].replace('NA', np.nan)))
-        z_score_diff = z_score_diff > 1e-7
-        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-        start3 = time()
-        zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
-            predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'),
-            w2_ave_sub=None)
-        end3 = time()
-        print('Time for ContactScorer to compute SCW: {}'.format((end3 - start3) / 60.0))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'))
-        # zscore_df_1u.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_1U_DF.csv'))
-        # if os.path.isfile(os.path.join(os.path.abspath('../Test'), 'Rhonald_1U_DF.csv')):
-        #     zscore_df_1ue = pd.read_csv(os.path.join(os.path.abspath('../Test'), 'Rhonald_1U_DF.csv'))
-        # else:
-        start4 = time()
-        zscore_df_1ue = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
-                                          res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
-                                          scores=list(zscore_df_1u['Covariance_Score']))
-        end4 = time()
-        print('Time for Rhonalds method to compute SCW: {}'.format((end4 - start4) / 60.0))
-        # zscore_df_1ue.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_1U_DF.csv'))
-        # Covariance score comparison
-        cov_score_diff = np.abs(np.array(zscore_df_1u['Covariance_Score']) -
-                                np.array(zscore_df_1ue['Covariance_Score']))
-        cov_score_diff = cov_score_diff > 1e-10
-        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
-        # Num residues comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Num_Residues']) -
-                                        np.array(zscore_df_1ue['Num_Residues']))[0]), 0)
-        # Res I comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_i']) -
-                                        np.array(zscore_df_1ue['Res_i']))[0]), 0)
-        # Res J comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_j']) -
-                                        np.array(zscore_df_1ue['Res_j']))[0]), 0)
-        # W Comparison
-        w_diff = np.abs(np.array(zscore_df_1u['W']) - np.array(zscore_df_1ue['W']))
-        w_diff = w_diff > 1e-10
-        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-        # W_Ave Comaparison
-        w_ave_diff = np.abs(np.array(zscore_df_1u['W_Ave']) - np.array(zscore_df_1ue['W_Ave']))
-        w_ave_diff = w_ave_diff > 1e-7
-        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
-        # W2_Ave Comparison
-        w2_ave_diff = np.abs(np.array(zscore_df_1u['W2_Ave']) - np.array(zscore_df_1ue['W2_Ave']))
-        w2_ave_diff = w2_ave_diff > 1e-3
-        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
-        # Sigma Comparison
-        sigma_diff = np.abs(np.array(zscore_df_1u['Sigma']) - np.array(zscore_df_1ue['Sigma']))
-        sigma_diff = sigma_diff > 1e-6
-        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
-        # Z-Score Comparison
-        z_score_diff = np.abs(np.array(zscore_df_1u['Z-Score'].replace('NA', np.nan)) -\
-                       np.array(zscore_df_1ue['Z-Score'].replace('NA', np.nan)))
-        z_score_diff = z_score_diff > 1e-7
-        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='Any')
-        scores2 = np.random.RandomState(1234567890).rand(368, 368)
-        scores2[np.tril_indices(368, 1)] = 0
-        scores2 += scores2.T
-        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
-                                                 mapping=final_map)
-        start5 = time()
-        zscore_df_2b, _ = self.scorer2.score_clustering_of_contact_predictions(
-            predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'),
-            w2_ave_sub=None)
-        end5 = time()
-        print('Time for ContactScorer to compute SCW: {}'.format((end5 - start5) / 60.0))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'))
-        # zscore_df_2b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_2B_DF.csv'), index=False)
-        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv')):
-        #     zscore_df_2be = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv'))
-        # else:
-        start6 = time()
-        zscore_df_2be = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
-                                          res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
-                                          scores=list(zscore_df_2b['Covariance_Score']))
-        end6 = time()
-        print('Time for Rhonalds method to compute SCW: {}'.format((end6 - start6) / 60.0))
-        # zscore_df_2be.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2B_DF.csv'), index=False)
-        # Covariance score comparison
-        cov_score_diff = np.abs(np.array(zscore_df_2b['Covariance_Score']) -
-                                np.array(zscore_df_2be['Covariance_Score']))
-        cov_score_diff = cov_score_diff > 1e-10
-        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
-        # Num residues comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Num_Residues']) -
-                                        np.array(zscore_df_2be['Num_Residues']))[0]), 0)
-        # Res I comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_i']) -
-                                        np.array(zscore_df_2be['Res_i']))[0]), 0)
-        # Res J comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_j']) -
-                                        np.array(zscore_df_2be['Res_j']))[0]), 0)
-        # W Comparison
-        w_diff = np.abs(np.array(zscore_df_2b['W']) - np.array(zscore_df_2be['W']))
-        w_diff = w_diff > 1e-10
-        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-        # W_Ave Comaparison
-        w_ave_diff = np.abs(np.array(zscore_df_2b['W_Ave']) - np.array(zscore_df_2be['W_Ave']))
-        w_ave_diff = w_ave_diff > 1e-6
-        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
-        # W2_Ave Comparison
-        w2_ave_diff = np.abs(np.array(zscore_df_2b['W2_Ave']) - np.array(zscore_df_2be['W2_Ave']))
-        w2_ave_diff = w2_ave_diff > 5
-        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
-        # Sigma Comparison
-        sigma_diff = np.abs(np.array(zscore_df_2b['Sigma']) - np.array(zscore_df_2be['Sigma']))
-        sigma_diff = sigma_diff > 1e-3
-        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
-        # Z-Score Comparison
-        z_score_diff = np.abs(np.array(zscore_df_2b['Z-Score'].replace('NA', np.nan)) -\
-                              np.array(zscore_df_2be['Z-Score'].replace('NA', np.nan)))
-        z_score_diff = z_score_diff > 1e-1
-        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-        start7 = time()
-        zscore_df_2u, _ = self.scorer2.score_clustering_of_contact_predictions(
-            predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'),
-            w2_ave_sub=None)
-        end7 = time()
-        print('Time for ContactScorer to compute SCW: {}'.format((end7 - start7) / 60.0))
-        self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv')))
-        os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'))
-        # zscore_df_2b.to_csv(os.path.join(os.path.abspath('../Test/'), 'ContactScorer_2U_DF.csv'), index=False)
-        # if os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv')):
-        #     zscore_df_2ue = pd.read_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv'))
-        # else:
-        start8 = time()
-        zscore_df_2ue = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
-                                          res_i=list(zscore_df_2u['Res_i']), res_j=list(zscore_df_2u['Res_j']),
-                                          scores=list(zscore_df_2u['Covariance_Score']))
-        end8 = time()
-        print('Time for Rhonalds method to compute SCW: {}'.format((end8 - start8) / 60.0))
-        # zscore_df_2ue.to_csv(os.path.join(os.path.abspath('../Test/'), 'Rhonald_2U_DF.csv'), index=False)
-        # Covariance score comparison
-        cov_score_diff = np.abs(np.array(zscore_df_2u['Covariance_Score']) -
-                                np.array(zscore_df_2ue['Covariance_Score']))
-        cov_score_diff = cov_score_diff > 1e-10
-        self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
-        # Num residues comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Num_Residues']) -
-                                        np.array(zscore_df_2ue['Num_Residues']))[0]), 0)
-        # Res I comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_i']) -
-                                        np.array(zscore_df_2ue['Res_i']))[0]), 0)
-        # Res J comparison
-        self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_j']) -
-                                        np.array(zscore_df_2ue['Res_j']))[0]), 0)
-        # W Comparison
-        w_diff = np.abs(np.array(zscore_df_2u['W']) - np.array(zscore_df_2ue['W']))
-        w_diff = w_diff > 1e-10
-        self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-        # W_Ave Comaparison
-        w_ave_diff = np.abs(np.array(zscore_df_2u['W_Ave']) - np.array(zscore_df_2ue['W_Ave']))
-        w_ave_diff = w_ave_diff > 1e-7
-        self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
-        # W2_Ave Comparison
-        w2_ave_diff = np.abs(np.array(zscore_df_2u['W2_Ave']) - np.array(zscore_df_2ue['W2_Ave']))
-        w2_ave_diff = w2_ave_diff > 1e-1
-        self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
-        # Sigma Comparison
-        sigma_diff = np.abs(np.array(zscore_df_2u['Sigma']) - np.array(zscore_df_2ue['Sigma']))
-        sigma_diff = sigma_diff > 1e-3
-        self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
-        # Z-Score Comparison
-        z_score_diff = np.abs(np.array(zscore_df_2u['Z-Score'].replace('NA', np.nan)) - \
-                              np.array(zscore_df_2ue['Z-Score'].replace('NA', np.nan)))
-        z_score_diff = z_score_diff > 1e-3
-        self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
 
     def test__clustering_z_score(self):
         self.scorer1.fit()
