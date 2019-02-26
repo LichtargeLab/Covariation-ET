@@ -606,40 +606,43 @@ class ContactScorer(object):
         Clustering Z Score
 
         Calculate z-score (z_S) for residue selection res_list=[1,2,...]
-        z_S = (w-<w>_S)/sigma_S
+            z_S = (w-<w>_S)/sigma_S
         The steps are:
-        1. Calculate Selection Clustering Weight (SCW) 'w'
-        2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
-        3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
-        Reference 2
+            1. Calculate Selection Clustering Weight (SCW) 'w'
+            2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
+            3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S) Reference 2
 
         Args:
             res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
-            bias (int or bool): option to calculate with bias or nobias (j-i factor)
+            bias (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+            factor accounting for the sequence separation of residues, as well as their distance, is added to the
+            calculation.
             w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
         Returns:
-            float. The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
-            float. The w (clustering) score calculated for the residues of interest for the PDB provided with this
+            float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
+            float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
             ContactScorer.
-            float. The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
+            float: The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
             ContactScorer.
-            float. The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
+            float: The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
             ContactScorer.
-            float. The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
+            float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
             ContactScorer.
-            dict. The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+            dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
             3).
 
-        This method adapted from code written by Rhonald Lua in Python (Reference 1) which was adapted from code written
-        by Angela Wilkins (Reference 2).
+        This method was formalized by Ivana Mihalek (Reference 1) and adapted from code written by Rhonald Lua in Python
+        (Reference 2) which was adapted from code written by Angela Wilkins (Reference 3).
 
         References:
-            1. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
-            protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
-            2. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
+            1. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
             Protein Structure Evaluation, Journal of Molecular Biology, Volume 331, Issue 1, 2003, Pages 263-279,
             ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
             (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
+            2. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
+            protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
+            3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
+            importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
         """
         if self.query_structure is None:
             print('Z-Score cannot be measured, because no PDB was provided.')
