@@ -10,8 +10,6 @@ from unittest import TestCase
 from scipy.stats import rankdata
 from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score
-from SeqAlignment import SeqAlignment
-from PDBReference import PDBReference
 from ETMIPC import ETMIPC
 from ContactScorer import ContactScorer, surface_plot, heatmap_plot, plot_z_scores
 
@@ -1978,9 +1976,6 @@ class TestContactScorer(TestCase):
         print(expected_path1)
         self.assertTrue(os.path.isfile(expected_path1))
         os.remove(expected_path1)
-
-########################################################################################################################
-########################################################################################################################
 
     def test_surface_plot(self):
         save_dir = os.path.abspath('../Test')
