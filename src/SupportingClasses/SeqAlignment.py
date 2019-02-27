@@ -361,6 +361,25 @@ class SeqAlignment(object):
         new_labels = [curr_to_new[c] for c in curr]
         return new_labels
 
+    def _upgma_tree(self, n_cluster, cache_dir=None):
+        from Bio.Phylo import read, write
+        from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
+        if cache_dir is None:
+            cache_dir = os.getcwd()
+        fn = 'serialized_aln_upgma.tre'
+        if os.path.isfile(os.path.join(cache_dir, fn)):
+            upgma_tree = read(os.path.join(cache_dir, fn), 'newick')
+        else:
+            if self.distance_matrix is None:
+                self.compute_distance_matrix()
+            constructor = DistanceTreeConstructor()
+            upgma_tree = constructor.upgma(distance_matrix=DistanceMatrix(names=self.seq_order,
+                                                                          matrix=self.distance_matrix))
+            write(upgma_tree, os.path.join(cache_dir, fn), 'newick')
+
+
+
+
     def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
         """
         Determine the ordering of the sequences from the full clustering tree
