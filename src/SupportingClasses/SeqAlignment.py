@@ -366,9 +366,10 @@ class SeqAlignment(object):
         from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
         if cache_dir is None:
             cache_dir = os.getcwd()
-        fn = 'serialized_aln_upgma.tre'
-        if os.path.isfile(os.path.join(cache_dir, fn)):
-            upgma_tree = read(os.path.join(cache_dir, fn), 'newick')
+        fn = 'serialized_aln_upgma'
+        if os.path.isfile(os.path.join(cache_dir, fn + '.tre')):
+            upgma_tree = read(os.path.join(cache_dir, fn + '.tre'), 'newick')
+            assignment_dict = pickle.load(os.path.join(cache_dir, fn + '.pkl'))
         else:
             if self.distance_matrix is None:
                 self.compute_distance_matrix()
@@ -383,8 +384,8 @@ class SeqAlignment(object):
                 if i not in value_dict:
                     value_dict[i] = []
                 value_dict[i].append(self.distance_matrix[i, j])
-            mat = [value_dict[x] for x in range(self.size)]
-            dist_mat = DistanceMatrix(names=self.seq_order, matrix=mat)
+            # mat = [value_dict[x] for x in range(self.size)]
+            # dist_mat = DistanceMatrix(names=self.seq_order, matrix=mat)
             upgma_tree = constructor.upgma(distance_matrix=value_matrix)
             write(upgma_tree, os.path.join(cache_dir, fn), 'newick')
             assignment_dict = {}
@@ -394,14 +395,46 @@ class SeqAlignment(object):
                 assignment_dict[i] = {}
                 counter = 0
                 new_nodes = []
+                closest_node = 0
+                curr_distance = None
+                curr_node = None
+                print('Closest Node: {}'.format(closest_node))
+                print('Curr Nodes:')
+                print(curr_nodes)
                 for clade in curr_nodes:
-                    terminals = clade.get_terminals()
+                    if clade.is_terminal():
+                        terminals = [clade]
+                    else:
+                        terminals = clade.get_terminals()
                     assignment_dict[i][counter] = set()
                     for t in terminals:
                         assignment_dict[i][counter].add(lookup[t.name])
+                    if counter == closest_node:
+                        print('New clades in update: {}'.format(len(clade.clades)))
+                        to_add = clade.clades
+                    else:
+                        to_add = [clade]
+                    for enum, node in enumerate(to_add):
+                        dist = upgma_tree.distance(node)
+                        if (not node.is_terminal()) and ((curr_distance is None) or (dist < curr_distance)):
+                            # print(node)
+                            # print(node.is_terminal())
+                            curr_distance = dist
+                            if counter < closest_node:
+                                curr_node = counter
+                            elif counter == closest_node:
+                                curr_node = counter + enum
+                            else:
+                                curr_node = counter + 1
+                        new_nodes.append(node)
                     counter += 1
-                    new_nodes += clade.clades
+                print(i)
+                print(len(assignment_dict[i]))
+                print(assignment_dict[i])
                 curr_nodes = new_nodes
+                closest_node = curr_node
+            with open(os.path.join(cache_dir, fn + '.pkl'), 'wb') as pkl_file:
+                pickle.dump(assignment_dict, pkl_file, pickle.HIGHEST_PROTOCOL)
         return upgma_tree, assignment_dict
 
 

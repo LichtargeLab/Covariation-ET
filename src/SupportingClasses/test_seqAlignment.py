@@ -810,10 +810,11 @@ class TestSeqAlignment(TestCase):
         aln_obj1.compute_distance_matrix()
         tree, assignment_dict = aln_obj1._upgma_tree(n_cluster=5, cache_dir='../Test/')
         print(tree)
-        for x in assignment_dict:
-            print(x)
-            print(assignment_dict[x])
-        embed()
+        # for x in assignment_dict:
+        #     print(x)
+        #     print(len(assignment_dict[x]))
+        #     print(assignment_dict[x])
+        # embed()
 
     def test_set_tree_ordering(self):
 
