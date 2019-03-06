@@ -269,6 +269,8 @@ class ETMIPC(object):
         print(self.alignment)
         query_alignment = SeqAlignment(file_name=self.alignment, query_id=query)
         # Import alignment information from file.
+        if not os.path.isdir(self.output_dir):
+            os.makedirs(self.output_dir)
         query_alignment.import_alignment(save_file=os.path.join(self.output_dir, 'alignment.pkl'))
         # Check if alignment meets analysis criteria:
         if (not ignore_alignment_size) and (query_alignment.size < 125):
@@ -654,7 +656,7 @@ def save_single_matrix(name, branch, mat, out_dir):
     """
     parent_dir, fn = single_matrix_filename(name=name, branch=branch, out_dir=out_dir)
     if not os.path.isdir(parent_dir):
-        os.mkdir(parent_dir)
+        os.makedirs(parent_dir)
     np.savez(fn, mat=mat)
     return fn
 
