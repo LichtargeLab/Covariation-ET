@@ -372,10 +372,37 @@ class SeqAlignment(object):
         else:
             if self.distance_matrix is None:
                 self.compute_distance_matrix()
+            calculator = DistanceCalculator('identity')
+            value_matrix = calculator.get_distance(self.alignment)
             constructor = DistanceTreeConstructor()
-            upgma_tree = constructor.upgma(distance_matrix=DistanceMatrix(names=self.seq_order,
-                                                                          matrix=self.distance_matrix))
+            indices = np.tril_indices(n=self.size, m=self.size)
+            value_dict = {}
+            for x in range(len(indices[0])):
+                i = indices[0][x]
+                j = indices[1][x]
+                if i not in value_dict:
+                    value_dict[i] = []
+                value_dict[i].append(self.distance_matrix[i, j])
+            mat = [value_dict[x] for x in range(self.size)]
+            dist_mat = DistanceMatrix(names=self.seq_order, matrix=mat)
+            upgma_tree = constructor.upgma(distance_matrix=value_matrix)
             write(upgma_tree, os.path.join(cache_dir, fn), 'newick')
+            assignment_dict = {}
+            curr_nodes = [upgma_tree.root]
+            lookup = {s: i for i, s in enumerate(self.seq_order)}
+            for i in range(n_cluster):
+                assignment_dict[i] = {}
+                counter = 0
+                new_nodes = []
+                for clade in curr_nodes:
+                    terminals = clade.get_terminals()
+                    assignment_dict[i][counter] = set()
+                    for t in terminals:
+                        assignment_dict[i][counter].add(lookup[t.name])
+                    counter += 1
+                    new_nodes += clade.clades
+                curr_nodes = new_nodes
+        return upgma_tree, assignment_dict
 
 
 

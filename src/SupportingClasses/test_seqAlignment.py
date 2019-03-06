@@ -803,6 +803,18 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_22), labels_4_expected)
         self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_22), labels_4_expected)
 
+    def test__upgma_tree(self):
+        from IPython import embed
+        aln_obj1 = SeqAlignment('../Test/1c17A.fa', '1c17A')
+        aln_obj1.import_alignment()
+        aln_obj1.compute_distance_matrix()
+        tree, assignment_dict = aln_obj1._upgma_tree(n_cluster=5, cache_dir='../Test/')
+        print(tree)
+        for x in assignment_dict:
+            print(x)
+            print(assignment_dict[x])
+        embed()
+
     def test_set_tree_ordering(self):
 
         def check(seq_dict, curr, prev=None):
