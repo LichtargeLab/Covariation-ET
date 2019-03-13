@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo.TreeConstruction import DistanceCalculator
+from Bio.Phylo import write
+from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
 from sklearn.cluster import AgglomerativeClustering
 from shutil import rmtree
 import cPickle as pickle
@@ -187,7 +188,7 @@ class SeqAlignment(object):
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
 
-    def compute_distance_matrix(self, save_file=None):
+    def compute_distance_matrix(self, model, save_dir=None):
         """
         Distance matrix
 
@@ -195,25 +196,28 @@ class SeqAlignment(object):
         distances.  This method updates the distance_matrix class variable.
 
         Args:
-            save_file (str): The path for an .npz file containing distances between sequences in the alignment, when
-            saving the ".npz" suffix will be added if left out of the provided path.
+            model (str): The type of distance matrix which was computed. Current options include the 'identity' model
+            and Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
+            save_dir (str): The path to a directory wheren a .npz file containing distances between sequences in the
+            alignment can be saved. The file created will be <model>.npz.
         """
         start = time()
-        if (save_file is not None) and (os.path.exists(save_file) or os.path.exists(save_file + '.npz')):
-            if save_file.endswith(".npz"):
-                value_matrix = np.load(save_file)['X']
-            else:
-                value_matrix = np.load(save_file + '.npz')['X']
+        if save_dir is None:
+            save_dir = os.getcwd()
+        save_file = os.path.join(save_dir, model + '.pkl')
+        if os.path.exists(save_file):
+            with open(save_file, 'rb') as save_handle:
+                value_matrix = pickle.load(save_handle)
         else:
-            calculator = DistanceCalculator('identity')
-            value_matrix = np.array(calculator.get_distance(self.alignment))
-            if save_file is not None:
-                np.savez(save_file, X=value_matrix)
+            calculator = DistanceCalculator(model=model)
+            value_matrix = calculator.get_distance(self.alignment)
+            with open(save_file, 'wb') as save_handle:
+                pickle.dump(value_matrix, save_handle, protocol=pickle.HIGHEST_PROTOCOL)
         end = time()
         print('Computing the distance matrix took {} min'.format((end - start) / 60.0))
         self.distance_matrix = value_matrix
 
-    def compute_effective_alignment_size(self, identity_threshold=0.62):
+    def compute_effective_alignment_size(self, identity_threshold=0.62, save_dir=None):
         """
         Compute Effective Alignment Size
 
@@ -224,12 +228,26 @@ class SeqAlignment(object):
             where n_i are the number of sequences sequence identity >= the identity threshold
         Args:
             identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
+            save_dir (str): The path to a directory wheren a .npz file containing distances between sequences in the
+            alignment can be saved. The file created will be <model>.npz.
         Returns:
             float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)
         """
-        if self.distance_matrix is None:
-            self.compute_distance_matrix()
-        meets_threshold = (1 - self.distance_matrix) >= identity_threshold
+        distance_matrix = None
+        save_file = None
+        if save_dir:
+            save_file = os.path.join(save_dir, 'identity.pkl')
+            if os.path.isfile(save_file):
+                with open(save_file, 'rb') as save_handle:
+                    distance_matrix = pickle.load(save_handle)
+        if distance_matrix is None:
+            calculator = DistanceCalculator(model='identity')
+            distance_matrix = calculator.get_distance(self.alignment)
+            if save_file:
+                with open(save_file, 'wb') as save_handle:
+                    pickle.dump(distance_matrix, save_handle, pickle.HIGHEST_PROTOCOL)
+        distance_matrix = np.array(distance_matrix)
+        meets_threshold = (1 - distance_matrix) >= identity_threshold
         meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
         n_i = np.sum(meets_threshold, axis=1)
         rec_n_i = 1.0 / n_i
@@ -238,7 +256,7 @@ class SeqAlignment(object):
             raise ValueError('Effective alignment size is greater than the original alignment size.')
         return effective_alignment_size
 
-    def _agglomerative_clustering(self, n_cluster, cache_dir=None, affinity='euclidean', linkage='ward'):
+    def _agglomerative_clustering(self, n_cluster, cache_dir=None, affinity='euclidean', linkage='ward', model=None):
         """
         Agglomerative clustering
 
@@ -265,17 +283,121 @@ class SeqAlignment(object):
                 complete
                 average
                 single
+            model (str): Only required if compute_distance_matrix has not been performed yet. The type of distance
+            matrix which was computed. Current options include the 'identity' model and
+            Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
         Returns:
             list: The cluster assignments for each sequence in the alignment.
         """
         if self.distance_matrix is None:
-            self.compute_distance_matrix()
-        model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=n_cluster, memory=cache_dir,
-                                        compute_full_tree=True)
-        model.fit(self.distance_matrix)
+            if model is None:
+                raise ValueError('Agglomerative clustering failed because distance_matrix is None and no model was '
+                                 'specified for computing distance.')
+            else:
+                self.compute_distance_matrix(model=model, save_dir=cache_dir)
+        ml_model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=n_cluster, memory=cache_dir,
+                                           compute_full_tree=True)
+        ml_model.fit(np.array(self.distance_matrix))
         # unique and sorted list of cluster ids e.g. for n_clusters=2, g=[0,1]
-        cluster_list = model.labels_.tolist()
+        cluster_list = ml_model.labels_.tolist()
         return cluster_list
+
+    def _upgma_tree(self, n_cluster, cache_dir=None, model=None):
+        """
+        UPGMA Tree
+
+        Constructs a UPGMA tree from the current alignment using a specified model (or a precomputed distance matrix).
+         This tree is then traveresed and stored such that the 'clusters' at a given n_clusters can be provided as
+         requested.
+
+        Args:
+            n_cluster (int): The number of clusters to separate sequences into.
+            cache_dir (str): The path to the directory where the tree and clusters identified by its traversal can be
+            stored for access later when identifying different numbers of clusters.
+            model (str): Only required if compute_distance_matrix has not been performed yet. The type of distance
+            matrix which was computed. Current options include the 'identity' model and
+            Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
+        Returns:
+            list: The cluster assignments for each sequence in the alignment.
+        """
+        def node_cmp(x, y):
+            """
+            Node Comparison
+
+            This method is provided such that lists of nodes are sorted properly for the intended behavior of the UPGMA
+            tree traversal.
+
+            Args:
+                x (Bio.Phylo.BaseTree.Clade): Left object in comparison.
+                y (Bio.Phylo.BaseTree.Clade): Right object for comparison.
+            Returns:
+                int: Old comparator behavior, i.e. 1 x comes before y and -1 if y comes before x. If the two Clades are
+                equal according to this comparison then 0 is returned.
+            """
+            if x.is_terminal() and not y.is_terminal():
+                return -1
+            elif not x.is_terminal() and y.is_terminal():
+                return 1
+            else:
+                if x.branch_length < y.branch_length:
+                    return -1
+                elif x.branch_length > y.branch_length:
+                    return 1
+                else:
+                    return 0
+
+        if cache_dir is None:
+            cache_dir = os.getcwd()
+        fn = 'serialized_aln_upgma.pkl'
+        if os.path.isfile(os.path.join(cache_dir, fn)):
+            with open(os.path.join(cache_dir, fn), 'rb') as fn_handle:
+                assignment_dict = pickle.load(fn_handle)
+        else:
+            # Compute distance matrix
+            if self.distance_matrix is None:
+                if model is None:
+                    raise ValueError('Agglomerative clustering failed because distance_matrix is None and no model was '
+                                     'specified for computing distance.')
+                else:
+                    self.compute_distance_matrix(model=model, save_dir=cache_dir)
+            # Create upgma tree
+            constructor = DistanceTreeConstructor()
+            upgma_tree = constructor.upgma(distance_matrix=self.distance_matrix)
+            write(upgma_tree, os.path.join(cache_dir, fn.split('.')[0] + '.tre'), 'newick')
+            # Travers the tree
+            assignment_dict = {}
+            lookup = {s: i for i, s in enumerate(self.seq_order)}
+            nodes_to_process = [upgma_tree.root]
+            unique_clusters = {}
+            current_cluster = []
+            k = 0
+            while len(nodes_to_process) > 0:
+                assignment_dict[k] = {}
+                for node in nodes_to_process:
+                    current_cluster.append(node)
+                current_cluster.sort(cmp=node_cmp)
+                cluster = 0
+                for node in current_cluster:
+                    if node.name in unique_clusters:
+                        terminals = unique_clusters[node.name]
+                    else:
+                        terminals = [lookup[x.name] for x in node.get_terminals()]
+                        unique_clusters[node.name] = terminals
+                    assignment_dict[k][cluster] = terminals
+                    cluster += 1
+                k += 1
+                nearest_node = current_cluster.pop()
+                if not nearest_node.is_terminal():
+                    nodes_to_process = nearest_node.clades
+                else:
+                    nodes_to_process = []
+            with open(os.path.join(cache_dir, fn), 'wb') as fn_handle:
+                pickle.dump(assignment_dict, fn_handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Emit clustering
+        cluster_labels = np.zeros(self.size)
+        for i in range(n_cluster):
+            cluster_labels[list(assignment_dict[n_cluster - 1][i])] = i
+        return list(cluster_labels)
 
     def _random_assignment(self, n_cluster, cache_dir=None):
         """
@@ -361,85 +483,6 @@ class SeqAlignment(object):
         new_labels = [curr_to_new[c] for c in curr]
         return new_labels
 
-    def _upgma_tree(self, n_cluster, cache_dir=None):
-        from Bio.Phylo import read, write
-        from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
-        if cache_dir is None:
-            cache_dir = os.getcwd()
-        fn = 'serialized_aln_upgma'
-        if os.path.isfile(os.path.join(cache_dir, fn + '.tre')):
-            upgma_tree = read(os.path.join(cache_dir, fn + '.tre'), 'newick')
-            assignment_dict = pickle.load(os.path.join(cache_dir, fn + '.pkl'))
-        else:
-            if self.distance_matrix is None:
-                self.compute_distance_matrix()
-            calculator = DistanceCalculator('identity')
-            value_matrix = calculator.get_distance(self.alignment)
-            constructor = DistanceTreeConstructor()
-            indices = np.tril_indices(n=self.size, m=self.size)
-            value_dict = {}
-            for x in range(len(indices[0])):
-                i = indices[0][x]
-                j = indices[1][x]
-                if i not in value_dict:
-                    value_dict[i] = []
-                value_dict[i].append(self.distance_matrix[i, j])
-            # mat = [value_dict[x] for x in range(self.size)]
-            # dist_mat = DistanceMatrix(names=self.seq_order, matrix=mat)
-            upgma_tree = constructor.upgma(distance_matrix=value_matrix)
-            write(upgma_tree, os.path.join(cache_dir, fn), 'newick')
-            assignment_dict = {}
-            curr_nodes = [upgma_tree.root]
-            lookup = {s: i for i, s in enumerate(self.seq_order)}
-            for i in range(n_cluster):
-                assignment_dict[i] = {}
-                counter = 0
-                new_nodes = []
-                closest_node = 0
-                curr_distance = None
-                curr_node = None
-                print('Closest Node: {}'.format(closest_node))
-                print('Curr Nodes:')
-                print(curr_nodes)
-                for clade in curr_nodes:
-                    if clade.is_terminal():
-                        terminals = [clade]
-                    else:
-                        terminals = clade.get_terminals()
-                    assignment_dict[i][counter] = set()
-                    for t in terminals:
-                        assignment_dict[i][counter].add(lookup[t.name])
-                    if counter == closest_node:
-                        print('New clades in update: {}'.format(len(clade.clades)))
-                        to_add = clade.clades
-                    else:
-                        to_add = [clade]
-                    for enum, node in enumerate(to_add):
-                        dist = upgma_tree.distance(node)
-                        if (not node.is_terminal()) and ((curr_distance is None) or (dist < curr_distance)):
-                            # print(node)
-                            # print(node.is_terminal())
-                            curr_distance = dist
-                            if counter < closest_node:
-                                curr_node = counter
-                            elif counter == closest_node:
-                                curr_node = counter + enum
-                            else:
-                                curr_node = counter + 1
-                        new_nodes.append(node)
-                    counter += 1
-                print(i)
-                print(len(assignment_dict[i]))
-                print(assignment_dict[i])
-                curr_nodes = new_nodes
-                closest_node = curr_node
-            with open(os.path.join(cache_dir, fn + '.pkl'), 'wb') as pkl_file:
-                pickle.dump(assignment_dict, pkl_file, pickle.HIGHEST_PROTOCOL)
-        return upgma_tree, assignment_dict
-
-
-
-
     def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
         """
         Determine the ordering of the sequences from the full clustering tree
@@ -515,7 +558,8 @@ class SeqAlignment(object):
         if out_dir is None:
             out_dir = os.getcwd()
         if self.sequence_assignments is None:
-            self.set_tree_ordering()
+            raise ValueError('SeqAlignment.sequence_assignments not initialized, run set_tree_ordering prior to this '
+                             'method being run.')
         check = {'SeqID': self.tree_order, 1: [0] * self.size}
         for k in self.sequence_assignments:
             curr_order = []
@@ -524,7 +568,8 @@ class SeqAlignment(object):
                     if self.tree_order[i] in self.sequence_assignments[k][c]:
                         curr_order.append(c)
             check[k] = curr_order
-        df = pd.DataFrame(check).set_index('SeqID').sort_values(by=self.size)[range(1, self.size + 1)]
+        branches = sorted(self.sequence_assignments.keys())
+        df = pd.DataFrame(check).set_index('SeqID').sort_values(by=branches[::-1])[branches]
         df.to_csv(os.path.join(out_dir, '{}_Sequence_Assignment.csv'.format(self.query_id[1:])), sep='\t', header=True,
                   index=True)
         heatmap(df, cmap='tab10', square=True)
