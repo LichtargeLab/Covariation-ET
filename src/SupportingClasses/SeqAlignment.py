@@ -507,7 +507,8 @@ class SeqAlignment(object):
         Return:
             list: The explicit list of tree levels analyzed, as described above in the tree_depth Args section.
         """
-        method_dict = {'agglomerative': self._agglomerative_clustering, 'random': self._random_assignment}
+        method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
+                       'random': self._random_assignment}
         curr_order = [0] * self.size
         sequence_assignments = {1: {0: set(self.seq_order)}}
         if tree_depth is None:

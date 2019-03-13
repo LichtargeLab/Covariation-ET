@@ -180,8 +180,8 @@ class TestSeqAlignment(TestCase):
             os.remove(os.path.abspath('../Test/1h1vA_aln.pkl'))
         except OSError:
             pass
-        # rmtree(self.save_dir1)
-        # rmtree(self.save_dir2)
+        rmtree(self.save_dir1)
+        rmtree(self.save_dir2)
 
     def test_init(self):
         with self.assertRaises(TypeError):
@@ -569,20 +569,16 @@ class TestSeqAlignment(TestCase):
     def test__upgma_tree(self):
         aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
         with self.assertRaises(ValueError):
-            print('Try 1')
             aln_obj1._upgma_tree(n_cluster=2, cache_dir=self.save_dir1)
         with self.assertRaises(TypeError):
-            print('Try 2')
             aln_obj1._upgma_tree(n_cluster=2, model='identity', cache_dir=self.save_dir1)
         aln_obj1.import_alignment()
         aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
-        print('Try 3')
         aln_obj1_clusters1 = aln_obj1._upgma_tree(n_cluster=2, cache_dir=self.save_dir1)
         self.assertEqual(len(set(aln_obj1_clusters1)), 2)
         self.assertTrue(0 in set(aln_obj1_clusters1))
         self.assertTrue(1 in set(aln_obj1_clusters1))
         self.assertTrue(os.path.isfile(os.path.join(self.save_dir1, 'serialized_aln_upgma.pkl')))
-        print('Try 4')
         aln_obj1_clusters2 = aln_obj1._upgma_tree(n_cluster=2, cache_dir=self.save_dir1)
         self.assertEqual(len(set(aln_obj1_clusters2)), 2)
         self.assertTrue(0 in set(aln_obj1_clusters2))
@@ -590,20 +586,16 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(aln_obj1_clusters1, aln_obj1_clusters2)
         aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
         with self.assertRaises(ValueError):
-            print('Try A')
             aln_obj2._upgma_tree(n_cluster=2, cache_dir=self.save_dir2)
         with self.assertRaises(TypeError):
-            print('Try B')
             aln_obj2._upgma_tree(n_cluster=2, model='identity', cache_dir=self.save_dir2)
         aln_obj2.import_alignment()
         aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
-        print('Try C')
         aln_obj2_clusters1 = aln_obj2._upgma_tree(n_cluster=2, cache_dir=self.save_dir2)
         self.assertEqual(len(set(aln_obj2_clusters1)), 2)
         self.assertTrue(0 in set(aln_obj2_clusters1))
         self.assertTrue(1 in set(aln_obj2_clusters1))
         self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'serialized_aln_upgma.pkl')))
-        print('Try D')
         aln_obj2_clusters2 = aln_obj2._upgma_tree(n_cluster=2, cache_dir=self.save_dir2)
         self.assertEqual(len(set(aln_obj2_clusters2)), 2)
         self.assertTrue(0 in set(aln_obj2_clusters2))
@@ -869,8 +861,6 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
         aln_obj2.import_alignment()
-        print('#' * 150)
-        print('#' * 150)
         aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2,
                                    clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
         self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
@@ -886,6 +876,46 @@ class TestSeqAlignment(TestCase):
         for i in range(len(clusters)):
             self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
         aln_obj2.set_tree_ordering()
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for k in range(1, aln_obj2.size):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        ################################################################################################################
+        aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1, clustering='upgma')
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        # self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for k in range(2, 5):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj1.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir1, clustering='upgma')
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for i in range(len(clusters)):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
+                            'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
+        aln_obj1.set_tree_ordering(clustering='upgma', cache_dir=self.save_dir1)
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        for k in range(1, aln_obj1.size):
+            self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
+        aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2, clustering='upgma')
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for k in range(2, 5):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj2.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir2, clustering='upgma')
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        # self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        for i in range(len(clusters)):
+            self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
+        aln_obj2.set_tree_ordering(cache_dir=self.save_dir2, clustering='upgma')
         self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
         self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
         self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
