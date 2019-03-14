@@ -8,6 +8,7 @@ import time
 import argparse
 import datetime
 from multiprocessing import cpu_count
+from Bio.Phylo.TreeConstruction import DistanceCalculator
 
 from SupportingClasses.ETMIPC import ETMIPC
 from SupportingClasses.PDBReference import PDBReference
@@ -39,10 +40,34 @@ def parse_arguments():
     parser.add_argument('--threshold', metavar='T', type=float, nargs='?', default=8.0,
                         help='The distance within the molecular structure at which two residues are considered '
                              'interacting.')
-    parser.add_argument('--clusters', metavar='K', type=int, nargs='+', default=[2, 3, 5, 7, 10, 25],
-                        help='The clustering constants to use when performing this analysis.')
-    parser.add_argument('--combineKs', metavar='C', type=str, nargs='?', default='sum', choices=['sum', 'average'],
-                        help='The method to use when combining across the specified clustering constants.')
+    parser.add_argument('--treeDepth', metavar='K', type=int, nargs='+', default=[2, 3, 5, 7, 10, 25],
+                        help='''The levels of the phylogenetic tree to consider when analyzing this alignment, which
+                        determines the attributes sequence_assignments and tree_ordering. The following options are
+                        available:
+                            0 : Entering 0 means all branches from the top of the tree (1) to the leaves (size of the
+                            provided alignment) will be analyzed.
+                            x, y: If two integers are provided separated by a comma, this will be interpreted as a tuple
+                            which will be taken as a range, the top of the tree (1), and all branches between the first
+                            and second (non-inclusive) integer will be analyzed.
+                            x, y, z, etc.: If one integer (that is not 0) or more than two integers are entered, this
+                            will be interpreted as a list. All branches in the list will be analyzed, as well as the top
+                            of the tree (1) even if not listed.''')
+    parser.add_argument('--distanceModel', metavar='D', type=str, default='identity', nargs='?',
+                        choices=['identity'] + DistanceCalculator.protein_models, help='''Which model to use when
+                        calculating distances between sequences for phylogenetic tree construction. This choice will
+                        influence any of the tree construction method chosen.''')
+    parser.add_argument('--treeConstruction', metavar='t', type=str, default='agglomerative', nargs='?',
+                        choices=['agglomerative', 'upgma', 'random'], help='''This specifies the method for tree
+                        construction used to produce the phylogenetic tree for analysis. Selecting 'agglomerative'
+                        produces a tree using the sklearn agglomerative clustering implementation, while 'upgma' uses
+                        the Biopython upgma implementation. Selecting random does not use a tree structure, it selects
+                        random sequences for each branch at each level specified.''')
+    parser.add_argument('--treeConstructionArgs', metavar='a', type=str, nargs='+', help='''Additional settings for tree
+    construction can be added here, each tree construction method has different options which are described in the
+    specific methods in the SeqAlignment class. Provided options should always come in pairs with the name of the option
+    coming first and the value for that option coming second e.g. '--treeConstructionArgs affinity euclidean' etc.''')
+    parser.add_argument('--combineBranches', metavar='C', type=str, default='sum', choices=['sum', 'average'],
+                        nargs='?', help='The method to use when combining across the specified clustering constants.')
     parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?', default='sum',
                         choices=['sum', 'average', 'size_weighted', 'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering '
@@ -63,13 +88,17 @@ def parse_arguments():
                              'Z-Scores against resiude count, 3 tests the AUROC of contact prediction at different '
                              'levels of sequence separation and plots the resulting curves to file, 4 tests the '
                              'precision of  contact prediction at different levels of sequence separation and list '
-                             'lengths (L, L/2 ... L/10), 5 produces heatmaps and surface plots of scores. In all cases a'
-                             'file is written out with the final evaluation of the scores, if no PDB is provided, this '
-                             'means only times will be recorded.')
+                             'lengths (L, L/2 ... L/10), 5 produces heatmaps and surface plots of scores. In all cases '
+                             'a file is written out with the final evaluation of the scores, if no PDB is provided, this'
+                             ' means only times will be recorded.')
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)
-    arguments['clusters'] = sorted(arguments['clusters'])
+    arguments['treeDepth'] = sorted(arguments['treeDepth'])
+    if len(arguments['treeDepth']) == 1 and arguments['treeDepth'][0] == 0:
+        arguments['treeDepth'] = None
+    elif len(arguments['treeDepth']) == 2:
+        arguments['treeDepth'] = tuple(arguments['treeDepth'])
     processor_count = cpu_count()
     if arguments['processes'] > processor_count:
         arguments['processes'] = processor_count
@@ -97,8 +126,16 @@ def analyze_alignment(args):
     # Combine the clustering results across all clustering constants tested.
     # Compute normalized scores for ETMIPC
     # Write out cluster specific scores
-    cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], clusters=args['clusters'],
-                                aa_mapping=aa_dict, combine_clusters=args['combineClusters'], combine_ks=args['combineKs'],
+
+    #
+    clustering_args
+    #
+
+    cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], tree_depth=args['clusters'],
+                                aa_mapping=aa_dict, model=args['distanceModel'], clustering=args['treeConstruction'],
+                                clustering_args={args['treeConstructionArgs'][i]: args['treeConstructionArgs'][i + 1]
+                                                 for i in range(0, len(args['treeConstructionArgs']), 2)},
+                                combine_clusters=args['combineClusters'], combine_branches=args['combineBranches'],
                                 processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
                                 ignore_alignment_size=args['ignoreAlignmentSize'])
 

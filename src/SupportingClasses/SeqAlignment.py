@@ -503,6 +503,7 @@ class SeqAlignment(object):
             dictionary can be left empty.
             clustering (str): The type of clustering/tree building to use. Current options are:
                 agglomerative
+                upgma
                 random
         Return:
             list: The explicit list of tree levels analyzed, as described above in the tree_depth Args section.

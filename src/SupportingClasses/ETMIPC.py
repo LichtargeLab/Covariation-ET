@@ -241,7 +241,7 @@ class ETMIPC(object):
         return self.__get_c_level_matrices(item='coverage', branch=branch, three_dim=three_dim)
     ####################################################################################################################
 
-    def import_alignment(self, query, ignore_alignment_size=False, clustering='agglomerative',
+    def import_alignment(self, query, ignore_alignment_size=False, model='identity', clustering='agglomerative',
                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}):
         """
         Import Alignment
@@ -259,6 +259,8 @@ class ETMIPC(object):
             to the provided string to find it in the alignment.
             ignore_alignment_size (bool): Whether or not to ignore the alignment size. If False and the alignment
             provided has fewer than 125 sequences a ValueError will be raised.
+            model (str): The type of distance matrix which was computed. Current options include the 'identity' model
+            and Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
             clustering (str): Which method to use for generating a hierarchical clustering/phylogenetic tree. Current
             options are described in SeqAlignment set_tree_ordering and include 'agglomerative' and 'random'.
             clustering_args (dict): Additional arguments for the clustering method used, more details cane be found in
@@ -280,7 +282,7 @@ class ETMIPC(object):
         # Remove gaps from aligned query sequences
         query_alignment.remove_gaps(save_file=os.path.join(self.output_dir, 'ungapped_alignment.pkl'))
         # Compute distance between all sequences in the alignment
-        query_alignment.compute_distance_matrix(save_file=os.path.join(self.output_dir, 'X'))
+        query_alignment.compute_distance_matrix(model=model, save_dir=self.output_dir)
         # Write the ungapped alignment to file.
         query_alignment.write_out_alignment(file_name=os.path.join(self.output_dir, 'UngappedAlignment.fa'))
         # Determine the full clustering tree for the alignment and the ordering of its sequences.
@@ -469,7 +471,7 @@ class ETMIPC(object):
                         os.path.isfile(self.unique_clusters[tree_pos]['nongap_counts']):
                     os.remove(self.unique_clusters[tree_pos]['nongap_counts'])
 
-    def calculate_scores(self, curr_date, query, tree_depth, out_dir, ignore_alignment_size, clustering,
+    def calculate_scores(self, curr_date, query, tree_depth, out_dir, ignore_alignment_size, model, clustering,
                          clustering_args, aa_mapping, combine_clusters, combine_branches, processes=1, low_mem=False,
                          del_intermediate=False):
         """
@@ -490,6 +492,8 @@ class ETMIPC(object):
             out_dir (str): The top level directory in which results for this analysis should be saved.
             ignore_alignment_size (bool): Whether or not to ignore the size of the alignment specified for this
             ETMIPC instance, the recommended length is 125 sequences.
+            model (str): The type of distance matrix which was computed. Current options include the 'identity' model
+            and Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
             clustering (str): Which method to use when clustering to create the tree analyzed here. Current options are
             detailed in the SeqAlignment set_tree_ordering method.
             clustering_args (dict): Additional arguments for the SeqAlignment set_tree_ordering method.
@@ -531,7 +535,7 @@ class ETMIPC(object):
             self.low_mem = low_mem
             self.tree_depth = tree_depth
             self.import_alignment(query=query, ignore_alignment_size=ignore_alignment_size, clustering=clustering,
-                                  clustering_args=clustering_args)
+                                  clustering_args=clustering_args, model=model)
             self.calculate_cluster_scores(evidence=('evidence' in combine_clusters), aa_mapping=aa_mapping)
             self.calculate_branch_scores(combine_clusters=combine_clusters)
             self.calculate_final_scores(combine_branches=combine_branches)
