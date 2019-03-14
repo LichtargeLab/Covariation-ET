@@ -67,19 +67,21 @@ class ContactScorer(object):
         Args:
             query (str): The name of the query structure. When '>query_' is prepended, this should be the name of the
             query in the provided alignment.
-            seq_alignment (str/path): Path to the alignment being evaluated in this contact scoring prediction task.
-            pdb_reference (str/path): The object containing the PDB structure of interest.
+            seq_alignment (str/path, SeqAlignment): Path to the alignment being evaluated in this contact scoring
+            prediction task or an already initialized SeqAlignment object.
+            pdb_reference (str/path, PDBReference): The object containing the PDB structure of interest, or an already
+            initialized PDBReference object.
             cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
         """
         self.query = query
-        # if seq_alignment.startswith('..'):
-        #     seq_alignment = os.path.abspath(seq_alignment)
-        # self.query_alignment = seq_alignment
-        self.query_alignment = os.path.abspath(seq_alignment)
-        # if pdb_reference.startswith('..'):
-        #     pdb_reference = os.path.abspath(pdb_reference)
-        # self.query_structure = pdb_reference
-        self.query_structure = os.path.abspath(pdb_reference)
+        if type(seq_alignment) is SeqAlignment:
+            self.query_alignment = seq_alignment
+        else:
+            self.query_alignment = os.path.abspath(seq_alignment)
+        if type(pdb_reference) is PDBReference:
+            self.query_structure = pdb_reference
+        else:
+            self.query_structure = os.path.abspath(pdb_reference)
         self.cutoff = cutoff
         self.best_chain = None
         self.query_pdb_mapping = None

@@ -126,17 +126,13 @@ def analyze_alignment(args):
     # Combine the clustering results across all clustering constants tested.
     # Compute normalized scores for ETMIPC
     # Write out cluster specific scores
-
-    #
-    clustering_args
-    #
-
-    cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], tree_depth=args['clusters'],
-                                aa_mapping=aa_dict, model=args['distanceModel'], clustering=args['treeConstruction'],
+    cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], aa_mapping=aa_dict,
+                                tree_depth=args['treeDepth'], model=args['distanceModel'],
+                                clustering=args['treeConstruction'],
                                 clustering_args={args['treeConstructionArgs'][i]: args['treeConstructionArgs'][i + 1]
                                                  for i in range(0, len(args['treeConstructionArgs']), 2)},
                                 combine_clusters=args['combineClusters'], combine_branches=args['combineBranches'],
-                                processes=args['processes'], low_memory_mode=args['lowMemoryMode'],
+                                processes=args['processes'], low_mem=args['lowMemoryMode'],
                                 ignore_alignment_size=args['ignoreAlignmentSize'])
 
     # Create PDBReference object to represent the structure for this analysis.
@@ -148,14 +144,12 @@ def analyze_alignment(args):
         query_structure = None
     # Evaluate against PDB if provided and produce figures.
     # Write out the statistics and final times for the different clustering constants tested.
-    test_scorer_any = ContactScorer(seq_alignment=cetmip_obj.alignment, pdb_reference=query_structure,
-                                    cutoff=args['threshold'])
-    test_scorer_any.evaluate_predictor(query=args['query'][0], predictor=cetmip_obj, verbosity=args['verbosity'],
-                                       out_dir=query_dir, dist='Any')
-    test_scorer_beta = ContactScorer(seq_alignment=cetmip_obj.alignment, pdb_reference=query_structure,
-                                     cutoff=args['threshold'])
-    test_scorer_beta.evaluate_predictor(query=args['query'][0], predictor=cetmip_obj, verbosity=args['verbosity'],
-                                        out_dir=query_dir, dist='CB')
+    test_scorer_any = ContactScorer(query=args['query'][0], seq_alignment=cetmip_obj.alignment,
+                                    pdb_reference=query_structure, cutoff=args['threshold'])
+    test_scorer_any.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='Any')
+    test_scorer_beta = ContactScorer(query=args['query'][0], seq_alignment=cetmip_obj.alignment,
+                                     pdb_reference=query_structure, cutoff=args['threshold'])
+    test_scorer_beta.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='CB')
     # If low memory mode was used clear out intermediate files saved in this
     if args['lowMemoryMode']:
         cetmip_obj.clear_intermediate_files()
