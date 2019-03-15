@@ -474,9 +474,9 @@ class TestETMIPC(TestCase):
             value_matrix[i] = np.sum(check == 0, axis=1)
         value_matrix /= self.etmipc1.alignment.seq_length
         value_matrix = 1 - value_matrix
-        self.assertEqual(0, np.sum(self.etmipc1.alignment.distance_matrix[range(self.etmipc1.alignment.size),
-                                                                     range(self.etmipc1.alignment.size)]))
-        self.assertEqual(0, np.sum(value_matrix - self.etmipc1.alignment.distance_matrix))
+        self.assertEqual(0, np.sum(np.array(self.etmipc1.alignment.distance_matrix)[range(self.etmipc1.alignment.size),
+                                                                                    range(self.etmipc1.alignment.size)]))
+        self.assertEqual(0, np.sum(value_matrix - np.array(self.etmipc1.alignment.distance_matrix)))
         self.assertEqual(set(self.etmipc1.alignment.seq_order), set(self.etmipc1.alignment.tree_order))
         self.assertNotEqual(self.etmipc1.alignment.seq_order, self.etmipc1.alignment.tree_order)
         self.assertTrue(check_tree(self.etmipc1.alignment.sequence_assignments, curr=1))
@@ -515,9 +515,9 @@ class TestETMIPC(TestCase):
             value_matrix[i] = np.sum(check == 0, axis=1)
         value_matrix /= self.etmipc2.alignment.seq_length
         value_matrix = 1 - value_matrix
-        self.assertEqual(0, np.sum(self.etmipc2.alignment.distance_matrix[range(self.etmipc2.alignment.size),
-                                                                     range(self.etmipc2.alignment.size)]))
-        self.assertEqual(0, np.sum(value_matrix - self.etmipc2.alignment.distance_matrix))
+        self.assertEqual(0, np.sum(np.array(self.etmipc2.alignment.distance_matrix)[range(self.etmipc2.alignment.size),
+                                                                                    range(self.etmipc2.alignment.size)]))
+        self.assertEqual(0, np.sum(value_matrix - np.array(self.etmipc2.alignment.distance_matrix)))
         self.assertEqual(set(self.etmipc2.alignment.seq_order), set(self.etmipc2.alignment.tree_order))
         self.assertNotEqual(self.etmipc2.alignment.seq_order, self.etmipc2.alignment.tree_order)
         self.assertTrue(check_tree(self.etmipc2.alignment.sequence_assignments, curr=1))
@@ -918,7 +918,7 @@ class TestETMIPC(TestCase):
         start1 = time()
         time1 = self.etmipc1.calculate_scores(curr_date=str(datetime.date.today()), query=self.query1,
                                               tree_depth=self.tree_depth, out_dir=self.out_dir_1, processes=1,
-                                              ignore_alignment_size=True, clustering='agglomerative',
+                                              ignore_alignment_size=True, model='identity', clustering='agglomerative',
                                               clustering_args={'affinity': 'euclidean', 'linkage': 'ward'},
                                               aa_mapping=self.aa_dict, combine_clusters='sum', combine_branches='sum',
                                               del_intermediate=False, low_mem=False)
@@ -937,7 +937,7 @@ class TestETMIPC(TestCase):
         start2 = time()
         time2 = etmipc3.calculate_scores(curr_date=str(datetime.date.today()), query=self.query1,
                                          tree_depth=self.tree_depth, out_dir=self.out_dir_1, processes=1,
-                                         ignore_alignment_size=True, clustering='agglomerative',
+                                         ignore_alignment_size=True, model='identity', clustering='agglomerative',
                                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'},
                                          aa_mapping=self.aa_dict, combine_clusters='sum', combine_branches='sum',
                                          del_intermediate=False, low_mem=False)
@@ -952,7 +952,7 @@ class TestETMIPC(TestCase):
         start3 = time()
         time3 = self.etmipc2.calculate_scores(curr_date=str(datetime.date.today()), query=self.query2,
                                               tree_depth=self.tree_depth, out_dir=self.out_dir_2, processes=6,
-                                              ignore_alignment_size=False, clustering='agglomerative',
+                                              ignore_alignment_size=False, model='identity', clustering='agglomerative',
                                               clustering_args={'affinity': 'euclidean', 'linkage': 'ward'},
                                               aa_mapping=self.aa_dict, combine_clusters='evidence_weighted',
                                               combine_branches='average', del_intermediate=False, low_mem=True)
@@ -969,7 +969,7 @@ class TestETMIPC(TestCase):
         start4 = time()
         time4 = etmipc4.calculate_scores(curr_date=str(datetime.date.today()), query=self.query2,
                                          tree_depth=self.tree_depth, out_dir=self.out_dir_2, processes=6,
-                                         ignore_alignment_size=False, clustering='agglomerative',
+                                         ignore_alignment_size=False, model='identity', clustering='agglomerative',
                                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'},
                                          aa_mapping=self.aa_dict, combine_clusters='evidence_weighted',
                                          combine_branches='average', del_intermediate=False, low_mem=True)
