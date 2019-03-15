@@ -62,20 +62,22 @@ def parse_arguments():
                         produces a tree using the sklearn agglomerative clustering implementation, while 'upgma' uses
                         the Biopython upgma implementation. Selecting random does not use a tree structure, it selects
                         random sequences for each branch at each level specified.''')
-    parser.add_argument('--treeConstructionArgs', metavar='a', type=str, nargs='+', help='''Additional settings for tree
-    construction can be added here, each tree construction method has different options which are described in the
-    specific methods in the SeqAlignment class. Provided options should always come in pairs with the name of the option
-    coming first and the value for that option coming second e.g. '--treeConstructionArgs affinity euclidean' etc.''')
+    parser.add_argument('--treeConstructionArgs', metavar='a', type=str, nargs='+',
+                        help="Additional settings for tree construction can be added here, each tree construction "
+                             "method has different options which are described in the specific methods in the "
+                             "SeqAlignment class. Provided options should always come in pairs with the name of the "
+                             "option coming first and the value for that option coming second e.g. "
+                             "'--treeConstructionArgs affinity euclidean' etc.")
     parser.add_argument('--combineBranches', metavar='C', type=str, default='sum', choices=['sum', 'average'],
                         nargs='?', help='The method to use when combining across the specified clustering constants.')
     parser.add_argument('--combineClusters', metavar='c', type=str, nargs='?', default='sum',
                         choices=['sum', 'average', 'size_weighted', 'evidence_weighted', 'evidence_vs_size'],
                         help='How information should be integrated across clusters resulting from the same clustering '
                              'constant.')
-    parser.add_argument('--ignoreAlignmentSize', metavar='i', type=bool, nargs='?', default=False,
+    parser.add_argument('--ignoreAlignmentSize', default=False, action='store_true',
                         help='Whether or not to allow alignments with fewer than 125 sequences as suggested by '
                              'PMID:16159918.')
-    parser.add_argument('--lowMemoryMode', metavar='l', type=bool, nargs='?', default=False,
+    parser.add_argument('--lowMemoryMode', default=False, action='store_true',
                         help='Whether to use low memory mode or not. If low memory mode is engaged intermediate values '
                              'in the ETMIPC class will be written to file instead of stored in memory. This will reduce'
                              ' the memory footprint but may increase the time to run. Only recommended for very large '
@@ -89,8 +91,8 @@ def parse_arguments():
                              'levels of sequence separation and plots the resulting curves to file, 4 tests the '
                              'precision of  contact prediction at different levels of sequence separation and list '
                              'lengths (L, L/2 ... L/10), 5 produces heatmaps and surface plots of scores. In all cases '
-                             'a file is written out with the final evaluation of the scores, if no PDB is provided, this'
-                             ' means only times will be recorded.')
+                             'a file is written out with the final evaluation of the scores, if no PDB is provided, '
+                             'this means only times will be recorded.')
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -99,6 +101,12 @@ def parse_arguments():
         arguments['treeDepth'] = None
     elif len(arguments['treeDepth']) == 2:
         arguments['treeDepth'] = tuple(arguments['treeDepth'])
+    if arguments['treeConstructionArgs'] is not None:
+        arguments['treeConstructionArgs'] = {arguments['treeConstructionArgs'][i]:
+                                                 arguments['treeConstructionArgs'][i + 1]
+                                             for i in range(0, len(arguments['treeConstructionArgs']), 2)}
+    else:
+        arguments['treeConstructionArgs'] = {}
     processor_count = cpu_count()
     if arguments['processes'] > processor_count:
         arguments['processes'] = processor_count
@@ -128,9 +136,7 @@ def analyze_alignment(args):
     # Write out cluster specific scores
     cetmip_obj.calculate_scores(out_dir=query_dir, curr_date=today, query=args['query'][0], aa_mapping=aa_dict,
                                 tree_depth=args['treeDepth'], model=args['distanceModel'],
-                                clustering=args['treeConstruction'],
-                                clustering_args={args['treeConstructionArgs'][i]: args['treeConstructionArgs'][i + 1]
-                                                 for i in range(0, len(args['treeConstructionArgs']), 2)},
+                                clustering=args['treeConstruction'], clustering_args=args['treeConstructionArgs'],
                                 combine_clusters=args['combineClusters'], combine_branches=args['combineBranches'],
                                 processes=args['processes'], low_mem=args['lowMemoryMode'],
                                 ignore_alignment_size=args['ignoreAlignmentSize'])
