@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo import write
+from Bio.Phylo import read, write
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
 from sklearn.cluster import AgglomerativeClustering
 from shutil import rmtree
@@ -302,24 +302,22 @@ class SeqAlignment(object):
         cluster_list = ml_model.labels_.tolist()
         return cluster_list
 
-    def _upgma_tree(self, n_cluster, cache_dir=None, model=None):
+    def __traverse_base_tree(self, tree):
         """
-        UPGMA Tree
+        Traverse Base Tree
 
-        Constructs a UPGMA tree from the current alignment using a specified model (or a precomputed distance matrix).
-         This tree is then traveresed and stored such that the 'clusters' at a given n_clusters can be provided as
-         requested.
+        This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
+        n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
+        object is used.
 
         Args:
-            n_cluster (int): The number of clusters to separate sequences into.
-            cache_dir (str): The path to the directory where the tree and clusters identified by its traversal can be
-            stored for access later when identifying different numbers of clusters.
-            model (str): Only required if compute_distance_matrix has not been performed yet. The type of distance
-            matrix which was computed. Current options include the 'identity' model and
-            Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
+            tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
         Returns:
-            list: The cluster assignments for each sequence in the alignment.
+            dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
+            level has keys corresponding to specific branches within that level and the values are a list of the
+            sequence identifiers in that branch.
         """
+
         def node_cmp(x, y):
             """
             Node Comparison
@@ -346,6 +344,53 @@ class SeqAlignment(object):
                 else:
                     return 0
 
+        # Travers the tree
+        assignment_dict = {}
+        lookup = {s: i for i, s in enumerate(self.seq_order)}
+        nodes_to_process = [tree.root]
+        unique_clusters = {}
+        current_cluster = []
+        k = 0
+        while len(nodes_to_process) > 0:
+            assignment_dict[k] = {}
+            for node in nodes_to_process:
+                current_cluster.append(node)
+            current_cluster.sort(cmp=node_cmp)
+            cluster = 0
+            for node in current_cluster:
+                if node.name in unique_clusters:
+                    terminals = unique_clusters[node.name]
+                else:
+                    terminals = [lookup[x.name] for x in node.get_terminals()]
+                    unique_clusters[node.name] = terminals
+                assignment_dict[k][cluster] = terminals
+                cluster += 1
+            k += 1
+            nearest_node = current_cluster.pop()
+            if not nearest_node.is_terminal():
+                nodes_to_process = nearest_node.clades
+            else:
+                nodes_to_process = []
+        return assignment_dict
+
+    def _upgma_tree(self, n_cluster, cache_dir=None, model=None):
+        """
+        UPGMA Tree
+
+        Constructs a UPGMA tree from the current alignment using a specified model (or a precomputed distance matrix).
+         This tree is then traveresed and stored such that the 'clusters' at a given n_clusters can be provided as
+         requested.
+
+        Args:
+            n_cluster (int): The number of clusters to separate sequences into.
+            cache_dir (str): The path to the directory where the tree and clusters identified by its traversal can be
+            stored for access later when identifying different numbers of clusters.
+            model (str): Only required if compute_distance_matrix has not been performed yet. The type of distance
+            matrix which was computed. Current options include the 'identity' model and
+            Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
+        Returns:
+            list: The cluster assignments for each sequence in the alignment.
+        """
         if cache_dir is None:
             cache_dir = os.getcwd()
         fn = 'serialized_aln_upgma.pkl'
@@ -365,32 +410,45 @@ class SeqAlignment(object):
             upgma_tree = constructor.upgma(distance_matrix=self.distance_matrix)
             write(upgma_tree, os.path.join(cache_dir, fn.split('.')[0] + '.tre'), 'newick')
             # Travers the tree
-            assignment_dict = {}
-            lookup = {s: i for i, s in enumerate(self.seq_order)}
-            nodes_to_process = [upgma_tree.root]
-            unique_clusters = {}
-            current_cluster = []
-            k = 0
-            while len(nodes_to_process) > 0:
-                assignment_dict[k] = {}
-                for node in nodes_to_process:
-                    current_cluster.append(node)
-                current_cluster.sort(cmp=node_cmp)
-                cluster = 0
-                for node in current_cluster:
-                    if node.name in unique_clusters:
-                        terminals = unique_clusters[node.name]
-                    else:
-                        terminals = [lookup[x.name] for x in node.get_terminals()]
-                        unique_clusters[node.name] = terminals
-                    assignment_dict[k][cluster] = terminals
-                    cluster += 1
-                k += 1
-                nearest_node = current_cluster.pop()
-                if not nearest_node.is_terminal():
-                    nodes_to_process = nearest_node.clades
-                else:
-                    nodes_to_process = []
+            assignment_dict = self.__traverse_base_tree(tree=upgma_tree)
+            with open(os.path.join(cache_dir, fn), 'wb') as fn_handle:
+                pickle.dump(assignment_dict, fn_handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # Emit clustering
+        cluster_labels = np.zeros(self.size)
+        for i in range(n_cluster):
+            cluster_labels[list(assignment_dict[n_cluster - 1][i])] = i
+        return list(cluster_labels)
+
+    def _custom_tree(self, n_cluster, tree_path, tree_name, cache_dir=None):
+        """
+        Custom Tree
+
+        Reads in a previously generated tree from a specified file. This tree must be written in the 'newick' format and
+        must be rooted. This tree is then traveresed and stored such that the 'clusters' at a given n_clusters can be
+        provided as requested.
+
+        Args:
+            n_cluster (int): The number of clusters to separate sequences into.
+            cache_dir (str): The path to the directory where the tree and clusters identified by its traversal can be
+            stored for access later when identifying different numbers of clusters.
+            tree_path (str/path): The path to a file where the desired tree has been written in 'newick' format.
+            tree_name (str): A meaningful name for the tree which is being imported, this will be used in the filename
+            for the serialized data collected from the tree.
+        Returns:
+            list: The cluster assignments for each sequence in the alignment.
+        """
+        if cache_dir is None:
+            cache_dir = os.getcwd()
+        fn = 'serialized_{}_tree.pkl'.format(tree_name)
+        if os.path.isfile(os.path.join(cache_dir, fn)):
+            with open(os.path.join(cache_dir, fn), 'rb') as fn_handle:
+                assignment_dict = pickle.load(fn_handle)
+        else:
+
+            # Read in custom tree
+            custom_tree = read(file=tree_path, format='newick')
+            # Travers the tree
+            assignment_dict = self.__traverse_base_tree(tree=custom_tree)
             with open(os.path.join(cache_dir, fn), 'wb') as fn_handle:
                 pickle.dump(assignment_dict, fn_handle, protocol=pickle.HIGHEST_PROTOCOL)
         # Emit clustering
@@ -414,17 +472,20 @@ class SeqAlignment(object):
         Returns:
             list: The cluster assignments for each sequence in the alignment.
         """
+        print('N Cluster: {}'.format(n_cluster))
         if cache_dir is not None:
             save_dir = os.path.join(cache_dir, 'joblib')
+            save_file = os.path.join(save_dir, 'K_{}.pkl'.format(n_cluster))
         else:
             save_dir = None
+            save_file = None
         if save_dir is not None:
-            save_file = os.path.join(save_dir, 'K_{}.pkl'.format(n_cluster))
             if not os.path.isdir(save_dir):
                 os.mkdir(save_dir)
             else:
                 if os.path.isfile(save_file):
-                    return pickle.load(save_file)
+                    with open(save_file, 'rb') as save_handle:
+                        return pickle.load(save_handle)
         cluster_sizes = np.ones(n_cluster, dtype=np.int64)
         min_size = self.size // n_cluster
         cluster_sizes *= min_size
@@ -439,7 +500,8 @@ class SeqAlignment(object):
                 cluster_list[j] = i
             choices = list(set(choices) - set(curr_assignment))
         if save_dir is not None:
-            pickle.dump(cluster_list, save_file, pickle.HIGHEST_PROTOCOL)
+            with open(save_file, 'wb') as save_handle:
+                pickle.dump(cluster_list, save_handle, pickle.HIGHEST_PROTOCOL)
         return cluster_list
 
     @staticmethod
@@ -465,6 +527,7 @@ class SeqAlignment(object):
         curr_labels = set()
         prev_to_curr = {}
         for i in range(len(prev)):
+            print(i)
             prev_c = prev[i]
             curr_c = curr[i]
             if prev_c not in prev_to_curr:
@@ -473,14 +536,33 @@ class SeqAlignment(object):
                 curr_labels.add(curr_c)
                 prev_to_curr[prev_c]['clusters'].append(curr_c)
                 prev_to_curr[prev_c]['indices'].append(i)
+            # prev_to_curr[prev_c]['clusters'].append(curr_c)
+            # prev_to_curr[prev_c]['indices'].append(i)
         curr_to_new = {}
         counter = 0
         for c in prev_labels:
-            for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
-                                      key=lambda x: x[1]))[0]:
-                curr_to_new[curr_c] = counter
-                counter += 1
+            try:
+                for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
+                                          key=lambda x: x[1]))[0]:
+                    curr_to_new[curr_c] = counter
+                    counter += 1
+            except IndexError as e:
+                t1 = zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices'])
+                print(t1)
+                t2 = sorted(t1, key=lambda x: x[1])
+                print(t2)
+                t3 = zip(*t2)
+                print(t3)
+                print(prev)
+                print(curr)
+                print(prev_to_curr)
+                raise e
         new_labels = [curr_to_new[c] for c in curr]
+        print('#' * 147)
+        print(prev)
+        print(curr)
+        print(new_labels)
+        print('#' * 147)
         return new_labels
 
     def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):

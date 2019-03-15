@@ -616,6 +616,12 @@ class TestSeqAlignment(TestCase):
         self.assertTrue(0 in set(aln_obj1_clusters2))
         self.assertTrue(1 in set(aln_obj1_clusters2))
         self.assertNotEqual(aln_obj1_clusters1, aln_obj1_clusters2)
+        aln_obj1_clusters3 = aln_obj1._random_assignment(n_cluster=3, cache_dir=self.save_dir1)
+        self.assertEqual(len(set(aln_obj1_clusters3)), 3)
+        self.assertTrue(0 in set(aln_obj1_clusters3))
+        self.assertTrue(1 in set(aln_obj1_clusters3))
+        self.assertTrue(2 in set(aln_obj1_clusters3))
+        self.assertTrue(os.path.isfile(os.path.join(self.save_dir1, 'joblib', 'K_3.pkl')))
         aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
@@ -629,11 +635,18 @@ class TestSeqAlignment(TestCase):
         self.assertTrue(0 in set(aln_obj2_clusters2))
         self.assertTrue(1 in set(aln_obj2_clusters2))
         self.assertNotEqual(aln_obj2_clusters1, aln_obj2_clusters2)
+        aln_obj2_clusters3 = aln_obj2._random_assignment(n_cluster=3, cache_dir=self.save_dir2)
+        self.assertEqual(len(set(aln_obj2_clusters3)), 3)
+        self.assertTrue(0 in set(aln_obj2_clusters3))
+        self.assertTrue(1 in set(aln_obj2_clusters3))
+        self.assertTrue(2 in set(aln_obj2_clusters3))
+        self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'joblib', 'K_3.pkl')))
 
     def test__re_label_clusters(self):
         labels_0 = [0] * 10
         labels_1_expected = [0] * 5 + [1] * 5
         labels_1_test_1 = [1] * 5 + [0] * 5
+
         self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_1_test_1), labels_1_expected)
         labels_1_test_2 = [0] * 5 + [1] * 5
         self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_1_test_2), labels_1_expected)
