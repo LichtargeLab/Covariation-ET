@@ -321,6 +321,8 @@ class ETMIPC(object):
         pool = Pool(processes=self.processes, initializer= pool_init_sub_aln, initargs=(self.alignment,
                                                                                                self.unique_clusters))
         pool_res = pool.map_async(generate_sub_alignment, tree_positions)
+        pool.close()
+        pool.join()
         for res in pool_res.get():
             self.unique_clusters[res[0]]['sub_alignment'] = res[1]
             self.unique_clusters[res[0]]['time'] = res[2]
@@ -342,6 +344,8 @@ class ETMIPC(object):
         pool = Pool(processes=self.processes, initializer=pool_init_score,
                     initargs=(evidence, self.unique_clusters, aa_mapping, self.output_dir, self.low_mem))
         pool_res = pool.map_async(mip_score, tree_positions)
+        pool.close()
+        pool.join()
         for res in pool_res.get():
             self.unique_clusters[res[0]]['cluster_scores'] = res[1]
             self.unique_clusters[res[0]]['nongap_counts'] = res[2]
@@ -405,6 +409,8 @@ class ETMIPC(object):
         pool = Pool(processes=self.processes, initializer=pool_init_calculate_branch_score,
                     initargs=(self, combine_clusters))
         pool_res = pool.map_async(calculate_branch_score, self.tree_depth)
+        pool.close()
+        pool.join()
         self.branch_scores = {}
         for res in pool_res.get():
             self.branch_scores[res[0]] = res[1]
@@ -426,6 +432,8 @@ class ETMIPC(object):
         pool = Pool(processes=self.processes, initializer=pool_init_calculate_score_and_coverage,
                     initargs=(self, combine_branches))
         pool_res = pool.map_async(calculate_score_and_coverage, self.tree_depth)
+        pool.close()
+        pool.join()
         self.scores = {}
         self.coverage = {}
         for res in pool_res.get():
@@ -445,6 +453,8 @@ class ETMIPC(object):
         """
         pool = Pool(processes=self.processes, initializer=pool_init_write_score, initargs=(self, curr_date))
         pool_res = pool.map_async(write_score, self.tree_depth)
+        pool.close()
+        pool.join()
         for res in pool_res.get():
             self.time[res[0]] += res[1]
 
