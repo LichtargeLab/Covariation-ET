@@ -472,7 +472,6 @@ class SeqAlignment(object):
         Returns:
             list: The cluster assignments for each sequence in the alignment.
         """
-        print('N Cluster: {}'.format(n_cluster))
         if cache_dir is not None:
             save_dir = os.path.join(cache_dir, 'joblib')
             save_file = os.path.join(save_dir, 'K_{}.pkl'.format(n_cluster))
@@ -523,46 +522,26 @@ class SeqAlignment(object):
         """
         if len(prev) != len(curr):
             raise ValueError('Cluster labels do not match in length: {} vs {}.'.format(len(prev), len(curr)))
-        prev_labels = sorted(set(prev))
         curr_labels = set()
         prev_to_curr = {}
         for i in range(len(prev)):
-            print(i)
             prev_c = prev[i]
             curr_c = curr[i]
-            if prev_c not in prev_to_curr:
+            if (prev_c not in prev_to_curr) and (curr_c not in curr_labels):
                 prev_to_curr[prev_c] = {'clusters': [], 'indices': []}
             if curr_c not in curr_labels:
                 curr_labels.add(curr_c)
                 prev_to_curr[prev_c]['clusters'].append(curr_c)
                 prev_to_curr[prev_c]['indices'].append(i)
-            # prev_to_curr[prev_c]['clusters'].append(curr_c)
-            # prev_to_curr[prev_c]['indices'].append(i)
         curr_to_new = {}
         counter = 0
+        prev_labels = sorted(prev_to_curr.keys())
         for c in prev_labels:
-            try:
-                for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
-                                          key=lambda x: x[1]))[0]:
-                    curr_to_new[curr_c] = counter
-                    counter += 1
-            except IndexError as e:
-                t1 = zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices'])
-                print(t1)
-                t2 = sorted(t1, key=lambda x: x[1])
-                print(t2)
-                t3 = zip(*t2)
-                print(t3)
-                print(prev)
-                print(curr)
-                print(prev_to_curr)
-                raise e
+            for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
+                                      key=lambda x: x[1]))[0]:
+                curr_to_new[curr_c] = counter
+                counter += 1
         new_labels = [curr_to_new[c] for c in curr]
-        print('#' * 147)
-        print(prev)
-        print(curr)
-        print(new_labels)
-        print('#' * 147)
         return new_labels
 
     def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
