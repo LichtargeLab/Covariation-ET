@@ -485,7 +485,7 @@ class TestETMIPC(TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_1, 'alignment.pkl')))
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_1, 'ungapped_alignment.pkl')))
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_1, 'UngappedAlignment.fa')))
-        self.assertTrue(os.path.isfile(os.path.join(self.out_dir_1, 'X.npz')))
+        self.assertTrue(os.path.isfile(os.path.join(self.out_dir_1, 'identity.pkl')))
         self.etmipc2.tree_depth = self.tree_depth
         self.etmipc2.output_dir = self.out_dir_2
         self.etmipc2.import_alignment(query=self.query2)
@@ -526,7 +526,7 @@ class TestETMIPC(TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_2, 'alignment.pkl')))
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_2, 'ungapped_alignment.pkl')))
         self.assertTrue(os.path.isfile(os.path.join(self.out_dir_2, 'UngappedAlignment.fa')))
-        self.assertTrue(os.path.isfile(os.path.join(self.out_dir_2, 'X.npz')))
+        self.assertTrue(os.path.isfile(os.path.join(self.out_dir_2, 'identity.pkl')))
 
     def test__generate_sub_alignments_single_process(self):
         self.etmipc1.tree_depth = self.tree_depth
