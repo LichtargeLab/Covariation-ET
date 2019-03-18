@@ -895,6 +895,46 @@ class TestSeqAlignment(TestCase):
         for k in range(1, aln_obj2.size):
             self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
         ################################################################################################################
+        aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1, clustering='random')
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        # self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        # for k in range(2, 5):
+        #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj1.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir1, clustering='random')
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        # for i in range(len(clusters)):
+        #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
+        #                     'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
+        aln_obj1.set_tree_ordering(clustering='random', cache_dir=self.save_dir1)
+        self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
+        self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
+        self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
+        # for k in range(1, aln_obj1.size):
+        #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
+        aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2, clustering='random')
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        # for k in range(2, 5):
+        #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        clusters = [1, 2, 3, 5, 7, 10, 25]
+        aln_obj2.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir2, clustering='random')
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        # self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        # for i in range(len(clusters)):
+        #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
+        aln_obj2.set_tree_ordering(cache_dir=self.save_dir2, clustering='random')
+        self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
+        self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
+        self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
+        # for k in range(1, aln_obj2.size):
+        #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+        ################################################################################################################
         aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1, clustering='upgma')
         self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
         # self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
