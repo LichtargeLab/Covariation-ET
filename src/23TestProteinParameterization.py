@@ -89,14 +89,15 @@ def get_alignment_stats(file_path, query_id, models, cache_dir, jobs):
 
 
 def compute_single_dist(in_tup):
-    print('Performing {} - {} distance computation'.format(in_tup[0].query_id, in_tup[1]))
+    # print('Performing {} - {} distance computation'.format(in_tup[0].query_id, in_tup[1]))
     in_tup[0].compute_distance_matrix(model=in_tup[1], save_dir=in_tup[2])
-    print('Completing {} - {} distance computation'.format(in_tup[0].query_id, in_tup[1]))
+    # print('Completing {} - {} distance computation'.format(in_tup[0].query_id, in_tup[1]))
 
 
 def compute_single_effective_aln_size(in_tup):
     eff_size = in_tup[0].compute_effective_alignment_size(save_dir=in_tup[2])
     return (in_tup[1], eff_size)
+
 
 if __name__ == '__main__':
     # Set up requirements for experiments
@@ -105,9 +106,16 @@ if __name__ == '__main__':
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
     models = ['identity', 'blosum62']
-    tree_building = {}
-    combine_clusters = ['sum', 'average', 'size_weighted', '']
-    combine_branches = []
+    tree_building = {'random': ('random', {}),
+                     'upgma': ('upgma', {}),
+                     'custom': ('custom',),
+                     'agg_pre_comp': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'complete'}),
+                     'agg_pre_avg': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'average'}),
+                     'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'}),
+                     'agg_euc_comp': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'complete'}),
+                     'agg_euc_avg': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'average'})}
+    combine_clusters = ['sum', 'average', 'size_weighted', 'evidence_weighted', 'evidence_vs_size']
+    combine_branches = ['sum', 'average']
     # Parse arguments
     args = parse_arguments()
     # Read in input files
@@ -142,7 +150,7 @@ if __name__ == '__main__':
             # input_dict[query][5] = aln_stats[2]
             # input_dict[query]['Effective_Aln_Size'] = aln_stats[2]
             # input_dict[query][6] = aln_stats[3]
-            input_dict[query]['Max_Depth'] = aln_stats[2]
+            input_dict[query]['Max_Depth'] = aln_stats[2] if aln_stats[2] > 10 else 10
         elif f.endswith('pdb'):
             # input_dict[query][2] = f
             input_dict[query]['Structure'] = f
@@ -151,13 +159,10 @@ if __name__ == '__main__':
         else:
             pass
     # Compute distances in parallel
-    # for j in jobs[0]:
-    #     compute_single_dist(j)
     pool = Pool(args['processes'])
     pool.map_async(compute_single_dist, jobs[0])
     pool.close()
     pool.join()
-    # exit()
     # Compute effective alignment sizes
     pool = Pool(args['processes'])
     effective_sizes = pool.map_async(compute_single_effective_aln_size, jobs[1])
@@ -169,44 +174,60 @@ if __name__ == '__main__':
     stats = []
     query_order = sorted(input_dict, key=lambda k: input_dict[k]['Aln_Size'])
     for query in query_order:
+        print(query)
         query_structure = PDBReference(input_dict[query]['Structure'])
         query_structure.import_pdb(structure_id=input_dict[query]['Query_ID'])
         # Evaluate each of the distance metrics
         for dist in models:
+            print(dist)
             dist_dir = os.path.join(args['output'], dist)
             # Evaluate each of the tree building methods
             for tb in tree_building:
+                print(tb)
                 method_dir = os.path.join(dist_dir, tb)
                 method = tree_building[tb][0]
                 if tb == 'custom':
-                    method_args = {}
+                    method_args = {'tree_path': input_dict[query]['Custom_Tree'], 'tree_name': 'ET-Tree'}
                 else:
                     method_args = tree_building[tb][1]
                 # Evaluate each method for cluster combination
                 for cc in combine_clusters:
+                    print(cc)
                     cc_dir = os.path.join(method_dir, cc)
+                    print(cc_dir)
                     # Evaluate each method for branch combination
                     for cb in combine_branches:
+                        print(cb)
                         cb_dir = os.path.join(cc_dir, cb)
+                        print(cb_dir)
                         query_dir = os.path.join(cb_dir, input_dict[query]['Query_ID'])
-                        os.makedirs(query_dir)
+                        try:
+                            os.makedirs(query_dir)
+                        except OSError:
+                            pass
+                        print(query_dir)
                         stats_fn = os.path.join(query_dir, '{}_Stats.csv'.format(input_dict[query]['Query_ID']))
                         if os.path.isfile(stats_fn):
-                            stats = pd.read_csv(stats_fn, sep='\t', header=0, index_col=None)
+                            query_df = pd.read_csv(stats_fn, sep='\t', header=0, index_col=None)
+                            stats.append(query_df)
+                            continue
                         dist_fn = '{}.pkl'.format(dist)
-                        os.symlink(os.path.join(args['output'], 'Distances', input_dict[query]['Query_ID'], dist_fn),
-                                   os.path.join(query_dir, dist_fn))
+                        try:
+                            os.symlink(os.path.join(args['output'], 'Distances', input_dict[query]['Query_ID'],
+                                                    dist_fn), os.path.join(query_dir, dist_fn))
+                        except OSError:
+                            pass
                         predictor = ETMIPC(input_dict[query]['Alignment'])
                         curr_time = predictor.calculate_scores(curr_date=today, query=input_dict[query]['Query_ID'],
-                                                               tree_depth=(2, input_dict[query][5]), out_dir=query_dir,
+                                                               tree_depth=(2, input_dict[query]['Max_Depth'] + 1),
                                                                ignore_alignment_size=args['ignoreAlignmentSize'],
-                                                               model=dist, clustering=method,
+                                                               model=dist, clustering=method, out_dir=query_dir,
                                                                clustering_args=method_args, aa_mapping=aa_dict,
-                                                               combine_clusters=cc, combine_branchess=cb,
+                                                               combine_clusters=cc, combine_branches=cb,
                                                                processes=args['processes'], del_intermediate=False,
                                                                low_mem=args['lowMemoryMode'])
                         contact_any = ContactScorer(seq_alignment=predictor.alignment, pdb_reference=query_structure,
-                                                    cutoff=8.0)
+                                                    cutoff=8.0, query=input_dict[query]['Query_ID'])
                         any_biased_w2_ave = None
                         any_unbiased_w2_ave = None
                         any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
@@ -217,7 +238,7 @@ if __name__ == '__main__':
                         if (any_unbiased_w2_ave is None) and (any_u_w2_ave is not None):
                             any_unbiased_w2_ave = any_u_w2_ave
                         contact_beta = ContactScorer(seq_alignment=predictor.alignment, pdb_reference=query_structure,
-                                                     cutoff=8.0)
+                                                     cutoff=8.0, query=input_dict[query]['Query_ID'])
                         beta_biased_w2_ave = None
                         beta_unbiased_w2_ave = None
                         beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
@@ -228,14 +249,15 @@ if __name__ == '__main__':
                         if (beta_unbiased_w2_ave is None) and (beta_u_w2_ave is not None):
                             beta_unbiased_w2_ave = beta_u_w2_ave
                         query_df = pd.concat([any_score_df, beta_score_df], ignore_index=True)
-                        query_df['Query'] = input_dict[query][0]
-                        query_df['Query_Length'] = input_dict[query][3]
-                        query_df['Alignment_Size'] = input_dict[query][4]
-                        query_df['Effective_Alignment_Size'] = input_dict[query][5]
+                        query_df['Query'] = input_dict[query]['Query_ID']
+                        query_df['Query_Length'] = input_dict[query]['Seq_Length']
+                        query_df['Alignment_Size'] = input_dict[query]['Aln_Size']
+                        query_df['Effective_Alignment_Size'] = input_dict[query]['Effective_Aln_Size']
                         query_df['Distance_Model'] = dist
-                        query_df['Tree_Building'] = method
+                        query_df['Tree_Building'] = tb
                         query_df['Cluster_Combination'] = cc
                         query_df['Branch_Combination'] = cb
+                        query_df['Total_Time'] = curr_time
                         query_df.to_csv(stats_fn, sep='\t', header=True, index=False)
                         stats.append(query_df)
     overall_df = pd.concat(stats, ignore_index=True)
