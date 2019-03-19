@@ -566,11 +566,12 @@ class SeqAlignment(object):
                 agglomerative
                 upgma
                 random
+                custom
         Return:
             list: The explicit list of tree levels analyzed, as described above in the tree_depth Args section.
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
-                       'random': self._random_assignment}
+                       'random': self._random_assignment, 'custom': self._custom_tree}
         curr_order = [0] * self.size
         sequence_assignments = {1: {0: set(self.seq_order)}}
         if tree_depth is None:

@@ -57,11 +57,13 @@ def parse_arguments():
                         calculating distances between sequences for phylogenetic tree construction. This choice will
                         influence any of the tree construction method chosen.''')
     parser.add_argument('--treeConstruction', metavar='t', type=str, default='agglomerative', nargs='?',
-                        choices=['agglomerative', 'upgma', 'random'], help='''This specifies the method for tree
-                        construction used to produce the phylogenetic tree for analysis. Selecting 'agglomerative'
-                        produces a tree using the sklearn agglomerative clustering implementation, while 'upgma' uses
-                        the Biopython upgma implementation. Selecting random does not use a tree structure, it selects
-                        random sequences for each branch at each level specified.''')
+                        choices=['agglomerative', 'upgma', 'random', 'custom'],
+                        help="This specifies the method for tree construction used to produce the phylogenetic tree for"
+                             " analysis. Selecting 'agglomerative' produces a tree using the sklearn agglomerative "
+                             "clustering implementation, while 'upgma' uses the Biopython upgma implementation. "
+                             "Selecting random does not use a tree structure, it selects random sequences for each "
+                             "branch at each level specified. Selecting 'custom' requires that the path to an existing"
+                             "'newick' formatted tree file be provided along with a name for that tree.")
     parser.add_argument('--treeConstructionArgs', metavar='a', type=str, nargs='+',
                         help="Additional settings for tree construction can be added here, each tree construction "
                              "method has different options which are described in the specific methods in the "
@@ -87,7 +89,7 @@ def parse_arguments():
     parser.add_argument('--verbosity', metavar='V', type=int, default=1, nargs='?', choices=[1, 2, 3, 4, 5],
                         help='Which output to generate. 1 writes scores for all tested clustering constants, 2 tests '
                              'the clustering Z-score of the predictions and writes them to file as well as plotting ' 
-                             'Z-Scores against resiude count, 3 tests the AUROC of contact prediction at different '
+                             'Z-Scores against residue count, 3 tests the AUROC of contact prediction at different '
                              'levels of sequence separation and plots the resulting curves to file, 4 tests the '
                              'precision of  contact prediction at different levels of sequence separation and list '
                              'lengths (L, L/2 ... L/10), 5 produces heatmaps and surface plots of scores. In all cases '

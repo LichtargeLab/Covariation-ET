@@ -262,7 +262,8 @@ class ETMIPC(object):
             model (str): The type of distance matrix which was computed. Current options include the 'identity' model
             and Bio.Phylo.TreeConstruction.DistanceCalculator.protein_models.
             clustering (str): Which method to use for generating a hierarchical clustering/phylogenetic tree. Current
-            options are described in SeqAlignment set_tree_ordering and include 'agglomerative' and 'random'.
+            options are described in SeqAlignment set_tree_ordering and include 'agglomerative', 'custom', 'random',
+            and 'upgma'.
             clustering_args (dict): Additional arguments for the clustering method used, more details cane be found in
             the SeqAlignment class for the clustering/tree building method chosen.
         """
