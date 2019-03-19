@@ -175,8 +175,13 @@ if __name__ == '__main__':
         for dist in models:
             dist_dir = os.path.join(args['output'], dist)
             # Evaluate each of the tree building methods
-            for method in tree_building:
-                method_dir = os.path.join(dist_dir, method)
+            for tb in tree_building:
+                method_dir = os.path.join(dist_dir, tb)
+                method = tree_building[tb][0]
+                if tb == 'custom':
+                    method_args = {}
+                else:
+                    method_args = tree_building[tb][1]
                 # Evaluate each method for cluster combination
                 for cc in combine_clusters:
                     cc_dir = os.path.join(method_dir, cc)
@@ -191,25 +196,22 @@ if __name__ == '__main__':
                         dist_fn = '{}.pkl'.format(dist)
                         os.symlink(os.path.join(args['output'], 'Distances', input_dict[query]['Query_ID'], dist_fn),
                                    os.path.join(query_dir, dist_fn))
-                        # query_aln = SeqAlignment(input_dict['Alignment'], input_dict[query]['Query_ID'])
-                        # query_aln.import_alignment()
-                        # query_aln.remove_gaps()
                         predictor = ETMIPC(input_dict[query]['Alignment'])
-                        curr_time = predictor.calculate_scores(out_dir=query_dir, curr_date=today,
-                                                               query=input_dict[query]['Query_ID'],
-                                                               clusters=(2, input_dict[query][5]), aa_mapping=aa_dict,
-                                                               combine_clusters=cc, combine_branchess=cb,
-                                                               processes=args['processes'],
-                                                               low_memory_mode=args['lowMemoryMode'],
+                        curr_time = predictor.calculate_scores(curr_date=today, query=input_dict[query]['Query_ID'],
+                                                               tree_depth=(2, input_dict[query][5]), out_dir=query_dir,
                                                                ignore_alignment_size=args['ignoreAlignmentSize'],
-                                                               del_intermediate=False)
+                                                               model=dist, clustering=method,
+                                                               clustering_args=method_args, aa_mapping=aa_dict,
+                                                               combine_clusters=cc, combine_branchess=cb,
+                                                               processes=args['processes'], del_intermediate=False,
+                                                               low_mem=args['lowMemoryMode'])
                         contact_any = ContactScorer(seq_alignment=predictor.alignment, pdb_reference=query_structure,
                                                     cutoff=8.0)
                         any_biased_w2_ave = None
                         any_unbiased_w2_ave = None
                         any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
-                            query=input_dict[query]['Query_ID'], predictor=predictor, verbosity=5, out_dir=query_dir,
-                            dist='Any', biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
+                            predictor=predictor, verbosity=5, out_dir=query_dir, dist='Any', today=today,
+                            biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
                         if (any_biased_w2_ave is None) and (any_b_w2_ave is not None):
                             any_biased_w2_ave = any_b_w2_ave
                         if (any_unbiased_w2_ave is None) and (any_u_w2_ave is not None):
@@ -219,8 +221,8 @@ if __name__ == '__main__':
                         beta_biased_w2_ave = None
                         beta_unbiased_w2_ave = None
                         beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
-                            query=input_dict[query]['Query_ID'], predictor=predictor, verbosity=5, out_dir=query_dir,
-                            dist='CB', biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
+                            predictor=predictor, verbosity=5, out_dir=query_dir, dist='CB', today=today,
+                            biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
                         if (beta_biased_w2_ave is None) and (beta_b_w2_ave is not None):
                             beta_biased_w2_ave = beta_b_w2_ave
                         if (beta_unbiased_w2_ave is None) and (beta_u_w2_ave is not None):
@@ -239,69 +241,7 @@ if __name__ == '__main__':
     overall_df = pd.concat(stats, ignore_index=True)
     overall_df.to_csv(os.path.join(args['output'], 'Evaluation_Statistics.csv'), sep='\t', header=True, index=False)
 
-
-    # ####################################################################################################################
-    # ####################################################################################################################
-    # if not os.path.isdir(arguments['output']):
-    #     os.mkdir(arguments['output'])
-    # ####################################################################################################################
-    # ####################################################################################################################
-    # stats = []
-    # query_order = sorted(input_dict, key=lambda k: input_dict[k][4])
-    # for query in query_order:
-    #     query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
-    #     query_aln.import_alignment()
-    #     query_aln.remove_gaps()
-    #     new_aln_fn = os.path.join(arguments['output'], '{}_ungapped.fa'.format(input_dict[query][0]))
-    #     query_aln.write_out_alignment(new_aln_fn)
-    #     query_aln.file_name = new_aln_fn
-    #     query_structure = PDBReference(input_dict[query][2])
-    #     query_structure.import_pdb(structure_id=input_dict[query][0])
-    #     contact_any = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-    #     any_biased_w2_ave = None
-    #     any_unbiased_w2_ave = None
-    #     contact_beta = ContactScorer(seq_alignment=query_aln, pdb_reference=query_structure, cutoff=8.0)
-    #     beta_biased_w2_ave = None
-    #     beta_unbiased_w2_ave = None
-    #     protein_dir = os.path.join(arguments['output'], query)
-    #     if not os.path.isdir(protein_dir):
-    #         os.mkdir(protein_dir)
-    #     predictor = ETMIPC(query_aln)
-    #     curr_time = predictor.calculate_scores(out_dir=protein_dir, curr_date=today, query=input_dict[query][0],
-    #                                            clusters=range(2, input_dict[query][5] + 1), aa_mapping=aa_dict,
-    #                                            combine_clusters=arguments['combineClusters'],
-    #                                            combine_ks=arguments['combineKs'], processes=arguments['processes'],
-    #                                            low_memory_mode=arguments['lowMemoryMode'],
-    #                                            ignore_alignment_size=arguments['ignoreAlignmentSize'],
-    #                                            del_intermediate=False)
-    #     any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
-    #         query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='Any',
-    #         biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
-    #     if (any_biased_w2_ave is None) and (any_b_w2_ave is not None):
-    #         any_biased_w2_ave = any_b_w2_ave
-    #     if (any_unbiased_w2_ave is None) and (any_u_w2_ave is not None):
-    #         any_unbiased_w2_ave = any_u_w2_ave
-    #     beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
-    #         query=input_dict[query][0], predictor=predictor, verbosity=4, out_dir=protein_dir, dist='CB',
-    #         biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
-    #     if (beta_biased_w2_ave is None) and (beta_b_w2_ave is not None):
-    #         beta_biased_w2_ave = beta_b_w2_ave
-    #     if (beta_unbiased_w2_ave is None) and (beta_u_w2_ave is not None):
-    #         beta_unbiased_w2_ave = beta_u_w2_ave
-    #     query_df = pd.concat([any_score_df, beta_score_df], ignore_index=True)
-    #     query_df['Query'] = input_dict[query][0]
-    #     query_df['Query_Length'] = input_dict[query][3]
-    #     query_df['Alignment_Size'] = input_dict[query][4]
-    #     query_df['Effective_Alignment_Size'] = input_dict[query][5]
-    #     stats.append(query_df)
-    # ####################################################################################################################
-    # separation_order = ['Any', 'Neighbors', 'Short', 'Medium', 'Long']
-    # overall_df = pd.concat(stats, ignore_index=True)
-    # from IPython import embed
-    # embed()
-    # overall_df.to_csv(os.path.join(arguments['output'], 'Evaluation_Statistics.csv'), sep='\t', header=True,
-    #                   index=False)
-    # ####################################################################################################################
+    ####################################################################################################################
     # total_aln_size_df = overall_df.drop(columns=['Effective_Alignment_Size'])
     # total_aln_size_df['Type'] = 'Total'
     # effective_aln_size_df = overall_df.drop(columns=['Alignment_Size'])
@@ -338,6 +278,4 @@ if __name__ == '__main__':
     #         sns.lmplot(x='Alignment_Size', y='K', hue='Type', row='Distance', row_order=['Any', 'CB'],
     #                    data=max_pre_merged)
     #         plt.savefig(os.path.join(arguments['output'], 'Optimal_K_vs_Aln_Size_{}.eps'.format(pre)))
-    # ####################################################################################################################
-    # embed()
-    # exit()
+    ####################################################################################################################
