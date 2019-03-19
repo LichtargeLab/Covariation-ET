@@ -831,7 +831,7 @@ class ContactScorer(object):
             'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
             'Precision (L/9)', and 'Precision (L/10)'.
             dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
-            dict: A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
+            dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
         """
         if today is None:
             today = str(datetime.date.today())
