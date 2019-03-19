@@ -358,11 +358,11 @@ class SeqAlignment(object):
             current_cluster.sort(cmp=node_cmp)
             cluster = 0
             for node in current_cluster:
-                if node.name in unique_clusters:
-                    terminals = unique_clusters[node.name]
+                if node in unique_clusters:
+                    terminals = unique_clusters[node]
                 else:
                     terminals = [lookup[x.name] for x in node.get_terminals()]
-                    unique_clusters[node.name] = terminals
+                    unique_clusters[node] = terminals
                 assignment_dict[k][cluster] = terminals
                 cluster += 1
             k += 1
