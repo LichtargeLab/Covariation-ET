@@ -342,6 +342,10 @@ class ETMIPC(object):
             aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
         """
         tree_positions = list(self.unique_clusters.keys())
+        for branch_level in self.tree_depth:
+            curr_dir = os.path.join(self.output_dir, str(branch_level))
+            if not os.path.isdir(curr_dir):
+                os.makedirs(curr_dir)
         pool = Pool(processes=self.processes, initializer=pool_init_score,
                     initargs=(evidence, self.unique_clusters, aa_mapping, self.output_dir, self.low_mem))
         pool_res = pool.map_async(mip_score, tree_positions)
@@ -671,7 +675,10 @@ def save_single_matrix(name, branch, mat, out_dir):
     """
     parent_dir, fn = single_matrix_filename(name=name, branch=branch, out_dir=out_dir)
     if not os.path.isdir(parent_dir):
-        os.makedirs(parent_dir)
+        try:
+            os.makedirs(parent_dir)
+        except OSError:
+            pass
     np.savez(fn, mat=mat)
     return fn
 
@@ -833,8 +840,9 @@ def mip_score(tree_position):
         if low_memory_mode:
             mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                                                   mat=mip_matrix, out_dir=serialization_dir)
-            evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),branch=tree_position[0],
-                                                 mat=evidence_matrix, out_dir=serialization_dir)
+            evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+                                                 branch=tree_position[0], mat=evidence_matrix,
+                                                 out_dir=serialization_dir)
     end = time()
     print('MIp scoring took {} min'.format((end - start) / 60.0))
     return tree_position, mip_matrix, evidence_matrix, (end - start)
@@ -1007,7 +1015,10 @@ def write_score(branch):
     start = time()
     curr_out_dir = os.path.join(instance.output_dir, str(branch))
     if not os.path.isdir(curr_out_dir):
-        os.mkdir(curr_out_dir)
+        try:
+            os.mkdir(curr_out_dir)
+        except OSError:
+            pass
     res_fn = "{}_{}_{}.all_scores.txt".format(today, instance.alignment.query_id.split('_')[1], branch)
     write_out_contact_scoring(today=today, alignment=instance.alignment,
                               scores=instance.get_scores(branch=branch),
