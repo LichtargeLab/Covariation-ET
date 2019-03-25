@@ -241,7 +241,6 @@ if __name__ == '__main__':
                             end1 = time()
                             time1 = end1 - start1
                         start2 = time()
-                        predictor.cluster_scores = None
                         predictor.branch_scores = None
                         predictor.scores = None
                         predictor.coverage = None
