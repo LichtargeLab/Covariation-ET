@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from multiprocessing import Pool
+import cPickle as pickle
+from time import time
 import numpy as np
 import datetime
 import argparse
@@ -114,7 +116,7 @@ if __name__ == '__main__':
                      'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'}),
                      'agg_euc_comp': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'complete'}),
                      'agg_euc_avg': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'average'})}
-    combine_clusters = ['sum', 'average', 'size_weighted', 'evidence_weighted', 'evidence_vs_size']
+    combine_clusters = ['evidence_vs_size', 'evidence_weighted', 'size_weighted', 'average', 'sum']
     combine_branches = ['sum', 'average']
     # Parse arguments
     args = parse_arguments()
@@ -132,27 +134,18 @@ if __name__ == '__main__':
         query = check.group(1).lower()
         print(query)
         if query not in input_dict:
-            # input_dict[query] = [None, None, None, None, None, None, None]
             input_dict[query] = {}
         if f.endswith('fa'):
-            # input_dict[query][0] = parse_id(f)
             input_dict[query]['Query_ID'] = parse_id(f)
-            # input_dict[query][1] = f
             input_dict[query]['Alignment'] = f
             query_distance_dir = os.path.join(args['output'], 'Distances', input_dict[query]['Query_ID'])
             if not os.path.isdir(query_distance_dir):
                 os.makedirs(query_distance_dir)
             aln_stats = get_alignment_stats(f, input_dict[query]['Query_ID'], models, query_distance_dir, jobs)
-            # input_dict[query][3] = aln_stats[0]
             input_dict[query]['Seq_Length'] = aln_stats[0]
-            # input_dict[query][4] = aln_stats[1]
             input_dict[query]['Aln_Size'] = aln_stats[1]
-            # input_dict[query][5] = aln_stats[2]
-            # input_dict[query]['Effective_Aln_Size'] = aln_stats[2]
-            # input_dict[query][6] = aln_stats[3]
             input_dict[query]['Max_Depth'] = aln_stats[2] if aln_stats[2] > 10 else 10
         elif f.endswith('pdb'):
-            # input_dict[query][2] = f
             input_dict[query]['Structure'] = f
         elif f.endswith('nhx'):
             input_dict[query]['Custom_Tree'] = f
@@ -192,23 +185,28 @@ if __name__ == '__main__':
                     method_args = {'tree_path': input_dict[query]['Custom_Tree'], 'tree_name': 'ET-Tree'}
                 else:
                     method_args = tree_building[tb][1]
+
+                query_dir = os.path.join(method_dir, input_dict[query]['Query_ID'])
+                try:
+                    os.makedirs(query_dir)
+                except OSError:
+                    pass
+                print(query_dir)
+
+                predictor = ETMIPC(input_dict[query]['Alignment'])
+                time1 = None
+
                 # Evaluate each method for cluster combination
                 for cc in combine_clusters:
                     print(cc)
-                    cc_dir = os.path.join(method_dir, cc)
+                    cc_dir = os.path.join(query_dir, cc)
                     print(cc_dir)
                     # Evaluate each method for branch combination
                     for cb in combine_branches:
                         print(cb)
                         cb_dir = os.path.join(cc_dir, cb)
                         print(cb_dir)
-                        query_dir = os.path.join(cb_dir, input_dict[query]['Query_ID'])
-                        try:
-                            os.makedirs(query_dir)
-                        except OSError:
-                            pass
-                        print(query_dir)
-                        stats_fn = os.path.join(query_dir, '{}_Stats.csv'.format(input_dict[query]['Query_ID']))
+                        stats_fn = os.path.join(cb_dir, '{}_Stats.csv'.format(input_dict[query]['Query_ID']))
                         if os.path.isfile(stats_fn):
                             query_df = pd.read_csv(stats_fn, sep='\t', header=0, index_col=None)
                             stats.append(query_df)
@@ -219,25 +217,57 @@ if __name__ == '__main__':
                                                     dist_fn), os.path.join(query_dir, dist_fn))
                         except OSError:
                             pass
-                        predictor = ETMIPC(input_dict[query]['Alignment'])
+
                         if dist == 'custom':
                             curr_dist = 'identity'
                         else:
                             curr_dist = dist
-                        curr_time = predictor.calculate_scores(curr_date=today, query=input_dict[query]['Query_ID'],
-                                                               tree_depth=(2, input_dict[query]['Max_Depth'] + 1),
-                                                               ignore_alignment_size=args['ignoreAlignmentSize'],
-                                                               model=curr_dist, clustering=method, out_dir=query_dir,
-                                                               clustering_args=method_args, aa_mapping=aa_dict,
-                                                               combine_clusters=cc, combine_branches=cb,
-                                                               processes=args['processes'], del_intermediate=False,
-                                                               low_mem=args['lowMemoryMode'])
+                        ################################################################################################
+                        if time1 is None:
+                            start1 = time()
+                            predictor.output_dir = query_dir
+                            predictor.processes = args['processes']
+                            predictor.low_mem = args['lowMemoryMode']
+                            predictor.tree_depth = (2, input_dict[query]['Max_Depth'] + 1)
+                            predictor.import_alignment(query=input_dict[query]['Query_ID'],
+                                                       ignore_alignment_size=args['ignoreAlignmentSize'],
+                                                       clustering=method, clustering_args=method_args, model=curr_dist)
+                            predictor.calculate_cluster_scores(evidence=('evidence' in cc), aa_mapping=aa_dict)
+                            save_file = os.path.join(predictor.output_dir,
+                                                     '{}_cET-MIp.pkl'.format(input_dict[query]['Query_ID']))
+                            pickle.dump((predictor.tree_depth, predictor.low_mem, predictor.unique_clusters,
+                                         predictor.cluster_mapping, predictor.time), open(save_file, 'wb'),
+                                        protocol=pickle.HIGHEST_PROTOCOL)
+                            end1 = time()
+                            time1 = end1 - start1
+                        start2 = time()
+                        predictor.cluster_scores = None
+                        predictor.branch_scores = None
+                        predictor.scores = None
+                        predictor.coverage = None
+                        predictor.output_dir = cb_dir
+                        for k in predictor.tree_depth:
+                            curr_dir = os.path.join(cb_dir, str(k))
+                            if not os.path.isdir(curr_dir):
+                                os.makedirs(curr_dir)
+                        predictor.calculate_branch_scores(combine_clusters=cc)
+                        predictor.calculate_final_scores(combine_branches=cb)
+                        predictor.write_out_scores(curr_date=today)
+                        end2 = time()
+                        predictor.time['Total'] = time1 + (end2 - start2)
+                        curr_time = time1 + (end2 - start2)
+                        serialized_path = os.path.join(predictor.output_dir,
+                                                       '{}_cET-MIp.npz'.format(input_dict[query]['Query_ID']))
+                        np.savez(serialized_path, scores=predictor.scores, coverage=predictor.coverage,
+                                 branches=predictor.branch_scores, clusters=predictor.cluster_scores,
+                                 nongap_counts=predictor.nongap_counts)
+                        ################################################################################################
                         contact_any = ContactScorer(seq_alignment=predictor.alignment, pdb_reference=query_structure,
                                                     cutoff=8.0, query=input_dict[query]['Query_ID'])
                         any_biased_w2_ave = None
                         any_unbiased_w2_ave = None
                         any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
-                            predictor=predictor, verbosity=5, out_dir=query_dir, dist='Any', today=today,
+                            predictor=predictor, verbosity=5, out_dir=cb_dir, dist='Any', today=today,
                             biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
                         if (any_biased_w2_ave is None) and (any_b_w2_ave is not None):
                             any_biased_w2_ave = any_b_w2_ave
@@ -248,7 +278,7 @@ if __name__ == '__main__':
                         beta_biased_w2_ave = None
                         beta_unbiased_w2_ave = None
                         beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
-                            predictor=predictor, verbosity=5, out_dir=query_dir, dist='CB', today=today,
+                            predictor=predictor, verbosity=5, out_dir=cb_dir, dist='CB', today=today,
                             biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
                         if (beta_biased_w2_ave is None) and (beta_b_w2_ave is not None):
                             beta_biased_w2_ave = beta_b_w2_ave
