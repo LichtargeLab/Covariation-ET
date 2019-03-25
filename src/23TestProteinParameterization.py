@@ -105,7 +105,7 @@ if __name__ == '__main__':
     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P',
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    models = ['identity', 'blosum62']
+    models = ['identity', 'blosum62', 'custom']
     tree_building = {'random': ('random', {}),
                      'upgma': ('upgma', {}),
                      'custom': ('custom',),
@@ -183,6 +183,8 @@ if __name__ == '__main__':
             dist_dir = os.path.join(args['output'], dist)
             # Evaluate each of the tree building methods
             for tb in tree_building:
+                if (dist == 'custom' and tb != 'custom') or (dist != 'custom' and tb == 'custom'):
+                    continue
                 print(tb)
                 method_dir = os.path.join(dist_dir, tb)
                 method = tree_building[tb][0]
@@ -218,10 +220,14 @@ if __name__ == '__main__':
                         except OSError:
                             pass
                         predictor = ETMIPC(input_dict[query]['Alignment'])
+                        if dist == 'custom':
+                            curr_dist = 'identity'
+                        else:
+                            curr_dist = dist
                         curr_time = predictor.calculate_scores(curr_date=today, query=input_dict[query]['Query_ID'],
                                                                tree_depth=(2, input_dict[query]['Max_Depth'] + 1),
                                                                ignore_alignment_size=args['ignoreAlignmentSize'],
-                                                               model=dist, clustering=method, out_dir=query_dir,
+                                                               model=curr_dist, clustering=method, out_dir=query_dir,
                                                                clustering_args=method_args, aa_mapping=aa_dict,
                                                                combine_clusters=cc, combine_branches=cb,
                                                                processes=args['processes'], del_intermediate=False,
