@@ -176,7 +176,8 @@ if __name__ == '__main__':
             dist_dir = os.path.join(args['output'], dist)
             # Evaluate each of the tree building methods
             for tb in tree_building:
-                if (dist == 'custom' and tb != 'custom') or (dist != 'custom' and tb == 'custom'):
+                if (dist == 'custom' and tb not in ['custom', 'random']) or
+                    (dist != 'custom' and tb in ['custom', 'random]'):
                     continue
                 print(tb)
                 method_dir = os.path.join(dist_dir, tb)
