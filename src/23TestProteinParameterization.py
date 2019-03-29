@@ -119,8 +119,10 @@ if __name__ == '__main__':
     tree_building = {'upgma': ('upgma', {}),
                      'custom': ('custom',),
                      'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'})}
-    combine_clusters = ['evidence_vs_size', 'evidence_weighted', 'size_weighted', 'average', 'sum']
-    combine_branches = ['sum', 'average']
+    # combine_clusters = ['evidence_vs_size', 'evidence_weighted', 'size_weighted', 'average', 'sum']
+    combine_clusters = ['sum']
+    # combine_branches = ['sum', 'average']
+    combine_branches = ['sum']
     # Parse arguments
     args = parse_arguments()
     # Read in input files
