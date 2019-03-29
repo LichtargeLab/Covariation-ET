@@ -108,14 +108,17 @@ if __name__ == '__main__':
                'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '-']
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
     models = ['identity', 'blosum62', 'custom']
-    tree_building = {'random': ('random', {}),
-                     'upgma': ('upgma', {}),
+    # tree_building = {'random': ('random', {}),
+    #                  'upgma': ('upgma', {}),
+    #                  'custom': ('custom',),
+    #                  'agg_pre_comp': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'complete'}),
+    #                  'agg_pre_avg': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'average'}),
+    #                  'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'}),
+    #                  'agg_euc_comp': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'complete'}),
+    #                  'agg_euc_avg': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'average'})}
+    tree_building = {'upgma': ('upgma', {}),
                      'custom': ('custom',),
-                     'agg_pre_comp': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'complete'}),
-                     'agg_pre_avg': ('agglomerative', {'affinity': 'precomputed', 'linkage': 'average'}),
-                     'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'}),
-                     'agg_euc_comp': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'complete'}),
-                     'agg_euc_avg': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'average'})}
+                     'agg_euc_ward': ('agglomerative', {'affinity': 'euclidean', 'linkage': 'ward'})}
     combine_clusters = ['evidence_vs_size', 'evidence_weighted', 'size_weighted', 'average', 'sum']
     combine_branches = ['sum', 'average']
     # Parse arguments
