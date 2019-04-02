@@ -154,10 +154,12 @@ def analyze_alignment(args):
     # Write out the statistics and final times for the different clustering constants tested.
     test_scorer_any = ContactScorer(query=args['query'][0], seq_alignment=cetmip_obj.alignment,
                                     pdb_reference=query_structure, cutoff=args['threshold'])
-    test_scorer_any.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='Any')
+    test_scorer_any.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='Any',
+                                       processes=args['processes'])
     test_scorer_beta = ContactScorer(query=args['query'][0], seq_alignment=cetmip_obj.alignment,
                                      pdb_reference=query_structure, cutoff=args['threshold'])
-    test_scorer_beta.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='CB')
+    test_scorer_beta.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='CB',
+                                        processes=args['processes'])
     # If low memory mode was used clear out intermediate files saved in this
     if args['lowMemoryMode']:
         cetmip_obj.clear_intermediate_files()

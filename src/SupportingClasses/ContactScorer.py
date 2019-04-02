@@ -395,6 +395,8 @@ class ContactScorer(object):
                 pair_j = np.where(indices[1] == pair[1])
                 overlap = np.intersect1d(pair_i, pair_j)
                 if len(overlap) != 1:
+                    # from IPython import embed
+                    # embed()
                     raise ValueError('Something went wrong while computing overlaps.')
                 indices_to_keep.append(overlap[0])
             self._specific_mapping[category] = (indices, indices_to_keep)
@@ -534,7 +536,7 @@ class ContactScorer(object):
         return precision
 
     def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
-                                                w2_ave_sub=None):
+                                                w2_ave_sub=None, processes=1):
         """
         Score Clustering Of Contact Predictions
 
@@ -585,7 +587,8 @@ class ContactScorer(object):
                 new_res.append(pair[1])
             if len(new_res) > 0:
                 residues_of_interest.update(new_res)
-                z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub)
+                z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub,
+                                                   processes=processes)
                 if w2_ave_sub is None:
                     w2_ave_sub = z_score[-1]
                 if z_score[0] == '-':
@@ -603,7 +606,7 @@ class ContactScorer(object):
         df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
         return df, w2_ave_sub
 
-    def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None):
+    def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None, processes=1):
         """
         Clustering Z Score
 
@@ -646,6 +649,7 @@ class ContactScorer(object):
             3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
             importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
         """
+        start = time()
         if self.query_structure is None:
             print('Z-Score cannot be measured, because no PDB was provided.')
             return '-', None, None, None, None, None
@@ -683,35 +687,23 @@ class ContactScorer(object):
         w_ave = np.sum(np.tril(a * bias_ij)) * pi1
         if w2_ave_sub is None:
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
-            for res_i in range(self.distances.shape[0]):
-                for res_j in range(res_i + 1, self.distances.shape[1]):
-                    if self.distances[res_i][res_j] >= self.cutoff:
-                        continue
-                    if bias:
-                        s_ij = res_j - res_i
-                    else:
-                        s_ij = 1
-                    for res_x in range(self.distances.shape[0]):
-                        for res_y in range(res_x + 1, self.distances.shape[1]):
-                            if self.distances[res_x][res_y] >= self.cutoff:
-                                continue
-                            if bias:
-                                s_xy = (res_y - res_x)
-                            else:
-                                s_xy = 1
-                            if (res_i == res_x and res_j == res_y) or (res_i == res_y and res_j == res_x):
-                                curr_case = 'Case1'
-                            elif (res_i == res_x) or (res_j == res_y) or (res_i == res_y) or (res_j == res_x):
-                                curr_case = 'Case2'
-                            else:
-                                curr_case = 'Case3'
-                            w2_ave_sub[curr_case] += s_ij * s_xy
+            from multiprocessing import Pool
+            pool = Pool(processes=processes, initializer=init_compute_w2_ave_sub,
+                        initargs=(self.distances, bias, self.cutoff))
+            res = pool.map_async(compute_w2_ave_sub, range(self.distances.shape[0]))
+            pool.close()
+            pool.join()
+            for cases in res.get():
+                for key in cases:
+                    w2_ave_sub[key] += cases[key]
         w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
         sigma = math.sqrt(w2_ave - w_ave * w_ave)
         # Response to Bioinformatics reviewer 08/24/10
         if sigma == 0:
             return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
         z_score = (w - w_ave) / sigma
+        end = time()
+        print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
         return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
     def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
@@ -792,7 +784,7 @@ class ContactScorer(object):
             (end - start) / 60.0))
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None, today=None):
+                           unbiased_w2_ave=None, today=None, processes=1):
         """
         Evaluate Predictor
 
@@ -859,7 +851,7 @@ class ContactScorer(object):
                 score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                     scores=predictor.get_scores(branch=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                     file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
-                    unbiased_w2_ave=unbiased_w2_ave, today=today)
+                    unbiased_w2_ave=unbiased_w2_ave, today=today, processes=processes)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
                     biased_w2_ave = b_w2_ave
                 if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -877,7 +869,7 @@ class ContactScorer(object):
                     coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                         scores=predictor.get_coverage(branch=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
                         file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
-                        unbiased_w2_ave=unbiased_w2_ave, today=today)
+                        unbiased_w2_ave=unbiased_w2_ave, today=today, processes=processes)
                     if (biased_w2_ave is None) and (b_w2_ave is not None):
                         biased_w2_ave = b_w2_ave
                     if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -893,7 +885,8 @@ class ContactScorer(object):
         else:
             score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                 scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
-                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
+                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today,
+                processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -907,7 +900,8 @@ class ContactScorer(object):
             try:
                 coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                     scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
-                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today)
+                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today,
+                    processes=processes)
                 if (biased_w2_ave is None) and (b_w2_ave is not None):
                     biased_w2_ave = b_w2_ave
                 if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -933,7 +927,7 @@ class ContactScorer(object):
         return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
 
     def evaluate_predictions(self, verbosity, out_dir, scores, coverages=None, dist='Any', file_prefix='', stats=None,
-                             biased_w2_ave=None, unbiased_w2_ave=None, today=None):
+                             biased_w2_ave=None, unbiased_w2_ave=None, today=None, processes=1):
         """
         Evaluate Predictions
 
@@ -985,12 +979,14 @@ class ContactScorer(object):
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
             z_score_biased, b_w2_ave = self.score_clustering_of_contact_predictions(
-                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave)
+                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
+                processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
             z_score_unbiased, u_w2_ave = self.score_clustering_of_contact_predictions(
-                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave)
+                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
+                processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
@@ -1177,3 +1173,78 @@ def surface_plot(name, data_mat, output_dir=None):
     fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.savefig(image_name)
     plt.close()
+
+
+def init_compute_w2_ave_sub(dists, bias_bool, custom_cutoff):
+    """
+    Init Compute w^2 Average Sub
+
+    Method initializes shared values used by all processes working on parts of the w^2 average sub-problems.
+
+    Args:
+        dists (np.array): The array of distances between residues in the tested structure.
+        bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+        factor accounting for the sequence separation of residues, as well as their distance, is added to the
+        calculation.
+        custom_cutoff (float): Separation at which to consider residues clustered. In previous publications a value of 4
+        Angstroms has been used.
+    """
+    global distances
+    distances = dists
+    global bias
+    bias = bias_bool
+    global cutoff
+    cutoff = custom_cutoff
+
+
+def compute_w2_ave_sub(res_i):
+    """
+    Compute W^2 Average Sub
+
+    Solves the cases of the w^2 average sub-problem for a specific position in the protein. These can be combined across
+    all positions to get the complete solution (after the pool of workers has finished).
+
+    Args:
+        res_i (int): The position in the protein for which to compute the parts of the w^2 average sub-problems.
+    Returns:
+        dict: A dictionary with the values for cases 1, 2, and 3 of the the w^2 average sub-problem for the residue
+        passed in to this function (res_i).
+    """
+    cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
+    for res_j in range(res_i + 1, distances.shape[1]):
+        if distances[res_i][res_j] >= cutoff:
+            continue
+        if bias:
+            s_ij = res_j - res_i
+        else:
+            s_ij = 1
+        for res_x in range(distances.shape[0]):
+            for res_y in range(res_x + 1, distances.shape[1]):
+                if distances[res_x][res_y] >= cutoff:
+                    continue
+                if bias:
+                    s_xy = (res_y - res_x)
+                else:
+                    s_xy = 1
+                if (res_i == res_x and res_j == res_y) or (res_i == res_y and res_j == res_x):
+                    curr_case = 'Case1'
+                elif (res_i == res_x) or (res_j == res_y) or (res_i == res_y) or (res_j == res_x):
+                    curr_case = 'Case2'
+                else:
+                    curr_case = 'Case3'
+                cases[curr_case] += s_ij * s_xy
+    return cases
+
+# def init_score_clustering_of_contact_prediction(bias_bool, w2_ave_sub_precomputed):
+#     global bias
+#     bias = bias_bool
+#     global w2_ave_sub
+#     w2_ave_sub = w2_ave_sub_precomputed
+#
+#
+# def score_clustering_of_contact_prediction(residues_of_interest):
+#     z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub)
+#     if z_score[0] == '-':
+#         residues_of_interest.difference_update(new_res)
+#     prev_z_score = z_score
+#     return z_score, len(in_tup[0])

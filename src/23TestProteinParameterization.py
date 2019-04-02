@@ -273,7 +273,8 @@ if __name__ == '__main__':
                         any_unbiased_w2_ave = None
                         any_score_df, any_coverage_df, any_b_w2_ave, any_u_w2_ave = contact_any.evaluate_predictor(
                             predictor=predictor, verbosity=5, out_dir=cb_dir, dist='Any', today=today,
-                            biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave)
+                            biased_w2_ave=any_biased_w2_ave, unbiased_w2_ave=any_unbiased_w2_ave,
+                            processes=args['processes'])
                         if (any_biased_w2_ave is None) and (any_b_w2_ave is not None):
                             any_biased_w2_ave = any_b_w2_ave
                         if (any_unbiased_w2_ave is None) and (any_u_w2_ave is not None):
@@ -284,7 +285,8 @@ if __name__ == '__main__':
                         beta_unbiased_w2_ave = None
                         beta_score_df, beta_coverage_df, beta_b_w2_ave, beta_u_w2_ave = contact_beta.evaluate_predictor(
                             predictor=predictor, verbosity=5, out_dir=cb_dir, dist='CB', today=today,
-                            biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave)
+                            biased_w2_ave=beta_biased_w2_ave, unbiased_w2_ave=beta_unbiased_w2_ave,
+                            processes=args['processes'])
                         if (beta_biased_w2_ave is None) and (beta_b_w2_ave is not None):
                             beta_biased_w2_ave = beta_b_w2_ave
                         if (beta_unbiased_w2_ave is None) and (beta_u_w2_ave is not None):
