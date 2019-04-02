@@ -342,10 +342,6 @@ class ETMIPC(object):
             aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
         """
         tree_positions = list(self.unique_clusters.keys())
-        for branch_level in self.tree_depth:
-            curr_dir = os.path.join(self.output_dir, str(branch_level))
-            if not os.path.isdir(curr_dir):
-                os.makedirs(curr_dir)
         pool = Pool(processes=self.processes, initializer=pool_init_score,
                     initargs=(evidence, self.unique_clusters, aa_mapping, self.output_dir, self.low_mem))
         pool_res = pool.map_async(mip_score, tree_positions)
@@ -372,12 +368,21 @@ class ETMIPC(object):
             while computing the MIp score.
             aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
         """
+        for branch_level in self.tree_depth:
+            curr_dir = os.path.join(self.output_dir, str(branch_level))
+            if not os.path.isdir(curr_dir):
+                os.makedirs(curr_dir)
         self._generate_sub_alignments()
         self._score_clusters(evidence=evidence, aa_mapping=aa_mapping)
         self.nongap_counts = {}
         self.cluster_scores = {}
         self.time = {}
         for c in self.cluster_mapping:
+            curr_alignment = self.get_sub_alignment(branch=c[0], cluster=c[1])
+            curr_alignment.write_out_alignment(file_name=os.path.join(
+                self.output_dir, str(c[0]), 'Alignment_Branch{}_Cluster{}.fa'.format(c[0], c[1])))
+            curr_alignment.heatmap_plot(name='Alignment_Branch{}_Cluster{}.eps'.format(c[0], c[1]), aa_dict=aa_mapping,
+                                        out_dir=os.path.join(self.output_dir, str(c[0])))
             if c[0] not in self.nongap_counts:
                 self.nongap_counts[c[0]] = {}
                 self.cluster_scores[c[0]] = {}
