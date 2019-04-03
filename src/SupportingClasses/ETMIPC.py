@@ -6,6 +6,7 @@ Created on Aug 21, 2017
 import os
 import Queue
 import numpy as np
+import pandas as pd
 from time import time
 import cPickle as pickle
 from multiprocessing import Manager, Pool
@@ -241,6 +242,24 @@ class ETMIPC(object):
         return self.__get_c_level_matrices(item='coverage', branch=branch, three_dim=three_dim)
     ####################################################################################################################
 
+    def _write_cluster_mapping(self):
+        """
+        Write Cluster Mapping
+
+        This method writes out the cluster mapping which maps every cluster in the phylogenetic tree used by the
+        SeqAlignment object to the unique tree position in which it was first seen. This is being written to file so
+        that it is easy to understand which sub-alignment represents which clusters in the tree so that not all of the
+        sub-alignments and their visualizations have to be written to file (this is also makes it transparent how the
+        tree is represented in the algorithm). The file is written out at the output_dir path held by this instance of
+        the ETMIPC class and the file name is 'Cluster_Mapping.tsv' and is tab separated.
+        """
+        df = pd.DataFrame.from_dict(self.cluster_mapping, orient='index')
+        df.reset_index(inplace=True)
+        df.rename(columns={0: 'Original Branch', 1: 'Original Cluster', 'index': 'Current Tree Position'}, inplace=True)
+        df.sort_values(by='Current Tree Position', inplace=True)
+        df[['Current Tree Position', 'Original Branch', 'Original Cluster']].to_csv(
+            os.path.join(self.output_dir, 'Cluster_Mapping.tsv'), sep='\t', index=False, header=True)
+
     def import_alignment(self, query, ignore_alignment_size=False, model='identity', clustering='agglomerative',
                          clustering_args={'affinity': 'euclidean', 'linkage': 'ward'}):
         """
@@ -310,17 +329,21 @@ class ETMIPC(object):
         self.cluster_mapping = cluster_mapping
         self.tree_depth = tree_depth
 
-    def _generate_sub_alignments(self):
+    def _generate_sub_alignments(self, aa_mapping):
         """
         Generate Sub Alignments
 
         This method generates the sub alignments for all unique clusters identified from the
         hierarchical clustering/phylogenetic tree. The method depends on the pool_init_sub_aln and
         generate_sub_alignment functions and updates the unique_cluters attribute.
+
+        Args:
+            aa_mapping (dict): A dictionary mapping amino acids (including gaps) to numbers.
         """
         tree_positions = list(self.unique_clusters.keys())
-        pool = Pool(processes=self.processes, initializer= pool_init_sub_aln, initargs=(self.alignment,
-                                                                                               self.unique_clusters))
+        self._write_cluster_mapping()
+        pool = Pool(processes=self.processes, initializer=pool_init_sub_aln,
+                    initargs=(self.alignment, self.unique_clusters, self.output_dir, aa_mapping))
         pool_res = pool.map_async(generate_sub_alignment, tree_positions)
         pool.close()
         pool.join()
@@ -372,17 +395,12 @@ class ETMIPC(object):
             curr_dir = os.path.join(self.output_dir, str(branch_level))
             if not os.path.isdir(curr_dir):
                 os.makedirs(curr_dir)
-        self._generate_sub_alignments()
+        self._generate_sub_alignments(aa_mapping=aa_mapping)
         self._score_clusters(evidence=evidence, aa_mapping=aa_mapping)
         self.nongap_counts = {}
         self.cluster_scores = {}
         self.time = {}
         for c in self.cluster_mapping:
-            curr_alignment = self.get_sub_alignment(branch=c[0], cluster=c[1])
-            curr_alignment.write_out_alignment(file_name=os.path.join(
-                self.output_dir, str(c[0]), 'Alignment_Branch{}_Cluster{}.fa'.format(c[0], c[1])))
-            curr_alignment.heatmap_plot(name='Alignment_Branch{}_Cluster{}.eps'.format(c[0], c[1]), aa_dict=aa_mapping,
-                                        out_dir=os.path.join(self.output_dir, str(c[0])))
             if c[0] not in self.nongap_counts:
                 self.nongap_counts[c[0]] = {}
                 self.cluster_scores[c[0]] = {}
@@ -710,7 +728,7 @@ def load_single_matrix(name, branch, out_dir):
     return data
 
 
-def pool_init_sub_aln(aln, cluster_dict):
+def pool_init_sub_aln(aln, cluster_dict, output_dir, aa_dict):
     """
     Pool Init Sub Aln
 
@@ -721,11 +739,17 @@ def pool_init_sub_aln(aln, cluster_dict):
         aln (SeqAlignment): The full sequence alignment for an ETMIPC instance (alignment attribute).
         cluster_dict (dict): The unique_clusters dictionary for an ETMIPC instance which contains the sequence
         assignments for each cluster (required for sub alignment generation).
+        output_dir (str/path): Directory name or path to directory where results from this analysis should be stored.
+        aa_dict (dict):
     """
     global full_aln
     full_aln = aln
     global assignment_dict
     assignment_dict = cluster_dict
+    global out_dir
+    out_dir = output_dir
+    global aa_mapping
+    aa_mapping = aa_dict
 
 
 def generate_sub_alignment(tree_position):
@@ -745,6 +769,9 @@ def generate_sub_alignment(tree_position):
     start = time()
     sequence_ids = assignment_dict[tree_position]['assignments']
     sub_aln = full_aln.generate_sub_alignment(sequence_ids)
+    name = 'Alignment_Branch{}_Cluster{}'.format(tree_position[0], tree_position[1])
+    sub_aln.write_out_alignment(file_name=os.path.join(out_dir, str(tree_position[0]), name + '.fa'))
+    sub_aln.heatmap_plot(name=name + '.eps', aa_dict=aa_mapping, out_dir=os.path.join(out_dir, str(tree_position[0])))
     end = time()
     return tree_position, sub_aln, (end - start)
 
