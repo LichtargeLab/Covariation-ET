@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from time import time
 import cPickle as pickle
+from scipy.stats import rankdata
 from multiprocessing import Manager, Pool
 from sklearn.metrics import mutual_info_score
 from SeqAlignment import SeqAlignment
@@ -988,24 +989,30 @@ def calculate_score_and_coverage(branch):
         float: The time it took to calculate final scores and coverage for a specific branch of an ETMIPC instance.
     """
     start = time()
-    branch_scores = instance.get_branch_scores(three_dim=True)
-    branch_index = instance.tree_depth.index(branch) + 1
-    scores = np.sum(branch_scores[:branch_index, :, :], axis=0)
-    if combination_method == 'average':
-        scores /= float(branch_index + 1)
-    coverage = np.zeros(scores.shape)
-    test_mat = np.triu(scores)
-    mask = np.triu(np.ones(scores.shape), k=1)
-    normalization = ((scores.shape[0]**2 - scores.shape[0]) / 2.0)
-    for i in range(scores.shape[0]):
-        for j in range(i + 1, scores.shape[0]):
-            bool_mat = (test_mat[i, j] >= test_mat) * 1.0
-            corrected_mat = bool_mat * mask
-            compute_coverage2 = (((np.sum(corrected_mat) - 1) * 100) / normalization)
-            coverage[i, j] = coverage[j, i] = compute_coverage2
-    if instance.low_mem:
-        scores = save_single_matrix(name='Scores', branch=branch, mat=scores, out_dir=instance.output_dir)
-        coverage = save_single_matrix(name='Coverage', branch=branch, mat=coverage, out_dir=instance.output_dir)
+    final_score_fn_bool = exists_single_matrix(name='Scores', branch=branch, out_dir=instance.output_dir)
+    coverage_fn_bool = exists_single_matrix(name='Coverage', branch=branch, out_dir=instance.output_dir)
+    if instance.low_mem and final_score_fn_bool and coverage_fn_bool:
+        scores = single_matrix_filename(name='Scores', branch=branch, out_dir=instance.output_dir)[1]
+        coverage = single_matrix_filename(name='Coverage', branch=branch, out_dir=instance.output_dir)[1]
+    else:
+        branch_scores = instance.get_branch_scores(three_dim=True)
+        branch_index = instance.tree_depth.index(branch) + 1
+        scores = np.sum(branch_scores[:branch_index, :, :], axis=0)
+        if combination_method == 'average':
+            scores /= float(branch_index + 1)
+        coverage = np.zeros(scores.shape)
+        test_mat = np.triu(scores)
+        normalization = ((scores.shape[0]**2 - scores.shape[0]) / 2.0)
+        indices = np.triu_indices(scores.shape[0], k=1)
+        to_rank = test_mat[indices]
+        rank = rankdata(to_rank, method='max') - 1
+        coverage[indices] = rank
+        coverage *= 100
+        coverage /= normalization
+        coverage += coverage.T
+        if instance.low_mem:
+            scores = save_single_matrix(name='Scores', branch=branch, mat=scores, out_dir=instance.output_dir)
+            coverage = save_single_matrix(name='Coverage', branch=branch, mat=coverage, out_dir=instance.output_dir)
     end = time()
     print('Final scoring and coverage calculation took {} min'.format((end - start) / 60.0))
     return branch, scores, coverage, (end - start)
