@@ -563,128 +563,51 @@ class ContactScorer(object):
         if self.query_structure is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
             return pd.DataFrame()
-        # If data has already been computed load and return it without recomputing.
+            # If data has already been computed load and return it without recomputing.
         if os.path.isfile(file_path):
             df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
             return df, None
-        scores = []
-        residues = []
-        for i in range(predictions.shape[0]):
-            for j in range(i + 1, predictions.shape[1]):
-                scores.append(predictions[i, j])
-                residues.append((i, j))
-        sorted_scores, sorted_residues = zip(*sorted(zip(scores, residues), reverse=True))
-        residues_of_interest = set([])
-        data = {'Res_i': [x[0] for x in sorted_residues], 'Res_j': [x[1] for x in sorted_residues],
-                'Covariance_Score': sorted_scores, 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [],
-                'Num_Residues': []}
-        prev_z_score = None
-        for pair in sorted_residues:
-            new_res = []
-            if pair[0] not in residues_of_interest:
-                new_res.append(pair[0])
-            if pair[1] not in residues_of_interest:
-                new_res.append(pair[1])
-            if len(new_res) > 0:
-                residues_of_interest.update(new_res)
-                z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub,
-                                                   processes=processes)
-                if w2_ave_sub is None:
-                    w2_ave_sub = z_score[-1]
-                if z_score[0] == '-':
-                    residues_of_interest.difference_update(new_res)
-                prev_z_score = z_score
-            else:
-                z_score = prev_z_score
-            data['Z-Score'].append(z_score[0])
-            data['W'].append(z_score[1])
-            data['W_Ave'].append(z_score[2])
-            data['W2_Ave'].append(z_score[3])
-            data['Sigma'].append(z_score[4])
-            data['Num_Residues'].append(len(residues_of_interest))
+        # Identify unmappable positions (do not appear in the PDB).
+        unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
+        # Identify all uniqu positions in the prediction set (assuming they are square and symmetrical).
+        indices = np.triu_indices(predictions.shape[0], k=1)
+        # Set up dataframe for storing results.
+        data = {'Res_i': indices[0], 'Res_j': indices[1], 'Covariance_Score': predictions[indices]}
         df = pd.DataFrame(data)
-        df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
-        return df, w2_ave_sub
-
-    def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None, processes=1):
-        """
-        Clustering Z Score
-
-        Calculate z-score (z_S) for residue selection res_list=[1,2,...]
-            z_S = (w-<w>_S)/sigma_S
-        The steps are:
-            1. Calculate Selection Clustering Weight (SCW) 'w'
-            2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
-            3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S) Reference 2
-
-        Args:
-            res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
-            bias (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
-            factor accounting for the sequence separation of residues, as well as their distance, is added to the
-            calculation.
-            w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
-        Returns:
-            float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
-            float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
-            ContactScorer.
-            float: The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
-            ContactScorer.
-            float: The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
-            ContactScorer.
-            float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
-            ContactScorer.
-            dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
-            3).
-
-        This method was formalized by Ivana Mihalek (Reference 1) and adapted from code written by Rhonald Lua in Python
-        (Reference 2) which was adapted from code written by Angela Wilkins (Reference 3).
-
-        References:
-            1. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
-            Protein Structure Evaluation, Journal of Molecular Biology, Volume 331, Issue 1, 2003, Pages 263-279,
-            ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
-            (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
-            2. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
-            protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
-            3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
-            importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
-        """
-        start = time()
-        if self.query_structure is None:
-            print('Z-Score cannot be measured, because no PDB was provided.')
-            return '-', None, None, None, None, None
-        # Check that there is a valid bias values
-        if bias is not True and bias is not False:
-            raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
-        # Make sure a query_pdb_mapping exists
-        if self.query_pdb_mapping is None:
-            self.fit()
-        # Make sure all residues in res_list are mapped to the PDB structure in use
-        if not all(res in self.query_pdb_mapping for res in res_list):
-            print('At least one residue of interest is not present in the PDB provided')
-            print(', '.join([str(x) for x in res_list]))
-            print(', '.join([str(x) for x in self.query_pdb_mapping.keys()]))
-            return '-', None, None, None, None, None
-        positions = range(self.distances.shape[0])
-        a = self.distances < self.cutoff
-        a[positions, positions] = 0
-        s_i = np.in1d(positions, res_list)
-        s_ij = np.outer(s_i, s_i)
-        s_ij[positions, positions] = 0
-        if bias:
-            bias_ij = np.subtract.outer(positions, positions)
-            bias_ij[np.triu_indices(self.distances.shape[0], 1)] *= -1
-        else:
-            bias_ij = np.ones(s_ij.shape)
-        w = np.sum(np.tril(a * s_ij * bias_ij))
-        # Calculate w, <w>_S, and <w^2>_S.
-        # Use expressions (3),(4),(5),(6) in Reference.
-        m = len(res_list)
-        l = self.query_alignment.seq_length
-        pi1 = m * (m - 1.0) / (l * (l - 1.0))
-        pi2 = pi1 * (m - 2.0) / (l - 2.0)
-        pi3 = pi2 * (m - 3.0) / (l - 3.0)
-        w_ave = np.sum(np.tril(a * bias_ij)) * pi1
+        df.set_index(['Res_i', 'Res_j'], inplace=True)
+        df[['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']] = None
+        # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
+        unmappable_x = np.isin(indices[0], list(unmappable_residues))
+        unmappable_y = np.isin(indices[1], list(unmappable_residues))
+        unmappable_all = unmappable_x | unmappable_y
+        unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
+        unmappable_pairs = zip(unmappable_indices[0], unmappable_indices[1])
+        df[unmappable_pairs, 'Z-Score'] = '-'
+        # Identify all mappable positions and retrieve their scores
+        mappable_all = ~ unmappable_all
+        mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
+        mappable_pairs = (mappable_indices[0], mappable_indices[1])
+        scores = predictions[mappable_indices]
+        # Sort the scores in preparation for Z-scoring
+        sorted_scores, sorted_residues = zip(*sorted(zip(scores, mappable_pairs), reverse=True))
+        # Set up structures to track unique sets of residues
+        unique_sets = {}
+        to_score = []
+        residues_of_interest = set([])
+        counter = 0
+        prev_size = 0
+        # Identify unique sets of residues to score
+        for pair in sorted_residues:
+            residues_of_interest.update(pair)
+            curr_size = len(residues_of_interest)
+            if curr_size > prev_size:
+                unique_sets[counter] = [pair]
+                to_score.append(list(residues_of_interest))
+                prev_size = curr_size
+                counter += 1
+            else:
+                unique_sets[counter].append(pair)
+        # Compute the precomputable part (w2_ave_sub)
         if w2_ave_sub is None:
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
             from multiprocessing import Pool
@@ -696,15 +619,193 @@ class ContactScorer(object):
             for cases in res.get():
                 for key in cases:
                     w2_ave_sub[key] += cases[key]
-        w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
-        sigma = math.sqrt(w2_ave - w_ave * w_ave)
-        # Response to Bioinformatics reviewer 08/24/10
-        if sigma == 0:
-            return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
-        z_score = (w - w_ave) / sigma
-        end = time()
-        print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
-        return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
+        # Compute all other Z-scores
+        pool = Pool(processes=processes, initializer=init_clustering_z_score,
+                    initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
+                              self.cutoff, self.query_alignment))
+        res = pool.map(clustering_z_score, to_score)
+        pool.close()
+        pool.join()
+        # Store the values in the data frame
+        for counter, curr_res in enumerate(res.get()):
+            df.loc[unique_sets[counter], ['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = list(curr_res[counter])[:5]
+            df.loc[unique_sets[counter], 'Num_Residues'] = len(to_score[counter])
+        # Sort dataframe by covariance scores
+        df.sort_values(by='Covariance_Score', inplace=True, ascending=False)
+        # Write out DataFrame
+        df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
+        return df, w2_ave_sub
+
+    # def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
+    #                                             w2_ave_sub=None, processes=1):
+    #     """
+    #     Score Clustering Of Contact Predictions
+    #
+    #     This method employs the _clustering_z_score method to score all pairs for which predictions are made. A z-score
+    #     of '-' means that the pair did not map to the provided PDB while 'NA' means that the sigma computed for that
+    #     pair was equal to 0. The residues belonging to each pair are added to a set in order of pair covariance score.
+    #     That set of residues is evaluated for clustering z-score after each pair is added.
+    #
+    #     Args:
+    #         predictions (numpy.array): An array of predictions for contacts between protein residues with size nxn where
+    #         n is the length of the query sequence used when initializing the ContactScorer.
+    #         bias (int or bool): option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+    #         factor accounting for the sequence separation of residues, as well as their distance, is added to the
+    #         calculation.
+    #         file_path (str): path where the z-scoring results should be written to.
+    #         w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+    #     Returns:
+    #         pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
+    #         the clustering Z-Score, the w score, E[w], E[w^2], sigma, and the number of residues of interest up to that
+    #         point.
+    #         dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+    #         3).
+    #     """
+    #     if self.query_structure is None:
+    #         print('Z-Scores cannot be measured, because no PDB was provided.')
+    #         return pd.DataFrame()
+    #     # If data has already been computed load and return it without recomputing.
+    #     if os.path.isfile(file_path):
+    #         df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
+    #         return df, None
+    #     scores = []
+    #     residues = []
+    #     for i in range(predictions.shape[0]):
+    #         for j in range(i + 1, predictions.shape[1]):
+    #             scores.append(predictions[i, j])
+    #             residues.append((i, j))
+    #     sorted_scores, sorted_residues = zip(*sorted(zip(scores, residues), reverse=True))
+    #     residues_of_interest = set([])
+    #     data = {'Res_i': [x[0] for x in sorted_residues], 'Res_j': [x[1] for x in sorted_residues],
+    #             'Covariance_Score': sorted_scores, 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [],
+    #             'Num_Residues': []}
+    #     prev_z_score = None
+    #     for pair in sorted_residues:
+    #         new_res = []
+    #         if pair[0] not in residues_of_interest:
+    #             new_res.append(pair[0])
+    #         if pair[1] not in residues_of_interest:
+    #             new_res.append(pair[1])
+    #         if len(new_res) > 0:
+    #             residues_of_interest.update(new_res)
+    #             z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub,
+    #                                                processes=processes)
+    #             if w2_ave_sub is None:
+    #                 w2_ave_sub = z_score[-1]
+    #             if z_score[0] == '-':
+    #                 residues_of_interest.difference_update(new_res)
+    #             prev_z_score = z_score
+    #         else:
+    #             z_score = prev_z_score
+    #         data['Z-Score'].append(z_score[0])
+    #         data['W'].append(z_score[1])
+    #         data['W_Ave'].append(z_score[2])
+    #         data['W2_Ave'].append(z_score[3])
+    #         data['Sigma'].append(z_score[4])
+    #         data['Num_Residues'].append(len(residues_of_interest))
+    #     df = pd.DataFrame(data)
+    #     df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
+    #     return df, w2_ave_sub
+    #
+    # def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None, processes=1):
+    #     """
+    #     Clustering Z Score
+    #
+    #     Calculate z-score (z_S) for residue selection res_list=[1,2,...]
+    #         z_S = (w-<w>_S)/sigma_S
+    #     The steps are:
+    #         1. Calculate Selection Clustering Weight (SCW) 'w'
+    #         2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
+    #         3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S) Reference 2
+    #
+    #     Args:
+    #         res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
+    #         bias (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+    #         factor accounting for the sequence separation of residues, as well as their distance, is added to the
+    #         calculation.
+    #         w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+    #     Returns:
+    #         float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
+    #         float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
+    #         ContactScorer.
+    #         float: The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
+    #         ContactScorer.
+    #         float: The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
+    #         ContactScorer.
+    #         float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
+    #         ContactScorer.
+    #         dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+    #         3).
+    #
+    #     This method was formalized by Ivana Mihalek (Reference 1) and adapted from code written by Rhonald Lua in Python
+    #     (Reference 2) which was adapted from code written by Angela Wilkins (Reference 3).
+    #
+    #     References:
+    #         1. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
+    #         Protein Structure Evaluation, Journal of Molecular Biology, Volume 331, Issue 1, 2003, Pages 263-279,
+    #         ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
+    #         (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
+    #         2. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
+    #         protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
+    #         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
+    #         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
+    #     """
+    #     start = time()
+    #     if self.query_structure is None:
+    #         print('Z-Score cannot be measured, because no PDB was provided.')
+    #         return '-', None, None, None, None, None
+    #     # Check that there is a valid bias values
+    #     if bias is not True and bias is not False:
+    #         raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
+    #     # Make sure a query_pdb_mapping exists
+    #     if self.query_pdb_mapping is None:
+    #         self.fit()
+    #     # Make sure all residues in res_list are mapped to the PDB structure in use
+    #     if not all(res in self.query_pdb_mapping for res in res_list):
+    #         print('At least one residue of interest is not present in the PDB provided')
+    #         print(', '.join([str(x) for x in res_list]))
+    #         print(', '.join([str(x) for x in self.query_pdb_mapping.keys()]))
+    #         return '-', None, None, None, None, None
+    #     positions = range(self.distances.shape[0])
+    #     a = self.distances < self.cutoff
+    #     a[positions, positions] = 0
+    #     s_i = np.in1d(positions, res_list)
+    #     s_ij = np.outer(s_i, s_i)
+    #     s_ij[positions, positions] = 0
+    #     if bias:
+    #         bias_ij = np.subtract.outer(positions, positions)
+    #         bias_ij[np.triu_indices(self.distances.shape[0], 1)] *= -1
+    #     else:
+    #         bias_ij = np.ones(s_ij.shape)
+    #     w = np.sum(np.tril(a * s_ij * bias_ij))
+    #     # Calculate w, <w>_S, and <w^2>_S.
+    #     # Use expressions (3),(4),(5),(6) in Reference.
+    #     m = len(res_list)
+    #     l = self.query_alignment.seq_length
+    #     pi1 = m * (m - 1.0) / (l * (l - 1.0))
+    #     pi2 = pi1 * (m - 2.0) / (l - 2.0)
+    #     pi3 = pi2 * (m - 3.0) / (l - 3.0)
+    #     w_ave = np.sum(np.tril(a * bias_ij)) * pi1
+    #     if w2_ave_sub is None:
+    #         w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
+    #         from multiprocessing import Pool
+    #         pool = Pool(processes=processes, initializer=init_compute_w2_ave_sub,
+    #                     initargs=(self.distances, bias, self.cutoff))
+    #         res = pool.map_async(compute_w2_ave_sub, range(self.distances.shape[0]))
+    #         pool.close()
+    #         pool.join()
+    #         for cases in res.get():
+    #             for key in cases:
+    #                 w2_ave_sub[key] += cases[key]
+    #     w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
+    #     sigma = math.sqrt(w2_ave - w_ave * w_ave)
+    #     # Response to Bioinformatics reviewer 08/24/10
+    #     if sigma == 0:
+    #         return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
+    #     z_score = (w - w_ave) / sigma
+    #     end = time()
+    #     print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
+    #     return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
     def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
         """
@@ -1207,8 +1308,8 @@ def compute_w2_ave_sub(res_i):
     Args:
         res_i (int): The position in the protein for which to compute the parts of the w^2 average sub-problems.
     Returns:
-        dict: A dictionary with the values for cases 1, 2, and 3 of the the w^2 average sub-problem for the residue
-        passed in to this function (res_i).
+        dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+        3).
     """
     cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
     for res_j in range(res_i + 1, distances.shape[1]):
@@ -1235,16 +1336,125 @@ def compute_w2_ave_sub(res_i):
                 cases[curr_case] += s_ij * s_xy
     return cases
 
-# def init_score_clustering_of_contact_prediction(bias_bool, w2_ave_sub_precomputed):
-#     global bias
-#     bias = bias_bool
-#     global w2_ave_sub
-#     w2_ave_sub = w2_ave_sub_precomputed
-#
-#
-# def score_clustering_of_contact_prediction(residues_of_interest):
-#     z_score = self._clustering_z_score(sorted(residues_of_interest), bias=bias, w2_ave_sub=w2_ave_sub)
-#     if z_score[0] == '-':
-#         residues_of_interest.difference_update(new_res)
-#     prev_z_score = z_score
-#     return z_score, len(in_tup[0])
+
+def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, dist_threshold,
+                            seq_aln):
+    """
+    Init Clustering Z-Score
+
+    This method initializes a set of processes in a multiprocessing pool so that they can compute the clustering Z-Score
+    with minimal data duplication.
+
+    Args:
+        bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+        factor accounting for the sequence separation of residues, as well as their distance, is added to the
+        calculation.
+        w2_ave_sub_dict (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+        curr_pdb (PDBReference): Instance representing the PDB from which the structural data for this analysis comes.
+        map_to_structure (dict): A mapping from the index of the query sequence to the index of the pdb chain's
+        sequence for those positions which match according to a pairwise global alignment.
+        residue_dists (np.array): The distances between residues, used for determining those which are in contact in
+        order to assess predictions.
+        dist_threshold (float): Value to use as a distance cutoff for contact prediction.
+        seq_aln (SeqAlignment): SeqAlignment object being evaluated in this contact scoring prediction task.
+    """
+    global bias
+    bias = bias_bool
+    global w2_ave_sub
+    w2_ave_sub = w2_ave_sub_dict
+    global query_structure
+    query_structure = curr_pdb
+    global query_pdb_mapping
+    query_pdb_mapping = map_to_structure
+    global distances
+    distances = residue_dists
+    global cutoff
+    cutoff = dist_threshold
+    global query_alignment
+    query_alignment = seq_aln
+
+
+def clustering_z_score(res_list):
+    """
+    Clustering Z Score
+
+    Calculate z-score (z_S) for residue selection res_list=[1,2,...]
+        z_S = (w-<w>_S)/sigma_S
+    The steps are:
+        1. Calculate Selection Clustering Weight (SCW) 'w'
+        2. Calculate mean SCW (<w>_S) in the ensemble of random selections of len(res_list) residues
+        3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S) Reference 2
+
+    Args:
+        res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
+    Returns:
+        float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
+        float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
+        ContactScorer.
+        float: The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
+        ContactScorer.
+        float: The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
+        ContactScorer.
+        float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
+        ContactScorer.
+
+    This method was formalized by Ivana Mihalek (Reference 1) and adapted from code written by Rhonald Lua in Python
+    (Reference 2) which was adapted from code written by Angela Wilkins (Reference 3).
+
+    References:
+        1. I. Mihalek, I. Res, H. Yao, O. Lichtarge, Combining Inference from Evolution and Geometric Probability in
+        Protein Structure Evaluation, Journal of Molecular Biology, Volume 331, Issue 1, 2003, Pages 263-279,
+        ISSN 0022-2836, https://doi.org/10.1016/S0022-2836(03)00663-6.
+        (http://www.sciencedirect.com/science/article/pii/S0022283603006636)
+        2. Lua RC, Lichtarge O. PyETV: a PyMOL evolutionary trace viewer to analyze functional site predictions in
+        protein complexes. Bioinformatics. 2010;26(23):2981-2982. doi:10.1093/bioinformatics/btq566.
+        3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
+        importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
+    """
+    start = time()
+    if query_structure is None:
+        print('Z-Score cannot be measured, because no PDB was provided.')
+        return '-', None, None, None, None, None
+    # Check that there is a valid bias values
+    if bias is not True and bias is not False:
+        raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
+    # Make sure a query_pdb_mapping exists
+    if query_pdb_mapping is None:
+        # self.fit()
+        raise ValueError('ContactScorer instance must be fit before attempting to perform structural clustering'
+                         'weighted z-scoring.')
+    # Make sure all residues in res_list are mapped to the PDB structure in use
+    if not all(res in query_pdb_mapping for res in res_list):
+        print('At least one residue of interest is not present in the PDB provided')
+        print(', '.join([str(x) for x in res_list]))
+        print(', '.join([str(x) for x in query_pdb_mapping.keys()]))
+        return '-', None, None, None, None, None
+    positions = range(distances.shape[0])
+    a = distances < cutoff
+    a[positions, positions] = 0
+    s_i = np.in1d(positions, res_list)
+    s_ij = np.outer(s_i, s_i)
+    s_ij[positions, positions] = 0
+    if bias:
+        bias_ij = np.subtract.outer(positions, positions)
+        bias_ij[np.triu_indices(distances.shape[0], 1)] *= -1
+    else:
+        bias_ij = np.ones(s_ij.shape)
+    w = np.sum(np.tril(a * s_ij * bias_ij))
+    # Calculate w, <w>_S, and <w^2>_S.
+    # Use expressions (3),(4),(5),(6) in Reference.
+    m = len(res_list)
+    l = query_alignment.seq_length
+    pi1 = m * (m - 1.0) / (l * (l - 1.0))
+    pi2 = pi1 * (m - 2.0) / (l - 2.0)
+    pi3 = pi2 * (m - 3.0) / (l - 3.0)
+    w_ave = np.sum(np.tril(a * bias_ij)) * pi1
+    w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
+    sigma = math.sqrt(w2_ave - w_ave * w_ave)
+    # Response to Bioinformatics reviewer 08/24/10
+    if sigma == 0:
+        return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
+    z_score = (w - w_ave) / sigma
+    end = time()
+    print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
+    return z_score, w, w_ave, w2_ave, sigma
