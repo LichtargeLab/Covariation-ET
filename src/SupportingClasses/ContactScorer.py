@@ -11,6 +11,7 @@ import pandas as pd
 from time import time
 from math import floor
 from scipy.stats import rankdata
+from multiprocessing import Pool
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.PDB.Polypeptide import one_to_three
@@ -560,6 +561,7 @@ class ContactScorer(object):
             dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
             3).
         """
+        start = time()
         if self.query_structure is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
             return pd.DataFrame()
@@ -575,18 +577,18 @@ class ContactScorer(object):
         data = {'Res_i': indices[0], 'Res_j': indices[1], 'Covariance_Score': predictions[indices]}
         df = pd.DataFrame(data)
         df.set_index(['Res_i', 'Res_j'], inplace=True)
-        df[['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']] = None
+        df = df.assign(**{'Z-Score': None, 'W': None, 'W_Ave': None, 'W2_Ave': None, 'Sigma': None, 'Num_Residues': None})
         # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
         unmappable_x = np.isin(indices[0], list(unmappable_residues))
         unmappable_y = np.isin(indices[1], list(unmappable_residues))
         unmappable_all = unmappable_x | unmappable_y
         unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
         unmappable_pairs = zip(unmappable_indices[0], unmappable_indices[1])
-        df[unmappable_pairs, 'Z-Score'] = '-'
+        df.loc[unmappable_pairs, 'Z-Score'] = '-'
         # Identify all mappable positions and retrieve their scores
         mappable_all = ~ unmappable_all
         mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
-        mappable_pairs = (mappable_indices[0], mappable_indices[1])
+        mappable_pairs = zip(mappable_indices[0], mappable_indices[1])
         scores = predictions[mappable_indices]
         # Sort the scores in preparation for Z-scoring
         sorted_scores, sorted_residues = zip(*sorted(zip(scores, mappable_pairs), reverse=True))
@@ -594,23 +596,22 @@ class ContactScorer(object):
         unique_sets = {}
         to_score = []
         residues_of_interest = set([])
-        counter = 0
+        counter = -1
         prev_size = 0
         # Identify unique sets of residues to score
         for pair in sorted_residues:
             residues_of_interest.update(pair)
             curr_size = len(residues_of_interest)
             if curr_size > prev_size:
+                counter += 1
                 unique_sets[counter] = [pair]
                 to_score.append(list(residues_of_interest))
                 prev_size = curr_size
-                counter += 1
             else:
                 unique_sets[counter].append(pair)
         # Compute the precomputable part (w2_ave_sub)
         if w2_ave_sub is None:
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
-            from multiprocessing import Pool
             pool = Pool(processes=processes, initializer=init_compute_w2_ave_sub,
                         initargs=(self.distances, bias, self.cutoff))
             res = pool.map_async(compute_w2_ave_sub, range(self.distances.shape[0]))
@@ -620,20 +621,24 @@ class ContactScorer(object):
                 for key in cases:
                     w2_ave_sub[key] += cases[key]
         # Compute all other Z-scores
-        pool = Pool(processes=processes, initializer=init_clustering_z_score,
-                    initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
+        pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
+                     initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
                               self.cutoff, self.query_alignment))
-        res = pool.map(clustering_z_score, to_score)
-        pool.close()
-        pool.join()
+        res = pool2.map(clustering_z_score, to_score)
+        pool2.close()
+        pool2.join()
         # Store the values in the data frame
-        for counter, curr_res in enumerate(res.get()):
-            df.loc[unique_sets[counter], ['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = list(curr_res[counter])[:5]
+        for counter, curr_res in enumerate(res):
+            df.loc[unique_sets[counter], ['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = list(curr_res)[:5]
             df.loc[unique_sets[counter], 'Num_Residues'] = len(to_score[counter])
         # Sort dataframe by covariance scores
+        df.reset_index(inplace=True)
         df.sort_values(by='Covariance_Score', inplace=True, ascending=False)
         # Write out DataFrame
-        df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
+        df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
+            path_or_buf=file_path, sep='\t', header=True, index=False)
+        end = time()
+        print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
         return df, w2_ave_sub
 
     # def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
@@ -661,6 +666,7 @@ class ContactScorer(object):
     #         dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
     #         3).
     #     """
+    #     start = time()
     #     if self.query_structure is None:
     #         print('Z-Scores cannot be measured, because no PDB was provided.')
     #         return pd.DataFrame()
@@ -705,6 +711,8 @@ class ContactScorer(object):
     #         data['Num_Residues'].append(len(residues_of_interest))
     #     df = pd.DataFrame(data)
     #     df.to_csv(path_or_buf=file_path, sep='\t', header=True, index=False)
+    #     end = time()
+    #     print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
     #     return df, w2_ave_sub
     #
     # def _clustering_z_score(self, res_list, bias=True, w2_ave_sub=None, processes=1):
@@ -750,7 +758,7 @@ class ContactScorer(object):
     #         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
     #         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
     #     """
-    #     start = time()
+    #     # start = time()
     #     if self.query_structure is None:
     #         print('Z-Score cannot be measured, because no PDB was provided.')
     #         return '-', None, None, None, None, None
@@ -803,8 +811,8 @@ class ContactScorer(object):
     #     if sigma == 0:
     #         return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
     #     z_score = (w - w_ave) / sigma
-    #     end = time()
-    #     print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
+    #     # end = time()
+    #     # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
     #     return z_score, w, w_ave, w2_ave, sigma, w2_ave_sub
 
     def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
@@ -1411,7 +1419,7 @@ def clustering_z_score(res_list):
         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
     """
-    start = time()
+    # start = time()
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
         return '-', None, None, None, None, None
@@ -1455,6 +1463,6 @@ def clustering_z_score(res_list):
     if sigma == 0:
         return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
     z_score = (w - w_ave) / sigma
-    end = time()
-    print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
+    # end = time()
+    # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
     return z_score, w, w_ave, w2_ave, sigma
