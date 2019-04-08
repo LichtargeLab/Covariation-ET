@@ -574,17 +574,14 @@ class ContactScorer(object):
         # Identify all uniqu positions in the prediction set (assuming they are square and symmetrical).
         indices = np.triu_indices(predictions.shape[0], k=1)
         # Set up dataframe for storing results.
-        data = {'Res_i': indices[0], 'Res_j': indices[1], 'Covariance_Score': predictions[indices]}
-        df = pd.DataFrame(data)
-        df.set_index(['Res_i', 'Res_j'], inplace=True)
-        df = df.assign(**{'Z-Score': None, 'W': None, 'W_Ave': None, 'W2_Ave': None, 'Sigma': None, 'Num_Residues': None})
+        data = {'Res_i': [], 'Res_j': [], 'Covariance_Score': [], 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [],
+                'Sigma': [], 'Num_Residues': []}
         # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
         unmappable_x = np.isin(indices[0], list(unmappable_residues))
         unmappable_y = np.isin(indices[1], list(unmappable_residues))
         unmappable_all = unmappable_x | unmappable_y
         unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
         unmappable_pairs = zip(unmappable_indices[0], unmappable_indices[1])
-        df.loc[unmappable_pairs, 'Z-Score'] = '-'
         # Identify all mappable positions and retrieve their scores
         mappable_all = ~ unmappable_all
         mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
@@ -628,13 +625,30 @@ class ContactScorer(object):
         pool2.close()
         pool2.join()
         # Store the values in the data frame
+        data['Res_i'] += list(mappable_indices[0])
+        data['Res_j'] += list(mappable_indices[1])
+        data['Covariance_Score'] += predictions[mappable_indices]
         for counter, curr_res in enumerate(res):
-            df.loc[unique_sets[counter], ['Z-Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = list(curr_res)[:5]
-            df.loc[unique_sets[counter], 'Num_Residues'] = len(to_score[counter])
-        # Sort dataframe by covariance scores
-        df.reset_index(inplace=True)
-        df.sort_values(by='Covariance_Score', inplace=True, ascending=False)
+            curr_len = len(unique_sets[counter])
+            data['Z-Score'] += curr_size[0] * curr_len
+            data['W'] += curr_size[1] * curr_len
+            data['W_Ave'] += curr_size[2] * curr_len
+            data['W2_Ave'] += curr_size[3] * curr_len
+            data['Sigma'] += curr_size[4] * curr_len
+            data['Num_Residues'] += [len(to_score[counter])] * curr_len
+        # Add values for unmappable positions
+        data['Res_i'] += list(unmappable_indices[0])
+        data['Res_j'] += list(unmappable_indices[1])
+        data['Covariance_Score'] += predictions[unmappable_indices]
+        len_unmappable = len(unmappable_pairs)
+        data['Z-Score'] += curr_size[0] * len_unmappable
+        data['W'] += curr_size[1] * len_unmappable
+        data['W_Ave'] += curr_size[2] * len_unmappable
+        data['W2_Ave'] += curr_size[3] * len_unmappable
+        data['Sigma'] += curr_size[4] * len_unmappable
+        data['Num_Residues'] += [len(to_score[counter])] * len_unmappable
         # Write out DataFrame
+        df = pd.DataFrame(data)
         df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
             path_or_buf=file_path, sep='\t', header=True, index=False)
         end = time()
