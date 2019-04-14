@@ -767,28 +767,17 @@ class ContactScorer(object):
             'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)', 'Precision (L/3)',
             'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
             'Precision (L/9)', and 'Precision (L/10)'.
-            pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the
-            coverage scores provided when evaluating this predictor. Possible column headings include: 'Time',
-            'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)', 'Precision (L/3)',
-            'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
-            'Precision (L/9)', and 'Precision (L/10)'.
             dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
         """
         if today is None:
             today = str(datetime.date.today())
         score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
-        coverage_fn = os.path.join(out_dir, 'Coverage_Evaluation_Dist-{}.txt'.format(dist))
         # If the evaluation has already been performed load the data and return it
         if os.path.isfile(score_fn):
             score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
-            if os.path.isfile(coverage_fn):
-                coverage_df = pd.read_csv(coverage_fn, sep='\t', header=0, index_col=False)
-            else:
-                coverage_df = None
-            return score_df, coverage_df, None, None
+            return score_df, None, None
         score_stats = None
-        coverage_stats = None
         columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
                    'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
                    'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)']
@@ -815,23 +804,6 @@ class ContactScorer(object):
                     time_array = [predictor.time[c]] * diff_len
                     score_stats['K'] += c_array
                     score_stats['Time'] += time_array
-                try:
-                    coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                        scores=predictor.get_coverage(branch=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
-                        file_prefix='Coverage_K-{}_'.format(c), stats=coverage_stats, biased_w2_ave=biased_w2_ave,
-                        unbiased_w2_ave=unbiased_w2_ave, today=today, processes=processes)
-                    if (biased_w2_ave is None) and (b_w2_ave is not None):
-                        biased_w2_ave = b_w2_ave
-                    if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-                        unbiased_w2_ave = u_w2_ave
-                    if coverage_stats != {}:
-                        if 'K' not in coverage_stats:
-                            coverage_stats['K'] = []
-                            coverage_stats['Time'] = []
-                        coverage_stats['K'] += c_array
-                        coverage_stats['Time'] += time_array
-                except AttributeError:
-                    pass
         else:
             score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
                 scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
@@ -847,34 +819,13 @@ class ContactScorer(object):
                 diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
                 time_array = [predictor.time] * diff_len
                 score_stats['Time'] += time_array
-            try:
-                coverage_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                    scores=predictor.coverage, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Coverage_',
-                    stats=coverage_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today,
-                    processes=processes)
-                if (biased_w2_ave is None) and (b_w2_ave is not None):
-                    biased_w2_ave = b_w2_ave
-                if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-                    unbiased_w2_ave = u_w2_ave
-                if coverage_stats != {}:
-                    if 'K' not in coverage_stats:
-                        coverage_stats['K'] = []
-                        coverage_stats['Time'] = []
-                    coverage_stats['Time'] += time_array
-            except AttributeError:
-                pass
         if score_stats == {}:
             score_df = None
         else:
             score_df = pd.DataFrame(score_stats)
             score_df.to_csv(path_or_buf=score_fn, columns=[x for x in columns if x in score_stats], sep='\t',
                             header=True, index=False)
-        if coverage_stats is not None and coverage_stats != {}:
-            coverage_df = pd.DataFrame(coverage_stats)
-            coverage_df.to_csv(path_or_buf=coverage_fn, columns=[x for x in columns if x in coverage_stats], sep='\t', header=True, index=False)
-        else:
-            coverage_df = None
-        return score_df, coverage_df, biased_w2_ave, unbiased_w2_ave
+        return score_df, biased_w2_ave, unbiased_w2_ave
 
     def evaluate_predictions(self, verbosity, out_dir, scores, coverages=None, dist='Any', file_prefix='', stats=None,
                              biased_w2_ave=None, unbiased_w2_ave=None, today=None, processes=1):
