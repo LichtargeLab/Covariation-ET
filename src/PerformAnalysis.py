@@ -84,6 +84,8 @@ def parse_arguments():
                              'in the ETMIPC class will be written to file instead of stored in memory. This will reduce'
                              ' the memory footprint but may increase the time to run. Only recommended for very large '
                              'analyses.')
+    parser.add_argument('--removeIntermediates', default=False, action='store_true',
+                        help='Whether to remove the intermediate files generated if the lowMemoryMode option was set.')
     parser.add_argument('--processes', metavar='M', type=int, default=1, nargs='?',
                         help='The number of processes to spawn when multiprocessing this analysis.')
     parser.add_argument('--verbosity', metavar='V', type=int, default=1, nargs='?', choices=[1, 2, 3, 4, 5],
@@ -167,7 +169,8 @@ def analyze_alignment(args):
                                 clustering=args['treeConstruction'], clustering_args=args['treeConstructionArgs'],
                                 combine_clusters=args['combineClusters'], combine_branches=args['combineBranches'],
                                 processes=args['processes'], low_mem=args['lowMemoryMode'],
-                                ignore_alignment_size=args['ignoreAlignmentSize'])
+                                ignore_alignment_size=args['ignoreAlignmentSize'],
+                                del_intermediate=args['removeIntermediates'])
 
     # Create PDBReference object to represent the structure for this analysis.
     if args['pdb']:
@@ -186,9 +189,6 @@ def analyze_alignment(args):
                                      pdb_reference=query_structure, cutoff=args['threshold'])
     test_scorer_beta.evaluate_predictor(predictor=cetmip_obj, verbosity=args['verbosity'], out_dir=query_dir, dist='CB',
                                         processes=args['processes'])
-    # If low memory mode was used clear out intermediate files saved in this
-    if args['lowMemoryMode']:
-        cetmip_obj.clear_intermediate_files()
     end = time.time()
     print('ET MIP took {} minutes to run!'.format((end - start) / 60.0))
     print 'Generated results in: {}'.format(query_dir)
