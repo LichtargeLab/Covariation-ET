@@ -781,7 +781,7 @@ class ContactScorer(object):
         columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
                    'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
                    'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)', 'Max Biased Z-Score',
-                   'Max Unbaised Z-Score']
+                   'Max Unbiased Z-Score']
         if isinstance(predictor.scores, dict):
             columns = ['K'] + columns
             for c in predictor.scores:
@@ -886,14 +886,14 @@ class ContactScorer(object):
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
-            stats['Max Biased Z-Score'] = np.max(z_score_biased['Z-Score'])
+            stats['Max Biased Z-Score'] = np.max(z_score_biased.loc[z_score_biased['Z-Score'] != 'NA', 'Z-Score'])
             z_score_unbiased, u_w2_ave = self.score_clustering_of_contact_predictions(
                 scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
-            stats['Max Unbiased Z-Score'] = np.max(z_score_unbiased['Z-Score'])
+            stats['Max Unbiased Z-Score'] = np.max(z_score_unbiased.loc[z_score_unbiased['Z-Score'] != 'NA', 'Z-Score'])
         # Evaluating scores
         if verbosity >= 3:
             if 'AUROC' not in stats:
