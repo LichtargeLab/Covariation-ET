@@ -122,7 +122,7 @@ def write_out_settings(args, out_dir):
     variables += ['Tree', 'treeConstruction', 'treeConstructionArgs', 'distanceModel']
     variables += ['ET', 'combineBranches', 'combineClusters', 'ignoreAlignmentSize']
     variables += ['Evaluation', 'threshold', 'verbosity']
-    variables += ['Computational', 'processes', 'lowMemoryMode']
+    variables += ['Computational', 'processes', 'lowMemoryMode', 'removeIntermediates']
     settings = []
     for v in variables:
         if v in args:
@@ -168,9 +168,8 @@ def analyze_alignment(args):
                                 tree_depth=args['treeDepth'], model=args['distanceModel'],
                                 clustering=args['treeConstruction'], clustering_args=args['treeConstructionArgs'],
                                 combine_clusters=args['combineClusters'], combine_branches=args['combineBranches'],
-                                processes=args['processes'], low_mem=args['lowMemoryMode'],
-                                ignore_alignment_size=args['ignoreAlignmentSize'],
-                                del_intermediate=args['removeIntermediates'])
+                                processes=args['processes'], ignore_alignment_size=args['ignoreAlignmentSize'],
+                                low_mem=args['lowMemoryMode'], del_intermediate=args['removeIntermediates'])
 
     # Create PDBReference object to represent the structure for this analysis.
     if args['pdb']:
