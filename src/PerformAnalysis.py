@@ -115,6 +115,31 @@ def parse_arguments():
     return arguments
 
 
+def write_out_settings(args, out_dir):
+    variables = ['IO', 'query', 'alignment', 'pdb', 'output']
+    variables += ['Tree', 'treeConstruction', 'treeConstructionArgs', 'distanceModel']
+    variables += ['ET', 'combineBranches', 'combineClusters', 'ignoreAlignmentSize']
+    variables += ['Evaluation', 'threshold', 'verbosity']
+    variables += ['Computational', 'processes', 'lowMemoryMode']
+    settings = []
+    for v in variables:
+        if v in args:
+            if v in ['query', 'alignment']:
+                settings.append(args[v][0])
+            elif v in ['treeDepth']:
+                settings.append(' '.join(args[v]))
+            elif v in ['treeConstructionArgs']:
+                settings.append(' '.join(['{} {}'.format(k, v) for k, v in args[v].items()]))
+            else:
+                settings.append(args[v])
+        else:
+            settings.append(None)
+    import pandas as pd
+    df = pd.DataFrame({'Variables:': variables, 'Settings:': settings})
+    df.to_csv(os.path.join(out_dir, 'AnalysisSettings.txt'), sep='\t', header=True, index=False,
+              columns=['Variables:', 'Settings:'])
+
+
 def analyze_alignment(args):
     start = time.time()
     # Set up global variables
@@ -124,10 +149,11 @@ def analyze_alignment(args):
     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
     # Set up output location
     if not os.path.isdir(args['output']):
-        os.mkdir(args['output'])
+        os.makedirs(args['output'])
     query_dir = os.path.join(args['output'], args['query'][0])
     if not os.path.isdir(query_dir):
         os.mkdir(query_dir)
+    write_out_settings(args=args, out_dir=query_dir)
     print 'Starting cET-MIp'
     # Create ETMIPC object to represent the analysis being performed.
     cetmip_obj = ETMIPC(alignment=args['alignment'][0])
