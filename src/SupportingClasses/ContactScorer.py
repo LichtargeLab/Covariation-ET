@@ -610,7 +610,7 @@ class ContactScorer(object):
         if w2_ave_sub is None:
             w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
             pool = Pool(processes=processes, initializer=init_compute_w2_ave_sub,
-                        initargs=(self.distances, bias, self.cutoff))
+                        initargs=(self.distances, bias))
             res = pool.map_async(compute_w2_ave_sub, range(self.distances.shape[0]))
             pool.close()
             pool.join()
@@ -620,7 +620,7 @@ class ContactScorer(object):
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
                      initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
-                              self.cutoff, self.query_alignment))
+                              self.query_alignment))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
         pool2.join()
@@ -1079,7 +1079,7 @@ def surface_plot(name, data_mat, output_dir=None):
     plt.close()
 
 
-def init_compute_w2_ave_sub(dists, bias_bool, custom_cutoff):
+def init_compute_w2_ave_sub(dists, bias_bool):
     """
     Init Compute w^2 Average Sub
 
@@ -1090,15 +1090,16 @@ def init_compute_w2_ave_sub(dists, bias_bool, custom_cutoff):
         bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
         factor accounting for the sequence separation of residues, as well as their distance, is added to the
         calculation.
-        custom_cutoff (float): Separation at which to consider residues clustered. In previous publications a value of 4
-        Angstroms has been used.
     """
     global distances
     distances = dists
     global bias
     bias = bias_bool
     global cutoff
-    cutoff = custom_cutoff
+    # The distance for structural clustering has historically been 4.0 Angstroms and can be found in all previous
+    # versions of the code and paper descriptions, it had previously been set as a variable but this changes the meaning
+    # of the result and makes it impossible to compare to previous work.
+    cutoff = 4.0
 
 
 def compute_w2_ave_sub(res_i):
@@ -1140,8 +1141,7 @@ def compute_w2_ave_sub(res_i):
     return cases
 
 
-def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, dist_threshold,
-                            seq_aln):
+def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, seq_aln):
     """
     Init Clustering Z-Score
 
@@ -1158,7 +1158,6 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
         sequence for those positions which match according to a pairwise global alignment.
         residue_dists (np.array): The distances between residues, used for determining those which are in contact in
         order to assess predictions.
-        dist_threshold (float): Value to use as a distance cutoff for contact prediction.
         seq_aln (SeqAlignment): SeqAlignment object being evaluated in this contact scoring prediction task.
     """
     global bias
@@ -1172,7 +1171,10 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
     global distances
     distances = residue_dists
     global cutoff
-    cutoff = dist_threshold
+    # The distance for structural clustering has historically been 4.0 Angstroms and can be found in all previous
+    # versions of the code and paper descriptions, it had previously been set as a variable but this changes the meaning
+    # of the result and makes it impossible to compare to previous work.
+    cutoff = 4.0
     global query_alignment
     query_alignment = seq_aln
 
