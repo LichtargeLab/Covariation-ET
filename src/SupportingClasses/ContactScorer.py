@@ -560,15 +560,21 @@ class ContactScorer(object):
             point.
             dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
             3).
+            float: The area under the curve defined by the z-scores and the protein coverage.
         """
         start = time()
         if self.query_structure is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
-            return pd.DataFrame()
+            return pd.DataFrame(), None, None
             # If data has already been computed load and return it without recomputing.
         if os.path.isfile(file_path):
             df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
-            return df, None
+            df_sub = df.dropna()[['Num_Residues', 'Z-Score']]
+            df_sub.drop_duplicates(inplace=True)
+            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_alignment.seq_length)
+            df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
+            au_scw_z_score_curve = auc(df_sub['Coverage'], df_sub['Z-Score'])
+            return df, None, au_scw_z_score_curve
         # Identify unmappable positions (do not appear in the PDB).
         unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
         # Identify all uniqu positions in the prediction set (assuming they are square and symmetrical).
@@ -629,14 +635,20 @@ class ContactScorer(object):
         data['Res_i'] += list(sorted_mappable_indices[0])
         data['Res_j'] += list(sorted_mappable_indices[1])
         data['Covariance_Score'] += list(predictions[sorted_mappable_indices])
+        # Variables to track for computing the Area Under the SCW Z-Score curve
+        x_coverage = []
+        y_z_score = []
         for counter, curr_res in enumerate(res):
             curr_len = len(unique_sets[counter])
+            x_coverage.append(float(curr_len) / self.query_alignment.seq_length)
             data['Z-Score'] += [curr_res[0]] * curr_len
+            y_z_score.append(curr_res[0])
             data['W'] += [curr_res[1]] * curr_len
             data['W_Ave'] += [curr_res[2]] * curr_len
             data['W2_Ave'] += [curr_res[3]] * curr_len
             data['Sigma'] += [curr_res[4]] * curr_len
             data['Num_Residues'] += [len(to_score[counter])] * curr_len
+        au_scw_z_score_curve = auc(x_coverage, y_z_score)
         # Add values for unmappable positions
         data['Res_i'] += list(unmappable_indices[0])
         data['Res_j'] += list(unmappable_indices[1])
@@ -654,7 +666,7 @@ class ContactScorer(object):
             path_or_buf=file_path, sep='\t', header=True, index=False)
         end = time()
         print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
-        return df, w2_ave_sub
+        return df, w2_ave_sub, au_scw_z_score_curve
 
     def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
         """
@@ -780,8 +792,8 @@ class ContactScorer(object):
         score_stats = None
         columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
                    'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
-                   'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)', 'Max Biased Z-Score',
-                   'Max Unbiased Z-Score']
+                   'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)', 'Max Biased Z-Score', 'AUC Biased Z-Score',
+                   'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
         if isinstance(predictor.scores, dict):
             columns = ['K'] + columns
             for c in predictor.scores:
@@ -880,20 +892,22 @@ class ContactScorer(object):
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
-            z_score_biased, b_w2_ave = self.score_clustering_of_contact_predictions(
+            z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
                 scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
-            stats['Max Biased Z-Score'] = np.max(z_score_biased.loc[z_score_biased['Z-Score'] != 'NA', 'Z-Score'])
-            z_score_unbiased, u_w2_ave = self.score_clustering_of_contact_predictions(
+            stats['Max Biased Z-Score'] = np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))
+            stats['AUC Biased Z-Score'] = b_scw_z_auc
+            z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
                 scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
             plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
-            stats['Max Unbiased Z-Score'] = np.max(z_score_unbiased.loc[z_score_unbiased['Z-Score'] != 'NA', 'Z-Score'])
+            stats['Max Unbiased Z-Score'] = np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))
+            stats['AUC Unbiased Z-Score'] = u_scw_z_auc
         # Evaluating scores
         if verbosity >= 3:
             if 'AUROC' not in stats:
