@@ -468,7 +468,8 @@ class TestSeqAlignment(TestCase):
             aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
         aln_obj1.import_alignment()
         # Compute distance matrix manually
-        aln_obj1_num_mat = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj1_num_mat = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj1_num_mat = aln_obj1._alignment_to_num()
         value_matrix = np.zeros([aln_obj1.size, aln_obj1.size])
         for i in range(aln_obj1.size):
             check = aln_obj1_num_mat - aln_obj1_num_mat[i]
@@ -485,7 +486,8 @@ class TestSeqAlignment(TestCase):
             aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
         aln_obj2.import_alignment()
         # Compute distance matrix manually
-        aln_obj2_num_mat = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj2_num_mat = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj2_num_mat = aln_obj2._alignment_to_num()
         value_matrix = np.zeros([aln_obj2.size, aln_obj2.size])
         for i in range(aln_obj2.size):
             check = aln_obj2_num_mat - aln_obj2_num_mat[i]
@@ -1204,7 +1206,8 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj1.set_tree_ordering()
         aln_obj1.import_alignment()
-        aln_obj1_num = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj1_num = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj1_num = aln_obj1._alignment_to_num()
         for i in range(aln_obj1.size):
             for j in range(aln_obj1.seq_length):
                 self.assertEqual(aln_obj1_num[i, j], self.aa_dict[aln_obj1.alignment[i, j]])
@@ -1212,7 +1215,8 @@ class TestSeqAlignment(TestCase):
         with self.assertRaises(TypeError):
             aln_obj2._random_assignment(n_cluster=2)
         aln_obj2.import_alignment()
-        aln_obj2_num = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj2_num = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj2_num = aln_obj2._alignment_to_num()
         for i in range(aln_obj2.size):
             for j in range(aln_obj2.seq_length):
                 self.assertEqual(aln_obj2_num[i, j], self.aa_dict[aln_obj2.alignment[i, j]])
