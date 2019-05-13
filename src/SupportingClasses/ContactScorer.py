@@ -573,7 +573,10 @@ class ContactScorer(object):
             df_sub.drop_duplicates(inplace=True)
             df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_alignment.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
-            au_scw_z_score_curve = auc(df_sub['Coverage'], df_sub['Z-Score'])
+            if len(df_sub['Coverage']) == 0:
+                au_scw_z_score_curve = None
+            else:
+                au_scw_z_score_curve = auc(df_sub['Coverage'], df_sub['Z-Score'])
             return df, None, au_scw_z_score_curve
         # Identify unmappable positions (do not appear in the PDB).
         unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
@@ -640,16 +643,19 @@ class ContactScorer(object):
         y_z_score = []
         for counter, curr_res in enumerate(res):
             curr_len = len(unique_sets[counter])
-            x_coverage.append(float(curr_len) / self.query_alignment.seq_length)
             data['Z-Score'] += [curr_res[0]] * curr_len
-            y_z_score.append(curr_res[0])
             data['W'] += [curr_res[1]] * curr_len
             data['W_Ave'] += [curr_res[2]] * curr_len
             data['W2_Ave'] += [curr_res[3]] * curr_len
             data['Sigma'] += [curr_res[4]] * curr_len
-            data['Num_Residues'] += [len(to_score[counter])] * curr_len
-        au_scw_z_score_curve = auc(x_coverage, y_z_score)
-        # Add values for unmappable positions
+            data['Num_Residues'] += [curr_res[5]] * curr_len
+            if curr_res[0] not in set([None, '-', 'NA']):
+                y_z_score.append(curr_res[0])
+                x_coverage.append(float(curr_res[5]) / self.query_alignment.seq_length)
+        if len(x_coverage) == 0:
+            au_scw_z_score_curve = None
+        else:
+            au_scw_z_score_curve = auc(x_coverage, y_z_score)
         data['Res_i'] += list(unmappable_indices[0])
         data['Res_j'] += list(unmappable_indices[1])
         data['Covariance_Score'] += list(predictions[unmappable_indices])
@@ -1216,6 +1222,7 @@ def clustering_z_score(res_list):
         ContactScorer.
         float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
         ContactScorer.
+        int: The number of residues in the list of interest.
 
     This method was formalized by Ivana Mihalek (Reference 1) and adapted from code written by Rhonald Lua in Python
     (Reference 2) which was adapted from code written by Angela Wilkins (Reference 3).
@@ -1233,7 +1240,7 @@ def clustering_z_score(res_list):
     # start = time()
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
-        return '-', None, None, None, None, None
+        return '-', None, None, None, None, len(res_list)
     # Check that there is a valid bias values
     if bias is not True and bias is not False:
         raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
@@ -1247,7 +1254,7 @@ def clustering_z_score(res_list):
         print('At least one residue of interest is not present in the PDB provided')
         print(', '.join([str(x) for x in res_list]))
         print(', '.join([str(x) for x in query_pdb_mapping.keys()]))
-        return '-', None, None, None, None, None
+        return '-', None, None, None, None, len(res_list)
     positions = range(distances.shape[0])
     a = distances < cutoff
     a[positions, positions] = 0
@@ -1272,8 +1279,8 @@ def clustering_z_score(res_list):
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
-        return 'NA', w, w_ave, w2_ave, sigma, w2_ave_sub
+        return 'NA', w, w_ave, w2_ave, sigma, len(res_list)
     z_score = (w - w_ave) / sigma
     # end = time()
     # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
-    return z_score, w, w_ave, w2_ave, sigma
+    return z_score, w, w_ave, w2_ave, sigma, len(res_list)
