@@ -10,8 +10,8 @@ import pandas as pd
 from time import time
 import cPickle as pickle
 from scipy.stats import rankdata
-from multiprocessing import Manager, Pool
-from sklearn.metrics import mutual_info_score
+from multiprocessing import Manager, Pool, Lock
+from sklearn.metrics import mutual_info_score, adjusted_mutual_info_score
 from SeqAlignment import SeqAlignment
 from ContactScorer import write_out_contact_scoring
 
@@ -344,7 +344,7 @@ class ETMIPC(object):
         tree_positions = list(self.unique_clusters.keys())
         self._write_cluster_mapping()
         pool = Pool(processes=self.processes, initializer=pool_init_sub_aln,
-                    initargs=(self.alignment, self.unique_clusters, self.output_dir, aa_mapping))
+                    initargs=(self.alignment, self.unique_clusters, self.output_dir, aa_mapping, Lock()))
         pool_res = pool.map_async(generate_sub_alignment, tree_positions)
         pool.close()
         pool.join()
@@ -729,7 +729,7 @@ def load_single_matrix(name, branch, out_dir):
     return data
 
 
-def pool_init_sub_aln(aln, cluster_dict, output_dir, aa_dict):
+def pool_init_sub_aln(aln, cluster_dict, output_dir, aa_dict, lock):
     """
     Pool Init Sub Aln
 
@@ -742,6 +742,8 @@ def pool_init_sub_aln(aln, cluster_dict, output_dir, aa_dict):
         assignments for each cluster (required for sub alignment generation).
         output_dir (str/path): Directory name or path to directory where results from this analysis should be stored.
         aa_dict (dict):
+        lock (multiprocessing.Lock()): Used to avoid Runtime Errors when multiple processes attempt to access the glyph
+        package/library during plotting.
     """
     global full_aln
     full_aln = aln
@@ -751,6 +753,8 @@ def pool_init_sub_aln(aln, cluster_dict, output_dir, aa_dict):
     out_dir = output_dir
     global aa_mapping
     aa_mapping = aa_dict
+    global plot_lock
+    plot_lock = lock
 
 
 def generate_sub_alignment(tree_position):
@@ -772,7 +776,9 @@ def generate_sub_alignment(tree_position):
     sub_aln = full_aln.generate_sub_alignment(sequence_ids)
     name = 'Alignment_Branch{}_Cluster{}'.format(tree_position[0], tree_position[1])
     sub_aln.write_out_alignment(file_name=os.path.join(out_dir, str(tree_position[0]), name + '.fa'))
+    plot_lock.acquire()
     sub_aln.heatmap_plot(name=name + '.eps', aa_dict=aa_mapping, out_dir=os.path.join(out_dir, str(tree_position[0])))
+    plot_lock.release()
     end = time()
     return tree_position, sub_aln, (end - start)
 
@@ -802,7 +808,7 @@ def pool_init_score(evidence, cluster_dict, amino_acid_mapping, out_dir, low_mem
     global low_memory_mode
     low_memory_mode = low_mem
 
-
+# Old MIp : Original implementation based on Benu's code. This has several errors. First APC
 def mip_score(tree_position):
     """
     MIp Score
@@ -847,7 +853,8 @@ def mip_score(tree_position):
         mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
         # Generate MI matrix from alignment2Num matrix, the mmi matrix,
         # and overall_mmi
-        alignment_matrix = alignment._alignment_to_num(aa_dict=aa_dict)
+        # alignment_matrix = alignment._alignment_to_num(aa_dict=aa_dict)
+        alignment_matrix = alignment._alignment_to_num()
         for i in range(alignment.seq_length):
             for j in range(i + 1, alignment.seq_length):
                 if measure_evidence:
@@ -870,15 +877,179 @@ def mip_score(tree_position):
         # Defining MIP matrix
         mip_matrix += mi_matrix - apc_matrix
         mip_matrix[np.arange(alignment.seq_length), np.arange(alignment.seq_length)] = 0
-        if low_memory_mode:
-            mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
-                                                                  mat=mip_matrix, out_dir=serialization_dir)
-            evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
-                                                 branch=tree_position[0], mat=evidence_matrix,
-                                                 out_dir=serialization_dir)
+    if low_memory_mode:
+        mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+                                                              mat=mip_matrix, out_dir=serialization_dir)
+        evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+                                             branch=tree_position[0], mat=evidence_matrix,
+                                             out_dir=serialization_dir)
     end = time()
     print('MIp scoring took {} min'.format((end - start) / 60.0))
     return tree_position, mip_matrix, evidence_matrix, (end - start)
+
+
+# New MIp
+# def mip_score(tree_position):
+#     """
+#     MIp Score
+#
+#     This function computes MIp scores for all pairs of residues in an alignment for a specified branch and cluster of a
+#     hierarchical clustering/phylogenetic tree. It also produces a matrix of evidence (non-gap) counts for each pair of
+#     residues scored this way.
+#
+#     Args:
+#         tree_position (tuple): Specifies the branch and cluster for which to compute MIp scores and if specified
+#         evidence counts.
+#     Returns:
+#         tuple: The tree position passed in, returned for mapping results to the proper branch and cluster.
+#         np.array or str:. Matrix of MIP scores which has dimensions seq_length by seq_length for the ETMIPC instance's
+#         alignment. The path to a save file for this matrix may be returned instead if low_mem is True for the ETMIPC
+#         instance.
+#         np.array or str: Matrix containing the number of sequences which are not gaps in either position used for
+#         generating MIp scores. The path to a save file for this matrix may be returned instead if low_mem is True for
+#         the ETMIPC instance.
+#         float: The time it took to generate MIp scores and evidence founts for a specified branch and cluster of an
+#         ETMIPC instance.
+#     """
+#     start = time()
+#     mip_fn_bool = exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                        out_dir=serialization_dir)
+#     evidence_fn_bool = exists_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+#                                             branch=tree_position[0], out_dir=serialization_dir)
+#     if low_memory_mode and mip_fn_bool and evidence_fn_bool:
+#         mip_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                             out_dir=serialization_dir)[1]
+#         evidence_matrix = single_matrix_filename('Nongap_counts_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                                  out_dir=serialization_dir)[1]
+#     else:
+#         alignment = sub_alignments[tree_position]['sub_alignment']
+#         # if alignment.size == 1 or np.sum(alignment.distance_matrix) == 0:
+#         mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#         evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#         # else:
+#         if alignment.size != 1 and np.sum(alignment.distance_matrix) != 0:
+#             # generate an MI matrix for each cluster
+#             mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#             evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#             # Generate MI matrix from alignment2Num matrix, the mmi matrix,
+#             # and overall_mmi
+#             alignment_matrix = alignment._alignment_to_num()
+#             for i in range(alignment.seq_length):
+#                 for j in range(i + 1, alignment.seq_length):
+#                     if measure_evidence:
+#                         _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
+#                         evidence_matrix[i, j] = evidence_matrix[j, i] = ev
+#                     col_i = alignment_matrix[:, i]
+#                     col_j = alignment_matrix[:, j]
+#                     curr_mis = mutual_info_score(col_i, col_j, contingency=None)
+#                     # print(i, col_i)
+#                     # print(j, col_j)
+#                     # print(curr_mis)
+#                     mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
+#             if not np.all(mi_matrix == 0):
+#             #     mip_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#             #     evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#             # else:
+#                 mmi = np.average(mi_matrix, axis=1)
+#                 overall_mmi = np.average(mi_matrix)
+#                 # AW: divides by individual entropies to normalize.
+#                 apc_matrix = np.outer(mmi, mmi) / overall_mmi
+#                 mip_matrix = mi_matrix - apc_matrix
+#                 #
+#                 if np.any(np.isnan(mip_matrix)):
+#                     # from IPython import embed
+#                     # embed()
+#                     raise ValueError('NAN value present in MIp calculation for tree position: {}:{}'.format(*tree_position))
+#                     # print(tree_position)
+#                     # print(alignment.size)
+#                     # print('All evidence is 0: {}'.format(not np.any(evidence_matrix)))
+#                     # print('There are nan values: {}'.format(np.any(np.isnan(mip_matrix))))
+#         if low_memory_mode:
+#             mip_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                                                   mat=mip_matrix, out_dir=serialization_dir)
+#             evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+#                                                  branch=tree_position[0], mat=evidence_matrix,
+#                                                  out_dir=serialization_dir)
+#     end = time()
+#     print('MIp scoring took {} min'.format((end - start) / 60.0))
+#     return tree_position, mip_matrix, evidence_matrix, (end - start)
+
+
+# Newest MIp
+# def mip_score(tree_position):
+#     """
+#     MIp Score
+#
+#     This function computes MIp scores for all pairs of residues in an alignment for a specified branch and cluster of a
+#     hierarchical clustering/phylogenetic tree. It also produces a matrix of evidence (non-gap) counts for each pair of
+#     residues scored this way.
+#
+#     Args:
+#         tree_position (tuple): Specifies the branch and cluster for which to compute MIp scores and if specified
+#         evidence counts.
+#     Returns:
+#         tuple: The tree position passed in, returned for mapping results to the proper branch and cluster.
+#         np.array or str:. Matrix of MIP scores which has dimensions seq_length by seq_length for the ETMIPC instance's
+#         alignment. The path to a save file for this matrix may be returned instead if low_mem is True for the ETMIPC
+#         instance.
+#         np.array or str: Matrix containing the number of sequences which are not gaps in either position used for
+#         generating MIp scores. The path to a save file for this matrix may be returned instead if low_mem is True for
+#         the ETMIPC instance.
+#         float: The time it took to generate MIp scores and evidence founts for a specified branch and cluster of an
+#         ETMIPC instance.
+#     """
+#     start = time()
+#     mip_fn_bool = exists_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                        out_dir=serialization_dir)
+#     evidence_fn_bool = exists_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+#                                             branch=tree_position[0], out_dir=serialization_dir)
+#     if low_memory_mode and mip_fn_bool and evidence_fn_bool:
+#         mi_matrix = single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                             out_dir=serialization_dir)[1]
+#         evidence_matrix = single_matrix_filename('Nongap_counts_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                                  out_dir=serialization_dir)[1]
+#     else:
+#         print(tree_position)
+#         alignment = sub_alignments[tree_position]['sub_alignment']
+#         print(alignment.size)
+#         mi_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#         evidence_matrix = np.zeros((alignment.seq_length, alignment.seq_length))
+#         if alignment.size != 1 and np.sum(alignment.distance_matrix) != 0:
+#             # generate an MI matrix for each cluster
+#             # Generate MI matrix from alignment2Num matrix, the mmi matrix,
+#             # and overall_mmi
+#             alignment_matrix = alignment._alignment_to_num()
+#             for i in range(alignment.seq_length):
+#                 for j in range(i + 1, alignment.seq_length):
+#                     if measure_evidence:
+#                         _I, _J, _pos, ev = alignment.identify_comparable_sequences(i, j)
+#                         evidence_matrix[i, j] = evidence_matrix[j, i] = ev
+#                     col_i = alignment_matrix[:, i]
+#                     col_j = alignment_matrix[:, j]
+#                     if alignment.size == 2:
+#                         col_i = np.concatenate([col_i] * 2)
+#                         col_j = np.concatenate([col_j] * 2)
+#                     curr_mis = adjusted_mutual_info_score(col_i, col_j)
+#                     if np.isnan(curr_mis):
+#                         print(tree_position)
+#                         print(col_i)
+#                         print(col_j)
+#                         from IPython import embed
+#                         embed()
+#                         break
+#                         # exit()
+#                     mi_matrix[i, j] = mi_matrix[j, i] = curr_mis
+#             # if np.isnan(cur_mis):
+#                 # break
+#         if low_memory_mode:
+#             mi_matrix = save_single_matrix(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
+#                                                                   mat=mi_matrix, out_dir=serialization_dir)
+#             evidence_matrix = save_single_matrix(name='Nongap_counts_C{}'.format(tree_position[1]),
+#                                                  branch=tree_position[0], mat=evidence_matrix,
+#                                                  out_dir=serialization_dir)
+#     end = time()
+#     print('MIp scoring took {} min'.format((end - start) / 60.0))
+#     return tree_position, mi_matrix, evidence_matrix, (end - start)
 
 
 def pool_init_calculate_branch_score(curr_instance, combine_clusters):
