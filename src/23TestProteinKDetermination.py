@@ -143,8 +143,8 @@ if __name__ == '__main__':
         if not os.path.isdir(protein_dir):
             os.mkdir(protein_dir)
         predictor = ETMIPC(query_aln)
-        curr_time = predictor.calculate_scores(out_dir=protein_dir, today=today, query=input_dict[query][0],
-                                               clusters=range(2, input_dict[query][5] + 1), aa_dict=aa_dict,
+        curr_time = predictor.calculate_scores(out_dir=protein_dir, curr_date=today, query=input_dict[query][0],
+                                               clusters=range(2, input_dict[query][5] + 1), aa_mapping=aa_dict,
                                                combine_clusters=arguments['combineClusters'],
                                                combine_ks=arguments['combineKs'], processes=arguments['processes'],
                                                low_memory_mode=arguments['lowMemoryMode'],
