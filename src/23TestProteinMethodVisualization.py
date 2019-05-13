@@ -119,7 +119,8 @@ if __name__ == '__main__':
     if not os.path.isdir(arguments['output']):
         os.mkdir(arguments['output'])
     for query in sorted(input_dict.keys()):
-        if query != '3q05a':
+        if query != '1h1va':
+        # if query != '3q05a':
         # if query != '7hvpa':
         # if query != '3tnua':
         # if query != '2zxea':
@@ -129,17 +130,39 @@ if __name__ == '__main__':
         query_aln = SeqAlignment(input_dict[query][1], input_dict[query][0])
         query_aln.import_alignment()
         query_aln.remove_gaps()
-        method_dir = os.path.join(arguments['output'], 'cET-MIp')
-        if not os.path.isdir(method_dir):
-            os.mkdir(method_dir)
-        protein_dir = os.path.join(method_dir, query)
-        if not os.path.isdir(protein_dir):
-            os.mkdir(protein_dir)
-        predictor = ETMIPC(query_aln)
-        print(protein_dir, 'cET-MIp_predictions.tsv')
-        method_arguments['query'] = input_dict[query][0]
-        curr_time = predictor.calculate_scores(out_dir=protein_dir, **method_arguments)
-        ####################################################################################################
-        predictor.explore_positions(1, 2, aa_dict)
-        exit()
-        ####################################################################################################
+        query_aln.compute_distance_matrix()
+        query_aln.set_tree_ordering()
+        # print(query_aln.tree_order)
+        # print(query_aln.sequence_assignemnts)
+        from Bio import AlignIO
+        out_dir = '/home/daniel/Desktop/Test/'
+        positional_alns = {c: {k: {} for k in range(c)} for c in [1, 2, 3, 5, 7, 10, 25]}
+        scoring = {'Branch': [], 'Cluster': [], 'Cluster Score': [], 'Branch Score': [], 'Combined Score': []}
+        i = 93 - 1
+        # i = 7 - 1
+        # i = 226 - 1
+        j = 94 - 1
+        # j = 62 - 1
+        # j = 368 - 1
+        for k in [1, 2, 3, 5, 7, 10, 25]:
+            for c in range(k):
+                curr_aln = query_aln.get_branch_cluster(k, c)
+                positional_alns[k][c]['aln'] = curr_aln.generate_positional_sub_alignment(i, j)
+                AlignIO.write([positional_alns[k][c]['aln'].alignment], os.path.join(out_dir, '{}_C{}_K{}.aln'.format(
+                    curr_aln.query_id.split('_')[1], k, c)), 'clustal')
+                positional_alns[1][0]['plot'] = positional_alns[k][c]['aln'].heatmap_plot('{}_C={} K={}'.format(
+                    curr_aln.query_id.split('_')[1], k, c), aa_dict=aa_dict, save=True, out_dir=out_dir)
+        # method_dir = os.path.join(arguments['output'], 'cET-MIp')
+        # if not os.path.isdir(method_dir):
+        #     os.mkdir(method_dir)
+        # protein_dir = os.path.join(method_dir, query)
+        # if not os.path.isdir(protein_dir):
+        #     os.mkdir(protein_dir)
+        # predictor = ETMIPC(query_aln)
+        # print(protein_dir, 'cET-MIp_predictions.tsv')
+        # method_arguments['query'] = input_dict[query][0]
+        # curr_time = predictor.calculate_scores(out_dir=protein_dir, **method_arguments)
+        # ####################################################################################################
+        # predictor.explore_positions(1, 2, aa_dict)
+        # exit()
+        # ####################################################################################################

@@ -116,6 +116,8 @@ class SeqAlignment(object):
         Args:
             file_name (str): Path to file where the alignment should be written.
         """
+        if os.path.exists(file_name):
+            return
         start = time()
         AlignIO.write(self.alignment, file_name, "fasta")
         end = time()
@@ -209,13 +211,35 @@ class SeqAlignment(object):
             with open(save_file, 'rb') as save_handle:
                 value_matrix = pickle.load(save_handle)
         else:
-            calculator = DistanceCalculator(model=model)
-            value_matrix = calculator.get_distance(self.alignment)
+            if model == 'identity':
+                # aln_obj1_num_mat = self._alignment_to_num(aa_dict=aa_dict)
+                aln_obj1_num_mat = self._alignment_to_num()
+                value_matrix = np.zeros([self.size, self.size])
+                for i in range(self.size):
+                    check = aln_obj1_num_mat - aln_obj1_num_mat[i]
+                    value_matrix[i] = np.sum(check == 0, axis=1)
+                value_matrix /= self.seq_length
+                value_matrix = 1 - value_matrix
+                value_matrix = self._convert_array_to_distance_matrix(value_matrix, names=self.seq_order)
+            else:
+                calculator = DistanceCalculator(model=model)
+                value_matrix = calculator.get_distance(self.alignment)
             with open(save_file, 'wb') as save_handle:
                 pickle.dump(value_matrix, save_handle, protocol=pickle.HIGHEST_PROTOCOL)
         end = time()
         print('Computing the distance matrix took {} min'.format((end - start) / 60.0))
         self.distance_matrix = value_matrix
+
+    @staticmethod
+    def _convert_array_to_distance_matrix(array, names):
+        from Bio.Phylo.TreeConstruction import DistanceMatrix
+        indices = np.tril_indices(array.shape[0], 0, array.shape[1])
+        list_of_lists = []
+        for i in range(array.shape[0]):
+            column_indices = indices[1][indices[0] == i]
+            list_of_lists.append(list(array[i, column_indices]))
+        dist_mat = DistanceMatrix(names=names, matrix=list_of_lists)
+        return dist_mat
 
     def compute_effective_alignment_size(self, identity_threshold=0.62, save_dir=None):
         """
@@ -667,8 +691,10 @@ class SeqAlignment(object):
             sub_tree_order = []
         else:
             sub_tree_order = None
+        indices = []
         for i in range(self.size):
             if self.alignment[i].id in sequence_ids:
+                indices.append(i)
                 sub_records.append(self.alignment[i])
                 sub_seq_order.append(self.alignment[i].id)
             if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
@@ -677,6 +703,11 @@ class SeqAlignment(object):
         new_alignment.seq_order = sub_seq_order
         new_alignment.tree_order = sub_tree_order
         new_alignment.size = len(new_alignment.seq_order)
+        if self.distance_matrix:
+            sub_dists = np.array(self.distance_matrix)[indices, :]
+            sub_dists = sub_dists[:, indices]
+            new_alignment.distance_matrix = self._convert_array_to_distance_matrix(array=sub_dists,
+                                                                                   names=sub_seq_order)
         return new_alignment
 
     def get_branch_cluster(self, k, c):
@@ -767,7 +798,8 @@ class SeqAlignment(object):
         check = np.where((indices1 + indices2) == 2)[0]
         return column_i[check], column_j[check], check, check.shape[0]
 
-    def _alignment_to_num(self, aa_dict):
+    # def _alignment_to_num(self, aa_dict):
+    def _alignment_to_num(self):
         """
         Alignment to num
 
@@ -780,6 +812,7 @@ class SeqAlignment(object):
             np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
             and gaps from the current alignment.
         """
+        aa_dict = {k:i for i, k in enumerate(DistanceCalculator.protein_alphabet + ['-'])}
         alignment_to_num = np.zeros((self.size, self.seq_length))
         for i in range(self.size):
             for j in range(self.seq_length):
@@ -808,8 +841,17 @@ class SeqAlignment(object):
             pd.Dataframe: The data used to generate the heatmap.
             matplotlib.Axes: The plotting object created when generating the heatmap.
         """
+        if save:
+            file_name = name.replace(' ', '_') + '.eps'
+            if out_dir:
+                file_name = os.path.join(out_dir, file_name)
+            if os.path.exists(file_name):
+                return
+        else:
+            file_name = None
         start = time()
-        df = pd.DataFrame(self._alignment_to_num(aa_dict), index=self.seq_order,
+        # df = pd.DataFrame(self._alignment_to_num(aa_dict), index=self.seq_order,
+        df = pd.DataFrame(self._alignment_to_num(), index=self.seq_order,
                           columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
         if self.tree_order:
             df = df.loc[self.tree_order]
@@ -822,9 +864,6 @@ class SeqAlignment(object):
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
         plt.title(name)
         if save:
-            file_name = name.replace(' ', '_') + '.eps'
-            if out_dir:
-                file_name = os.path.join(out_dir, file_name)
             plt.savefig(file_name)
             plt.clf()
         plt.show()
