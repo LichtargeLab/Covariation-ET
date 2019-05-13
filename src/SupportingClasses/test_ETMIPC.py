@@ -467,7 +467,8 @@ class TestETMIPC(TestCase):
         self.assertEqual(self.etmipc1.alignment.seq_length, 79, 'seq_length is correctly determined.')
         self.assertEqual(self.etmipc1.alignment.size, 49, 'size is correctly determined.')
         # Compute distance matrix manually
-        aln_obj1_num_mat = self.etmipc1.alignment._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj1_num_mat = self.etmipc1.alignment._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj1_num_mat = self.etmipc1.alignment._alignment_to_num()
         value_matrix = np.zeros([self.etmipc1.alignment.size, self.etmipc1.alignment.size])
         for i in range(self.etmipc1.alignment.size):
             check = aln_obj1_num_mat - aln_obj1_num_mat[i]
@@ -508,7 +509,8 @@ class TestETMIPC(TestCase):
         self.assertEqual(self.etmipc2.alignment.seq_length, 368, 'seq_length is correctly determined.')
         self.assertEqual(self.etmipc2.alignment.size, 785, 'size is correctly determined.')
         # Compute distance matrix manually
-        aln_obj2_num_mat = self.etmipc2.alignment._alignment_to_num(aa_dict=self.aa_dict)
+        # aln_obj2_num_mat = self.etmipc2.alignment._alignment_to_num(aa_dict=self.aa_dict)
+        aln_obj2_num_mat = self.etmipc2.alignment._alignment_to_num()
         value_matrix = np.zeros([self.etmipc2.alignment.size, self.etmipc2.alignment.size])
         for i in range(self.etmipc2.alignment.size):
             check = aln_obj2_num_mat - aln_obj2_num_mat[i]
@@ -620,7 +622,8 @@ class TestETMIPC(TestCase):
             self.assertIsNotNone(self.etmipc1.unique_clusters[tree_position]['nongap_counts'])
             self.assertEqual(np.sum(self.etmipc1.unique_clusters[tree_position]['nongap_counts']), 0)
             c_mip = self.conservative_mip(
-                self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                # self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num())
             self.assertLess(np.sum(self.etmipc1.unique_clusters[tree_position]['cluster_scores'] - c_mip), 1e-10)
             self.assertGreater(self.etmipc1.unique_clusters[tree_position]['time'], 0)
         self.etmipc2.tree_depth = self.tree_depth
@@ -638,7 +641,8 @@ class TestETMIPC(TestCase):
             self.assertGreater(np.sum(load_single_matrix('Nongap_counts_C{}'.format(tree_position[1]),
                                                          branch=tree_position[0], out_dir=self.out_dir_2)), 0)
             c_mip = self.conservative_mip(
-                self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                # self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num())
             self.assertEqual(self.etmipc2.unique_clusters[tree_position]['cluster_scores'],
                              single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                                 out_dir=self.out_dir_2)[1])
@@ -671,7 +675,8 @@ class TestETMIPC(TestCase):
             self.assertEqual(np.sum(self.etmipc1.unique_clusters[tree_position]['nongap_counts']), 0)
             self.assertEqual(np.sum(self.etmipc1.nongap_counts[tree_position[0]][tree_position[1]]), 0)
             c_mip = self.conservative_mip(
-                self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                # self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                self.etmipc1.unique_clusters[tree_position]['sub_alignment']._alignment_to_num())
             self.assertLess(np.sum(self.etmipc1.unique_clusters[tree_position]['cluster_scores'] - c_mip), 1e-10)
             self.assertLess(np.sum(self.etmipc1.cluster_scores[tree_position[0]][tree_position[1]] - c_mip), 1e-10)
             self.assertGreater(self.etmipc1.unique_clusters[tree_position]['time'], 0)
@@ -704,7 +709,8 @@ class TestETMIPC(TestCase):
                                                          branch=tree_position[0], out_dir=self.out_dir_2)), 0)
             self.assertGreater(np.sum(np.load(self.etmipc2.nongap_counts[tree_position[0]][tree_position[1]])['mat']), 0)
             c_mip = self.conservative_mip(
-                self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                # self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num(self.aa_dict))
+                self.etmipc2.unique_clusters[tree_position]['sub_alignment']._alignment_to_num())
             self.assertEqual(self.etmipc2.unique_clusters[tree_position]['cluster_scores'],
                              single_matrix_filename(name='Raw_C{}'.format(tree_position[1]), branch=tree_position[0],
                                                     out_dir=self.out_dir_2)[1])
@@ -1138,7 +1144,8 @@ class TestETMIPC(TestCase):
                         out_dir=self.out_dir_1, low_mem=True)
         etmipc1_mip_res1 = mip_score((1, 0))
         print(etmipc1_mip_res1)
-        etmipc1_conservateive_mip = self.conservative_mip(self.etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num(self.aa_dict))
+        # etmipc1_conservateive_mip = self.conservative_mip(self.etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num(self.aa_dict))
+        etmipc1_conservateive_mip = self.conservative_mip(self.etmipc1.unique_clusters[(1,0)]['sub_alignment']._alignment_to_num())
 
         self.assertEqual(etmipc1_mip_res1[0], (1, 0))
         self.assertEqual(etmipc1_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=self.out_dir_1)[1])
@@ -1162,7 +1169,8 @@ class TestETMIPC(TestCase):
         pool_init_score(evidence=True, cluster_dict=self.etmipc2.unique_clusters, amino_acid_mapping=self.aa_dict,
                         out_dir=self.out_dir_2, low_mem=True)
         etmipc2_mip_res1 = mip_score((1, 0))
-        etmipc2_conservateive_mip = self.conservative_mip(self.etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(self.aa_dict))
+        # etmipc2_conservateive_mip = self.conservative_mip(self.etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num(self.aa_dict))
+        etmipc2_conservateive_mip = self.conservative_mip(self.etmipc2.unique_clusters[(1, 0)]['sub_alignment']._alignment_to_num())
         self.assertEqual(etmipc2_mip_res1[0], (1, 0))
         self.assertEqual(etmipc2_mip_res1[1], single_matrix_filename(name='Raw_C0', branch=1, out_dir=self.out_dir_2)[1])
         self.assertLess(np.sum(load_single_matrix(name='Raw_C0', branch=1, out_dir=self.out_dir_2) - etmipc2_conservateive_mip),
