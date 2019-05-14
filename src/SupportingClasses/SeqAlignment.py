@@ -23,18 +23,20 @@ import os
 class SeqAlignment(object):
     """
     This class is meant to represent the type of alignment which is usually used within our lab. The sequence of
-    interest is represented by an ID that begins with ">query_" followed by the chosen identifier for that sequence.
+    interest is represented by an ID passed in by the user.
 
     Attributes:
         file_name (str): The path to the file from which the alignment can be parsed.
-        query_id (str): A sequence identifier prepended with ">query_", which should be the identifier for query
-        sequence in the alignment file.
+        query_id (str): A sequence identifier , which should be the identifier for query sequence in the alignment file.
         alignment (Bio.Align.MultipleSeqAlignment): A biopython representation for a multiple sequence alignment and its
         sequences.
         seq_order (list): List of sequence ids in the order in which they were parsed from the alignment file.
         query_sequence (str): The sequence matching the sequence identifier given by the query_id attribute.
         seq_length (int): The length of the query sequence.
         size (int): The number of sequences in the alignment represented by this object.
+        marked (list): List of boolean values tracking whether a sequence has been marked or not (this is generally used
+        to track which sequences should be skipped during an anlysis (for instance in the zoom version of Evolutionary
+        Trace).
         distance_matrix (np.array): A matrix with the identity scores between sequences in the alignment.
         tree_order (list): A list of sequence IDs ordered as they would be in the leaves of a phylogenetic tree, or some
         other purposeful ordering, which should be observed when writing the alignment to file.
@@ -54,19 +56,18 @@ class SeqAlignment(object):
         Args:
             file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is
                 used (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
-            query_id (str): The sequence identifier of interest. When stored by the class ">query_" will be prepended
-                because it is assumed that alignments used within the lab highlight the sequence of interest in this
-                way.
+            query_id (str): The sequence identifier of interest.
         """
         if file_name.startswith('..'):
             file_name = os.path.abspath(file_name)
         self.file_name = file_name
-        self.query_id = '>query_' + query_id
+        self.query_id = query_id
         self.alignment = None
         self.seq_order = None
         self.query_sequence = None
         self.seq_length = None
         self.size = None
+        self.marked = None
         self.distance_matrix = None
         self.tree_order = None
         self.sequence_assignments = None
@@ -76,7 +77,7 @@ class SeqAlignment(object):
         Import alignments:
 
         This method imports the alignments using the AlignIO.read method expecting the 'fasta' format. It then updates
-        the alignment, seq_order, query_sequence, seq_length, and size class class attributes.
+        the alignment, seq_order, query_sequence, seq_length, size, and marked class attributes.
 
         Args:
             save_file (str, optional): Path to file in which the desired alignment was should be stored, or was stored
@@ -94,8 +95,10 @@ class SeqAlignment(object):
             query_sequence = None
             for record in alignment:
                 seq_order.append(record.id)
-                if record.id == self.query_id[1:]:
+                if record.id == self.query_id:
                     query_sequence = record.seq
+            if query_sequence is None:
+                raise ValueError('Query sequence was not found upon alignment import, check query_id or alignment file')
             if save_file is not None:
                 pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'wb'),
                             protocol=pickle.HIGHEST_PROTOCOL)
@@ -107,6 +110,56 @@ class SeqAlignment(object):
         self.query_sequence = query_sequence
         self.seq_length = len(self.query_sequence)
         self.size = len(self.alignment)
+        self.marked = [False] * self.size
+
+    def generate_sub_alignment(self, sequence_ids):
+        """
+        Initializes a new alignment which is a subset of the current alignment.
+
+        This method creates a new alignment which contains only sequences relating to a set of provided sequence ids.
+
+        Args:
+            sequence_ids (list): A list of strings which are sequence identifiers for sequences in the current
+            alignment. Other sequence ids will be skipped.
+        Returns:
+            SeqAlignment: A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
+            sequence.  The seq_order will be updated to only those passed in ids which are also in the current
+            alignment, preserving their ordering from the current SeqAlignment object. The alignment will contain only
+            the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
+            length of the new seq_order. The marked attribute for all sequences in the sub alignment will be transferred
+            from the current alignment.
+        """
+        new_alignment = SeqAlignment(self.file_name, self.query_id)
+        new_alignment.query_id = self.query_id
+        new_alignment.query_sequence = self.query_sequence
+        new_alignment.seq_length = self.seq_length
+        sub_records = []
+        sub_seq_order = []
+        sub_marked = []
+        if self.tree_order:
+            sub_tree_order = []
+        else:
+            sub_tree_order = None
+        indices = []
+        for i in range(self.size):
+            if self.alignment[i].id in sequence_ids:
+                indices.append(i)
+                sub_records.append(self.alignment[i])
+                sub_seq_order.append(self.alignment[i].id)
+                sub_marked.append(self.marked[i])
+            if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
+                sub_tree_order.append(self.tree_order[i])
+        new_alignment.alignment = MultipleSeqAlignment(sub_records)
+        new_alignment.seq_order = sub_seq_order
+        new_alignment.tree_order = sub_tree_order
+        new_alignment.size = len(new_alignment.seq_order)
+        new_alignment.marked = sub_marked
+        if self.distance_matrix:
+            sub_dists = np.array(self.distance_matrix)[indices, :]
+            sub_dists = sub_dists[:, indices]
+            new_alignment.distance_matrix = self._convert_array_to_distance_matrix(array=sub_dists,
+                                                                                   names=sub_seq_order)
+        return new_alignment
 
     def write_out_alignment(self, file_name):
         """
@@ -185,7 +238,7 @@ class SeqAlignment(object):
             if save_file is not None:
                 pickle.dump(new_alignment, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         self.alignment = new_alignment
-        self.query_sequence = self.alignment[self.seq_order.index(self.query_id[1:])].seq
+        self.query_sequence = self.alignment[self.seq_order.index(self.query_id)].seq
         self.seq_length = len(self.query_sequence)
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
@@ -658,57 +711,12 @@ class SeqAlignment(object):
             check[k] = curr_order
         branches = sorted(self.sequence_assignments.keys())
         df = pd.DataFrame(check).set_index('SeqID').sort_values(by=branches[::-1])[branches]
-        df.to_csv(os.path.join(out_dir, '{}_Sequence_Assignment.csv'.format(self.query_id[1:])), sep='\t', header=True,
+        df.to_csv(os.path.join(out_dir, '{}_Sequence_Assignment.csv'.format(self.query_id)), sep='\t', header=True,
                   index=True)
         heatmap(df, cmap='tab10', square=True)
-        plt.savefig(os.path.join(out_dir, '{}_Sequence_Assignment.eps'.format(self.query_id[1:])))
+        plt.savefig(os.path.join(out_dir, '{}_Sequence_Assignment.eps'.format(self.query_id)))
         plt.close()
         return df
-
-    def generate_sub_alignment(self, sequence_ids):
-        """
-        Initializes a new alignment which is a subset of the current alignment.
-
-        This method creates a new alignment which contains only sequences relating to a set of provided sequence ids.
-
-        Args:
-            sequence_ids (list): A list of strings which are sequence identifiers for sequences in the current
-            alignment. Other sequence ids will be skipped.
-        Returns:
-            SeqAlignment: A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
-            sequence.  The seq_order will be updated to only those passed in ids which are also in the current
-            alignment, preserving their ordering from the current SeqAlignment object. The alignment will contain only
-            the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
-            length of the new seq_order.
-        """
-        new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
-        new_alignment.query_id = self.query_id
-        new_alignment.query_sequence = self.query_sequence
-        new_alignment.seq_length = self.seq_length
-        sub_records = []
-        sub_seq_order = []
-        if self.tree_order:
-            sub_tree_order = []
-        else:
-            sub_tree_order = None
-        indices = []
-        for i in range(self.size):
-            if self.alignment[i].id in sequence_ids:
-                indices.append(i)
-                sub_records.append(self.alignment[i])
-                sub_seq_order.append(self.alignment[i].id)
-            if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
-                sub_tree_order.append(self.tree_order[i])
-        new_alignment.alignment = MultipleSeqAlignment(sub_records)
-        new_alignment.seq_order = sub_seq_order
-        new_alignment.tree_order = sub_tree_order
-        new_alignment.size = len(new_alignment.seq_order)
-        if self.distance_matrix:
-            sub_dists = np.array(self.distance_matrix)[indices, :]
-            sub_dists = sub_dists[:, indices]
-            new_alignment.distance_matrix = self._convert_array_to_distance_matrix(array=sub_dists,
-                                                                                   names=sub_seq_order)
-        return new_alignment
 
     def get_branch_cluster(self, k, c):
         """
@@ -746,7 +754,7 @@ class SeqAlignment(object):
             SeqAlignment: A new subalignment containing all sequences from the current SeqAlignment object but with
             only the two sequence positions (columns) specified.
         """
-        new_alignment = SeqAlignment(self.file_name, self.query_id.split('_')[1])
+        new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = self.query_id
         new_alignment.query_sequence = self.query_sequence[i] + self.query_sequence[j]
         new_alignment.seq_length = 2
