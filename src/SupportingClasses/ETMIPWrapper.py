@@ -116,6 +116,33 @@ class ETMIPWrapper(object):
             self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
             self.coverage[i, j] = self.coverage[j, i] = data.loc[ind, 'Coverage_Scores']
 
+    def import_distance_matrices(self, out_dir):
+        """
+        Import Distance Matrices
+
+        This method looks for the files containing the alignment distances and identity distances computed by the ET-MIp
+        code base. Not all versions of that code base produce the necessary files, if this is the case an exception will
+        be raised.
+
+        Args:
+            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+        Returns:
+            pd.DataFrame: Values computed by ET-MIp for the alignment (scoring matrix based) distance between sequences.
+            pd.DataFrame: Values computed by ET-MIp for the identity distance between sequences.
+        """
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, 'etc_out.aln_dist.tsv')
+        file_path2 = os.path.join(out_dir, 'etc_out.id_dist.tsv')
+        if not os.path.isfile(file_path1) or not os.path.isfile(file_path2):
+            raise ValueError('Provided directory does not contain expected distance files!')
+        aln_dist_df = pd. read_csv(file_path1, sep='\t', header=0, index_col=0)
+        id_dist_df = pd. read_csv(file_path2, sep='\t', header=0, index_col=0)
+        array_data = np.asarray(aln_dist_df,dtype=float)
+        self.alignment.distance_matrix = self.alignment._convert_array_to_distance_matrix(array_data,
+                                                                                          list(aln_dist_df.columns))
+        return aln_dist_df, id_dist_df
+
     def calculate_scores(self, out_dir, delete_files=True):
         """
         Calculated ET-MIp Scores
@@ -145,7 +172,7 @@ class ETMIPWrapper(object):
             current_dir = os.getcwd()
             os.chdir(out_dir)
             # Call binary
-            p = Popen([binary_path, '-p', self.msf_path, '-x', self.alignment.query_id[1:], '-allpairs'], stdout=PIPE,
+            p = Popen([binary_path, '-p', self.msf_path, '-x', self.alignment.query_id, '-allpairs'], stdout=PIPE,
                       stderr=PIPE)
             # Retrieve communications from binary call
             out, error = p.communicate()

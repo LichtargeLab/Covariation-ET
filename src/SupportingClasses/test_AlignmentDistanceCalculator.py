@@ -11,15 +11,17 @@ from unittest import TestCase
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SeqAlignment import SeqAlignment
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from ETMIPWrapper import  ETMIPWrapper
 
 class TestSeqAlignment(TestCase):
 
     def setUp(self):
-        msa_file_small = '/media/daniel/ExtraDrive1/DataForProjects/ETMIPC/23TestGenes/7hvpA.fa'
+        self.testing_dir = '../Test/'
+        msa_file_small = os.path.join(self.testing_dir, '7hvpA.fa')
         query_small = 'query_7hvpA'
         self.query_aln_small = SeqAlignment(file_name=msa_file_small, query_id=query_small)
         self.query_aln_small.import_alignment()
-        msa_file_big = '/media/daniel/ExtraDrive1/DataForProjects/ETMIPC/23TestGenes/2zxeA.fa'
+        msa_file_big = os.path.join(self.testing_dir, '2zxeA.fa')
         query_big = 'query_2zxeA'
         self.query_aln_big = SeqAlignment(file_name=msa_file_big, query_id=query_big)
         self.query_aln_big.import_alignment()
@@ -27,6 +29,9 @@ class TestSeqAlignment(TestCase):
     def tearDown(self):
         if os.path.exists('./identity.pkl'):
             os.remove('./identity.pkl')
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
+        # if os.path.exists(wetc_test_dir):
+        #     rmtree(wetc_test_dir)
 
     def test_get_distance_small_identity(self):
         self.query_aln_small.compute_distance_matrix(model='identity')
@@ -87,3 +92,21 @@ class TestSeqAlignment(TestCase):
         self.assertTrue(blosum62_dist_current.names == blosum62_dist_official.names)
         diff = np.array(blosum62_dist_current) - np.array(blosum62_dist_official)
         self.assertTrue(not diff.any())
+
+    def test_get_et_distance_small(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
+        if not os.path.isdir(wetc_test_dir):
+            os.mkdir(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        aln_dist_df, id_dist_df = et_mip_obj.import_distance_matrices(wetc_test_dir)
+        aln_dist_array = np.asarray(aln_dist_df, dtype=float)
+        id_dist_array = np.asarray(id_dist_df, dtype=float)
+        aln_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
+        id_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(id_dist_array, list(id_dist_df.columns))
+        et_calc = AlignmentDistanceCalculator(model='blosum62')
+        id_dist_dm2, aln_dist_dm2 = et_calc.get_et_distance(self.query_aln_small.alignment)
+        diff_aln_dist = np.array(aln_dist_dm1) - np.array(aln_dist_dm2)
+        self.assertTrue(not diff_aln_dist.any())
+        diff_id_dist = np.array(id_dist_dm1) - np.array(id_dist_dm2)
+        self.assertTrue(not diff_id_dist.any())
