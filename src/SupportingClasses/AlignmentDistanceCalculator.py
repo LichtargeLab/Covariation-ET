@@ -161,28 +161,32 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         else:
             threshold = 1
         # Compute the non-gap length of the sequences
-        non_gap_lengths = []
-        non_gap_pos = []
-        num_repr = []
+        seq_conversion = {}
         for i in range(len(msa)):
-            if i > len(num_repr):
+            id1 = msa[i].id
+            if id1 not in seq_conversion:
                 # Convert seq i in the msa to a numerical representation (indices in scoring_matrix)
-                num_repr.append(self._convert_seq_to_numeric(msa[i]))
+                num_repr1 = self._convert_seq_to_numeric(msa[i])
                 # Find all positions which are not gaps or skip_letters in seq1 and the resulting sequence length
-                non_gap_pos.append(num_repr[i] < len(self.alphabet))
-                non_gap_lengths.append(np.sum(non_gap_pos[i]))
+                non_gap_pos1 = num_repr1 < len(self.alphabet)
+                non_gap_length1 = np.sum(non_gap_pos1)
+                seq_conversion[id1] = {'non_gap_length': non_gap_length1, 'non_gap_pos': non_gap_pos1,
+                                       'num_repr': num_repr1}
             for j in range(i + 1, len(msa)):
-                if j > len(num_repr):
+                id2 = msa[j].id
+                if id2 not in seq_conversion:
                     # Convert seq j in the msa to a numerical representation (indices used in scoring_matrix)
-                    num_repr.append(self._convert_seq_to_numeric(msa[j]))
+                    num_repr2 = self._convert_seq_to_numeric(msa[j])
                     # Find all positions which are not skip_letters in seq2
-                    non_gap_pos.append(num_repr[j] < len(self.alphabet))
-                    non_gap_lengths.append(np.sum(non_gap_pos[j]))
+                    non_gap_pos2 = num_repr2 < len(self.alphabet)
+                    non_gap_length2 = np.sum(non_gap_pos2)
+                    seq_conversion[id2] = {'non_gap_length': non_gap_length2, 'non_gap_pos': non_gap_pos2,
+                                           'num_repr': num_repr2}
                 # Determine positions that are not gaps or skip_letters in either sequence
-                combined_non_gap_pos = non_gap_pos[i] & non_gap_pos[j]
+                combined_non_gap_pos = seq_conversion[id1]['non_gap_pos'] & seq_conversion[id2]['non_gap_pos']
                 # Subset the two sequences to only the positions which are not gaps or skip_letters
-                final_seq1 = num_repr[i][combined_non_gap_pos]
-                final_seq2 = num_repr[j][combined_non_gap_pos]
+                final_seq1 = seq_conversion[id1]['num_repr'][combined_non_gap_pos]
+                final_seq2 = seq_conversion[id2]['num_repr'][combined_non_gap_pos]
                 # Count the number of positions which are identical between the two sequences
                 identity_count = np.sum((final_seq1 - final_seq2) == 0)
                 # Retrieve the scoring_matrix scores for the two sequences
@@ -191,8 +195,8 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 passing_scores = scores >= threshold
                 scoring_matrix_count = np.sum(passing_scores)
                 # Determine which sequence was the shorter of the two
-                seq_length = min(non_gap_lengths[i], non_gap_lengths[j])
+                seq_length = min(seq_conversion[id1]['non_gap_length'], seq_conversion[id2]['non_gap_length'])
                 # Compute the plain or psuedo identity score using the minimum sequence length
-                plain_identity[names[i], names[j]] = 1 - (identity_count / float(seq_length))
+                plain_identity[names[i], names[j]] = identity_count / float(seq_length)
                 psuedo_identity[names[i], names[j]] = 1 - (scoring_matrix_count / float(seq_length))
         return plain_identity, psuedo_identity
