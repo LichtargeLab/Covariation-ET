@@ -878,3 +878,20 @@ class SeqAlignment(object):
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
+
+    def write_out_muscle_alignment(self, outdir):
+        """
+
+        :param outdir:
+        :return:
+        """
+        from Bio.Align.Applications import MuscleCommandline
+        muscle_path = os.environ.get('MUSCLE_PATH')
+        # target_dir = os.path.dirname(self.alignment.file_name)
+        new_file_name = os.path.join(outdir, '{}.msf'.format(self.file_name.split('.')[0]))
+        if not os.path.isfile(new_file_name):
+            c_line = MuscleCommandline(muscle_path, input=self.alignment.file_name, out=new_file_name, msf=True)
+            c_line()
+        self.msf_path = new_file_name
+        else:
+            self.msf_path = self.alignment.file_name

@@ -148,19 +148,25 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         plain_identity = DistanceMatrix(names)
         psuedo_identity = DistanceMatrix(names)
         # Set cutoff for scoring matrix "identity"
-        scoring_matrix_tril = np.tril(self.scoring_matrix)
+        scoring_matrix_tril = np.tril(self.scoring_matrix, k=-1)
         positive_scores = scoring_matrix_tril[scoring_matrix_tril > 0]
         count = positive_scores.shape[0]
         if count > 0:
             sum = np.sum(positive_scores)
             average = float(sum) / count
+            print(positive_scores)
+            print('COUNT: {}'.format(count))
+            print('RUNNING SUM: {}'.format(sum))
+            print('AVERAGE: {}'.format(average))
             if average < 1.0:
                 threshold = 1.0
             else:
                 threshold = np.floor(average + 0.5)
         else:
             threshold = 1
+        print('THRESHOLD: {}'.format(threshold))
         # Compute the non-gap length of the sequences
+        data_dict = {'Seq1': [], 'Seq2': [], 'Min_Seq_Length': [], 'Id_Count': [], 'Threshold_Count': []}
         seq_conversion = {}
         for i in range(len(msa)):
             id1 = msa[i].id
@@ -199,4 +205,10 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 # Compute the plain or psuedo identity score using the minimum sequence length
                 plain_identity[names[i], names[j]] = identity_count / float(seq_length)
                 psuedo_identity[names[i], names[j]] = 1 - (scoring_matrix_count / float(seq_length))
-        return plain_identity, psuedo_identity
+                data_dict['Seq1'].append(id1)
+                data_dict['Seq2'].append(id2)
+                data_dict['Min_Seq_Length'].append(seq_length)
+                data_dict['Id_Count'].append(identity_count)
+                data_dict['Threshold_Count'].append(scoring_matrix_count)
+            import pandas as pd
+        return plain_identity, psuedo_identity, pd.DataFrame(data_dict), threshold

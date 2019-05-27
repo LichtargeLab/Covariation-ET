@@ -30,8 +30,8 @@ class TestSeqAlignment(TestCase):
         if os.path.exists('./identity.pkl'):
             os.remove('./identity.pkl')
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
-        if os.path.exists(wetc_test_dir):
-            rmtree(wetc_test_dir)
+        # if os.path.exists(wetc_test_dir):
+        #     rmtree(wetc_test_dir)
 
     def test_get_distance_small_identity(self):
         self.query_aln_small.compute_distance_matrix(model='identity')
@@ -99,22 +99,50 @@ class TestSeqAlignment(TestCase):
             os.mkdir(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_small)
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        aln_dist_df, id_dist_df = et_mip_obj.import_distance_matrices(wetc_test_dir)
+        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir)
         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
         id_dist_array = np.asarray(id_dist_df, dtype=float)
         aln_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
         id_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
         et_calc = AlignmentDistanceCalculator(model='blosum62')
-        id_dist_dm2, aln_dist_dm2 = et_calc.get_et_distance(self.query_aln_small.alignment)
+        id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(self.query_aln_small.alignment)
         diff_aln_dist = np.array(aln_dist_dm1) - np.array(aln_dist_dm2)
+        header = ['Seq1', 'Seq2', 'Min_Seq_Length', 'Id_Count', 'Threshold_Count']
         # from IPython import embed
         # embed()
         # exit()
+        # self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
         # self.assertTrue(not diff_aln_dist.any())
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
-        print(diff_id_dist)
+        # print(diff_id_dist)
         diff_id_threshold = diff_id_dist < 0.01 # Differences may arise in the third decimal place.
-        print(diff_id_threshold)
+        not_passing = ~ diff_id_threshold
+        not_passing_indices = np.nonzero(not_passing)
+        for i in range(not_passing_indices[0].shape[0]):
+            index1 = not_passing_indices[0][i]
+            seq1 = id_dist_dm1.names[index1]
+            index2 = not_passing_indices[1][i]
+            seq2 = id_dist_dm1.names[index2]
+            print('#' * 100)
+            correct_ind1 = (intermediate_df1['Seq1'] == seq1) & (intermediate_df1['Seq2'] == seq2)
+            if not correct_ind1.any():
+                correct_ind1 = (intermediate_df1['Seq1'] == seq2) & (intermediate_df1['Seq2'] == seq1)
+            correct_row1 = intermediate_df1.loc[correct_ind1, header]
+            # print(intermediate_df1.loc[correct_ind1, header])
+            print('{}:{}\t{}\t{}\t{}'.format(correct_row1.iloc[0]['Seq1'], correct_row1.iloc[0]['Seq2'],
+                                             correct_row1.iloc[0]['Min_Seq_Length'], correct_row1.iloc[0]['Id_Count'],
+                                             correct_row1.iloc[0]['Threshold_Count']))
+            correct_ind2 = (intermediate_df2['Seq1'] == seq1) & (intermediate_df2['Seq2'] == seq2)
+            if not correct_ind2.any():
+                correct_ind2 = (intermediate_df2['Seq1'] == seq2) & (intermediate_df2['Seq2'] == seq1)
+            correct_row2 = intermediate_df2.loc[correct_ind2, header]
+            # print(intermediate_df2.loc[correct_ind2, header])
+            print('{}:{}\t{}\t{}\t{}'.format(correct_row2.iloc[0]['Seq1'], correct_row2.iloc[0]['Seq2'],
+                                             correct_row2.iloc[0]['Min_Seq_Length'], correct_row2.iloc[0]['Id_Count'],
+                                             correct_row2.iloc[0]['Threshold_Count']))
+            print('#' * 100)
+        # print(diff_id_threshold)
         from IPython import embed
         embed()
+        self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
         self.assertTrue(not diff_id_threshold.any())
