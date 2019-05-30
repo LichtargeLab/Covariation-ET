@@ -5,13 +5,15 @@ Created on May 23, 2019
 """
 import os
 from re import compile
-from numpy import floor, arange
+from numpy import floor
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
 from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
+from Bio.pairwise2.align import localds
+from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
 from Bio.Align.Applications import MuscleCommandline
@@ -77,13 +79,39 @@ class DataSetGenerator(object):
                 protein_list[line.strip()] = {}
         return protein_list
 
-    def build_dataset(self):
+    def build_dataset(self, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05, min_fraction=0.7,
+                      max_fraction=1.5, min_identity=75, abs_max_identity=95, abs_min_identity=30, interval=5,
+                      ignore_filter_size=False, msf=True, fasta=True):
+        """
+        Build Dataset
+
+        This method builds a complete data set based on the protein id list specified in the constructor.
+
+        Args:
+            num_threads (int): The number of threads to use when performing the BLAST search.
+            max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
+            e_value_threshold (float): The maximum e-value for a passing hit.
+            min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
+            max_fraction (float): The maximum fraction of the query sequence length for a passing hit.
+            min_identity (int): The preferred minimum identity for a passing hit.
+            abs_max_identity (int): The absolute maximum identity for a passing hit.
+            abs_min_identity (int): The absolute minimum identity for a passing hit.
+            interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
+            sufficient sequences are not found at min_identity.
+            ignore_filter_size (bool): Whether or not to ignore the 125 sequence requirement before writing the filtered
+            sequences to file.
+            msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
+            fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
+        """
         for seq_id in self.protein_data:
             self._download_pdb(protein_id=seq_id)
             self._parse_query_sequence(protein_id=seq_id)
-            self._blast_query_sequence(protein_id=seq_id)
-            self._restrict_sequences(protein_id=seq_id)
-            self._align_sequences(protein_id=seq_id)
+            self._blast_query_sequence(protein_id=seq_id, num_threads=num_threads, max_target_seqs=max_target_seqs)
+            self._restrict_sequences(protein_id=seq_id, e_value_threshold=e_value_threshold, min_fraction=min_fraction,
+                                     max_fraction=max_fraction, min_identity=min_identity,
+                                     abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
+                                     interval=interval, ignore_filter_size=ignore_filter_size)
+            self._align_sequences(protein_id=seq_id, msf=msf, fasta=fasta)
 
     def _download_pdb(self, protein_id):
         """
@@ -185,8 +213,43 @@ class DataSetGenerator(object):
         self.protein_data[protein_id]['BLAST_File'] = blast_fn
         return blast_fn
 
+    @staticmethod
+    def __determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity,
+                                 min_identity, identity_bins):
+        """
+        Determine Identity Bin
+
+        This method determines which identity bin a sequence belongs in based on the settings used for filtering
+        sequences in the _restrict_sequences function.
+
+        Args:
+            identity_count (int): The number of positions which match between the query and the BLAST hit.
+            length (int): The number of positions in the aligned sequence (including gaps).
+            interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
+            sufficient sequences are not found at min_identity.
+            abs_max_identity (int): The absolute maximum identity for a passing hit.
+            abs_min_identity (int): The absolute minimum identity for a passing hit.
+            min_identity (int): The preferred minimum identity for a passing hit.
+            identity_bins (set): All of the possible identity bin options.
+        Returns:
+            float: The identity bin in which the sequence belongs.
+        """
+        similarity = identity_count / float(length)
+        similarity_int = floor(similarity)
+        similarity_bin = similarity_int - (similarity_int % interval)
+        final_bin = None
+        if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
+            if similarity_bin >= min_identity:
+                final_bin = min_identity
+            elif similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
+                final_bin = abs_min_identity
+            else:
+                final_bin = similarity_bin
+        return final_bin
+
     def _restrict_sequences(self, protein_id, e_value_threshold=0.05, min_fraction=0.7, max_fraction=1.5,
-                            min_identity=0.75, abs_max_identity=0.95, abs_min_identity=30, interval=5):
+                            min_identity=75, abs_max_identity=95, abs_min_identity=30, interval=5,
+                            ignore_filter_size=False):
         """
         Restrict Sequences
 
@@ -202,18 +265,21 @@ class DataSetGenerator(object):
         abs_max_identity to min_identity and all other bins are intervals specified by interval between min_identity and
         abs_min_identity. These bins are combined (from highest identity, e.g. min_identity, to lowest identity, e.g.
         abs_min_identity) until at least 125 sequences have been accumulated, which are then written to file. If this
-        cannot be achieved after considering all bins no restricted sequence set is written to file.
+        cannot be achieved after considering all bins no restricted sequence set is written to file. If
+        ignore_filter_size is set then the 125 sequence requirement is ignored.
 
         Args:
             protein_id (str): Four letter code for the PDB id whose BLAST search results should be filtered.
             e_value_threshold (float): The maximum e-value for a passing hit.
             min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
             max_fraction (float): The maximum fraction of the query sequence length for a passing hit.
-            min_identity (float): The preferred minimum identity for a passing hit.
-            abs_max_identity (float): The absolute maximum identity for a passing hit.
-            abs_min_identity (float): The absolute minimum identity for a passing hit.
+            min_identity (int): The preferred minimum identity for a passing hit.
+            abs_max_identity (int): The absolute maximum identity for a passing hit.
+            abs_min_identity (int): The absolute minimum identity for a passing hit.
             interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
             sufficient sequences are not found at min_identity.
+            ignore_filter_size (bool): Whether or not to ignore the 125 sequence requirement before writing the filtered
+            sequences to file.
         Returns:
             float: The minimum identity for a passing hit used to find at least 125 passing sequences.
             int: The number of sequences passing the filters at the minimum identity (described in the first return).
@@ -235,16 +301,36 @@ class DataSetGenerator(object):
         if not os.path.isdir(pileup_path):
             os.makedirs(pileup_path)
         pileup_fn = os.path.join(pileup_path, '{}.fasta'.format(protein_id))
+        identity_bins = list(range(abs_min_identity, min_identity, interval))
+        sequences = {x: [] for x in identity_bins}
+        if min_identity not in sequences:
+            identity_bins.append(min_identity)
+            sequences[min_identity] = []
+        fragment_pattern = compile(r'^.*(\(Fragment\)).*$')
+        low_quality_pattern = compile(r'^.*(LOW QUALITY).*$')
         if os.path.isfile(pileup_fn):
             self.protein_data[protein_id]['Pileup_File'] = pileup_fn
+            count = 0
+            with open(pileup_fn, 'rb') as pileup_handle:
+                fasta_iter = parse(handle=pileup_handle, format='fasta')
+                final_identity_bin = min_identity
+                for seq_record in fasta_iter:
+                    count += 1
+                    curr_alignments = localds(self.protein_data[protein_id]['Query_Sequence'], seq_record,
+                                              match_dict=blosum62, open=11, extend=1)
+                    seq_id = 0
+                    seq_len = len(curr_alignments[0][0])
+                    for i in range(seq_len):
+                        if curr_alignments[0][0][i] == curr_alignments[0][1][i]:
+                            seq_id += 1
+                    similarity_bin = self.__determine_identity_bin(
+                        identity_count=seq_id, query_length=seq_len, interval=interval,
+                        abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity, min_identity=min_identity,
+                        identity_bins=set(identity_bins))
+                    if similarity_bin and similarity_bin < final_identity_bin:
+                        final_identity_bin = similarity_bin
+            count -= 1  # Since the query sequence would be added at the top of the pileup file (see code below)
         else:
-            sequences = {x: [] for x in arange(abs_min_identity, min_identity, interval)}
-            if min_identity not in sequences:
-                sequences[min_identity] = []
-            if abs_min_identity % interval != 0:
-                sequences[abs_min_identity] = []
-            fragment_pattern = compile(r'^.*(\(Fragment\)).*$')
-            low_quality_pattern = compile(r'^.*(LOW QUALITY).*$')
             with open(self.protein_data[protein_id]['BLAST_File'], 'rb') as blast_handle:
                 blast_record = NCBIXML.read(blast_handle)
                 for alignment in blast_record.alignments:
@@ -257,68 +343,93 @@ class DataSetGenerator(object):
                             subject_length = len(hsp.sbjct)
                             subject_fraction = subject_length / float(self.protein_data[protein_id]['Sequence_Length'])
                             if (min_fraction <= subject_fraction) and (subject_fraction <= max_fraction):
-                                subject_similarity = hsp.identities / float(hsp.align_length)
-                                similarity_int = floor(subject_similarity)
-                                similarity_bin = similarity_int - (similarity_int % interval)
-                                if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
+                                similarity_bin = self.__determine_identity_bin(
+                                    identity_count=hsp.identities, length=hsp.align_length, interval=interval,
+                                    abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
+                                    min_identity=min_identity, identity_bins=set(identity_bins))
+                                if similarity_bin:
                                     subject_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
                                                                    id=alignment.hit_id, name=alignment.title,
                                                                    description=alignment.hit_def)
-                                    if similarity_bin >= min_identity:
-                                        sequences[min_identity].append(subject_seq_record)
-                                    elif similarity_bin not in sequences and similarity_bin >= abs_min_identity:
-                                        sequences[abs_min_identity].append(subject_seq_record)
-                                    else:
-                                        sequences[similarity_bin].append(subject_seq_record)
+                                    sequences[similarity_bin].append(subject_seq_record)
             i = 0
             final_sequences = []
-            identity_bins = sorted(sequences.keys(), reverse=True)
             while len(final_sequences) < 125 and i < len(identity_bins):
                 final_sequences += sequences[identity_bins[i]]
                 i += 1
-            if len(final_sequences) >= 125:
+            count = len(final_sequences)
+            if ignore_filter_size or len(final_sequences) >= 125:
+                # Add query sequence so that this file can be fed directly to the alignment method.
+                final_sequences = [self.protein_data[protein_id]]['Query_Sequence'] + final_sequences
                 with open(pileup_fn, 'wb') as pileup_handle:
                     write(sequences=final_sequences, handle=pileup_handle, format='fasta')
             else:
                 i -= 1  # To ensure that the index is still within the identity_bins list length
                 pileup_fn = None
                 print('No pileup for pdb: {}, sufficient sequences could not be found'.format(protein_id))
+            final_identity_bin = identity_bins[i]
         self.protein_data[protein_id]['Pileup_File'] = pileup_fn
-        return identity_bins[i], len(final_sequences), pileup_fn
+        return final_identity_bin, count, pileup_fn
 
-    def _align_sequences(self, protein_id):
+    def _align_sequences(self, protein_id, msf=True, fasta=True):
+        """
+        Align Sequences
+
+        This method uses MUSCLE to align the query sequence and all of the hits from BLAST which passed the filtering
+        process by default the alignment is performed twice, once to produce a fasta alignment file, and once to produce
+        the msf alignment file, however either of these options can be turned off.
+
+        Args:
+            protein_id (str): Four letter code for the PDB id for which an alignment should be performed.
+            msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
+            fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
+        Returns:
+            str: The path to the msf alignment produced by this method (None if msf=False).
+            str: The path to the fasta alignment produced by this method (None if fa=False).
+        """
         muscle_path = os.environ.get('MUSCLE_PATH')
         alignment_path = os.path.join(self.input_path, 'Alignments')
-        msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
-        msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=msf_fn,
-                                      msf=True)
-
-        print(msf_cline)
-        stdout, stderr = msf_cline()
-        print(stdout)
-        print(stderr)
-        fa_fn = os.path.join(alignment_path, '{}.fa'.format(protein_id))
-        fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
-                                     msf=False)
-        print(fa_cline)
-        stdout, stderr = fa_cline()
-        print(stdout)
-        print(stderr)
+        msf_fn = None
+        if msf:
+            msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
+            if not os.path.isfile(msf_fn):
+                msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'],
+                                              out=msf_fn, msf=True)
+                print(msf_cline)
+                stdout, stderr = msf_cline()
+                print(stdout)
+                print(stderr)
+        fa_fn = None
+        if fasta:
+            fa_fn = os.path.join(alignment_path, '{}.fa'.format(protein_id))
+            if not os.path.isfile(fa_fn):
+                fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
+                                         msf=False)
+                print(fa_cline)
+                stdout, stderr = fa_cline()
+                print(stdout)
+                print(stderr)
         self.protein_data[protein_id]['MSF_File'] = msf_fn
         self.protein_data[protein_id]['FA_File'] = fa_fn
+        return msf_fn, fa_fn
 
 
 def batch_iterator(iterator, batch_size):
-    """Returns lists of length batch_size.
+    """
+    Batch Iterator
 
-    This can be used on any iterator, for example to batch up
-    SeqRecord objects from Bio.SeqIO.parse(...), or to batch
-    Alignment objects from Bio.AlignIO.parse(...), or simply
-    lines from a file handle.
-
-    This is a generator function, and it returns lists of the
-    entries from the supplied iterator.  Each list will have
+    This can be used on any iterator, for example to batch up SeqRecord objects from Bio.SeqIO.parse(...), or to batch
+    Alignment objects from Bio.AlignIO.parse(...), or simply lines from a file handle. It is a generator function, and
+    it returns lists of the entries from the supplied iterator.  Each list will have
     batch_size entries, although the final list may be shorter.
+
+    Args:
+        iterator (iterable): An iterable object, in this case a parser from the Bio package is the intended input.
+        batch_size (int): The maximum number of entries to return for each batch (the final batch from the iterator may
+        be smaller).
+    Returns:
+        list: A list of length batch_size (unless it is the last batch in the iterator in which case it may be fewer) of
+        entries from the provided iterator.
 
     Scribed from Biopython (https://biopython.org/wiki/Split_large_file)
     """
@@ -338,8 +449,18 @@ def batch_iterator(iterator, batch_size):
             yield batch
 
 
-
 def filter_uniref_fasta(in_path, out_path):
+    """
+    Filter Uniref Fasta
+
+    This function can be used to filter the fasta files provided by Uniref to remove the low quality sequences and
+    sequences which represent protein fragments.
+
+    Args:
+        in_path (str): The path to the fasta file to filter (should be provided by Uniref so that the expected patterns
+        can be found).
+        out_path (str): The path to which the filtered fasta should be written.
+    """
     sequences = []
     fragment_pattern = compile(r'^.*(\(Fragment\)).*$')
     low_quality_pattern = compile(r'^.*(LOW QUALITY).*$')

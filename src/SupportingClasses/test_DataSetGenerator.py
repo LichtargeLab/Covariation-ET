@@ -27,18 +27,18 @@ class TestDataSetGenerator(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # os.remove(cls.protein_list_fn)
+        os.remove(cls.input_path)
         del cls.protein_list_fn
         del cls.large_structure_id
         del cls.small_structure_id
         del cls.protein_list_path
         del cls.input_path
 
-    # def tearDown(self):
-    #     for curr_fn in os.listdir(self.input_path):
-    #         curr_dir = os.path.join(self.input_path, curr_fn)
-    #         if os.path.isdir(curr_dir):
-    #             rmtree(curr_dir)
+    def tearDown(self):
+        for curr_fn in os.listdir(self.input_path):
+            curr_dir = os.path.join(self.input_path, curr_fn)
+            if os.path.isdir(curr_dir):
+                rmtree(curr_dir)
 
     def test_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
@@ -121,6 +121,7 @@ class TestDataSetGenerator(TestCase):
                                                               max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         expected_fn_small = os.path.join(blast_path, '{}.xml'.format(self.small_structure_id))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_fn_small)
         self.assertEqual(blast_fn_small, expected_fn_small)
         self.assertTrue(os.path.isfile(blast_fn_small))
         with self.assertRaises(KeyError):
@@ -131,6 +132,7 @@ class TestDataSetGenerator(TestCase):
                                                               max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         expected_fn_large = os.path.join(blast_path, '{}.xml'.format(self.large_structure_id))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_fn_large)
         self.assertEqual(blast_fn_large, expected_fn_large)
         self.assertTrue(os.path.isfile(blast_fn_large))
 
@@ -147,6 +149,7 @@ class TestDataSetGenerator(TestCase):
         blast_fn_small = test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10,
                                                               max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_fn_small)
         self.assertEqual(blast_fn_small, expected_fn_small)
         self.assertTrue(os.path.isfile(blast_fn_small))
         with self.assertRaises(KeyError):
@@ -159,6 +162,7 @@ class TestDataSetGenerator(TestCase):
         blast_fn_large = test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10,
                                                               max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_fn_large)
         self.assertEqual(blast_fn_large, expected_fn_large)
         self.assertTrue(os.path.isfile(blast_fn_large))
 
@@ -177,9 +181,11 @@ class TestDataSetGenerator(TestCase):
             self.assertLessEqual(0.95, min_id_small)
             self.assertGreaterEqual(min_id_small, 0.30)
             self.assertEqual(pileup_fn_small, expected_fn_small)
+            self.assertEqual(test_generator.protein_data[self.small_structure_id]['Pileup_File'], expected_fn_small)
         else:
             self.assertGreaterEqual(min_id_small, 0.30)
             self.assertIsNone(pileup_fn_small)
+            self.assertIsNone(test_generator.protein_data[self.small_structure_id]['Pileup_File'])
         with self.assertRaises(KeyError):
             test_generator._restrict_sequences(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
@@ -192,6 +198,186 @@ class TestDataSetGenerator(TestCase):
             self.assertLessEqual(0.95, min_id_large)
             self.assertGreaterEqual(min_id_large, 0.30)
             self.assertEqual(pileup_fn_large, expected_fn_large)
+            self.assertEqual(test_generator.protein_data[self.large_structure_id]['Pileup_File'], expected_fn_large)
         else:
             self.assertGreaterEqual(min_id_large, 0.30)
             self.assertIsNone(pileup_fn_large)
+            self.assertIsNone(test_generator.protein_data[self.large_structure_id]['Pileup_File'])
+
+    def test__restrict_sequences_loading(self):
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        test_generator._download_pdb(protein_id=self.small_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        min_id_small1, num_seqs_small1, pileup_fn_small1 = test_generator._restrict_sequences(
+            protein_id=self.small_structure_id)
+        min_id_small2, num_seqs_small2, pileup_fn_small2 = test_generator._restrict_sequences(
+            protein_id=self.small_structure_id)
+        self.assertEqual(pileup_fn_small1, pileup_fn_small2)
+        self.assertEqual(num_seqs_small1, num_seqs_small2)
+        self.assertEqual(min_id_small1, min_id_small2)
+        test_generator._download_pdb(protein_id=self.large_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        min_id_large1, num_seqs_large1, pileup_fn_large1 = test_generator._restrict_sequences(
+            protein_id=self.large_structure_id)
+        min_id_large2, num_seqs_large2, pileup_fn_large2 = test_generator._restrict_sequences(
+            protein_id=self.large_structure_id)
+        self.assertEqual(pileup_fn_large1, pileup_fn_large2)
+        self.assertEqual(num_seqs_large1, num_seqs_large2)
+        self.assertEqual(min_id_large1, min_id_large2)
+
+    def test_align_sequences(self):
+        alignment_path = os.path.join(self.input_path, 'Alignments')
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        with self.assertRaises(KeyError):
+            test_generator._align_sequences(protein_id=self.small_structure_id)
+        test_generator._download_pdb(protein_id=self.small_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._restrict_sequences(protein_id=self.small_structure_id)
+        expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
+        expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
+        msf_fn_small, fa_fn_small = test_generator._align_sequences(protein_id=self.small_structure_id)
+        self.assertTrue(os.path.isfile(expected_msf_fn_small))
+        self.assertEqual(msf_fn_small, expected_msf_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_File'], expected_msf_fn_small)
+        self.assertTrue(os.path.isfile(expected_fa_fn_small))
+        self.assertEqual(fa_fn_small, expected_fa_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_File'], expected_fa_fn_small)
+        with self.assertRaises(KeyError):
+            test_generator._restrict_sequences(protein_id=self.large_structure_id)
+        test_generator._download_pdb(protein_id=self.large_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._align_sequences(protein_id=self.large_structure_id)
+        expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
+        expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
+        msf_fn_large, fa_fn_large = test_generator._align_sequences(protein_id=self.large_structure_id)
+        self.assertTrue(os.path.isfile(expected_msf_fn_large))
+        self.assertEqual(msf_fn_large, expected_msf_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_File'], expected_msf_fn_large)
+        self.assertTrue(os.path.isfile(expected_fa_fn_large))
+        self.assertEqual(fa_fn_large, expected_fa_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_File'], expected_fa_fn_large)
+
+    def test_align_sequences_msf_only(self):
+        alignment_path = os.path.join(self.input_path, 'Alignments')
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        with self.assertRaises(KeyError):
+            test_generator._align_sequences(protein_id=self.small_structure_id)
+        test_generator._download_pdb(protein_id=self.small_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._restrict_sequences(protein_id=self.small_structure_id)
+        expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
+        expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
+        msf_fn_small, fa_fn_small = test_generator._align_sequences(protein_id=self.small_structure_id, fasta=False)
+        self.assertTrue(os.path.isfile(expected_msf_fn_small))
+        self.assertEqual(msf_fn_small, expected_msf_fn_small)
+        self.assertFalse(os.path.isfile(expected_fa_fn_small))
+        self.assertIsNone(fa_fn_small)
+        with self.assertRaises(KeyError):
+            test_generator._restrict_sequences(protein_id=self.large_structure_id)
+        test_generator._download_pdb(protein_id=self.large_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._align_sequences(protein_id=self.large_structure_id)
+        expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
+        expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
+        msf_fn_large, fa_fn_large = test_generator._align_sequences(protein_id=self.large_structure_id, fasta=False)
+        self.assertTrue(os.path.isfile(expected_msf_fn_large))
+        self.assertEqual(msf_fn_large, expected_msf_fn_large)
+        self.assertFalse(os.path.isfile(expected_fa_fn_large))
+        self.assertIsNone(fa_fn_large)
+
+    def test_align_sequences_fasta_only(self):
+        alignment_path = os.path.join(self.input_path, 'Alignments')
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        with self.assertRaises(KeyError):
+            test_generator._align_sequences(protein_id=self.small_structure_id)
+        test_generator._download_pdb(protein_id=self.small_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._restrict_sequences(protein_id=self.small_structure_id)
+        expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
+        expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
+        msf_fn_small, fa_fn_small = test_generator._align_sequences(protein_id=self.small_structure_id, msf=False)
+        self.assertTrue(os.path.isfile(expected_fa_fn_small))
+        self.assertEqual(fa_fn_small, expected_fa_fn_small)
+        self.assertFalse(os.path.isfile(expected_msf_fn_small))
+        self.assertIsNone(msf_fn_small)
+        with self.assertRaises(KeyError):
+            test_generator._restrict_sequences(protein_id=self.large_structure_id)
+        test_generator._download_pdb(protein_id=self.large_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._align_sequences(protein_id=self.large_structure_id)
+        expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
+        expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
+        msf_fn_large, fa_fn_large = test_generator._align_sequences(protein_id=self.large_structure_id, msf=False)
+        self.assertTrue(os.path.isfile(expected_fa_fn_large))
+        self.assertEqual(fa_fn_large, expected_fa_fn_large)
+        self.assertFalse(os.path.isfile(expected_msf_fn_large))
+        self.assertIsNone(msf_fn_large)
+
+    def test_build_dataset(self):
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        test_generator.build_dataset()
+        pdb_path = os.path.join(self.input_path, 'PDB')
+        expected_pdb_fn_small = os.path.join(pdb_path, '{}'.format(self.small_structure_id[1:3]),
+                                             'pdb{}.ent'.format(self.small_structure_id))
+        self.assertTrue(test_generator.protein_data[self.small_structure_id]['PDB_Path'] == expected_pdb_fn_small)
+        expected_pdb_fn_large = os.path.join(pdb_path, '{}'.format(self.large_structure_id[1:3]),
+                                         'pdb{}.ent'.format(self.large_structure_id))
+        self.assertTrue(test_generator.protein_data[self.large_structure_id]['PDB_Path'] == expected_pdb_fn_large)
+        sequence_path = os.path.join(self.input_path, 'Sequences')
+        expexcted_query_fn_small = os.path.join(sequence_path, '{}.fasta'.format(self.small_structure_id))
+        expected_sequence_small = 'PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLEEMNLPGKWKPKMIGGIGGFIKVRQYDQIPVEIGHKAIGTVLVGPTPVNI'\
+                                  'IGRNLLTQIGTLNF'
+        self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Query_Sequence'].seq),
+                         expected_sequence_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Sequence_Length'],
+                         len(expected_sequence_small))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Fasta_File'], expexcted_query_fn_small)
+        expexcted_query_fn_large = os.path.join(sequence_path, '{}.fasta'.format(self.large_structure_id))
+        expected_sequence_large = 'LDELKKEVSMDDHKLSLDELHNKYGTDLTRGLTNARAKEILARDGPNSLTPPPTTPEWIKFCRQLFGGFSILLWIGAILCFLA'\
+                                  'YGIQAATEDEPANDNLYLGVVLSTVVIVTGCFSYYQEAKSSRIMDSFKNMVPQQALVIRDGEKSTINAEFVVAGDLVEVKGGD'\
+                                  'RIPADLRIISAHGCKVDNSSLTGESEPQTRSPEFSSENPLETRNIAFFSTNCVEGTARGVVVYTGDRTVMGRIATLASGLEVG'\
+                                  'RTPIAIEIEHFIHIITGVAVFLGVSFFILSLILGYSWLEAVIFLIGIIVANVPEGLLATVTVCLTLTAKRMARKNCLVKNLEA'\
+                                  'VETLGSTSTICSDKTGTLTQNRMTVAHMWFDNQIHEADTTENQSGAAFDKTSATWSALSRIAALCNRAVFQAGQDNVPILKRS'\
+                                  'VAGDASESALLKCIELCCGSVQGMRDRNPKIVEIPFNSTNKYQLSIHENEKSSESRYLLVMKGAPERILDRCSTILLNGAEEP'\
+                                  'LKEDMKEAFQNAYLELGGLGERVLGFCHFALPEDKYNEGYPFDADEPNFPTTDLCFVGLMAMIDPPRAAVPDAVGKCRSAGIK'\
+                                  'VIMVTGDHPITAKAIAKGVGIISEGNETIEDIAARLNIPIGQVNPRDAKACVVHGSDLKDLSTEVLDDILHYHTEIVFARTSP'\
+                                  'QQKLIIVEGCQRQGAIVAVTGDGVNDSPALKKADIGVAMGISGSDVSKQAADMILLDDNFASIVTGVEEGRLIFDNLKKSIAY'\
+                                  'TLTSNIPEITPFLVFIIGNVPLPLGTVTILCIDLGTDMVPAISLAYEQAESDIMKRQPRNPKTDKLVNERLISMAYGQIGMIQ'\
+                                  'ALGGFFSYFVILAENGFLPMDLIGKRVRWDDRWISDVEDSFGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSI'\
+                                  'FQQGMKNKILIFGLFEETALAAFLSYCPGTDVALRMYPLKPSWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY'
+        self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Query_Sequence'].seq),
+                         expected_sequence_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Sequence_Length'],
+                         len(expected_sequence_large))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Fasta_File'], expexcted_query_fn_large)
+        blast_path = os.path.join(self.input_path, 'BLAST')
+        expected_blast_fn_small = os.path.join(blast_path, '{}.xml'.format(self.small_structure_id))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_blast_fn_small)
+        expected_blast_fn_large = os.path.join(blast_path, '{}.xml'.format(self.large_structure_id))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_blast_fn_large)
+        pileup_path = os.path.join(self.input_path, 'Pileups')
+        expected_pileup_fn_small = os.path.join(pileup_path, '{}.fasta'.format(self.small_structure_id))
+        if test_generator.protein_data[self.small_structure_id]['Pileup_File']:
+            self.assertEqual(test_generator.protein_data[self.small_structure_id]['Pileup_File'],
+                             expected_pileup_fn_small)
+        expected_pileup_fn_large = os.path.join(pileup_path, '{}.fasta'.format(self.large_structure_id))
+        if test_generator.protein_data[self.large_structure_id]['Pileup_File']:
+            self.assertEqual(test_generator.protein_data[self.large_structure_id]['Pileup_File'],
+                             expected_pileup_fn_large)
+        alignment_path = os.path.join(self.input_path, 'Alignments')
+        expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
+        expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_File'], expected_msf_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_File'], expected_fa_fn_small)
+        expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
+        expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_File'], expected_msf_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_File'], expected_fa_fn_large)
