@@ -12,7 +12,7 @@ from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
-from Bio.pairwise2.align import localds
+from Bio import pairwise2
 from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
@@ -316,8 +316,8 @@ class DataSetGenerator(object):
                 final_identity_bin = min_identity
                 for seq_record in fasta_iter:
                     count += 1
-                    curr_alignments = localds(self.protein_data[protein_id]['Query_Sequence'], seq_record,
-                                              match_dict=blosum62, open=11, extend=1)
+                    curr_alignments = pairwise2.align.localds(self.protein_data[protein_id]['Query_Sequence'],
+                                                              seq_record, match_dict=blosum62, open=11, extend=1)
                     seq_id = 0
                     seq_len = len(curr_alignments[0][0])
                     for i in range(seq_len):
