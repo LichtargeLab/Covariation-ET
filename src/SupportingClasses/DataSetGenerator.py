@@ -159,7 +159,6 @@ class DataSetGenerator(object):
                 seq_iter = parse(handle=protein_fasta_handle, format='fasta')
                 sequence = seq_iter.next()
                 sequence.alphabet = ExtendedIUPACProtein
-                # sequence = str(seq_record.seq)
         else:
             parser = PDBParser(PERMISSIVE=1)  # corrective
             structure = parser.get_structure(protein_id, self.protein_data[protein_id]['PDB_Path'])
@@ -170,8 +169,8 @@ class DataSetGenerator(object):
                 if is_aa(residue.get_resname(), standard=True):
                     res_name = three_to_one(residue.get_resname())
                     sequence.append(res_name)
-            sequence = Seq(''.join(sequence), alphabet=ExtendedIUPACProtein)
-            seq_records = [SeqRecord(sequence, id=protein_id)]
+            sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id)
+            seq_records = [sequence]
             with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
                 write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
         self.protein_data[protein_id]['Query_Sequence'] = sequence
@@ -234,9 +233,10 @@ class DataSetGenerator(object):
         Returns:
             float: The identity bin in which the sequence belongs.
         """
-        similarity = identity_count / float(length)
+        similarity = (identity_count / float(length)) * 100
         similarity_int = floor(similarity)
         similarity_bin = similarity_int - (similarity_int % interval)
+        # print('Identity:{} Identity_Int:{} Initial Bin:{}'.format(similarity, similarity_int, similarity_bin))
         final_bin = None
         if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
             if similarity_bin >= min_identity:
@@ -317,7 +317,7 @@ class DataSetGenerator(object):
                 for seq_record in fasta_iter:
                     count += 1
                     curr_alignments = pairwise2.align.localds(self.protein_data[protein_id]['Query_Sequence'],
-                                                              seq_record, match_dict=blosum62, open=11, extend=1)
+                                                              seq_record, blosum62, -11, -1)
                     seq_id = 0
                     seq_len = len(curr_alignments[0][0])
                     for i in range(seq_len):
@@ -352,15 +352,15 @@ class DataSetGenerator(object):
                                                                    id=alignment.hit_id, name=alignment.title,
                                                                    description=alignment.hit_def)
                                     sequences[similarity_bin].append(subject_seq_record)
-            i = 0
+            i = len(identity_bins)
             final_sequences = []
-            while len(final_sequences) < 125 and i < len(identity_bins):
+            while len(final_sequences) < 125 and i >= 0:
+                i -= 1
                 final_sequences += sequences[identity_bins[i]]
-                i += 1
             count = len(final_sequences)
             if ignore_filter_size or len(final_sequences) >= 125:
                 # Add query sequence so that this file can be fed directly to the alignment method.
-                final_sequences = [self.protein_data[protein_id]]['Query_Sequence'] + final_sequences
+                final_sequences = [self.protein_data[protein_id]['Query_Sequence']] + final_sequences
                 with open(pileup_fn, 'wb') as pileup_handle:
                     write(sequences=final_sequences, handle=pileup_handle, format='fasta')
             else:
@@ -389,8 +389,10 @@ class DataSetGenerator(object):
         """
         muscle_path = os.environ.get('MUSCLE_PATH')
         alignment_path = os.path.join(self.input_path, 'Alignments')
+        if not os.path.isdir(alignment_path):
+            os.makedirs(alignment_path)
         msf_fn = None
-        if msf:
+        if self.protein_data[protein_id]['Pileup_File'] and msf:
             msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
             if not os.path.isfile(msf_fn):
                 msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'],
@@ -400,8 +402,8 @@ class DataSetGenerator(object):
                 print(stdout)
                 print(stderr)
         fa_fn = None
-        if fasta:
-            fa_fn = os.path.join(alignment_path, '{}.fa'.format(protein_id))
+        if self.protein_data[protein_id]['Pileup_File'] and fasta:
+            fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
             if not os.path.isfile(fa_fn):
                 fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
                                          msf=False)
