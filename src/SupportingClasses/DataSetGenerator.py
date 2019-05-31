@@ -169,7 +169,8 @@ class DataSetGenerator(object):
                 if is_aa(residue.get_resname(), standard=True):
                     res_name = three_to_one(residue.get_resname())
                     sequence.append(res_name)
-            sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id)
+            sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id,
+                                 description='Target Query')
             seq_records = [sequence]
             with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
                 write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
@@ -311,25 +312,22 @@ class DataSetGenerator(object):
         if os.path.isfile(pileup_fn):
             self.protein_data[protein_id]['Pileup_File'] = pileup_fn
             count = 0
+            hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+).*$')
             with open(pileup_fn, 'rb') as pileup_handle:
                 fasta_iter = parse(handle=pileup_handle, format='fasta')
                 final_identity_bin = min_identity
                 for seq_record in fasta_iter:
+                    if seq_record.description.endswith('Target Query'):  # Skip the target sequence in the pileup.
+                        continue
                     count += 1
-                    curr_alignments = pairwise2.align.localds(self.protein_data[protein_id]['Query_Sequence'],
-                                                              seq_record, blosum62, -11, -1)
-                    seq_id = 0
-                    seq_len = len(curr_alignments[0][0])
-                    for i in range(seq_len):
-                        if curr_alignments[0][0][i] == curr_alignments[0][1][i]:
-                            seq_id += 1
+                    hsp_data_match = hsp_data_pattern.match(seq_record.description)
+                    seq_id = int(hsp_data_match.group(1))
+                    seq_len = int(hsp_data_match.group(2))
                     similarity_bin = self.__determine_identity_bin(
-                        identity_count=seq_id, query_length=seq_len, interval=interval,
-                        abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity, min_identity=min_identity,
-                        identity_bins=set(identity_bins))
+                        identity_count=seq_id, length=seq_len, interval=interval, abs_max_identity=abs_max_identity,
+                        abs_min_identity=abs_min_identity, min_identity=min_identity, identity_bins=set(identity_bins))
                     if similarity_bin and similarity_bin < final_identity_bin:
                         final_identity_bin = similarity_bin
-            count -= 1  # Since the query sequence would be added at the top of the pileup file (see code below)
         else:
             with open(self.protein_data[protein_id]['BLAST_File'], 'rb') as blast_handle:
                 blast_record = NCBIXML.read(blast_handle)
@@ -348,9 +346,11 @@ class DataSetGenerator(object):
                                     abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
                                     min_identity=min_identity, identity_bins=set(identity_bins))
                                 if similarity_bin:
+                                    new_description = '{} HSP_identity={} HSP_alignment_length={}'.format(
+                                        alignment.hit_def, hsp.identities, hsp.align_length)
                                     subject_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
                                                                    id=alignment.hit_id, name=alignment.title,
-                                                                   description=alignment.hit_def)
+                                                                   description=new_description)
                                     sequences[similarity_bin].append(subject_seq_record)
             i = len(identity_bins)
             final_sequences = []
