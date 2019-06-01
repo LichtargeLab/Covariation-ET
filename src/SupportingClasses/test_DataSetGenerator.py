@@ -27,18 +27,18 @@ class TestDataSetGenerator(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # rmtree(cls.input_path)
+        rmtree(cls.input_path)
         del cls.protein_list_fn
         del cls.large_structure_id
         del cls.small_structure_id
         del cls.protein_list_path
         del cls.input_path
 
-    # def tearDown(self):
-    #     for curr_fn in os.listdir(self.input_path):
-    #         curr_dir = os.path.join(self.input_path, curr_fn)
-    #         if os.path.isdir(curr_dir) and curr_fn != 'ProteinLists':
-    #             rmtree(curr_dir)
+    def tearDown(self):
+        for curr_fn in os.listdir(self.input_path):
+            curr_dir = os.path.join(self.input_path, curr_fn)
+            if os.path.isdir(curr_dir) and curr_fn != 'ProteinLists':
+                rmtree(curr_dir)
 
     def test_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
@@ -76,9 +76,9 @@ class TestDataSetGenerator(TestCase):
         seq_small, len_small, seq_fn_small = test_generator._parse_query_sequence(protein_id=self.small_structure_id)
         self.assertTrue(os.path.isdir(sequence_path))
         self.assertEqual('PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLEEMNLPGKWKPKMIGGIGGFIKVRQYDQIPVEIGHKAIGTVLVGPTPVNIIGRNLLTQIG'
-                         'TLNF', str(seq_small))
+                         'TLNF', str(seq_small.seq))
         self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Query_Sequence'].seq),
-                         str(seq_small))
+                         str(seq_small.seq))
         self.assertEqual(len_small, 97)
         self.assertEqual(len(seq_small), len_small)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Sequence_Length'], len_small)
@@ -100,9 +100,9 @@ class TestDataSetGenerator(TestCase):
                          'HYHTEIVFARTSPQQKLIIVEGCQRQGAIVAVTGDGVNDSPALKKADIGVAMGISGSDVSKQAADMILLDDNFASIVTGVEEGRLIFDNLKKS'
                          'IAYTLTSNIPEITPFLVFIIGNVPLPLGTVTILCIDLGTDMVPAISLAYEQAESDIMKRQPRNPKTDKLVNERLISMAYGQIGMIQALGGFFS'
                          'YFVILAENGFLPMDLIGKRVRWDDRWISDVEDSFGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSIFQQGMKNKILIFGLFEE'
-                         'TALAAFLSYCPGTDVALRMYPLKPSWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', str(seq_large))
+                         'TALAAFLSYCPGTDVALRMYPLKPSWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', str(seq_large.seq))
         self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Query_Sequence'].seq),
-                         str(seq_large))
+                         str(seq_large.seq))
         self.assertEqual(len_large, 992)
         self.assertEqual(len(seq_large), len_large)
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['Sequence_Length'], len_large)
@@ -351,7 +351,7 @@ class TestDataSetGenerator(TestCase):
 
     def test_build_dataset(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-        test_generator.build_dataset()
+        test_generator.build_dataset(num_threads=10, max_target_seqs=2000)
         pdb_path = os.path.join(self.input_path, 'PDB')
         expected_pdb_fn_small = os.path.join(pdb_path, '{}'.format(self.small_structure_id[1:3]),
                                              'pdb{}.ent'.format(self.small_structure_id))

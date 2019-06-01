@@ -237,7 +237,6 @@ class DataSetGenerator(object):
         similarity = (identity_count / float(length)) * 100
         similarity_int = floor(similarity)
         similarity_bin = similarity_int - (similarity_int % interval)
-        # print('Identity:{} Identity_Int:{} Initial Bin:{}'.format(similarity, similarity_int, similarity_bin))
         final_bin = None
         if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
             if similarity_bin >= min_identity:
@@ -311,23 +310,21 @@ class DataSetGenerator(object):
         low_quality_pattern = compile(r'^.*(LOW QUALITY).*$')
         if os.path.isfile(pileup_fn):
             self.protein_data[protein_id]['Pileup_File'] = pileup_fn
-            count = 0
             hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+).*$')
             with open(pileup_fn, 'rb') as pileup_handle:
                 fasta_iter = parse(handle=pileup_handle, format='fasta')
-                final_identity_bin = min_identity
                 for seq_record in fasta_iter:
                     if seq_record.description.endswith('Target Query'):  # Skip the target sequence in the pileup.
                         continue
-                    count += 1
                     hsp_data_match = hsp_data_pattern.match(seq_record.description)
                     seq_id = int(hsp_data_match.group(1))
                     seq_len = int(hsp_data_match.group(2))
                     similarity_bin = self.__determine_identity_bin(
                         identity_count=seq_id, length=seq_len, interval=interval, abs_max_identity=abs_max_identity,
                         abs_min_identity=abs_min_identity, min_identity=min_identity, identity_bins=set(identity_bins))
-                    if similarity_bin and similarity_bin < final_identity_bin:
-                        final_identity_bin = similarity_bin
+                    if similarity_bin:
+                        seq_record.alphabet = ExtendedIUPACProtein
+                        sequences[similarity_bin].append(seq_record)
         else:
             with open(self.protein_data[protein_id]['BLAST_File'], 'rb') as blast_handle:
                 blast_record = NCBIXML.read(blast_handle)
@@ -352,12 +349,14 @@ class DataSetGenerator(object):
                                                                    id=alignment.hit_id, name=alignment.title,
                                                                    description=new_description)
                                     sequences[similarity_bin].append(subject_seq_record)
-            i = len(identity_bins)
-            final_sequences = []
-            while len(final_sequences) < 125 and i >= 0:
-                i -= 1
-                final_sequences += sequences[identity_bins[i]]
-            count = len(final_sequences)
+        i = len(identity_bins)
+        final_sequences = []
+        while len(final_sequences) < 125 and i > 0:
+            i -= 1
+            final_sequences += sequences[identity_bins[i]]
+        count = len(final_sequences)
+        final_identity_bin = identity_bins[i]
+        if not os.path.isfile(pileup_fn):
             if ignore_filter_size or len(final_sequences) >= 125:
                 # Add query sequence so that this file can be fed directly to the alignment method.
                 final_sequences = [self.protein_data[protein_id]['Query_Sequence']] + final_sequences
@@ -367,7 +366,6 @@ class DataSetGenerator(object):
                 i -= 1  # To ensure that the index is still within the identity_bins list length
                 pileup_fn = None
                 print('No pileup for pdb: {}, sufficient sequences could not be found'.format(protein_id))
-            final_identity_bin = identity_bins[i]
         self.protein_data[protein_id]['Pileup_File'] = pileup_fn
         return final_identity_bin, count, pileup_fn
 
