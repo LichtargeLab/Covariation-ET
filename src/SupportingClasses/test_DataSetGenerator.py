@@ -227,6 +227,34 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(num_seqs_large1, num_seqs_large2)
         self.assertEqual(min_id_large1, min_id_large2)
 
+    def test__restrict_sequences_ignore_filter_size(self):
+        pileup_path = os.path.join(self.input_path, 'Pileups')
+        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
+        test_generator._download_pdb(protein_id=self.small_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        min_id_small1, num_seqs_small1, pileup_fn_small1 = test_generator._restrict_sequences(
+            protein_id=self.small_structure_id)
+        if pileup_fn_small1 is None:
+            expected_fn_small = os.path.join(pileup_path, '{}.fasta'.format(self.small_structure_id))
+            min_id_small2, num_seqs_small2, pileup_fn_small2 = test_generator._restrict_sequences(
+                protein_id=self.small_structure_id, ignore_filter_size=True)
+            self.assertEqual(min_id_small1, min_id_small2)
+            self.assertEqual(num_seqs_small1, num_seqs_small2)
+            self.assertEqual(pileup_fn_small2, expected_fn_small)
+        test_generator._download_pdb(protein_id=self.large_structure_id)
+        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        min_id_large1, num_seqs_large1, pileup_fn_large1 = test_generator._restrict_sequences(
+            protein_id=self.large_structure_id)
+        if pileup_fn_large1 is None:
+            expected_fn_large = os.path.join(pileup_path, '{}.fasta'.format(self.large_structure_id))
+            min_id_large2, num_seqs_large2, pileup_fn_large2 = test_generator._restrict_sequences(
+                protein_id=self.large_structure_id, ignore_filter_size=True)
+            self.assertEqual(min_id_large1, min_id_large2)
+            self.assertEqual(num_seqs_large1, num_seqs_large2)
+            self.assertEqual(pileup_fn_large2, expected_fn_large)
+
     def test_align_sequences(self):
         alignment_path = os.path.join(self.input_path, 'Alignments')
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)

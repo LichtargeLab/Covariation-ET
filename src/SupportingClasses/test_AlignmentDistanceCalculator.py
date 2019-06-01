@@ -9,21 +9,55 @@ from time import time
 from shutil import rmtree
 from unittest import TestCase
 from Bio.Phylo.TreeConstruction import DistanceCalculator
+from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
+from DataSetGenerator import DataSetGenerator
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from ETMIPWrapper import  ETMIPWrapper
+
 
 class TestSeqAlignment(TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.testing_dir = os.path.abspath('../Test/')
+        cls.input_path = os.path.join(cls.testing_dir, 'Input')
+        cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
+        if not os.path.isdir(cls.protein_list_path):
+            os.makedirs(cls.protein_list_path)
+        cls.small_structure_id = '7hvp'
+        cls.large_structure_id = '2zxe'
+        cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
+        structure_ids = [cls.small_structure_id, cls.large_structure_id]
+        with open(cls.protein_list_fn, 'wb') as test_list_handle:
+            for structure_id in structure_ids:
+                test_list_handle.write('{}\n'.format(structure_id))
+        cls.data_set = DataSetGenerator(protein_list='Test_Set.txt', input_path=cls.input_path)
+        cls.data_set.build_dataset(num_threads=10, max_target_seqs=2000, ignore_filter_size=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        # rmtree(cls.input_path)
+        del cls.data_set
+        del cls.protein_list_fn
+        del cls.large_structure_id
+        del cls.small_structure_id
+        del cls.protein_list_path
+        del cls.input_path
+        del cls.testing_dir
+
     def setUp(self):
-        self.testing_dir = '../Test/'
-        msa_file_small = os.path.join(self.testing_dir, '7hvpA.fa')
-        query_small = 'query_7hvpA'
-        self.query_aln_small = SeqAlignment(file_name=msa_file_small, query_id=query_small)
+        # self.testing_dir = '../Test/'
+        # msa_file_small = os.path.join(self.testing_dir, '7hvpA.fa')
+        # query_small = 'query_7hvpA'
+        # self.query_aln_small = SeqAlignment(file_name=msa_file_small, query_id=query_small)
+        self.query_aln_small = SeqAlignment(file_name=self.data_set[self.small_structure_id]['FA_File'],
+                                            query_id=self.small_structure_id)
         self.query_aln_small.import_alignment()
-        msa_file_big = os.path.join(self.testing_dir, '2zxeA.fa')
-        query_big = 'query_2zxeA'
-        self.query_aln_big = SeqAlignment(file_name=msa_file_big, query_id=query_big)
+        # msa_file_big = os.path.join(self.testing_dir, '2zxeA.fa')
+        # query_big = 'query_2zxeA'
+        # self.query_aln_big = SeqAlignment(file_name=msa_file_big, query_id=query_big)
+        self.query_aln_big = SeqAlignment(file_name=self.data_set[self.large_structure_id]['FA_File'],
+                                          query_id=self.large_structure_id)
         self.query_aln_big.import_alignment()
 
     def tearDown(self):
