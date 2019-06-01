@@ -333,6 +333,8 @@ class DataSetGenerator(object):
                     low_quality_check = low_quality_pattern.search(alignment.hit_def)
                     if fragment_check or low_quality_check:
                         continue
+                    aln_seq_record = None
+                    aln_similarity_bin = None
                     for hsp in alignment.hsps:
                         if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
                             subject_length = len(hsp.sbjct)
@@ -343,12 +345,16 @@ class DataSetGenerator(object):
                                     abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
                                     min_identity=min_identity, identity_bins=set(identity_bins))
                                 if similarity_bin:
-                                    new_description = '{} HSP_identity={} HSP_alignment_length={}'.format(
-                                        alignment.hit_def, hsp.identities, hsp.align_length)
-                                    subject_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
-                                                                   id=alignment.hit_id, name=alignment.title,
-                                                                   description=new_description)
-                                    sequences[similarity_bin].append(subject_seq_record)
+                                    # This check has been added for alignments which have multiple HSPs so that
+                                    # duplicate sequences are not saved.
+                                    if (aln_similarity_bin is None) or (similarity_bin > aln_similarity_bin):
+                                        new_description = '{} HSP_identity={} HSP_alignment_length={}'.format(
+                                            alignment.hit_def, hsp.identities, hsp.align_length)
+                                        aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
+                                                                       id=alignment.hit_id, name=alignment.title,
+                                                                       description=new_description)
+                                        aln_similarity_bin = similarity_bin
+                    sequences[aln_similarity_bin].append(aln_seq_record)
         i = len(identity_bins)
         final_sequences = []
         while len(final_sequences) < 125 and i > 0:
