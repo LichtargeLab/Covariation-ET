@@ -12,8 +12,6 @@ from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
-from Bio import pairwise2
-from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
 from Bio.Align.Applications import MuscleCommandline
@@ -354,7 +352,8 @@ class DataSetGenerator(object):
                                                                        id=alignment.hit_id, name=alignment.title,
                                                                        description=new_description)
                                         aln_similarity_bin = similarity_bin
-                    sequences[aln_similarity_bin].append(aln_seq_record)
+                    if aln_similarity_bin:
+                        sequences[aln_similarity_bin].append(aln_seq_record)
         i = len(identity_bins)
         final_sequences = []
         while len(final_sequences) < 125 and i > 0:
