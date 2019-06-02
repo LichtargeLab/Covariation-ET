@@ -892,6 +892,6 @@ class SeqAlignment(object):
         if not os.path.isfile(new_file_name):
             c_line = MuscleCommandline(muscle_path, input=self.alignment.file_name, out=new_file_name, msf=True)
             c_line()
-        self.msf_path = new_file_name
+            self.msf_path = new_file_name
         else:
             self.msf_path = self.alignment.file_name
