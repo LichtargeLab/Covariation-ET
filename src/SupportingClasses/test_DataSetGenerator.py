@@ -29,18 +29,12 @@ class TestDataSetGenerator(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # rmtree(cls.input_path)
+        rmtree(cls.input_path)
         del cls.protein_list_fn
         del cls.large_structure_id
         del cls.small_structure_id
         del cls.protein_list_path
         del cls.input_path
-
-    # def tearDown(self):
-    #     for curr_fn in os.listdir(self.input_path):
-    #         curr_dir = os.path.join(self.input_path, curr_fn)
-    #         if os.path.isdir(curr_dir) and curr_fn != 'ProteinLists':
-    #             rmtree(curr_dir)
 
     def test_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
