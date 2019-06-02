@@ -6,6 +6,7 @@ Created on May 28, 2019
 import os
 from shutil import rmtree
 from unittest import TestCase
+from multiprocessing import cpu_count
 from DataSetGenerator import DataSetGenerator
 
 
@@ -13,6 +14,7 @@ class TestDataSetGenerator(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.max_threads = cpu_count() - 2
         cls.input_path = os.path.join(os.path.abspath('../Test/'), 'Input')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
@@ -117,8 +119,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._blast_query_sequence(protein_id=self.small_structure_id)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        blast_fn_small = test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=1,
-                                                              max_target_seqs=500)
+        blast_fn_small = test_generator._blast_query_sequence(protein_id=self.small_structure_id,
+                                                              num_threads=1, max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         expected_fn_small = os.path.join(blast_path, '{}.xml'.format(self.small_structure_id))
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_fn_small)
@@ -128,8 +130,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._blast_query_sequence(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        blast_fn_large = test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=1,
-                                                              max_target_seqs=500)
+        blast_fn_large = test_generator._blast_query_sequence(protein_id=self.large_structure_id,
+                                                              num_threads=1, max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         expected_fn_large = os.path.join(blast_path, '{}.xml'.format(self.large_structure_id))
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_fn_large)
@@ -146,8 +148,8 @@ class TestDataSetGenerator(TestCase):
         expected_fn_small = os.path.join(blast_path, '{}.xml'.format(self.small_structure_id))
         if os.path.isfile(expected_fn_small):
             os.remove(expected_fn_small)
-        blast_fn_small = test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10,
-                                                              max_target_seqs=500)
+        blast_fn_small = test_generator._blast_query_sequence(protein_id=self.small_structure_id,
+                                                              num_threads=self.max_threads, max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_fn_small)
         self.assertEqual(blast_fn_small, expected_fn_small)
@@ -159,8 +161,8 @@ class TestDataSetGenerator(TestCase):
         expected_fn_large = os.path.join(blast_path, '{}.xml'.format(self.large_structure_id))
         if os.path.isfile(expected_fn_large):
             os.remove(expected_fn_large)
-        blast_fn_large = test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10,
-                                                              max_target_seqs=500)
+        blast_fn_large = test_generator._blast_query_sequence(protein_id=self.large_structure_id,
+                                                              num_threads=self.max_threads, max_target_seqs=500)
         self.assertTrue(os.path.isdir(blast_path))
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_fn_large)
         self.assertEqual(blast_fn_large, expected_fn_large)
@@ -173,7 +175,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._restrict_sequences(protein_id=self.small_structure_id)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         expected_fn_small = os.path.join(pileup_path, '{}.fasta'.format(self.small_structure_id))
         min_id_small, num_seqs_small, pileup_fn_small = test_generator._restrict_sequences(
             protein_id=self.small_structure_id)
@@ -190,7 +193,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._restrict_sequences(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         expected_fn_large = os.path.join(pileup_path, '{}.fasta'.format(self.large_structure_id))
         min_id_large, num_seqs_large, pileup_fn_large = test_generator._restrict_sequences(
             protein_id=self.large_structure_id)
@@ -208,7 +212,8 @@ class TestDataSetGenerator(TestCase):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         min_id_small1, num_seqs_small1, pileup_fn_small1 = test_generator._restrict_sequences(
             protein_id=self.small_structure_id)
         min_id_small2, num_seqs_small2, pileup_fn_small2 = test_generator._restrict_sequences(
@@ -218,7 +223,8 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(min_id_small1, min_id_small2)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         min_id_large1, num_seqs_large1, pileup_fn_large1 = test_generator._restrict_sequences(
             protein_id=self.large_structure_id)
         min_id_large2, num_seqs_large2, pileup_fn_large2 = test_generator._restrict_sequences(
@@ -232,7 +238,8 @@ class TestDataSetGenerator(TestCase):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         min_id_small1, num_seqs_small1, pileup_fn_small1 = test_generator._restrict_sequences(
             protein_id=self.small_structure_id)
         if pileup_fn_small1 is None:
@@ -244,7 +251,8 @@ class TestDataSetGenerator(TestCase):
             self.assertEqual(pileup_fn_small2, expected_fn_small)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         min_id_large1, num_seqs_large1, pileup_fn_large1 = test_generator._restrict_sequences(
             protein_id=self.large_structure_id)
         if pileup_fn_large1 is None:
@@ -262,7 +270,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._align_sequences(protein_id=self.small_structure_id)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.small_structure_id)
         expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
         expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
@@ -283,7 +292,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._restrict_sequences(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.large_structure_id)
         expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
         expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
@@ -308,7 +318,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._align_sequences(protein_id=self.small_structure_id)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.small_structure_id)
         expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
         expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
@@ -325,7 +336,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._restrict_sequences(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.large_structure_id)
         expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
         expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
@@ -346,7 +358,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._align_sequences(protein_id=self.small_structure_id)
         test_generator._download_pdb(protein_id=self.small_structure_id)
         test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.small_structure_id)
         expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
         expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
@@ -363,7 +376,8 @@ class TestDataSetGenerator(TestCase):
             test_generator._restrict_sequences(protein_id=self.large_structure_id)
         test_generator._download_pdb(protein_id=self.large_structure_id)
         test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=10, max_target_seqs=2000)
+        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
+                                             max_target_seqs=2000)
         test_generator._restrict_sequences(protein_id=self.large_structure_id)
         expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
         expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
@@ -379,7 +393,7 @@ class TestDataSetGenerator(TestCase):
 
     def test_build_dataset(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-        test_generator.build_dataset(num_threads=10, max_target_seqs=2000)
+        test_generator.build_dataset(num_threads=self.max_threads, max_target_seqs=2000)
         pdb_path = os.path.join(self.input_path, 'PDB')
         expected_pdb_fn_small = os.path.join(pdb_path, '{}'.format(self.small_structure_id[1:3]),
                                              'pdb{}.ent'.format(self.small_structure_id))
