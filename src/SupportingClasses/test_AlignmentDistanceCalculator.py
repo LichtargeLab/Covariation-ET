@@ -50,13 +50,13 @@ class TestSeqAlignment(TestCase):
         # msa_file_small = os.path.join(self.testing_dir, '7hvpA.fa')
         # query_small = 'query_7hvpA'
         # self.query_aln_small = SeqAlignment(file_name=msa_file_small, query_id=query_small)
-        self.query_aln_small = SeqAlignment(file_name=self.data_set[self.small_structure_id]['FA_File'],
+        self.query_aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['FA_File'],
                                             query_id=self.small_structure_id)
         self.query_aln_small.import_alignment()
         # msa_file_big = os.path.join(self.testing_dir, '2zxeA.fa')
         # query_big = 'query_2zxeA'
         # self.query_aln_big = SeqAlignment(file_name=msa_file_big, query_id=query_big)
-        self.query_aln_big = SeqAlignment(file_name=self.data_set[self.large_structure_id]['FA_File'],
+        self.query_aln_big = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['FA_File'],
                                           query_id=self.large_structure_id)
         self.query_aln_big.import_alignment()
 
@@ -140,18 +140,19 @@ class TestSeqAlignment(TestCase):
         id_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
         et_calc = AlignmentDistanceCalculator(model='blosum62')
         id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(self.query_aln_small.alignment)
-        diff_aln_dist = np.array(aln_dist_dm1) - np.array(aln_dist_dm2)
+        print(np.array(aln_dist_dm1).shape)
+        print(np.array(aln_dist_dm2).shape)
+        diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
+        diff_aln_dist_threshold = diff_aln_dist > 1e-3
         header = ['Seq1', 'Seq2', 'Min_Seq_Length', 'Id_Count', 'Threshold_Count']
         # from IPython import embed
         # embed()
         # exit()
-        # self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
-        # self.assertTrue(not diff_aln_dist.any())
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
         # print(diff_id_dist)
-        diff_id_threshold = diff_id_dist < 0.01 # Differences may arise in the third decimal place.
-        not_passing = ~ diff_id_threshold
-        not_passing_indices = np.nonzero(not_passing)
+        diff_id_threshold = diff_id_dist > 1e-3 # Differences may arise in the third decimal place.
+        # not_passing = ~ diff_id_threshold
+        not_passing_indices = np.nonzero(diff_id_threshold)
         for i in range(not_passing_indices[0].shape[0]):
             index1 = not_passing_indices[0][i]
             seq1 = id_dist_dm1.names[index1]
@@ -176,7 +177,13 @@ class TestSeqAlignment(TestCase):
                                              correct_row2.iloc[0]['Threshold_Count']))
             print('#' * 100)
         # print(diff_id_threshold)
-        from IPython import embed
-        embed()
+        # from IPython import embed
+        # embed()
         self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
+
+        print(diff_id_threshold.shape)
+        print(diff_id_threshold)
+        print(diff_id_dist)
         self.assertTrue(not diff_id_threshold.any())
+        self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
+        self.assertTrue(not diff_aln_dist_threshold.any())
