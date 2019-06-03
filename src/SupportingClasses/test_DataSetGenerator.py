@@ -53,7 +53,7 @@ class TestDataSetGenerator(TestCase):
         del cls.protein_list_path
         del cls.input_path
 
-    def test_init(self):
+    def test1_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
         self.assertTrue(test_generator.input_path == self.input_path)
         self.assertTrue(test_generator.file_name == os.path.basename(self.protein_list_fn))
@@ -61,7 +61,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertTrue(self.large_structure_id in test_generator.protein_data)
 
-    def test__download_pdb(self):
+    def test2__download_pdb(self):
         pdb_path = os.path.join(self.input_path, 'PDB')
         if os.path.isdir(pdb_path):
             rmtree(pdb_path)
@@ -82,7 +82,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(pdb_fn_large == expected_fn_large)
         self.assertTrue(os.path.isfile(expected_fn_large))
 
-    def test__parse_query_sequence(self):
+    def test3__parse_query_sequence(self):
         sequence_path = os.path.join(self.input_path, 'Sequences')
         if os.path.isdir(sequence_path):
             rmtree(sequence_path)
@@ -112,7 +112,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(seq_fn_large, expexcted_fn_large)
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['Fasta_File'], expexcted_fn_large)
 
-    def test__blast_query_sequence_single_thread(self):
+    def test4a__blast_query_sequence_single_thread(self):
         blast_path = os.path.join(self.input_path, 'BLAST')
         if os.path.isdir(blast_path):
             rmtree(blast_path)
@@ -136,7 +136,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(blast_fn_large, expected_fn_large)
         self.assertTrue(os.path.isfile(blast_fn_large))
 
-    def test__blast_query_sequence_multi_thread(self):
+    def test4b__blast_query_sequence_multi_thread(self):
         blast_path = os.path.join(self.input_path, 'BLAST')
         if os.path.isdir(blast_path):
             rmtree(blast_path)
@@ -166,7 +166,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(blast_fn_large, expected_fn_large)
         self.assertTrue(os.path.isfile(blast_fn_large))
 
-    def test__restrict_sequences(self):
+    def test4c__restrict_sequences(self):
         pileup_path = os.path.join(self.input_path, 'Pileups')
         if os.path.isdir(pileup_path):
             rmtree(pileup_path)
@@ -204,7 +204,7 @@ class TestDataSetGenerator(TestCase):
             self.assertIsNone(pileup_fn_large)
             self.assertIsNone(test_generator.protein_data[self.large_structure_id]['Pileup_File'])
 
-    def test__restrict_sequences_loading(self):
+    def test5a__restrict_sequences_loading(self):
         pileup_path = os.path.join(self.input_path, 'Pileups')
         if os.path.isdir(pileup_path):
             rmtree(pileup_path)
@@ -232,8 +232,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(num_seqs_large1, num_seqs_large2)
         self.assertEqual(min_id_large1, min_id_large2)
 
-    def test__restrict_sequences_ignore_filter_size(self):
-        pileup_path = os.path.join(self.input_path, 'Pileups')
+    def test5b__restrict_sequences_ignore_filter_size(self):
         pileup_path = os.path.join(self.input_path, 'Pileups')
         if os.path.isdir(pileup_path):
             rmtree(pileup_path)
@@ -265,7 +264,7 @@ class TestDataSetGenerator(TestCase):
             self.assertEqual(num_seqs_large1, num_seqs_large2)
             self.assertEqual(pileup_fn_large2, expected_fn_large)
 
-    def test_align_sequences(self):
+    def test6a__align_sequences(self):
         alignment_path = os.path.join(self.input_path, 'Alignments')
         if os.path.isdir(alignment_path):
             rmtree(alignment_path)
@@ -311,7 +310,7 @@ class TestDataSetGenerator(TestCase):
             self.assertFalse(os.path.isfile(expected_fa_fn_large))
             self.assertIsNone(test_generator.protein_data[self.large_structure_id]['FA_File'])
 
-    def test_align_sequences_msf_only(self):
+    def test6b__align_sequences_msf_only(self):
         alignment_path = os.path.join(self.input_path, 'Alignments')
         if os.path.isdir(alignment_path):
             rmtree(alignment_path)
@@ -349,7 +348,7 @@ class TestDataSetGenerator(TestCase):
         self.assertFalse(os.path.isfile(expected_fa_fn_large))
         self.assertIsNone(fa_fn_large)
 
-    def test_align_sequences_fasta_only(self):
+    def test6c__align_sequences_fasta_only(self):
         alignment_path = os.path.join(self.input_path, 'Alignments')
         if os.path.isdir(alignment_path):
             rmtree(alignment_path)
@@ -387,7 +386,7 @@ class TestDataSetGenerator(TestCase):
         self.assertFalse(os.path.isfile(expected_msf_fn_large))
         self.assertIsNone(msf_fn_large)
 
-    def test_build_dataset(self):
+    def test7_build_dataset(self):
         for curr_fn in os.listdir(self.input_path):
             curr_dir = os.path.join(self.input_path, curr_fn)
             if os.path.isdir(curr_dir) and curr_fn != 'ProteinLists':
