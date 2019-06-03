@@ -15,7 +15,7 @@ from DataSetGenerator import DataSetGenerator
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
-class TestSeqAlignment(TestCase):
+class TestAlignmentDistanceCalculator(TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -131,7 +131,8 @@ class TestSeqAlignment(TestCase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
         if not os.path.isdir(wetc_test_dir):
             os.mkdir(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_small)
+        et_mip_obj = ETMIPWrapper(alignment=SeqAlignment(
+            query_id=self.small_structure_id,file_name=self.data_set.protein_data[self.small_structure_id]['MSF_File']))
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
         aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir)
         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
