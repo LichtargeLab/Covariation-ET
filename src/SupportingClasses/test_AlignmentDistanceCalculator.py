@@ -46,16 +46,9 @@ class TestSeqAlignment(TestCase):
         del cls.testing_dir
 
     def setUp(self):
-        # self.testing_dir = '../Test/'
-        # msa_file_small = os.path.join(self.testing_dir, '7hvpA.fa')
-        # query_small = 'query_7hvpA'
-        # self.query_aln_small = SeqAlignment(file_name=msa_file_small, query_id=query_small)
         self.query_aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['FA_File'],
                                             query_id=self.small_structure_id)
         self.query_aln_small.import_alignment()
-        # msa_file_big = os.path.join(self.testing_dir, '2zxeA.fa')
-        # query_big = 'query_2zxeA'
-        # self.query_aln_big = SeqAlignment(file_name=msa_file_big, query_id=query_big)
         self.query_aln_big = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['FA_File'],
                                           query_id=self.large_structure_id)
         self.query_aln_big.import_alignment()
@@ -128,9 +121,9 @@ class TestSeqAlignment(TestCase):
         self.assertTrue(not diff.any())
 
     def test_get_et_distance_small(self):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
-            os.mkdir(wetc_test_dir)
+            os.makedirs(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_small)
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
         aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir)
@@ -140,50 +133,46 @@ class TestSeqAlignment(TestCase):
         id_dist_dm1 = SeqAlignment._convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
         et_calc = AlignmentDistanceCalculator(model='blosum62')
         id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(self.query_aln_small.alignment)
-        print(np.array(aln_dist_dm1).shape)
-        print(np.array(aln_dist_dm2).shape)
+        # print(np.array(aln_dist_dm1).shape)
+        # print(np.array(aln_dist_dm2).shape)
         diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
-        diff_aln_dist_threshold = diff_aln_dist > 1e-3
-        header = ['Seq1', 'Seq2', 'Min_Seq_Length', 'Id_Count', 'Threshold_Count']
-        # from IPython import embed
-        # embed()
-        # exit()
+        diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
+        # header = ['Seq1', 'Seq2', 'Min_Seq_Length', 'Id_Count', 'Threshold_Count']
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
         # print(diff_id_dist)
-        diff_id_threshold = diff_id_dist > 1e-3 # Differences may arise in the third decimal place.
+        diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
         # not_passing = ~ diff_id_threshold
-        not_passing_indices = np.nonzero(diff_id_threshold)
-        for i in range(not_passing_indices[0].shape[0]):
-            index1 = not_passing_indices[0][i]
-            seq1 = id_dist_dm1.names[index1]
-            index2 = not_passing_indices[1][i]
-            seq2 = id_dist_dm1.names[index2]
-            print('#' * 100)
-            correct_ind1 = (intermediate_df1['Seq1'] == seq1) & (intermediate_df1['Seq2'] == seq2)
-            if not correct_ind1.any():
-                correct_ind1 = (intermediate_df1['Seq1'] == seq2) & (intermediate_df1['Seq2'] == seq1)
-            correct_row1 = intermediate_df1.loc[correct_ind1, header]
-            # print(intermediate_df1.loc[correct_ind1, header])
-            print('{}:{}\t{}\t{}\t{}'.format(correct_row1.iloc[0]['Seq1'], correct_row1.iloc[0]['Seq2'],
-                                             correct_row1.iloc[0]['Min_Seq_Length'], correct_row1.iloc[0]['Id_Count'],
-                                             correct_row1.iloc[0]['Threshold_Count']))
-            correct_ind2 = (intermediate_df2['Seq1'] == seq1) & (intermediate_df2['Seq2'] == seq2)
-            if not correct_ind2.any():
-                correct_ind2 = (intermediate_df2['Seq1'] == seq2) & (intermediate_df2['Seq2'] == seq1)
-            correct_row2 = intermediate_df2.loc[correct_ind2, header]
-            # print(intermediate_df2.loc[correct_ind2, header])
-            print('{}:{}\t{}\t{}\t{}'.format(correct_row2.iloc[0]['Seq1'], correct_row2.iloc[0]['Seq2'],
-                                             correct_row2.iloc[0]['Min_Seq_Length'], correct_row2.iloc[0]['Id_Count'],
-                                             correct_row2.iloc[0]['Threshold_Count']))
-            print('#' * 100)
+        # not_passing_indices = np.nonzero(diff_id_threshold)
+        # for i in range(not_passing_indices[0].shape[0]):
+        #     index1 = not_passing_indices[0][i]
+        #     seq1 = id_dist_dm1.names[index1]
+        #     index2 = not_passing_indices[1][i]
+        #     seq2 = id_dist_dm1.names[index2]
+        #     print('#' * 100)
+        #     correct_ind1 = (intermediate_df1['Seq1'] == seq1) & (intermediate_df1['Seq2'] == seq2)
+        #     if not correct_ind1.any():
+        #         correct_ind1 = (intermediate_df1['Seq1'] == seq2) & (intermediate_df1['Seq2'] == seq1)
+        #     correct_row1 = intermediate_df1.loc[correct_ind1, header]
+        #     # print(intermediate_df1.loc[correct_ind1, header])
+        #     print('{}:{}\t{}\t{}\t{}'.format(correct_row1.iloc[0]['Seq1'], correct_row1.iloc[0]['Seq2'],
+        #                                      correct_row1.iloc[0]['Min_Seq_Length'], correct_row1.iloc[0]['Id_Count'],
+        #                                      correct_row1.iloc[0]['Threshold_Count']))
+        #     correct_ind2 = (intermediate_df2['Seq1'] == seq1) & (intermediate_df2['Seq2'] == seq2)
+        #     if not correct_ind2.any():
+        #         correct_ind2 = (intermediate_df2['Seq1'] == seq2) & (intermediate_df2['Seq2'] == seq1)
+        #     correct_row2 = intermediate_df2.loc[correct_ind2, header]
+        #     # print(intermediate_df2.loc[correct_ind2, header])
+        #     print('{}:{}\t{}\t{}\t{}'.format(correct_row2.iloc[0]['Seq1'], correct_row2.iloc[0]['Seq2'],
+        #                                      correct_row2.iloc[0]['Min_Seq_Length'], correct_row2.iloc[0]['Id_Count'],
+        #                                      correct_row2.iloc[0]['Threshold_Count']))
+        #     print('#' * 100)
         # print(diff_id_threshold)
         # from IPython import embed
         # embed()
         self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
-
-        print(diff_id_threshold.shape)
-        print(diff_id_threshold)
-        print(diff_id_dist)
+        # print(diff_id_threshold.shape)
+        # print(diff_id_threshold)
+        # print(diff_id_dist)
         self.assertTrue(not diff_id_threshold.any())
         self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
         self.assertTrue(not diff_aln_dist_threshold.any())
