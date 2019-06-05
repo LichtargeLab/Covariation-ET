@@ -4,8 +4,10 @@ Created on May 23, 2019
 @author: Daniel Konecki
 """
 import os
+import argparse
 from re import compile
-from numpy import floor
+from numpy import floor, mean
+from multiprocessing import cpu_count
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
 from Bio.SeqIO import write, parse
@@ -17,6 +19,7 @@ from Bio.PDB.Polypeptide import three_to_one, is_aa
 from Bio.Align.Applications import MuscleCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
+from SeqAlignment import SeqAlignment
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -211,40 +214,6 @@ class DataSetGenerator(object):
         self.protein_data[protein_id]['BLAST_File'] = blast_fn
         return blast_fn
 
-    @staticmethod
-    def __determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity,
-                                 min_identity, identity_bins):
-        """
-        Determine Identity Bin
-
-        This method determines which identity bin a sequence belongs in based on the settings used for filtering
-        sequences in the _restrict_sequences function.
-
-        Args:
-            identity_count (int): The number of positions which match between the query and the BLAST hit.
-            length (int): The number of positions in the aligned sequence (including gaps).
-            interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
-            sufficient sequences are not found at min_identity.
-            abs_max_identity (int): The absolute maximum identity for a passing hit.
-            abs_min_identity (int): The absolute minimum identity for a passing hit.
-            min_identity (int): The preferred minimum identity for a passing hit.
-            identity_bins (set): All of the possible identity bin options.
-        Returns:
-            float: The identity bin in which the sequence belongs.
-        """
-        similarity = (identity_count / float(length)) * 100
-        similarity_int = floor(similarity)
-        similarity_bin = similarity_int - (similarity_int % interval)
-        final_bin = None
-        if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
-            if similarity_bin >= min_identity:
-                final_bin = min_identity
-            elif similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
-                final_bin = abs_min_identity
-            else:
-                final_bin = similarity_bin
-        return final_bin
-
     def _restrict_sequences(self, protein_id, e_value_threshold=0.05, min_fraction=0.7, max_fraction=1.5,
                             min_identity=75, abs_max_identity=95, abs_min_identity=30, interval=5,
                             ignore_filter_size=False):
@@ -317,7 +286,7 @@ class DataSetGenerator(object):
                     hsp_data_match = hsp_data_pattern.match(seq_record.description)
                     seq_id = int(hsp_data_match.group(1))
                     seq_len = int(hsp_data_match.group(2))
-                    similarity_bin = self.__determine_identity_bin(
+                    similarity_bin = determine_identity_bin(
                         identity_count=seq_id, length=seq_len, interval=interval, abs_max_identity=abs_max_identity,
                         abs_min_identity=abs_min_identity, min_identity=min_identity, identity_bins=set(identity_bins))
                     if similarity_bin:
@@ -419,6 +388,40 @@ class DataSetGenerator(object):
         return msf_fn, fa_fn
 
 
+def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,
+                           identity_bins):
+    """
+    Determine Identity Bin
+
+    This method determines which identity bin a sequence belongs in based on the settings used for filtering
+    sequences in the _restrict_sequences function.
+
+    Args:
+        identity_count (int): The number of positions which match between the query and the BLAST hit.
+        length (int): The number of positions in the aligned sequence (including gaps).
+        interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
+        sufficient sequences are not found at min_identity.
+        abs_max_identity (int): The absolute maximum identity for a passing hit.
+        abs_min_identity (int): The absolute minimum identity for a passing hit.
+        min_identity (int): The preferred minimum identity for a passing hit.
+        identity_bins (set): All of the possible identity bin options.
+    Returns:
+        float: The identity bin in which the sequence belongs.
+    """
+    similarity = (identity_count / float(length)) * 100
+    similarity_int = floor(similarity)
+    similarity_bin = similarity_int - (similarity_int % interval)
+    final_bin = None
+    if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
+        if similarity_bin >= min_identity:
+            final_bin = min_identity
+        elif similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
+            final_bin = abs_min_identity
+        else:
+            final_bin = similarity_bin
+    return final_bin
+
+
 def batch_iterator(iterator, batch_size):
     """
     Batch Iterator
@@ -482,3 +485,178 @@ def filter_uniref_fasta(in_path, out_path):
                 with open(out_path, 'ab') as out_handle:
                     write(sequences=sequences, handle=out_handle, format='fasta')
                 sequences = []
+
+
+def characterize_alignment(file_name, query_id, abs_max_identity=95, abs_min_identity=30, min_identity=75, interval=5):
+    """
+    Characterize Alignment
+
+    This function seqs to characterize a given fasta formatted alignment in the same way which the DataSetGenerator uses
+    when filtering sequences returned by the BLAST search.
+
+    Args:
+        file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is
+        used (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
+        query_id (str): The sequence identifier of interest.
+        abs_max_identity (int): The absolute maximum identity for a passing hit.
+        abs_min_identity (int): The absolute minimum identity for a passing hit.
+        min_identity (int): The preferred minimum identity for a passing hit.
+        interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
+        sufficient sequences are not found at min_identity.
+    Returns:
+         float: The lowest fraction sequence length (expressed as a decimal) as compared to the query sequence.
+         float: The highest fraction sequence length (expressed as a decimal) as compared to the query sequence.
+         set: All fraction lengths observed in the provided alignment.
+         dict: A dictionary mapping the identity bins, created by the provided abs_max_identity, abs_min_identity,
+         min_identity, and interval values, to lists of sequence identifiers falling in that bin.
+         dict: A dictionary mapping identity values, falling outside of the computed bins, to sequence identifiers
+         having those identities when compared to the query sequence.
+    """
+    aln = SeqAlignment(file_name=file_name, query_id=query_id)
+    aln.import_alignment()
+    query_pos = aln.seq_order.index(query_id)
+    full_query = str(aln.alignment[query_pos].seq)
+    aligned_length = len(full_query)
+    max_fraction = 0.0
+    min_fraction = 1.0
+    seq_fractions = []
+    identity_bins = list(range(abs_min_identity, min_identity, interval))
+    sequences = {x: [] for x in identity_bins}
+    out_of_range = {}
+    if min_identity not in sequences:
+        identity_bins.append(min_identity)
+        sequences[min_identity] = []
+    for i in range(aln.size):
+        if aln.seq_order[i] == query_id:
+            continue
+        full_seq = str(aln.alignment[i].seq)
+        ungapped_seq = len(full_seq.replace('-', ''))
+        subject_fraction = ungapped_seq / float(aln.seq_length)
+        if subject_fraction > max_fraction:
+            max_fraction = subject_fraction
+        if subject_fraction < min_fraction:
+            min_fraction = subject_fraction
+        seq_fractions.append(subject_fraction)
+        id_count = 0
+        for j in range(aligned_length):
+            if full_query[j] == full_seq[j]:
+                id_count += 1
+        similarity_bin = determine_identity_bin(identity_count=id_count, length=aligned_length, interval=interval,
+                                                abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
+                                                min_identity=min_identity, identity_bins=set(identity_bins))
+        if similarity_bin is None:
+            identity = id_count / float(aligned_length)
+            if identity not in out_of_range:
+                out_of_range[identity] = []
+            out_of_range[identity].append(aln.seq_order[i])
+        else:
+            sequences[similarity_bin].append(aln.seq_order[i])
+    return min_fraction, max_fraction, seq_fractions, sequences, out_of_range
+
+
+def parse_arguments():
+    """
+    parse arguments
+
+    This method provides a nice interface for parsing command line arguments and includes help functionality.
+
+    Returns:
+        dict. A dictionary containing the arguments parsed from the command line and their arguments.
+    """
+    # Create input parser
+    parser = argparse.ArgumentParser(description='Process DataSetGenerator command line arguments.')
+    # Arguments for creating BLAST database input from a uniref fasta
+    parser.add_argument('--custom_uniref', default=False, action='store_true',
+                        help='Set this argument  to create a new fasta file as input to the makeblastdb tool.')
+    parser.add_argument('--original_uniref_fasta', type=str, nargs='?',
+                        help='The fasta to be filtered for the makeblastdb tool')
+    parser.add_argument('--filtered_uniref_fasta', type=str, nargs='?',
+                        help='The path where the filtered uniref fasta file should be saved.')
+    # Arguments for characterizing an existing alignment
+    parser.add_argument('--characterize_alignment', default=False, action='store_true',
+                        help='Set this argument  to generate statistics on an alignment.')
+    parser.add_argument('--file_name', type=str, nargs='?',
+                        help="The path to the file from which the alignment can be parsed. If a relative path is used "
+                             "(i.e. the '..' prefix), python's path library will be used to attempt to define the full "
+                             "path.")
+    parser.add_argument('--query_id', type=str, nargs='?',
+                        help='The sequence identifier of interest.')
+    # Arguments for creating a data set using the DataSet generator
+    parser.add_argument('--create_data_set', default=False, action='store_true',
+                        help='Set this argument to create a data set, i.e. download and generate all input files.')
+    parser.add_argument('--input_dir', type=str, nargs='?', help='The path to the directory where the data for this '
+                                                                 'data set should be stored. It is expected to contain '
+                                                                 'at least one directory name ProteinLists which should'
+                                                                 ' contain files where each line denotes a separate PDB'
+                                                                 ' id (four letter code only).')
+    parser.add_argument('--protein_list_fn', type=str, nargs='?',
+                        help='The name of the file where the list of PDB ids (four letter codes) of which the data set '
+                             'consists can be found. Each id is expected to be on its own line.')
+    parser.add_argument('--num_threads', type=int, default=1, nargs=1,
+                        help='The number of threads to use when performing the BLAST search.')
+    parser.add_argument('--max_target_seqs', type=int, default=20000, nargs=1,
+                        help='The maximum number of hits to look for in the BLAST database.')
+    parser.add_argument('--e_value_threshold', type=float, default=0.05, nargs=1,
+                        help='The maximum e-value for a passing hit.')
+    parser.add_argument('--min_fraction', type=float, default=0.7, nargs=1,
+                        help='The minimum fraction of the query sequence length for a passing hit.')
+    parser.add_argument('--max_fraction', type=float, default=1.5, nargs=1,
+                        help='The maximum fraction of the query sequence length for a passing hit.')
+    parser.add_argument('--min_identity', type=int, default=75, nargs=1,
+                        help='The preferred minimum identity for a passing hit.')
+    parser.add_argument('--abs_max_identity', type=int, default=95, nargs=1,
+                        help='The absolute maximum identity for a passing hit.')
+    parser.add_argument('--abs_min_identity', type=int, default=30, nargs=1,
+                        help='The absolute minimum identity for a passing hit.')
+    parser.add_argument('--interval', type=int, default=5, nargs=1,
+                        help='The interval on which to define bins between min_identity and abs_min_identity in case '
+                             'sufficient sequences are not found at min_identity.')
+    parser.add_argument('--ignore_filter_size', type=bool, default=False, nargs=1,
+                        help='Whether or not to ignore the 125 sequence requirement before writing the filtered '
+                             'sequences to file.')
+    parser.add_argument('--msf', type=bool, default=True, nargs=1,
+                        help='Whether or not to create an msf version of the MUSCLE alignment.')
+    parser.add_argument('--fasta', type=bool, default=True, nargs=1,
+                        help='Whether or not to create an fasta version of the MUSCLE alignment.')
+    # Clean command line input
+    arguments = parser.parse_args()
+    arguments = vars(arguments)
+    processor_count = cpu_count()
+    if arguments['num_threads'] > processor_count:
+        arguments['num_threads'] = processor_count
+    if arguments['custom_uniref']:
+        if (not 'original_uniref_fasta' in arguments) or (not 'filtered_uniref_fasta'):
+            raise ValueError('When custom_uniref is selected original_uniref_fasta and filtered_uniref_fasta must be specfied.')
+    if arguments['characterize_alignment']:
+        if (not 'file_name' in arguments) or (not 'query_id' in arguments):
+            raise ValueError('When characterize_alignment is selected file_name and query_id must be specified.')
+    if arguments['create_data_set']:
+        if (not 'input_dir' in arguments) or (not 'protein_list_fn' in arguments):
+            raise ValueError('When create_data_set is selected input_dir and protein_list_fn must be specified.')
+    return arguments
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    if args['custom_uniref']:
+        filter_uniref_fasta(in_path=args['original_uniref_fasta'], out_path=args['filtered_uniref_fasta'])
+    if args['characterize_alignment']:
+        res = characterize_alignment(file_name=args['file_name'], query_id=args['query_id'],
+                                     abs_max_identity=args['abs_max_identity'],
+                                     abs_min_identity=args['abs_min_identity'], min_identity=args['min_identity'],
+                                     interval=args['interval'])
+        print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}\n\tAverage:\t{}'.format(res[0], res[1], mean(res[2])))
+        print('\nSequence Identities:\n')
+        for id_bin in sorted(res[3].keys()):
+            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(res[3][id_bin])))
+        print('\nSequence Identities Outside Expected Range:\n')
+        for id_bin in sorted(res[4].keys()):
+            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(res[4][id_bin])))
+    if args['create_data_set']:
+        generator = DataSetGenerator(protein_list=args['protein_list_fn'], input_path=args['input_dir'])
+        generator.build_dataset(num_threads=args['num_threads'], max_target_seqs=args['max_target_seqs'],
+                                e_value_threshold=args['e_value_threshold'], min_fraction=args['min_fraction'],
+                                max_fraction=args['max_fraction'], min_identity=args['min_identity'],
+                                abs_max_identity=args['abs_max_identity'], abs_min_identity=args['abs_min_identity'],
+                                interval=args['interval'], ignore_filter_size=args['ignore_filter_size'],
+                                msf=args['msf'], fasta=args['fasta'])
