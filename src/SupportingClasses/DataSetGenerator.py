@@ -307,7 +307,7 @@ class DataSetGenerator(object):
                             subject_length = len(hsp.sbjct)
                             subject_fraction = subject_length / float(self.protein_data[protein_id]['Sequence_Length'])
                             if (min_fraction <= subject_fraction) and (subject_fraction <= max_fraction):
-                                similarity_bin = self.__determine_identity_bin(
+                                similarity_bin = determine_identity_bin(
                                     identity_count=hsp.identities, length=hsp.align_length, interval=interval,
                                     abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
                                     min_identity=min_identity, identity_bins=set(identity_bins))
@@ -323,13 +323,13 @@ class DataSetGenerator(object):
                                         aln_similarity_bin = similarity_bin
                     if aln_similarity_bin:
                         sequences[aln_similarity_bin].append(aln_seq_record)
-        i = len(identity_bins)
         final_sequences = []
-        while len(final_sequences) < 125 and i > 0:
-            i -= 1
+        # Build up the list of sequences from each identity bin (track which one yielded the 125th sequence)
+        for i in range(len(identity_bins), -1, -1):
             final_sequences += sequences[identity_bins[i]]
+            if len(final_sequences) >= 125:
+                final_identity_bin = identity_bins[i]
         count = len(final_sequences)
-        final_identity_bin = identity_bins[i]
         if not os.path.isfile(pileup_fn):
             if ignore_filter_size or len(final_sequences) >= 125:
                 # Add query sequence so that this file can be fed directly to the alignment method.
@@ -337,7 +337,6 @@ class DataSetGenerator(object):
                 with open(pileup_fn, 'wb') as pileup_handle:
                     write(sequences=final_sequences, handle=pileup_handle, format='fasta')
             else:
-                i -= 1  # To ensure that the index is still within the identity_bins list length
                 pileup_fn = None
                 print('No pileup for pdb: {}, sufficient sequences could not be found'.format(protein_id))
         self.protein_data[protein_id]['Pileup_File'] = pileup_fn
@@ -531,7 +530,7 @@ def characterize_alignment(file_name, query_id, abs_max_identity=95, abs_min_ide
             continue
         full_seq = str(aln.alignment[i].seq)
         ungapped_seq = len(full_seq.replace('-', ''))
-        subject_fraction = ungapped_seq / float(aln.seq_length)
+        subject_fraction = ungapped_seq / float(len(str(aln.query_sequence).replace('-', '')))
         if subject_fraction > max_fraction:
             max_fraction = subject_fraction
         if subject_fraction < min_fraction:
