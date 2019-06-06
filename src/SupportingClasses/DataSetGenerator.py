@@ -342,7 +342,7 @@ class DataSetGenerator(object):
         self.protein_data[protein_id]['Pileup_File'] = pileup_fn
         return final_identity_bin, count, pileup_fn
 
-    def _align_sequences(self, protein_id, msf=True, fasta=True):
+    def _align_sequences(self, protein_id, msf=True, fasta=True, source='Pileup_File'):
         """
         Align Sequences
 
@@ -359,8 +359,7 @@ class DataSetGenerator(object):
             str: The path to the fasta alignment produced by this method (None if fa=False).
         """
         clustalw_path = os.environ.get('CLUSTALW_PATH')
-        # muscle_path = os.environ.get('MUSCLE_PATH')
-        if self.protein_data[protein_id]['Pileup_File'] is None:
+        if self.protein_data[protein_id][source] is None:
             raise ValueError('Attempting to perform alignment before pileup file was generated.')
         alignment_path = os.path.join(self.input_path, 'Alignments')
         if not os.path.isdir(alignment_path):
@@ -369,10 +368,8 @@ class DataSetGenerator(object):
         if fasta:
             fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
             if not os.path.isfile(fa_fn):
-                fa_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id]['Pileup_File'],
+                fa_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id][source],
                                                align=True, quicktree=True, outfile=fa_fn, output='FASTA')
-                # fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
-                #                          msf=False)
                 print(fa_cline)
                 stdout, stderr = fa_cline()
                 print(stdout)
@@ -385,10 +382,8 @@ class DataSetGenerator(object):
                     msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn,
                                                     output='GCG')
                 else:
-                    msf_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id]['Pileup_File'],
+                    msf_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id][source],
                                                align=True, quicktree=True, outfile=msf_fn, output='GCG')
-                    # msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'],
-                    #                               out=msf_fn, msf=True)
                 print(msf_cline)
                 stdout, stderr = msf_cline()
                 print(stdout)
