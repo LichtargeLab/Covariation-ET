@@ -16,7 +16,7 @@ from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
-from Bio.Align.Applications import MuscleCommandline
+from Bio.Align.Applications import MuscleCommandline, ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
 from SeqAlignment import SeqAlignment
@@ -325,7 +325,7 @@ class DataSetGenerator(object):
                         sequences[aln_similarity_bin].append(aln_seq_record)
         final_sequences = []
         # Build up the list of sequences from each identity bin (track which one yielded the 125th sequence)
-        for i in range(len(identity_bins), -1, -1):
+        for i in range(len(identity_bins) - 1, -1, -1):
             final_sequences += sequences[identity_bins[i]]
             if len(final_sequences) >= 125:
                 final_identity_bin = identity_bins[i]
@@ -346,9 +346,9 @@ class DataSetGenerator(object):
         """
         Align Sequences
 
-        This method uses MUSCLE to align the query sequence and all of the hits from BLAST which passed the filtering
-        process by default the alignment is performed twice, once to produce a fasta alignment file, and once to produce
-        the msf alignment file, however either of these options can be turned off.
+        This method uses CLUSTALW to align the query sequence and all of the hits from BLAST which passed the filtering
+        process by default the alignment is performed once, to produce a fasta alignment file, and then converted to
+        produce the msf alignment file, however either of these options can be turned off.
 
         Args:
             protein_id (str): Four letter code for the PDB id for which an alignment should be performed.
@@ -358,28 +358,39 @@ class DataSetGenerator(object):
             str: The path to the msf alignment produced by this method (None if msf=False).
             str: The path to the fasta alignment produced by this method (None if fa=False).
         """
-        muscle_path = os.environ.get('MUSCLE_PATH')
+        clustalw_path = os.environ.get('CLUSTALW_PATH')
+        # muscle_path = os.environ.get('MUSCLE_PATH')
+        if self.protein_data[protein_id]['Pileup_File'] is None:
+            raise ValueError('Attempting to perform alignment before pileup file was generated.')
         alignment_path = os.path.join(self.input_path, 'Alignments')
         if not os.path.isdir(alignment_path):
             os.makedirs(alignment_path)
-        msf_fn = None
-        if self.protein_data[protein_id]['Pileup_File'] and msf:
-            msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
-            if not os.path.isfile(msf_fn):
-                msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'],
-                                              out=msf_fn, msf=True)
-                print(msf_cline)
-                stdout, stderr = msf_cline()
-                print(stdout)
-                print(stderr)
         fa_fn = None
-        if self.protein_data[protein_id]['Pileup_File'] and fasta:
+        if fasta:
             fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
             if not os.path.isfile(fa_fn):
-                fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
-                                         msf=False)
+                fa_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id]['Pileup_File'],
+                                               align=True, quicktree=True, outfile=fa_fn, output='FASTA')
+                # fa_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'], out=fa_fn,
+                #                          msf=False)
                 print(fa_cline)
                 stdout, stderr = fa_cline()
+                print(stdout)
+                print(stderr)
+        msf_fn = None
+        if msf:
+            msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
+            if not os.path.isfile(msf_fn):
+                if fasta:
+                    msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn,
+                                                    output='GCG')
+                else:
+                    msf_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id]['Pileup_File'],
+                                               align=True, quicktree=True, outfile=msf_fn, output='GCG')
+                    # msf_cline = MuscleCommandline(muscle_path, input=self.protein_data[protein_id]['Pileup_File'],
+                    #                               out=msf_fn, msf=True)
+                print(msf_cline)
+                stdout, stderr = msf_cline()
                 print(stdout)
                 print(stderr)
         self.protein_data[protein_id]['MSF_File'] = msf_fn
