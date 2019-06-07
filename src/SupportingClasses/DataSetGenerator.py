@@ -63,6 +63,8 @@ class DataSetGenerator(object):
             self.input_path = input_path
         self.protein_list_path = os.path.join(self.input_path, 'ProteinLists')
         self.pdb_path = os.path.join(self.input_path, 'PDB')
+        self.sequence_path = os.path.join(self.input_path, 'Sequences')
+        self.blast_path = os.path.join(self.input_path, 'BLAST')
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
@@ -74,11 +76,13 @@ class DataSetGenerator(object):
         This method builds a complete data set based on the protein id list specified in the constructor.
 
         Args:
-            protein_list_fn (str): The name of the file where the list of PDB ids (four letter codes) of which the data set
-            consists can be found. Each id is expected to be on its own line.
+            protein_list_fn (str): The name of the file where the list of PDB ids (five letter codes, first four
+            characters are the PDB ID and the last character is the chain id) of which the data set consists can be
+            found. Each id is expected to be on its own line.
             num_threads (int): The number of threads to use when performing the BLAST search.
             max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
             e_value_threshold (float): The maximum e-value for a passing hit.
+
             min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
             max_fraction (float): The maximum fraction of the query sequence length for a passing hit.
             min_identity (int): The preferred minimum identity for a passing hit.
@@ -97,7 +101,15 @@ class DataSetGenerator(object):
         self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
         for protein_id in self.protein_data:
             self.protein_data[protein_id]['PDB'] = download_pdb(pdb_path=self.pdb_path, protein_id=protein_id)
-            self._parse_query_sequence(protein_id=protein_id)
+            curr_seq, curr_len, curr_seq_fn = parse_query_sequence(protein_id=protein_id,
+                                                                   chain_id=self.protein_data[protein_id]['Chain'],
+                                                                   sequence_path=self.sequence_path,
+                                                                   pdb_fn=self.protein_data[protein_id]['PDB'])
+            self.protein_data[protein_id]['Sequence'] = curr_seq
+            self.protein_data[protein_id]['Length'] = curr_len
+            self.protein_data[protein_id]['Seq_Fasta'] = curr_seq_fn
+            self.protein_data[protein_id]['BLAST'] = blast_query_sequence(
+                protein_id=protein_id, blast_path=self.blast_path, sequence_fn=curr_seq_fn, num_threads=num_threads, max_target_seqs=max_target_seqs, database=database, remote=remote)
             self._blast_query_sequence(protein_id=protein_id, num_threads=num_threads, max_target_seqs=max_target_seqs)
             self._restrict_sequences(protein_id=protein_id, e_value_threshold=e_value_threshold,
                                      min_fraction=min_fraction, max_fraction=max_fraction, min_identity=min_identity,
@@ -106,48 +118,6 @@ class DataSetGenerator(object):
             self._align_sequences(protein_id=protein_id, msf=msf, fasta=fasta)
 
     # def generate_protein_data(self, protein_id):
-
-    def _blast_query_sequence(self, protein_id, num_threads=1, max_target_seqs=20000, database='nr', remote=False):
-        """
-        BlAST Query Sequence
-
-        This function uses a local instance of the BLAST tool and the uniref 90 database to search for homologs and
-        orthologs of the specified protein. The blast results are stored in a subdirectory of the input_path named BLAST
-        with a file name following the pattern {protein id}.xml. This method assumes that _parse_query_sequence has
-        already been performed for the specified protein id.
-
-        Args:
-            protein_id (str): Four letter code for the PDB id whose sequence should be searched using BLAST.
-            num_threads (int): The number of threads to use when performing the BLAST search.
-            max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
-            database (str): The name of the database used to search for paralogs, homologs, and orthologs.
-            remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
-        Returns:
-            str: The path to the xml file storing the BLAST output.
-        """
-        blast_path = os.path.join(self.input_path, 'BLAST')
-        if not os.path.isdir(blast_path):
-            os.makedirs(blast_path)
-        blast_fn = os.path.join(blast_path, '{}.xml'.format(protein_id))
-        if not os.path.isfile(blast_fn):
-            if remote:
-                blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
-                                                     out=blast_fn, query=self.protein_data[protein_id]['Fasta_File'],
-                                                     outfmt=5, remote=True, ungapped=False,
-                                                     max_target_seqs=max_target_seqs,
-                                                     db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
-            else:
-                blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
-                                                     out=blast_fn, query=self.protein_data[protein_id]['Fasta_File'],
-                                                     outfmt=5, remote=False, ungapped=False, num_threads=num_threads,
-                                                     max_target_seqs=max_target_seqs,
-                                                     db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
-            print(blastp_cline)
-            stdout, stderr = blastp_cline()
-            print(stdout)
-            print(stderr)
-        self.protein_data[protein_id]['BLAST_File'] = blast_fn
-        return blast_fn
 
     def _restrict_sequences(self, protein_id, e_value_threshold=0.05, min_fraction=0.7, max_fraction=1.5,
                             min_identity=75, abs_max_identity=95, abs_min_identity=30, interval=5,
@@ -451,6 +421,50 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn):
         with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     return sequence, len(sequence), protein_fasta_fn
+
+
+def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_threads=1, max_target_seqs=20000,
+                         database='nr', remote=False):
+    """
+    BlAST Query Sequence
+
+    This function uses a local instance of the BLAST tool and the uniref 90 database to search for homologs and
+    orthologs of the specified protein. The blast results are stored in a subdirectory of the input_path named BLAST
+    with a file name following the pattern {protein id}.xml. This method assumes that _parse_query_sequence has
+    already been performed for the specified protein id.
+
+    Args:
+        protein_id (str): Four letter code for the PDB id whose sequence should be searched using BLAST.
+        blast_path (str): The location where BLAST output can be written.
+        sequence_fn (str): The full path to a fasta formatted file which can be used as input for BLAST.
+        evalue (float): The E-value upper limit for BLAST hits
+        num_threads (int): The number of threads to use when performing the BLAST search.
+        max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
+        database (str): The name of the database used to search for paralogs, homologs, and orthologs.
+        remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
+    Returns:
+        str: The path to the xml file storing the BLAST output.
+    """
+    if not os.path.isdir(blast_path):
+        os.makedirs(blast_path)
+    blast_fn = os.path.join(blast_path, '{}.xml'.format(protein_id))
+    if not os.path.isfile(blast_fn):
+        if remote:
+            blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
+                                                 out=blast_fn, query=sequence_fn, outfmt=5, remote=True, ungapped=False,
+                                                 max_target_seqs=max_target_seqs, evalue=evalue,
+                                                 db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
+        else:
+            blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
+                                                 out=blast_fn, query=sequence_fn, outfmt=5, remote=False,
+                                                 ungapped=False, num_threads=num_threads, evalue=evalue,
+                                                 max_target_seqs=max_target_seqs,
+                                                 db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
+        print(blastp_cline)
+        stdout, stderr = blastp_cline()
+        print(stdout)
+        print(stderr)
+    return blast_fn
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,
