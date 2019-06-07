@@ -8,7 +8,7 @@ from shutil import rmtree
 from unittest import TestCase
 from multiprocessing import cpu_count
 from DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence,
-                              blast_query_sequence)
+                              blast_query_sequence, filter_blast_sequences)
 
 
 class TestDataSetGenerator(TestCase):
@@ -50,6 +50,11 @@ class TestDataSetGenerator(TestCase):
         cls.blast_path = os.path.join(cls.input_path, 'BLAST')
         cls.expected_blast_fn_small = os.path.join(cls.blast_path, '{}.xml'.format(cls.small_structure_id))
         cls.expected_blast_fn_large = os.path.join(cls.blast_path, '{}.xml'.format(cls.large_structure_id))
+        cls.filtered_blast_path = os.path.join(cls.input_path, 'Filtered_BLAST')
+        cls.expected_filtered_blast_fn_small = os.path.join(cls.filtered_blast_path,
+                                                            '{}.fasta'.format(cls.small_structure_id))
+        cls.expected_filtered_blast_fn_large = os.path.join(cls.filtered_blast_path,
+                                                            '{}.fasta'.format(cls.large_structure_id))
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
@@ -57,7 +62,7 @@ class TestDataSetGenerator(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        rmtree(cls.input_path)
+        # rmtree(cls.input_path)
         del cls.protein_list_fn
         del cls.large_query_seq
         del cls.large_structure_id
@@ -177,6 +182,26 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(blast_fn_large, self.expected_blast_fn_large)
         self.assertTrue(os.path.isfile(blast_fn_large))
 
+    def test5a_filter_blast_sequences(self):
+        if os.path.isdir(self.filtered_blast_path):
+            rmtree(self.filtered_blast_path)
+        if not os.path.isdir(self.blast_path):
+            self.test4b__blast_query_sequence_multi_thread()
+        if os.path.isfile(self.expected_filtered_blast_fn_small):
+            os.remove(self.expected_filtered_blast_fn_small)
+        num_seqs_small, pileup_fn_small = filter_blast_sequences(
+            protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
+            blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq, e_value_threshold=0.05,
+            min_fraction=0.7, min_identity=40, max_identity=98)
+        self.assertGreaterEqual(num_seqs_small, 0)
+        self.assertEqual(pileup_fn_small, self.expected_filtered_blast_fn_small)
+        min_id_large, num_seqs_large, pileup_fn_large = filter_blast_sequences(
+            protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
+            blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq, e_value_threshold=0.05,
+            min_fraction=0.7, min_identity=40, max_identity=98)
+        self.assertGreaterEqual(num_seqs_large, 0)
+        self.assertEqual(pileup_fn_large, self.expected_filtered_blast_fn_large)
+
     def test1_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
         self.assertTrue(test_generator.input_path == self.input_path)
@@ -185,45 +210,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertTrue(self.large_structure_id in test_generator.protein_data)
 
-    def test4c__restrict_sequences(self):
-        pileup_path = os.path.join(self.input_path, 'Pileups')
-        if os.path.isdir(pileup_path):
-            rmtree(pileup_path)
-        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-        test_generator._download_pdb(protein_id=self.small_structure_id)
-        test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.small_structure_id, num_threads=self.max_threads,
-                                             max_target_seqs=self.max_target_seqs)
-        expected_fn_small = os.path.join(pileup_path, '{}.fasta'.format(self.small_structure_id))
-        min_id_small, num_seqs_small, pileup_fn_small = test_generator._restrict_sequences(
-            protein_id=self.small_structure_id)
-        if num_seqs_small >= 125:
-            self.assertLessEqual(0.95, min_id_small)
-            self.assertGreaterEqual(min_id_small, 0.30)
-            self.assertEqual(pileup_fn_small, expected_fn_small)
-            self.assertEqual(test_generator.protein_data[self.small_structure_id]['Pileup_File'], expected_fn_small)
-        else:
-            self.assertGreaterEqual(min_id_small, 0.30)
-            self.assertIsNone(pileup_fn_small)
-            self.assertIsNone(test_generator.protein_data[self.small_structure_id]['Pileup_File'])
-        test_generator._download_pdb(protein_id=self.large_structure_id)
-        test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        test_generator._blast_query_sequence(protein_id=self.large_structure_id, num_threads=self.max_threads,
-                                             max_target_seqs=self.max_target_seqs)
-        expected_fn_large = os.path.join(pileup_path, '{}.fasta'.format(self.large_structure_id))
-        min_id_large, num_seqs_large, pileup_fn_large = test_generator._restrict_sequences(
-            protein_id=self.large_structure_id)
-        if num_seqs_large >= 125:
-            self.assertLessEqual(0.95, min_id_large)
-            self.assertGreaterEqual(min_id_large, 0.30)
-            self.assertEqual(pileup_fn_large, expected_fn_large)
-            self.assertEqual(test_generator.protein_data[self.large_structure_id]['Pileup_File'], expected_fn_large)
-        else:
-            self.assertGreaterEqual(min_id_large, 0.30)
-            self.assertIsNone(pileup_fn_large)
-            self.assertIsNone(test_generator.protein_data[self.large_structure_id]['Pileup_File'])
-
-    def test5a__restrict_sequences_loading(self):
+    def test5b__restrict_sequences_loading(self):
         pileup_path = os.path.join(self.input_path, 'Pileups')
         if os.path.isdir(pileup_path):
             rmtree(pileup_path)
@@ -251,7 +238,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(num_seqs_large1, num_seqs_large2)
         self.assertEqual(min_id_large1, min_id_large2)
 
-    def test5b__restrict_sequences_ignore_filter_size(self):
+    def test5c__restrict_sequences_ignore_filter_size(self):
         pileup_path = os.path.join(self.input_path, 'Pileups')
         if os.path.isdir(pileup_path):
             rmtree(pileup_path)
