@@ -6,9 +6,11 @@ Created on May 23, 2019
 import os
 import argparse
 from re import compile
-from numpy import floor, mean
+import numpy as np
+from numpy import floor, mean, triu, nonzero
 from multiprocessing import cpu_count
 from Bio.Seq import Seq
+from Bio import AlignIO
 from Bio.Blast import NCBIXML
 from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
@@ -20,6 +22,7 @@ from Bio.Align.Applications import MuscleCommandline, ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
 from SeqAlignment import SeqAlignment
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -43,15 +46,13 @@ class DataSetGenerator(object):
         dictionaries as values.
     """
 
-    def __init__(self, protein_list, input_path):
+    def __init__(self, input_path):
         """
         Init
 
         This function overwrites the default init function for the DataSetGenerator class.
 
         Args:
-            protein_list (str): The name of the file where the list of PDB ids (four letter codes) of which the data set
-            consists can be found. Each id is expected to be on its own line.
             input_path (path): The path to the directory where the data for this data set should be stored. It is
             expected to contain at least one directory name ProteinLists which should contain files where each line
             denotes a separate PDB id (four letter code only).
@@ -60,35 +61,21 @@ class DataSetGenerator(object):
             self.input_path = os.path.join(os.environ.get('PROJECT_PATH'), 'Input')
         else:
             self.input_path = input_path
-        self.file_name = protein_list
-        self.protein_data = self._import_protein_list()
+        self.protein_list_path = os.path.join(self.input_path, 'ProteinLists')
+        self.pdb_path = os.path.join(self.input_path, 'PDB')
+        self.protein_data = None
 
-    def _import_protein_list(self):
-        """
-        Import protein list
-
-        This function opens the list file found at file_name and parses in the PDB ids specified there.
-
-        Returns:
-            dict: A dictionary where each key is a single PDB id parsed from the specified list file and each value is
-            an empty dictionary which will be filled as the data set is constructed.
-        """
-        protein_list_fn = os.path.join(self.input_path, 'ProteinLists', self.file_name)
-        protein_list = {}
-        with open(protein_list_fn, mode='rb') as protein_list_handle:
-            for line in protein_list_handle:
-                protein_list[line.strip()] = {}
-        return protein_list
-
-    def build_dataset(self, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05, min_fraction=0.7,
-                      max_fraction=1.5, min_identity=75, abs_max_identity=95, abs_min_identity=30, interval=5,
-                      ignore_filter_size=False, msf=True, fasta=True):
+    def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
+                                    min_fraction=0.7, max_fraction=1.5, min_identity=75, abs_max_identity=95,
+                                    abs_min_identity=30, interval=5, ignore_filter_size=False, msf=True, fasta=True):
         """
         Build Dataset
 
         This method builds a complete data set based on the protein id list specified in the constructor.
 
         Args:
+            protein_list_fn (str): The name of the file where the list of PDB ids (four letter codes) of which the data set
+            consists can be found. Each id is expected to be on its own line.
             num_threads (int): The number of threads to use when performing the BLAST search.
             max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
             e_value_threshold (float): The maximum e-value for a passing hit.
@@ -104,6 +91,10 @@ class DataSetGenerator(object):
             msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
             fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
         """
+        protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
+        if not os.path.isfile(protein_list_fn):
+            raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
+        self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
         for seq_id in self.protein_data:
             self._download_pdb(protein_id=seq_id)
             self._parse_query_sequence(protein_id=seq_id)
@@ -114,7 +105,10 @@ class DataSetGenerator(object):
                                      interval=interval, ignore_filter_size=ignore_filter_size)
             self._align_sequences(protein_id=seq_id, msf=msf, fasta=fasta)
 
-    def _download_pdb(self, protein_id):
+    # def generate_protein_data(self, protein_id):
+
+
+    def download_pdb(self, protein_id):
         """
         Download PDB
 
@@ -127,7 +121,6 @@ class DataSetGenerator(object):
         Returns:
             str: The path to the PDB file downloaded.
         """
-        pdb_path = os.path.join(self.input_path, 'PDB')
         if not os.path.isdir(pdb_path):
             os.makedirs(pdb_path)
         pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path)
@@ -180,7 +173,7 @@ class DataSetGenerator(object):
         self.protein_data[protein_id]['Fasta_File'] = protein_fasta_fn
         return sequence, len(sequence), protein_fasta_fn
 
-    def _blast_query_sequence(self, protein_id, num_threads=1, max_target_seqs=20000):
+    def _blast_query_sequence(self, protein_id, num_threads=1, max_target_seqs=20000, database='nr', remote=False):
         """
         BlAST Query Sequence
 
@@ -193,6 +186,8 @@ class DataSetGenerator(object):
             protein_id (str): Four letter code for the PDB id whose sequence should be searched using BLAST.
             num_threads (int): The number of threads to use when performing the BLAST search.
             max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
+            database (str): The name of the database used to search for paralogs, homologs, and orthologs.
+            remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
         Returns:
             str: The path to the xml file storing the BLAST output.
         """
@@ -201,12 +196,18 @@ class DataSetGenerator(object):
             os.makedirs(blast_path)
         blast_fn = os.path.join(blast_path, '{}.xml'.format(protein_id))
         if not os.path.isfile(blast_fn):
-            blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'), out=blast_fn,
-                                                 query=self.protein_data[protein_id]['Fasta_File'], outfmt=5,
-                                                 remote=False, ungapped=False, num_threads=num_threads,
-                                                 max_target_seqs=max_target_seqs,
-                                                 db=os.path.join(os.environ.get('BLAST_DB_PATH'),
-                                                                 'customuniref90.fasta'))
+            if remote:
+                blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
+                                                     out=blast_fn, query=self.protein_data[protein_id]['Fasta_File'],
+                                                     outfmt=5, remote=True, ungapped=False,
+                                                     max_target_seqs=max_target_seqs,
+                                                     db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
+            else:
+                blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
+                                                     out=blast_fn, query=self.protein_data[protein_id]['Fasta_File'],
+                                                     outfmt=5, remote=False, ungapped=False, num_threads=num_threads,
+                                                     max_target_seqs=max_target_seqs,
+                                                     db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
             print(blastp_cline)
             stdout, stderr = blastp_cline()
             print(stdout)
@@ -391,6 +392,66 @@ class DataSetGenerator(object):
         self.protein_data[protein_id]['MSF_File'] = msf_fn
         self.protein_data[protein_id]['FA_File'] = fa_fn
         return msf_fn, fa_fn
+
+    def _identity_filter(self, protein_id, max_identity=0.98):
+        if self.protein_data[protein_id]['FA_File'] is None:
+            raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
+        identity_filtered_path = os.path.join(self.input_path, 'Identity_Filtered')
+        if not os.path.isdir(identity_filtered_path):
+            os.makedirs(identity_filtered_path)
+        calculator = AlignmentDistanceCalculator()
+        alignment = SeqAlignment(file_name=self.protein_data[protein_id]['FA_File'], query_id=protein_id)
+        alignment.import_alignment()
+        distance_matrix = triu(np.array(calculator.get_distance(alignment.alignment)), k=1)
+        to_keep = set()
+        to_remove = set()
+        query_seq_pos = alignment.seq_order.index(protein_id)
+        to_keep.add(query_seq_pos)
+        for i in range(alignment.size):
+            if (i in to_remove) or (i in to_keep):
+                continue
+            row_ids = distance_matrix[i, :]
+            above_max_id = row_ids > max_identity
+            positions_to_remove = set(nonzero(above_max_id)[0])
+            if not positions_to_remove.isdisjoint(to_keep):
+                to_remove.add(i)
+            else:
+                to_keep.add(i)
+                to_remove.update(positions_to_remove)
+        filtering_count = (len(to_keep) + len(to_remove))
+        if alignment.size != filtering_count:
+            raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
+                alignment.size, filtering_count, len(to_keep), len(to_remove)))
+        filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
+        identity_filtered_fn = os.path.join(identity_filtered_path, '{}.fasta'.format(protein_id))
+        filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
+        self.protein_data[protein_id]['Identity_Filtered_FA'] = identity_filtered_fn
+        return identity_filtered_fn
+
+
+def import_protein_list(protein_list_fn):
+    """
+    Import protein list
+
+    This function opens the list file found at protein_list_fn and parses in the PDB ids and the chain of interest
+    specified there.
+
+    Args:
+        protein_list_fn (str): The name of the file where the list of PDB ids and their chain of interest (five letter
+        codes) of which the data set consists can be found. Each id is expected to be on its own line.
+    Returns:
+        dict: A dictionary where each key is a single PDB id parsed from the specified list file and each value is
+        a dictionary with the first key and value being the specified chain of interest, and will be filled as the
+        data set is constructed.
+    """
+    protein_list_fn = os.path.join(protein_list_fn)
+    protein_list = {}
+    pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3})([A-Z])$')
+    with open(protein_list_fn, mode='rb') as protein_list_handle:
+        for line in protein_list_handle:
+            pdb_id_match = pdb_id_pattern.match(line.strip())
+            protein_list[pdb_id_match.group(1)] = {'Chain': pdb_id_match.group(2)}
+    return protein_list
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,

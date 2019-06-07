@@ -7,7 +7,7 @@ import os
 from shutil import rmtree
 from unittest import TestCase
 from multiprocessing import cpu_count
-from DataSetGenerator import DataSetGenerator
+from DataSetGenerator import DataSetGenerator, import_protein_list
 
 
 class TestDataSetGenerator(TestCase):
@@ -36,11 +36,12 @@ class TestDataSetGenerator(TestCase):
                               'DMVPAISLAYEQAESDIMKRQPRNPKTDKLVNERLISMAYGQIGMIQALGGFFSYFVILAENGFLPMDLIGKRVRWDDRWISDVEDS'\
                               'FGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSIFQQGMKNKILIFGLFEETALAAFLSYCPGTDVALRMYPLKPSWW'\
                               'FCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY'
-        cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
+        cls.protein_list_name = 'Test_Set.txt'
+        cls.protein_list_fn = os.path.join(cls.protein_list_path, cls.protein_list_name)
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
-                test_list_handle.write('{}\n'.format(structure_id))
+                test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
 
     @classmethod
     def tearDownClass(cls):
@@ -52,6 +53,16 @@ class TestDataSetGenerator(TestCase):
         del cls.small_structure_id
         del cls.protein_list_path
         del cls.input_path
+
+    def test1_import_protein_list(self):
+        with self.assertRaises(IOError):
+            import_protein_list(protein_list_fn=self.protein_list_name)
+        protein_dict = import_protein_list(protein_list_fn=self.protein_list_fn)
+        self.assertTrue(self.small_structure_id in protein_dict)
+        self.assertEqual(protein_dict[self.small_structure_id]['Chain'], 'A')
+        self.assertTrue(self.large_structure_id in protein_dict)
+        self.assertEqual(protein_dict[self.large_structure_id]['Chain'], 'A')
+
 
     def test1_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
