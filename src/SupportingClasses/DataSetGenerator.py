@@ -95,62 +95,17 @@ class DataSetGenerator(object):
         if not os.path.isfile(protein_list_fn):
             raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
         self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
-        for seq_id in self.protein_data:
-            self._download_pdb(protein_id=seq_id)
-            self._parse_query_sequence(protein_id=seq_id)
-            self._blast_query_sequence(protein_id=seq_id, num_threads=num_threads, max_target_seqs=max_target_seqs)
-            self._restrict_sequences(protein_id=seq_id, e_value_threshold=e_value_threshold, min_fraction=min_fraction,
-                                     max_fraction=max_fraction, min_identity=min_identity,
+        for protein_id in self.protein_data:
+            self.protein_data[protein_id]['PDB'] = download_pdb(pdb_path=self.pdb_path, protein_id=protein_id)
+            self._parse_query_sequence(protein_id=protein_id)
+            self._blast_query_sequence(protein_id=protein_id, num_threads=num_threads, max_target_seqs=max_target_seqs)
+            self._restrict_sequences(protein_id=protein_id, e_value_threshold=e_value_threshold,
+                                     min_fraction=min_fraction, max_fraction=max_fraction, min_identity=min_identity,
                                      abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
                                      interval=interval, ignore_filter_size=ignore_filter_size)
-            self._align_sequences(protein_id=seq_id, msf=msf, fasta=fasta)
+            self._align_sequences(protein_id=protein_id, msf=msf, fasta=fasta)
 
     # def generate_protein_data(self, protein_id):
-
-    def _parse_query_sequence(self, protein_id):
-        """
-        Parse Query Sequence
-
-        This function opens the downloaded PDB file for a given protein id (for which _download_pdb has already been
-        called) and extracts the sequence of chain A for the structure. The parsed sequence is given in single letter
-        amino acid codes. The sequence is saved to a file in a subdirectory of input_path with the name Sequences and a
-        file name with the pattern {protein id}.fasta.
-
-        Args:
-            protein_id (str): Four letter code for a PDB id whose sequence should be parsed.
-        Returns:
-            str: The sequence parsed from the PDB file of the specified protein id.
-            int: The length of the parsed sequence.
-            str: The file path to the fasta file where the sequence has been written.
-        """
-        protein_fasta_path = os.path.join(self.input_path, 'Sequences')
-        if not os.path.isdir(protein_fasta_path):
-            os.makedirs(protein_fasta_path)
-        protein_fasta_fn = os.path.join(protein_fasta_path, '{}.fasta'.format(protein_id))
-        if os.path.isfile(protein_fasta_fn):
-            with open(protein_fasta_fn, 'rb') as protein_fasta_handle:
-                seq_iter = parse(handle=protein_fasta_handle, format='fasta')
-                sequence = seq_iter.next()
-                sequence.alphabet = ExtendedIUPACProtein
-        else:
-            parser = PDBParser(PERMISSIVE=1)  # corrective
-            structure = parser.get_structure(protein_id, self.protein_data[protein_id]['PDB_Path'])
-            model = structure[0]
-            chain = model['A']
-            sequence = []
-            for residue in chain:
-                if is_aa(residue.get_resname(), standard=True):
-                    res_name = three_to_one(residue.get_resname())
-                    sequence.append(res_name)
-            sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id,
-                                 description='Target Query')
-            seq_records = [sequence]
-            with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
-                write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
-        self.protein_data[protein_id]['Query_Sequence'] = sequence
-        self.protein_data[protein_id]['Sequence_Length'] = len(sequence)
-        self.protein_data[protein_id]['Fasta_File'] = protein_fasta_fn
-        return sequence, len(sequence), protein_fasta_fn
 
     def _blast_query_sequence(self, protein_id, num_threads=1, max_target_seqs=20000, database='nr', remote=False):
         """
@@ -451,6 +406,51 @@ def download_pdb(pdb_path, protein_id):
     pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path)
     pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
     return pdb_file
+
+
+def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn):
+    """
+    Parse Query Sequence
+
+    This function opens a downloaded PDB file for a given protein id (for which download_pdb has already been
+    called) and extracts the sequence of the specified chain_id for the structure. The parsed sequence is given in
+    single letter amino acid codes. The sequence is saved to a file in sequence_path and is given a file name with the
+    pattern {protein id}.fasta.
+
+    Args:
+        protein_id (str): Four letter code for a PDB id whose sequence should be parsed.
+        chain_id (str/char): A single letter code for the chain to be extracted.
+        sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
+        pdb_fn (str): The full path to the PDB from which the sequence should be extracted.
+    Returns:
+        str: The sequence parsed from the PDB file of the specified protein id.
+        int: The length of the parsed sequence.
+        str: The file path to the fasta file where the sequence has been written.
+    """
+    if not os.path.isdir(sequence_path):
+        os.makedirs(sequence_path)
+    protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
+    if os.path.isfile(protein_fasta_fn):
+        with open(protein_fasta_fn, 'rb') as protein_fasta_handle:
+            seq_iter = parse(handle=protein_fasta_handle, format='fasta')
+            sequence = seq_iter.next()
+            sequence.alphabet = ExtendedIUPACProtein
+    else:
+        parser = PDBParser(PERMISSIVE=1)  # corrective
+        structure = parser.get_structure(protein_id, pdb_fn)
+        model = structure[0]
+        chain = model[chain_id]
+        sequence = []
+        for residue in chain:
+            if is_aa(residue.get_resname(), standard=True):
+                res_name = three_to_one(residue.get_resname())
+                sequence.append(res_name)
+        sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id,
+                             description='Target Query')
+        seq_records = [sequence]
+        with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
+            write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
+    return sequence, len(sequence), protein_fasta_fn
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,

@@ -7,7 +7,7 @@ import os
 from shutil import rmtree
 from unittest import TestCase
 from multiprocessing import cpu_count
-from DataSetGenerator import DataSetGenerator, import_protein_list, download_pdb
+from DataSetGenerator import DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence
 
 
 class TestDataSetGenerator(TestCase):
@@ -39,6 +39,13 @@ class TestDataSetGenerator(TestCase):
         cls.protein_list_name = 'Test_Set.txt'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, cls.protein_list_name)
         cls.pdb_path = os.path.join(cls.input_path, 'PDB')
+        cls.expected_pdb_fn_small = os.path.join(cls.pdb_path, '{}'.format(cls.small_structure_id[1:3]),
+                                                 'pdb{}.ent'.format(cls.small_structure_id))
+        cls.expected_pdb_fn_large = os.path.join(cls.pdb_path, '{}'.format(cls.large_structure_id[1:3]),
+                                                 'pdb{}.ent'.format(cls.large_structure_id))
+        cls.sequence_path = os.path.join(cls.input_path, 'Sequences')
+        cls.expected_seq_fn_small = os.path.join(cls.sequence_path, '{}.fasta'.format(cls.small_structure_id))
+        cls.expected_seq_fn_large = os.path.join(cls.sequence_path, '{}.fasta'.format(cls.large_structure_id))
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
@@ -69,15 +76,32 @@ class TestDataSetGenerator(TestCase):
             rmtree(self.pdb_path)
         pdb_fn_small = download_pdb(pdb_path=self.pdb_path, protein_id=self.small_structure_id)
         self.assertTrue(os.path.isdir(self.pdb_path))
-        expected_fn_small = os.path.join(self.pdb_path, '{}'.format(self.small_structure_id[1:3]),
-                                         'pdb{}.ent'.format(self.small_structure_id))
-        self.assertEqual(pdb_fn_small, expected_fn_small)
-        self.assertTrue(os.path.isfile(expected_fn_small))
+
+        self.assertEqual(pdb_fn_small, self.expected_pdb_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_small))
         pdb_fn_large = download_pdb(pdb_path=self.pdb_path, protein_id=self.large_structure_id)
-        expected_fn_large = os.path.join(self.pdb_path, '{}'.format(self.large_structure_id[1:3]),
-                                         'pdb{}.ent'.format(self.large_structure_id))
-        self.assertEqual(pdb_fn_large, expected_fn_large)
-        self.assertTrue(os.path.isfile(expected_fn_large))
+        self.assertEqual(pdb_fn_large, self.expected_pdb_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
+
+    def test3__parse_query_sequence(self):
+        if os.path.isdir(self.sequence_path):
+            rmtree(self.sequence_path)
+        if not os.path.isdir(self.pdb_path):
+            self.test2__download_pdb()
+        seq_small, len_small, seq_fn_small = parse_query_sequence(protein_id=self.small_structure_id, chain_id='A',
+                                                                  sequence_path=self.sequence_path,
+                                                                  pdb_fn=self.expected_pdb_fn_small)
+        self.assertTrue(os.path.isdir(self.sequence_path))
+        self.assertEqual(self.small_query_seq, str(seq_small.seq))
+        self.assertEqual(len_small, len(self.small_query_seq))
+        self.assertEqual(seq_fn_small, self.expected_seq_fn_small)
+        seq_large, len_large, seq_fn_large = parse_query_sequence(protein_id=self.large_structure_id, chain_id='A',
+                                                                  sequence_path=self.sequence_path,
+                                                                  pdb_fn=self.expected_pdb_fn_large)
+        self.assertTrue(os.path.isdir(self.sequence_path))
+        self.assertEqual(self.large_query_seq, str(seq_large.seq))
+        self.assertEqual(len(seq_large), len_large)
+        self.assertEqual(seq_fn_large, self.expected_seq_fn_large)
 
     def test1_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
@@ -86,36 +110,6 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(len(test_generator.protein_data), 2)
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertTrue(self.large_structure_id in test_generator.protein_data)
-
-    def test3__parse_query_sequence(self):
-        sequence_path = os.path.join(self.input_path, 'Sequences')
-        if os.path.isdir(sequence_path):
-            rmtree(sequence_path)
-        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-        test_generator._download_pdb(protein_id=self.small_structure_id)
-        seq_small, len_small, seq_fn_small = test_generator._parse_query_sequence(protein_id=self.small_structure_id)
-        self.assertTrue(os.path.isdir(sequence_path))
-        self.assertEqual(self.small_query_seq, str(seq_small.seq))
-        self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Query_Sequence'].seq),
-                         str(seq_small.seq))
-        self.assertEqual(len_small, 97)
-        self.assertEqual(len(seq_small), len_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Sequence_Length'], len_small)
-        expexcted_fn_small = os.path.join(sequence_path, '{}.fasta'.format(self.small_structure_id))
-        self.assertEqual(seq_fn_small, expexcted_fn_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Fasta_File'], expexcted_fn_small)
-        test_generator._download_pdb(protein_id=self.large_structure_id)
-        seq_large, len_large, seq_fn_large = test_generator._parse_query_sequence(protein_id=self.large_structure_id)
-        self.assertTrue(os.path.isdir(sequence_path))
-        self.assertEqual(self.large_query_seq, str(seq_large.seq))
-        self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Query_Sequence'].seq),
-                         str(seq_large.seq))
-        self.assertEqual(len_large, 992)
-        self.assertEqual(len(seq_large), len_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Sequence_Length'], len_large)
-        expexcted_fn_large = os.path.join(sequence_path, '{}.fasta'.format(self.large_structure_id))
-        self.assertEqual(seq_fn_large, expexcted_fn_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Fasta_File'], expexcted_fn_large)
 
     def test4a__blast_query_sequence_single_thread(self):
         blast_path = os.path.join(self.input_path, 'BLAST')
