@@ -7,7 +7,7 @@ import os
 from shutil import rmtree
 from unittest import TestCase
 from multiprocessing import cpu_count
-from DataSetGenerator import DataSetGenerator, import_protein_list
+from DataSetGenerator import DataSetGenerator, import_protein_list, download_pdb
 
 
 class TestDataSetGenerator(TestCase):
@@ -38,6 +38,7 @@ class TestDataSetGenerator(TestCase):
                               'FCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY'
         cls.protein_list_name = 'Test_Set.txt'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, cls.protein_list_name)
+        cls.pdb_path = os.path.join(cls.input_path, 'PDB')
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
@@ -63,6 +64,20 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(self.large_structure_id in protein_dict)
         self.assertEqual(protein_dict[self.large_structure_id]['Chain'], 'A')
 
+    def test2__download_pdb(self):
+        if os.path.isdir(self.pdb_path):
+            rmtree(self.pdb_path)
+        pdb_fn_small = download_pdb(pdb_path=self.pdb_path, protein_id=self.small_structure_id)
+        self.assertTrue(os.path.isdir(self.pdb_path))
+        expected_fn_small = os.path.join(self.pdb_path, '{}'.format(self.small_structure_id[1:3]),
+                                         'pdb{}.ent'.format(self.small_structure_id))
+        self.assertEqual(pdb_fn_small, expected_fn_small)
+        self.assertTrue(os.path.isfile(expected_fn_small))
+        pdb_fn_large = download_pdb(pdb_path=self.pdb_path, protein_id=self.large_structure_id)
+        expected_fn_large = os.path.join(self.pdb_path, '{}'.format(self.large_structure_id[1:3]),
+                                         'pdb{}.ent'.format(self.large_structure_id))
+        self.assertEqual(pdb_fn_large, expected_fn_large)
+        self.assertTrue(os.path.isfile(expected_fn_large))
 
     def test1_init(self):
         test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
@@ -71,27 +86,6 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(len(test_generator.protein_data), 2)
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertTrue(self.large_structure_id in test_generator.protein_data)
-
-    def test2__download_pdb(self):
-        pdb_path = os.path.join(self.input_path, 'PDB')
-        if os.path.isdir(pdb_path):
-            rmtree(pdb_path)
-        test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-        pdb_fn_small = test_generator._download_pdb(protein_id=self.small_structure_id)
-        self.assertTrue(os.path.isdir(pdb_path))
-        self.assertTrue('PDB_Path' in test_generator.protein_data[self.small_structure_id])
-        expected_fn_small = os.path.join(pdb_path, '{}'.format(self.small_structure_id[1:3]),
-                                         'pdb{}.ent'.format(self.small_structure_id))
-        self.assertTrue(test_generator.protein_data[self.small_structure_id]['PDB_Path'] == expected_fn_small)
-        self.assertTrue(pdb_fn_small == expected_fn_small)
-        self.assertTrue(os.path.isfile(expected_fn_small))
-        pdb_fn_large = test_generator._download_pdb(protein_id=self.large_structure_id)
-        self.assertTrue('PDB_Path' in test_generator.protein_data[self.large_structure_id])
-        expected_fn_large = os.path.join(pdb_path, '{}'.format(self.large_structure_id[1:3]),
-                                         'pdb{}.ent'.format(self.large_structure_id))
-        self.assertTrue(test_generator.protein_data[self.large_structure_id]['PDB_Path'] == expected_fn_large)
-        self.assertTrue(pdb_fn_large == expected_fn_large)
-        self.assertTrue(os.path.isfile(expected_fn_large))
 
     def test3__parse_query_sequence(self):
         sequence_path = os.path.join(self.input_path, 'Sequences')

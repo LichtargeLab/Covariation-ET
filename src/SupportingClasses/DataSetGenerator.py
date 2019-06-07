@@ -107,27 +107,6 @@ class DataSetGenerator(object):
 
     # def generate_protein_data(self, protein_id):
 
-
-    def download_pdb(self, protein_id):
-        """
-        Download PDB
-
-        This function downloads the PDB structure file for the given PDB id provided. The file is stored in a file named
-        pdb{pdb id}.ent within a sub directory of the input_path provided to the class named
-        PDB/{middle two characters of the PDB id}/
-
-        Args:
-            protein_id (str): Four letter code for a PDB id to be downloaded.
-        Returns:
-            str: The path to the PDB file downloaded.
-        """
-        if not os.path.isdir(pdb_path):
-            os.makedirs(pdb_path)
-        pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path)
-        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
-        self.protein_data[protein_id]['PDB_Path'] = pdb_file
-        return pdb_file
-
     def _parse_query_sequence(self, protein_id):
         """
         Parse Query Sequence
@@ -452,6 +431,26 @@ def import_protein_list(protein_list_fn):
             pdb_id_match = pdb_id_pattern.match(line.strip())
             protein_list[pdb_id_match.group(1)] = {'Chain': pdb_id_match.group(2)}
     return protein_list
+
+
+def download_pdb(pdb_path, protein_id):
+    """
+    Download PDB
+
+    This function downloads the PDB structure file for the given PDB id provided. The file is stored in a file within a
+    sub directory of the provided pdb_path named <pdb_path>/{middle two characters of the PDB id}/pdb{pdb id}.ent
+
+    Args:
+        pdb_path (str): The location at which PDB structures should be saved.
+        protein_id (str): Four letter code for a PDB id to be downloaded.
+    Returns:
+        str: The path to the PDB file downloaded.
+    """
+    if not os.path.isdir(pdb_path):
+        os.makedirs(pdb_path)
+    pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path)
+    pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
+    return pdb_file
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,
