@@ -68,7 +68,7 @@ class DataSetGenerator(object):
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
-                                    database='nr', remote=False, min_fraction=0.7, min_identity=40, max_identity=98,
+                                    database='nr', remote=False, min_fraction=0.7, min_identity=0.40, max_identity=0.98,
                                     msf=True, fasta=True):
         """
         Build Dataset
@@ -292,7 +292,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
 
 
 def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
-                           min_identity=40, max_identity=98):
+                           min_identity=0.40, max_identity=0.98):
     """
     Restrict Sequences
 
@@ -312,8 +312,8 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         query_seq (Bio.SeqRecord.SeqRecord): The query sequence, needed for filtering and final output.
         e_value_threshold (float): The maximum e-value for a passing hit.
         min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
-        min_identity (int): The absolute minimum identity for a passing hit.
-        max_identity (int): The absolute maximum identity for a passing hit.
+        min_identity (float): The absolute minimum identity for a passing hit.
+        max_identity (float): The absolute maximum identity for a passing hit.
     Returns:
         int: The number of sequences passing the filters.
         str: The file path to the list of sequences writen out after filtering.
@@ -364,6 +364,12 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                                                                id=alignment.hit_id, name=alignment.title,
                                                                description=new_description)
                                     aln_identity = identity
+                            else:
+                                print('Sequence eliminated Identity: {}'.format(identity))
+                        else:
+                            print('Sequence elminiated Fraction: {}'.format(subject_fraction))
+                    else:
+                        print('Sequence eliminatd E-Value: {}'.format(hsp.expect))
                 if aln_seq_record:
                     sequences.append(aln_seq_record)
     count = len(sequences)
