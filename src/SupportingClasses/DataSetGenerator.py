@@ -119,56 +119,6 @@ class DataSetGenerator(object):
 
     # def generate_protein_data(self, protein_id):
 
-    def _align_sequences(self, protein_id, msf=True, fasta=True, source='Pileup_File'):
-        """
-        Align Sequences
-
-        This method uses CLUSTALW to align the query sequence and all of the hits from BLAST which passed the filtering
-        process by default the alignment is performed once, to produce a fasta alignment file, and then converted to
-        produce the msf alignment file, however either of these options can be turned off.
-
-        Args:
-            protein_id (str): Four letter code for the PDB id for which an alignment should be performed.
-            msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
-            fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
-        Returns:
-            str: The path to the msf alignment produced by this method (None if msf=False).
-            str: The path to the fasta alignment produced by this method (None if fa=False).
-        """
-        clustalw_path = os.environ.get('CLUSTALW_PATH')
-        if self.protein_data[protein_id][source] is None:
-            raise ValueError('Attempting to perform alignment before pileup file was generated.')
-        alignment_path = os.path.join(self.input_path, 'Alignments')
-        if not os.path.isdir(alignment_path):
-            os.makedirs(alignment_path)
-        fa_fn = None
-        if fasta:
-            fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
-            if not os.path.isfile(fa_fn):
-                fa_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id][source],
-                                               align=True, quicktree=True, outfile=fa_fn, output='FASTA')
-                print(fa_cline)
-                stdout, stderr = fa_cline()
-                print(stdout)
-                print(stderr)
-        msf_fn = None
-        if msf:
-            msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
-            if not os.path.isfile(msf_fn):
-                if fasta:
-                    msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn,
-                                                    output='GCG')
-                else:
-                    msf_cline = ClustalwCommandline(clustalw_path, infile=self.protein_data[protein_id][source],
-                                               align=True, quicktree=True, outfile=msf_fn, output='GCG')
-                print(msf_cline)
-                stdout, stderr = msf_cline()
-                print(stdout)
-                print(stderr)
-        self.protein_data[protein_id]['MSF_File'] = msf_fn
-        self.protein_data[protein_id]['FA_File'] = fa_fn
-        return msf_fn, fa_fn
-
     def _identity_filter(self, protein_id, max_identity=0.98):
         if self.protein_data[protein_id]['FA_File'] is None:
             raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
@@ -425,6 +375,54 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         with open(pileup_fn, 'wb') as pileup_handle:
             write(sequences=final_sequences, handle=pileup_handle, format='fasta')
     return count, pileup_fn
+
+
+def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True):
+    """
+    Align Sequences
+
+    This method uses CLUSTALW to align the query sequence and all of the hits from BLAST which passed the filtering
+    process by default the alignment is performed once, to produce a fasta alignment file, and then converted to
+    produce the msf alignment file, however either of these options can be turned off.
+
+    Args:
+        protein_id (str): Four letter code for the PDB id for which an alignment should be performed.
+        alignment_path (str): The directory to which the alignments can be written.
+        pileup_fn (str): The full path to the file with the sequences which should be aligned.
+        msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
+        fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
+    Returns:
+        str: The path to the fasta alignment produced by this method (None if fa=False).
+        str: The path to the msf alignment produced by this method (None if msf=False).
+    """
+    clustalw_path = os.environ.get('CLUSTALW_PATH')
+    if not os.path.isdir(alignment_path):
+        os.makedirs(alignment_path)
+    fa_fn = None
+    if fasta:
+        fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
+        if not os.path.isfile(fa_fn):
+            fa_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True, outfile=fa_fn,
+                                           output='FASTA')
+            print(fa_cline)
+            stdout, stderr = fa_cline()
+            print(stdout)
+            print(stderr)
+    msf_fn = None
+    if msf:
+        msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
+        if not os.path.isfile(msf_fn):
+            if fasta:
+                msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn,
+                                                output='GCG')
+            else:
+                msf_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True,
+                                                outfile=msf_fn, output='GCG')
+            print(msf_cline)
+            stdout, stderr = msf_cline()
+            print(stdout)
+            print(stderr)
+    return fa_fn, msf_fn
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,
