@@ -333,8 +333,8 @@ class TestDataSetGenerator(TestCase):
             protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
             blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
         count_small, filtered_aln_fn_small = identity_filter(
-            protein_id=self.small_structure_id, query_seq=self.small_query_seq,
-            filter_path=self.filtered_alignment_path, alignment_fn=self.expected_fa_fn_small, max_identity=98)
+            protein_id=self.small_structure_id, filter_path=self.filtered_alignment_path,
+            alignment_fn=self.expected_fa_fn_small, max_identity=0.98)
         self.assertEqual(filtered_aln_fn_small, self.expected_filtered_aln_fn_small)
         self.assertTrue(os.path.isfile(filtered_aln_fn_small))
         self.assertLessEqual(count_small, max_count_small)
@@ -342,8 +342,8 @@ class TestDataSetGenerator(TestCase):
             protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
             blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq)
         count_large, filtered_aln_fn_large = identity_filter(
-            protein_id=self.large_structure_id, query_seq=self.large_query_seq,
-            filter_path=self.filtered_alignment_path, alignment_fn=self.expected_fa_fn_large, max_identity=98)
+            protein_id=self.large_structure_id,  filter_path=self.filtered_alignment_path,
+            alignment_fn=self.expected_fa_fn_large, max_identity=0.98)
         self.assertEqual(filtered_aln_fn_large, self.expected_filtered_aln_fn_large)
         self.assertTrue(os.path.isfile(filtered_aln_fn_small))
         self.assertLessEqual(count_large, max_count_large)

@@ -308,7 +308,8 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         with open(pileup_fn, 'rb') as pileup_handle:
             fasta_iter = parse(handle=pileup_handle, format='fasta')
             for seq_record in fasta_iter:
-                if seq_record.description.endswith('Target Query'):  # Skip the target sequence in the pileup.
+                if seq_record.description.endswith('Target Query'):  # Add the target sequence without checking.
+                    sequences.append(seq_record)
                     continue
                 hsp_data_match = hsp_data_pattern.match(seq_record.description)
                 subject_fraction = float(hsp_data_match.group(3))
@@ -318,7 +319,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 seq_id = int(hsp_data_match.group(1))
                 seq_len = int(hsp_data_match.group(2))
                 identity = seq_id / float(seq_len)
-                if seq_id < min_identity or seq_id > max_identity:
+                if identity < min_identity or identity > max_identity:
                     raise ValueError('Sequences in the filtered fasta do not met the identity requirement.\n'
                                      '{}: Identity={}'.format(seq_record.id, identity))
                 seq_record.alphabet = ExtendedIUPACProtein
@@ -353,12 +354,11 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                         print('Sequence eliminatd E-Value: {}'.format(hsp.expect))
                 if aln_seq_record:
                     sequences.append(aln_seq_record)
-    count = len(sequences)
-    if not os.path.isfile(pileup_fn):
         # Add query sequence so that this file can be fed directly to the alignment method.
-        final_sequences = [query_seq] + sequences
+        sequences = [query_seq] + sequences
         with open(pileup_fn, 'wb') as pileup_handle:
-            write(sequences=final_sequences, handle=pileup_handle, format='fasta')
+            write(sequences=sequences, handle=pileup_handle, format='fasta')
+    count = len(sequences)
     return count, pileup_fn
 
 
@@ -423,7 +423,7 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
         protein_id (str): The PDB id for the protein whose alignment is being filtered.
         filter_path (str): Path to a directory where the filtered alignment can be written.
         alignment_fn (str): Full path to the alignment file to be filtered.
-        max_identity (int): The maximum sequence identity two sequences can share.
+        max_identity (float): The maximum sequence identity two sequences can share.
     Returns:
         int: The number of sequences which pass through this filtering process.
         str: The full path to the file where the filtered sequences were written.
@@ -440,7 +440,7 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
         calculator = AlignmentDistanceCalculator()
         alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
         alignment.import_alignment()
-        distance_matrix = triu(np.array(calculator.get_distance(alignment.alignment)), k=1)
+        distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
         to_keep = set()
         to_remove = set()
         query_seq_pos = alignment.seq_order.index(protein_id)
