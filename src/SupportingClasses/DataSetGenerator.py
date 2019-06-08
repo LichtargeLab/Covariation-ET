@@ -10,7 +10,6 @@ import numpy as np
 from numpy import floor, mean, triu, nonzero
 from multiprocessing import cpu_count
 from Bio.Seq import Seq
-from Bio import AlignIO
 from Bio.Blast import NCBIXML
 from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
@@ -275,8 +274,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         if remote:
             blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
                                                  out=blast_fn, query=sequence_fn, outfmt=5, remote=True, ungapped=False,
-                                                 max_target_seqs=max_target_seqs, evalue=evalue,
-                                                 db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
+                                                 max_target_seqs=max_target_seqs, evalue=evalue, db=database)
         else:
             blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
                                                  out=blast_fn, query=sequence_fn, outfmt=5, remote=False,
@@ -311,7 +309,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         protein_id (str): Four letter code for the PDB id whose BLAST search results should be filtered.
         filter_path (str): Directory where filtered sequences can be written in fasta format.
         blast_fn (str): The full path to the BLAST xml which should be filtered.
-        query_seq (str): The query sequence, needed for filtering and final output.
+        query_seq (Bio.SeqRecord.SeqRecord): The query sequence, needed for filtering and final output.
         e_value_threshold (float): The maximum e-value for a passing hit.
         min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
         min_identity (int): The absolute minimum identity for a passing hit.
@@ -353,7 +351,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 for hsp in alignment.hsps:
                     if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
                         subject_length = len(hsp.sbjct.replace('-', ''))
-                        query_length = len(query_seq)
+                        query_length = len(query_seq.seq)
                         subject_fraction = min(subject_length / float(query_length),
                                                query_length / float(subject_length))
                         if min_fraction <= subject_fraction:

@@ -89,7 +89,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(self.large_structure_id in protein_dict)
         self.assertEqual(protein_dict[self.large_structure_id]['Chain'], 'A')
 
-    def test2__download_pdb(self):
+    def test2_download_pdb(self):
         if os.path.isdir(self.pdb_path):
             rmtree(self.pdb_path)
         pdb_fn_small = download_pdb(pdb_path=self.pdb_path, protein_id=self.small_structure_id)
@@ -101,7 +101,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(pdb_fn_large, self.expected_pdb_fn_large)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
 
-    def test3__parse_query_sequence(self):
+    def test3_parse_query_sequence(self):
         if os.path.isdir(self.sequence_path):
             rmtree(self.sequence_path)
         if not os.path.isdir(self.pdb_path):
@@ -121,7 +121,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(len_large, len(seq_large))
         self.assertEqual(seq_fn_large, self.expected_seq_fn_large)
 
-    def test4a__blast_query_sequence_single_thread(self):
+    def test4a_blast_query_sequence_single_thread(self):
         if os.path.isdir(self.blast_path):
             rmtree(self.blast_path)
         if not os.path.isdir(self.sequence_path):
@@ -207,6 +207,8 @@ class TestDataSetGenerator(TestCase):
             min_fraction=0.7, min_identity=40, max_identity=98)
         self.assertGreaterEqual(num_seqs_small, 0)
         self.assertEqual(pileup_fn_small, self.expected_filtered_blast_fn_small)
+        if os.path.isfile(self.expected_filtered_blast_fn_large):
+            os.remove(self.expected_filtered_blast_fn_large)
         num_seqs_large, pileup_fn_large = filter_blast_sequences(
             protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
             blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq, e_value_threshold=0.05,
