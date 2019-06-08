@@ -69,8 +69,7 @@ class DataSetGenerator(object):
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
-                                    database='nr', remote=False, min_fraction=0.7, max_fraction=1.5, min_identity=75,
-                                    abs_max_identity=95, abs_min_identity=30, interval=5, ignore_filter_size=False,
+                                    database='nr', remote=False, min_fraction=0.7, min_identity=40, max_identity=98,
                                     msf=True, fasta=True):
         """
         Build Dataset
@@ -87,14 +86,8 @@ class DataSetGenerator(object):
             database (str): The name of the database used to search for paralogs, homologs, and orthologs.
             remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
             min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
-            max_fraction (float): The maximum fraction of the query sequence length for a passing hit.
-            min_identity (int): The preferred minimum identity for a passing hit.
-            abs_max_identity (int): The absolute maximum identity for a passing hit.
-            abs_min_identity (int): The absolute minimum identity for a passing hit.
-            interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
-            sufficient sequences are not found at min_identity.
-            ignore_filter_size (bool): Whether or not to ignore the 125 sequence requirement before writing the filtered
-            sequences to file.
+            min_identity (int): The absolute minimum identity for a passing hit.
+            max_identity (int): The absolute maximum identity for a passing hit.
             msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
             fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
         """
@@ -111,14 +104,17 @@ class DataSetGenerator(object):
             self.protein_data[protein_id]['Sequence'] = curr_seq
             self.protein_data[protein_id]['Length'] = curr_len
             self.protein_data[protein_id]['Seq_Fasta'] = curr_seq_fn
-            self.protein_data[protein_id]['BLAST'] = blast_query_sequence(
+            curr_hit_count, curr_blast_fn = blast_query_sequence(
                 protein_id=protein_id, blast_path=self.blast_path, sequence_fn=curr_seq_fn, num_threads=num_threads,
                 max_target_seqs=max_target_seqs, database=database, remote=remote)
-            self._blast_query_sequence(protein_id=protein_id, num_threads=num_threads, max_target_seqs=max_target_seqs)
-            self._restrict_sequences(protein_id=protein_id, e_value_threshold=e_value_threshold,
-                                     min_fraction=min_fraction, max_fraction=max_fraction, min_identity=min_identity,
-                                     abs_max_identity=abs_max_identity, abs_min_identity=abs_min_identity,
-                                     interval=interval, ignore_filter_size=ignore_filter_size)
+            self.protein_data[protein_id]['BLAST_HITS'] = curr_hit_count
+            self.protein_data[protein_id]['BLAST'] = curr_blast_fn
+            curr_filter_count, curr_filter_fn = filter_blast_sequences(
+                protein_id=protein_id, filter_path=self.filtered_blast_path, blast_fn=curr_blast_fn, query_seq=curr_seq,
+                e_value_threshold=e_value_threshold, min_fraction=min_fraction, min_identity=min_identity,
+                max_identity=max_identity)
+            self.protein_data[protein_id]['Filter_Count'] = curr_filter_count
+            self.protein_data[protein_id]['Filtered_BLAST'] = curr_filter_fn
             self._align_sequences(protein_id=protein_id, msf=msf, fasta=fasta)
 
     # def generate_protein_data(self, protein_id):
@@ -319,6 +315,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         database (str): The name of the database used to search for paralogs, homologs, and orthologs.
         remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
     Returns:
+        int: The number of hits returned by BLAST
         str: The path to the xml file storing the BLAST output.
     """
     if not os.path.isdir(blast_path):
@@ -340,7 +337,10 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         stdout, stderr = blastp_cline()
         print(stdout)
         print(stderr)
-    return blast_fn
+    with open(blast_fn, 'rb') as blast_handle:
+        blast_record = NCBIXML.read(blast_handle)
+        hit_count = len(blast_record.alignments)
+    return hit_count, blast_fn
 
 
 def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
