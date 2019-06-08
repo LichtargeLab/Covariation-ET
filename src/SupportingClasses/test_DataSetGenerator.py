@@ -11,7 +11,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from multiprocessing import cpu_count
 from DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence,
-                              blast_query_sequence, filter_blast_sequences, align_sequences)
+                              blast_query_sequence, filter_blast_sequences, align_sequences, identity_filter)
 
 
 class TestDataSetGenerator(TestCase):
@@ -64,6 +64,11 @@ class TestDataSetGenerator(TestCase):
         cls.expected_fa_fn_small = os.path.join(cls.alignment_path, '{}.fasta'.format(cls.small_structure_id))
         cls.expected_msf_fn_large = os.path.join(cls.alignment_path, '{}.msf'.format(cls.large_structure_id))
         cls.expected_fa_fn_large = os.path.join(cls.alignment_path, '{}.fasta'.format(cls.large_structure_id))
+        cls.filtered_alignment_path = os.path.join(cls.input_path, 'Filtered_Alignment')
+        cls.expected_filtered_aln_fn_small = os.path.join(cls.filtered_alignment_path,
+                                                          '{}.fasta'.format(cls.small_structure_id))
+        cls.expected_filtered_aln_fn_large = os.path.join(cls.filtered_alignment_path,
+                                                          '{}.fasta'.format(cls.large_structure_id))
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
@@ -216,7 +221,7 @@ class TestDataSetGenerator(TestCase):
         self.assertGreaterEqual(num_seqs_large, 0)
         self.assertEqual(pileup_fn_large, self.expected_filtered_blast_fn_large)
 
-    def test5b_filter_blast_sequences(self):
+    def test5b_filter_blast_sequences_loading(self):
         if os.path.isdir(self.filtered_blast_path):
             rmtree(self.filtered_blast_path)
         if not os.path.isdir(self.blast_path):
@@ -323,6 +328,33 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(os.path.isfile(self.expected_msf_fn_large))
         self.assertEqual(msf_fn_large, self.expected_msf_fn_large)
         self.assertIsNone(fa_fn_large)
+
+    def test7_identity_filter(self):
+        if os.path.isdir(self.filtered_alignment_path):
+            rmtree(self.filtered_alignment_path)
+        if not os.path.isdir(self.alignment_path):
+            self.test6a_align_sequences()
+        if not os.path.isdir(self.filtered_blast_path):
+            self.test5a_filter_blast_sequences()
+        max_count_small, _ = filter_blast_sequences(
+            protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
+            blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
+        count_small, filtered_aln_fn_small = identity_filter(
+            protein_id=self.small_structure_id, query_seq=self.small_query_seq,
+            filter_path=self.filtered_alignment_path, alignment_fn=self.expected_fa_fn_small, max_identity=98)
+        self.assertEqual(filtered_aln_fn_small, self.expected_filtered_aln_fn_small)
+        self.assertTrue(os.path.isfile(filtered_aln_fn_small))
+        self.assertLessEqual(count_small, max_count_small)
+        max_count_large, _ = filter_blast_sequences(
+            protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
+            blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq)
+        count_large, filtered_aln_fn_large = identity_filter(
+            protein_id=self.large_structure_id, query_seq=self.large_query_seq,
+            filter_path=self.filtered_alignment_path, alignment_fn=self.expected_fa_fn_large, max_identity=98)
+        self.assertEqual(filtered_aln_fn_large, self.expected_filtered_aln_fn_large)
+        self.assertTrue(os.path.isfile(filtered_aln_fn_small))
+        self.assertLessEqual(count_large, max_count_large)
+
 
     # def test1_init(self):
     #     test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
