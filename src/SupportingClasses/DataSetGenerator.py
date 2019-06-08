@@ -65,6 +65,9 @@ class DataSetGenerator(object):
         self.sequence_path = os.path.join(self.input_path, 'Sequences')
         self.blast_path = os.path.join(self.input_path, 'BLAST')
         self.filtered_blast_path = os.path.join(self.input_path, 'Filtered_BLAST')
+        self.alignment_path = os.path.join(self.input_path, 'Alignments')
+        self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignment')
+        self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignment')
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
@@ -114,44 +117,22 @@ class DataSetGenerator(object):
                 max_identity=max_identity)
             self.protein_data[protein_id]['Filter_Count'] = curr_filter_count
             self.protein_data[protein_id]['Filtered_BLAST'] = curr_filter_fn
-            self._align_sequences(protein_id=protein_id, msf=msf, fasta=fasta)
+            msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=self.alignment_path,
+                                            pileup_fn=curr_filter_fn, msf=msf, fasta=msf)
+            self.protein_data[protein_id]['MSF_Aln'] = msf_fn
+            self.protein_data[protein_id]['FA_Aln'] = fa_fn
+            final_filter_count, final_filter_fn = identity_filter(
+                protein_id=protein_id, filter_path=self.filtered_alignment_path, alignment_fn=fa_fn,
+                max_identity=max_identity)
+            self.protein_data[protein_id]['Final_Count'] = final_filter_count
+            self.protein_data[protein_id]['Filtered_Alignment'] = final_filter_fn
+            final_msf_fn, final_fa_fn = align_sequences(
+                protein_id=protein_id, alignment_path=self.final_alignment_path, pileup_fn=final_filter_fn, msf=msf,
+                fasta=fasta)
+            self.protein_data[protein_id]['Final_MSF_Aln'] = final_msf_fn
+            self.protein_data[protein_id]['Final_FA_Aln'] = final_fa_fn
 
     # def generate_protein_data(self, protein_id):
-
-    def _identity_filter(self, protein_id, max_identity=0.98):
-        if self.protein_data[protein_id]['FA_File'] is None:
-            raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
-        identity_filtered_path = os.path.join(self.input_path, 'Identity_Filtered')
-        if not os.path.isdir(identity_filtered_path):
-            os.makedirs(identity_filtered_path)
-        calculator = AlignmentDistanceCalculator()
-        alignment = SeqAlignment(file_name=self.protein_data[protein_id]['FA_File'], query_id=protein_id)
-        alignment.import_alignment()
-        distance_matrix = triu(np.array(calculator.get_distance(alignment.alignment)), k=1)
-        to_keep = set()
-        to_remove = set()
-        query_seq_pos = alignment.seq_order.index(protein_id)
-        to_keep.add(query_seq_pos)
-        for i in range(alignment.size):
-            if (i in to_remove) or (i in to_keep):
-                continue
-            row_ids = distance_matrix[i, :]
-            above_max_id = row_ids > max_identity
-            positions_to_remove = set(nonzero(above_max_id)[0])
-            if not positions_to_remove.isdisjoint(to_keep):
-                to_remove.add(i)
-            else:
-                to_keep.add(i)
-                to_remove.update(positions_to_remove)
-        filtering_count = (len(to_keep) + len(to_remove))
-        if alignment.size != filtering_count:
-            raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
-                alignment.size, filtering_count, len(to_keep), len(to_remove)))
-        filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
-        identity_filtered_fn = os.path.join(identity_filtered_path, '{}.fasta'.format(protein_id))
-        filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
-        self.protein_data[protein_id]['Identity_Filtered_FA'] = identity_filtered_fn
-        return identity_filtered_fn
 
 
 def import_protein_list(protein_list_fn):
@@ -427,6 +408,62 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True)
             print(stdout)
             print(stderr)
     return fa_fn, msf_fn
+
+
+def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
+    """
+    Identity Filter
+
+    This method imports a previously generated alignment and then filters it so that no sequences have an identity
+    greater than max_identity. If two or more sequences have an identity greater than max_identity the first sequence in
+    that group is kept an all others are discarded (unless one of the sequences is the query sequence, in which the
+    query sequence is kept and all other sequences in the group are discarded).
+
+    Args:
+        protein_id (str): The PDB id for the protein whose alignment is being filtered.
+        filter_path (str): Path to a directory where the filtered alignment can be written.
+        alignment_fn (str): Full path to the alignment file to be filtered.
+        max_identity (int): The maximum sequence identity two sequences can share.
+    Returns:
+        int: The number of sequences which pass through this filtering process.
+        str: The full path to the file where the filtered sequences were written.
+    """
+    if alignment_fn is None:
+        raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
+    if not os.path.isdir(filter_path):
+        os.makedirs(filter_path)
+    identity_filtered_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
+    if os.path.isfile(identity_filtered_fn):
+        filtered_alignment = SeqAlignment(file_name=identity_filtered_fn, query_id=protein_id)
+        filtered_alignment.import_alignment()
+    else:
+        calculator = AlignmentDistanceCalculator()
+        alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
+        alignment.import_alignment()
+        distance_matrix = triu(np.array(calculator.get_distance(alignment.alignment)), k=1)
+        to_keep = set()
+        to_remove = set()
+        query_seq_pos = alignment.seq_order.index(protein_id)
+        to_keep.add(query_seq_pos)
+        for i in range(alignment.size):
+            if (i in to_remove) or (i in to_keep):
+                continue
+            row_ids = distance_matrix[i, :]
+            above_max_id = row_ids > max_identity
+            positions_to_remove = set(nonzero(above_max_id)[0])
+            if not positions_to_remove.isdisjoint(to_keep):
+                to_remove.add(i)
+            else:
+                to_keep.add(i)
+                to_remove.update(positions_to_remove)
+        filtering_count = (len(to_keep) + len(to_remove))
+        if alignment.size != filtering_count:
+            raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
+                alignment.size, filtering_count, len(to_keep), len(to_remove)))
+        filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
+        filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
+    count = filtered_alignment.size
+    return count, identity_filtered_fn
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, min_identity,
