@@ -389,8 +389,6 @@ class TestDataSetGenerator(TestCase):
                              test_generator.protein_data[self.small_structure_id]['BLAST_Hits'] + 1)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_BLAST'],
                          self.expected_filtered_blast_fn_small)
-        print(test_generator.protein_data[self.small_structure_id]['MSF_Aln'])
-        print(self.expected_msf_fn_small)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_Aln'], self.expected_msf_fn_small)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_Aln'], self.expected_fa_fn_small)
         self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Final_Count'],
