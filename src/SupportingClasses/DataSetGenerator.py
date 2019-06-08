@@ -67,6 +67,7 @@ class DataSetGenerator(object):
         self.filtered_blast_path = os.path.join(self.input_path, 'Filtered_BLAST')
         self.alignment_path = os.path.join(self.input_path, 'Alignments')
         self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignment')
+        self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignment')
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
@@ -116,7 +117,20 @@ class DataSetGenerator(object):
                 max_identity=max_identity)
             self.protein_data[protein_id]['Filter_Count'] = curr_filter_count
             self.protein_data[protein_id]['Filtered_BLAST'] = curr_filter_fn
-            self._align_sequences(protein_id=protein_id, msf=msf, fasta=fasta)
+            msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=self.alignment_path,
+                                            pileup_fn=curr_filter_fn, msf=msf, fasta=msf)
+            self.protein_data[protein_id]['MSF_Aln'] = msf_fn
+            self.protein_data[protein_id]['FA_Aln'] = fa_fn
+            final_filter_count, final_filter_fn = identity_filter(
+                protein_id=protein_id, filter_path=self.filtered_alignment_path, alignment_fn=fa_fn,
+                max_identity=max_identity)
+            self.protein_data[protein_id]['Final_Count'] = final_filter_count
+            self.protein_data[protein_id]['Filtered_Alignment'] = final_filter_fn
+            final_msf_fn, final_fa_fn = align_sequences(
+                protein_id=protein_id, alignment_path=self.final_alignment_path, pileup_fn=final_filter_fn, msf=msf,
+                fasta=fasta)
+            self.protein_data[protein_id]['Final_MSF_Aln'] = final_msf_fn
+            self.protein_data[protein_id]['Final_FA_Aln'] = final_fa_fn
 
     # def generate_protein_data(self, protein_id):
 
