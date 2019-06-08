@@ -346,12 +346,6 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                                                                id=alignment.hit_id, name=alignment.title,
                                                                description=new_description)
                                     aln_identity = identity
-                            else:
-                                print('Sequence eliminated Identity: {}'.format(identity))
-                        else:
-                            print('Sequence elminiated Fraction: {}'.format(subject_fraction))
-                    else:
-                        print('Sequence eliminatd E-Value: {}'.format(hsp.expect))
                 if aln_seq_record:
                     sequences.append(aln_seq_record)
         # Add query sequence so that this file can be fed directly to the alignment method.
