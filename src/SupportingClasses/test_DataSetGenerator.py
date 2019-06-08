@@ -69,6 +69,15 @@ class TestDataSetGenerator(TestCase):
                                                           '{}.fasta'.format(cls.small_structure_id))
         cls.expected_filtered_aln_fn_large = os.path.join(cls.filtered_alignment_path,
                                                           '{}.fasta'.format(cls.large_structure_id))
+        cls.final_alignment_path = os.path.join(cls.input_path, 'Final_Alignments')
+        cls.expected_final_msf_fn_small = os.path.join(cls.final_alignment_path,
+                                                       '{}.msf'.format(cls.small_structure_id))
+        cls.expected_final_fa_fn_small = os.path.join(cls.final_alignment_path,
+                                                      '{}.fasta'.format(cls.small_structure_id))
+        cls.expected_final_msf_fn_large = os.path.join(cls.final_alignment_path,
+                                                       '{}.msf'.format(cls.large_structure_id))
+        cls.expected_final_fa_fn_large = os.path.join(cls.final_alignment_path,
+                                                      '{}.fasta'.format(cls.large_structure_id))
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
@@ -348,74 +357,68 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(os.path.isfile(filtered_aln_fn_small))
         self.assertLessEqual(count_large, max_count_large)
 
+    def test8_init(self):
+        test_generator = DataSetGenerator(input_path=self.input_path)
+        self.assertEqual(test_generator.input_path, self.input_path)
+        self.assertEqual(test_generator.protein_list_path, self.protein_list_path)
+        self.assertEqual(test_generator.pdb_path, self.pdb_path)
+        self.assertEqual(test_generator.sequence_path, self.sequence_path)
+        self.assertEqual(test_generator.blast_path, self.blast_path)
+        self.assertEqual(test_generator.filtered_blast_path, self.filtered_blast_path)
+        self.assertEqual(test_generator.alignment_path, self.alignment_path)
+        self.assertEqual(test_generator.filtered_alignment_path, self.filtered_alignment_path)
+        self.assertEqual(test_generator.final_alignment_path, self.final_alignment_path)
+        self.assertIsNone(test_generator.protein_data)
 
-    # def test1_init(self):
-    #     test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-    #     self.assertTrue(test_generator.input_path == self.input_path)
-    #     self.assertTrue(test_generator.file_name == os.path.basename(self.protein_list_fn))
-    #     self.assertEqual(len(test_generator.protein_data), 2)
-    #     self.assertTrue(self.small_structure_id in test_generator.protein_data)
-    #     self.assertTrue(self.large_structure_id in test_generator.protein_data)
-    #
-    # def test7_build_dataset(self):
-    #     for curr_fn in os.listdir(self.input_path):
-    #         curr_dir = os.path.join(self.input_path, curr_fn)
-    #         if os.path.isdir(curr_dir) and curr_fn != 'ProteinLists':
-    #             rmtree(curr_dir)
-    #     test_generator = DataSetGenerator(protein_list='Test_Set.txt', input_path=self.input_path)
-    #     test_generator.build_dataset(num_threads=self.max_threads, max_target_seqs=self.max_target_seqs)
-    #     pdb_path = os.path.join(self.input_path, 'PDB')
-    #     expected_pdb_fn_small = os.path.join(pdb_path, '{}'.format(self.small_structure_id[1:3]),
-    #                                          'pdb{}.ent'.format(self.small_structure_id))
-    #     self.assertTrue(test_generator.protein_data[self.small_structure_id]['PDB_Path'] == expected_pdb_fn_small)
-    #     expected_pdb_fn_large = os.path.join(pdb_path, '{}'.format(self.large_structure_id[1:3]),
-    #                                      'pdb{}.ent'.format(self.large_structure_id))
-    #     self.assertTrue(test_generator.protein_data[self.large_structure_id]['PDB_Path'] == expected_pdb_fn_large)
-    #     sequence_path = os.path.join(self.input_path, 'Sequences')
-    #     expexcted_query_fn_small = os.path.join(sequence_path, '{}.fasta'.format(self.small_structure_id))
-    #     self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Query_Sequence'].seq),
-    #                      str(self.small_query_seq.seq))
-    #     self.assertEqual(test_generator.protein_data[self.small_structure_id]['Sequence_Length'],
-    #                      len(self.small_query_seq.seq))
-    #     self.assertEqual(test_generator.protein_data[self.small_structure_id]['Fasta_File'], expexcted_query_fn_small)
-    #     expexcted_query_fn_large = os.path.join(sequence_path, '{}.fasta'.format(self.large_structure_id))
-    #     self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Query_Sequence'].seq),
-    #                      str(self.large_query_seq.seq))
-    #     self.assertEqual(test_generator.protein_data[self.large_structure_id]['Sequence_Length'],
-    #                      len(self.large_query_seq.seq))
-    #     self.assertEqual(test_generator.protein_data[self.large_structure_id]['Fasta_File'], expexcted_query_fn_large)
-    #     blast_path = os.path.join(self.input_path, 'BLAST')
-    #     expected_blast_fn_small = os.path.join(blast_path, '{}.xml'.format(self.small_structure_id))
-    #     self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST_File'], expected_blast_fn_small)
-    #     expected_blast_fn_large = os.path.join(blast_path, '{}.xml'.format(self.large_structure_id))
-    #     self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST_File'], expected_blast_fn_large)
-    #     pileup_path = os.path.join(self.input_path, 'Pileups')
-    #     expected_pileup_fn_small = os.path.join(pileup_path, '{}.fasta'.format(self.small_structure_id))
-    #     alignment_path = os.path.join(self.input_path, 'Alignments')
-    #     expected_msf_fn_small = os.path.join(alignment_path, '{}.msf'.format(self.small_structure_id))
-    #     expected_fa_fn_small = os.path.join(alignment_path, '{}.fasta'.format(self.small_structure_id))
-    #     if test_generator.protein_data[self.small_structure_id]['Pileup_File']:
-    #         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Pileup_File'],
-    #                          expected_pileup_fn_small)
-    #         self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_File'], expected_msf_fn_small)
-    #         self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_File'], expected_fa_fn_small)
-    #     else:
-    #         self.assertIsNone(test_generator.protein_data[self.small_structure_id]['Pileup_File'])
-    #         self.assertIsNone(test_generator.protein_data[self.small_structure_id]['MSF_File'])
-    #         self.assertIsNone(test_generator.protein_data[self.small_structure_id]['FA_File'])
-    #     expected_pileup_fn_large = os.path.join(pileup_path, '{}.fasta'.format(self.large_structure_id))
-    #     expected_msf_fn_large = os.path.join(alignment_path, '{}.msf'.format(self.large_structure_id))
-    #     expected_fa_fn_large = os.path.join(alignment_path, '{}.fasta'.format(self.large_structure_id))
-    #     if test_generator.protein_data[self.large_structure_id]['Pileup_File']:
-    #         self.assertEqual(test_generator.protein_data[self.large_structure_id]['Pileup_File'],
-    #                          expected_pileup_fn_large)
-    #         self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_File'], expected_msf_fn_large)
-    #         self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_File'], expected_fa_fn_large)
-    #     else:
-    #         self.assertIsNone(test_generator.protein_data[self.large_structure_id]['Pileup_File'])
-    #         self.assertIsNone(test_generator.protein_data[self.large_structure_id]['MSF_File'])
-    #         self.assertIsNone(test_generator.protein_data[self.large_structure_id]['FA_File'])
-
-
-
-
+    def test9_build_pdb_alignment_dataset(self):
+        test_generator = DataSetGenerator(input_path=self.input_path)
+        test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, num_threads=self.max_threads,
+                                                   max_target_seqs=self.max_target_seqs)
+        self.assertTrue(self.small_structure_id in test_generator.protein_data)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Chain'], 'A')
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['PDB'], self.expected_pdb_fn_small)
+        self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Sequence'].seq),
+                         str(self.small_query_seq.seq))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Length'],
+                         len(str(self.small_query_seq.seq)))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Seq_Fasta'], self.expected_seq_fn_small)
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST'], self.expected_blast_fn_small)
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Filter_Count'],
+                             test_generator.protein_data[self.small_structure_id]['BLAST_Hits'])
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_BLAST'],
+                         self.expected_filtered_blast_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_Aln'], self.expected_msf_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_Aln'], self.expected_fa_fn_small)
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Final_Count'],
+                             test_generator.protein_data[self.small_structure_id]['Filter_Count'])
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_Alignment'],
+                         self.expected_filtered_aln_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_MSF_Aln'],
+                         self.expected_final_msf_fn_small)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                         self.expected_final_fa_fn_small)
+        self.assertTrue(self.large_structure_id in test_generator.protein_data)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Chain'], 'A')
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['PDB'], self.expected_pdb_fn_large)
+        self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Sequence'].seq),
+                         str(self.large_query_seq.seq))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Length'],
+                         len(str(self.large_query_seq.seq)))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Seq_Fasta'], self.expected_seq_fn_large)
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST'], self.expected_blast_fn_large)
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Filter_Count'],
+                             test_generator.protein_data[self.large_structure_id]['BLAST_Hits'])
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_BLAST'],
+                         self.expected_filtered_blast_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_Aln'], self.expected_msf_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_Aln'], self.expected_fa_fn_large)
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Final_Count'],
+                             test_generator.protein_data[self.large_structure_id]['Filter_Count'])
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_Alignment'],
+                         self.expected_filtered_aln_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_MSF_Aln'],
+                         self.expected_final_msf_fn_large)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                         self.expected_final_fa_fn_large)

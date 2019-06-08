@@ -17,7 +17,7 @@ from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
-from Bio.Align.Applications import MuscleCommandline, ClustalwCommandline
+from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
 from SeqAlignment import SeqAlignment
@@ -67,7 +67,7 @@ class DataSetGenerator(object):
         self.filtered_blast_path = os.path.join(self.input_path, 'Filtered_BLAST')
         self.alignment_path = os.path.join(self.input_path, 'Alignments')
         self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignment')
-        self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignment')
+        self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignments')
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
@@ -109,7 +109,7 @@ class DataSetGenerator(object):
             curr_hit_count, curr_blast_fn = blast_query_sequence(
                 protein_id=protein_id, blast_path=self.blast_path, sequence_fn=curr_seq_fn, num_threads=num_threads,
                 max_target_seqs=max_target_seqs, database=database, remote=remote)
-            self.protein_data[protein_id]['BLAST_HITS'] = curr_hit_count
+            self.protein_data[protein_id]['BLAST_Hits'] = curr_hit_count
             self.protein_data[protein_id]['BLAST'] = curr_blast_fn
             curr_filter_count, curr_filter_fn = filter_blast_sequences(
                 protein_id=protein_id, filter_path=self.filtered_blast_path, blast_fn=curr_blast_fn, query_seq=curr_seq,
@@ -678,20 +678,10 @@ def parse_arguments():
                         help='The maximum e-value for a passing hit.')
     parser.add_argument('--min_fraction', type=float, default=0.7, nargs=1,
                         help='The minimum fraction of the query sequence length for a passing hit.')
-    parser.add_argument('--max_fraction', type=float, default=1.5, nargs=1,
-                        help='The maximum fraction of the query sequence length for a passing hit.')
     parser.add_argument('--min_identity', type=int, default=75, nargs=1,
-                        help='The preferred minimum identity for a passing hit.')
-    parser.add_argument('--abs_max_identity', type=int, default=95, nargs=1,
-                        help='The absolute maximum identity for a passing hit.')
-    parser.add_argument('--abs_min_identity', type=int, default=30, nargs=1,
                         help='The absolute minimum identity for a passing hit.')
-    parser.add_argument('--interval', type=int, default=5, nargs=1,
-                        help='The interval on which to define bins between min_identity and abs_min_identity in case '
-                             'sufficient sequences are not found at min_identity.')
-    parser.add_argument('--ignore_filter_size', type=bool, default=False, nargs=1,
-                        help='Whether or not to ignore the 125 sequence requirement before writing the filtered '
-                             'sequences to file.')
+    parser.add_argument('--max_identity', type=int, default=95, nargs=1,
+                        help='The absolute maximum identity for a passing hit.')
     parser.add_argument('--msf', type=bool, default=True, nargs=1,
                         help='Whether or not to create an msf version of the MUSCLE alignment.')
     parser.add_argument('--fasta', type=bool, default=True, nargs=1,
@@ -731,10 +721,9 @@ if __name__ == "__main__":
         for id_bin in sorted(res[4].keys()):
             print('\tBin_{}:\t{} Sequences'.format(id_bin, len(res[4][id_bin])))
     if args['create_data_set']:
-        generator = DataSetGenerator(protein_list=args['protein_list_fn'], input_path=args['input_dir'])
-        generator.build_dataset(num_threads=args['num_threads'], max_target_seqs=args['max_target_seqs'],
-                                e_value_threshold=args['e_value_threshold'], min_fraction=args['min_fraction'],
-                                max_fraction=args['max_fraction'], min_identity=args['min_identity'],
-                                abs_max_identity=args['abs_max_identity'], abs_min_identity=args['abs_min_identity'],
-                                interval=args['interval'], ignore_filter_size=args['ignore_filter_size'],
-                                msf=args['msf'], fasta=args['fasta'])
+        generator = DataSetGenerator(input_path=args['input_dir'])
+        generator.build_pdb_alignment_dataset(
+            protein_list_fn=args['protein_list_fn'], num_threads=args['num_threads'],
+            max_target_seqs=args['max_target_seqs'], e_value_threshold=args['e_value_threshold'],
+            min_fraction=args['min_fraction'], min_identity=args['min_identity'],
+            max_identity=args['abs_max_identity'], msf=args['msf'], fasta=args['fasta'])
