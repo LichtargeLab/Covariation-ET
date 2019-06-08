@@ -407,7 +407,7 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True)
             stdout, stderr = msf_cline()
             print(stdout)
             print(stderr)
-    return fa_fn, msf_fn
+    return msf_fn, fa_fn
 
 
 def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
