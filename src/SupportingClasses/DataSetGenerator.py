@@ -39,9 +39,16 @@ class DataSetGenerator(object):
         input_path (str/path): The path to the directory where the data for this data set should be stored. It is
         expected to contain at least one directory name ProteinLists which should contain files where each line denotes
         a separate PDB id (four letter code only).
+        pdb_path (str): The location at which PDB structures should be saved.
+        sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
+        blast_path (str): The location where BLAST output can be written.
+        filtered_blast_path (str): Directory where filtered sequences can be written in fasta format.
+        alignment_path (str): The directory to which the initial alignments can be written.
+        filtered_alignment_path (str): Path to a directory where the filtered alignment can be written.
+        final_alignment_path (str): The directory to which the final alignments can be written.
         protein_data (dict): A dictionary to hold the protein data generated over the course of data set construction.
-        Initially it only contains the PDB ids parsed in from the provided file_name as keys, referencing empty
-        dictionaries as values.
+        It is initially None and is then built up such that it contains the PDB ids parsed in from the protein list
+        as keys, referencing dictionaries with each proteins values.
     """
 
     def __init__(self, input_path):
