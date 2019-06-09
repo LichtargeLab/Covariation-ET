@@ -106,7 +106,7 @@ class DataSetGenerator(object):
         for data in res.get():
             # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
             self.protein_data[data[0]].update(data[1])
-            print('It took {} min to generate data for {}\n'.format(data[2], data[0]))
+            print('It took {} min to generate data for {}'.format(data[2], data[0]))
             print('{} Sequence Returned By Blast\n{} Sequences After Initial Filtering\n{} Sequences After Identity '
                   'Filtering'.format(data[1]['BLAST_Hits'], data[1]['Filter_Count'], data[1]['Final_Count']))
 
@@ -171,12 +171,13 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
     final_aln_dir = final_aln_path
 
 
-def generate_protein_data(protein_id, chain_id):
+def generate_protein_data(in_tup):
     """
 
-    Args:
-        protein_id (str): The protein for which to download a PDB structure and generate an alignment.
-        chain_id (str/char): The chain of interest for the specified protein.
+    Args:\
+        in_tup (tuple): A tuple containing the following two values:
+            protein_id (str): The protein for which to download a PDB structure and generate an alignment.
+            chain_id (str/char): The chain of interest for the specified protein.
     Returns:
         str: The protein for which data was generated.
         dict: The data and paths to the written data for the protein, the following key value pairs are stored:
@@ -196,6 +197,8 @@ def generate_protein_data(protein_id, chain_id):
             Final_FA_Aln: (str) The path to the final msf alignment produced by this method (None if msf=False).
         float: The time in minutes it took to generate data for this protein.
     """
+    protein_id = in_tup[0]
+    chain_id = in_tup[1]
     start = time()
     pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id)
     curr_seq, curr_len, curr_seq_fn = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
@@ -214,7 +217,7 @@ def generate_protein_data(protein_id, chain_id):
                                                 pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta)
     data = {'PDB': pdb_fn, 'Sequence': curr_seq, 'Length': curr_len, 'Seq_Fasta': curr_seq_fn,
             'BLAST_Hits': curr_hit_count, 'BLAST': curr_blast_fn, 'Filter_Count': curr_filter_count,
-            'Filter_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn, 'Final_Count': final_filter_count,
+            'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn, 'Final_Count': final_filter_count,
             'Filtered_Alignment': final_filter_fn, 'Final_MSF_Aln': final_msf_fn, 'Final_FA_Aln': final_fa_fn}
     end = time()
     total = (end - start) / 60.0
