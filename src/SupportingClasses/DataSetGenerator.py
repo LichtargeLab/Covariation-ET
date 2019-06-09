@@ -653,8 +653,8 @@ def characterize_alignment(file_name, query_id, abs_max_identity=95, abs_min_ide
     when filtering sequences returned by the BLAST search.
 
     Args:
-        file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is
-        used (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
+        file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is used
+        (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
         query_id (str): The sequence identifier of interest.
         abs_max_identity (int): The absolute maximum identity for a passing hit.
         abs_min_identity (int): The absolute minimum identity for a passing hit.
@@ -774,7 +774,8 @@ def parse_arguments():
         arguments['num_threads'] = processor_count
     if arguments['custom_uniref']:
         if (not 'original_uniref_fasta' in arguments) or (not 'filtered_uniref_fasta'):
-            raise ValueError('When custom_uniref is selected original_uniref_fasta and filtered_uniref_fasta must be specfied.')
+            raise ValueError('When custom_uniref is selected original_uniref_fasta and filtered_uniref_fasta must be '
+                             'specfied.')
     if arguments['characterize_alignment']:
         if (not 'file_name' in arguments) or (not 'query_id' in arguments):
             raise ValueError('When characterize_alignment is selected file_name and query_id must be specified.')
@@ -789,17 +790,18 @@ if __name__ == "__main__":
     if args['custom_uniref']:
         filter_uniref_fasta(in_path=args['original_uniref_fasta'], out_path=args['filtered_uniref_fasta'])
     if args['characterize_alignment']:
-        res = characterize_alignment(file_name=args['file_name'], query_id=args['query_id'],
-                                     abs_max_identity=args['abs_max_identity'],
-                                     abs_min_identity=args['abs_min_identity'], min_identity=args['min_identity'],
-                                     interval=args['interval'])
-        print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}\n\tAverage:\t{}'.format(res[0], res[1], mean(res[2])))
+        results = characterize_alignment(file_name=args['file_name'], query_id=args['query_id'],
+                                         abs_max_identity=args['abs_max_identity'],
+                                         abs_min_identity=args['abs_min_identity'], min_identity=args['min_identity'],
+                                         interval=args['interval'])
+        print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}\n\tAverage:\t{}'.format(results[0], results[1],
+                                                                                          mean(results[2])))
         print('\nSequence Identities:\n')
-        for id_bin in sorted(res[3].keys()):
-            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(res[3][id_bin])))
+        for id_bin in sorted(results[3].keys()):
+            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(results[3][id_bin])))
         print('\nSequence Identities Outside Expected Range:\n')
-        for id_bin in sorted(res[4].keys()):
-            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(res[4][id_bin])))
+        for id_bin in sorted(results[4].keys()):
+            print('\tBin_{}:\t{} Sequences'.format(id_bin, len(results[4][id_bin])))
     if args['create_data_set']:
         generator = DataSetGenerator(input_path=args['input_dir'])
         generator.build_pdb_alignment_dataset(
