@@ -254,7 +254,7 @@ def import_protein_list(protein_list_fn):
     return protein_list
 
 
-def download_pdb(pdb_path, protein_id):
+def download_pdb(pdb_path, protein_id, verbose=False):
     """
     Download PDB
 
@@ -264,12 +264,13 @@ def download_pdb(pdb_path, protein_id):
     Args:
         pdb_path (str): The location at which PDB structures should be saved.
         protein_id (str): Four letter code for a PDB id to be downloaded.
+        verbose (bool): Whether to write out information during processing.
     Returns:
         str: The path to the PDB file downloaded.
     """
     if not os.path.isdir(pdb_path):
         os.makedirs(pdb_path)
-    pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path)
+    pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path, verbose=verbose)
     pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
     return pdb_file
 
