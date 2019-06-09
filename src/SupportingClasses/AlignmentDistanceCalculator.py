@@ -16,18 +16,20 @@ class AlignmentDistanceCalculator(DistanceCalculator):
     information can then be used for other uses such as constructing a phylogenetic tree.
 
     Attributes:
-        aln_type (str):
-        alphabet (list):
-        model (str):
-        mapping (dict):
-        substitution_matrix (np.ndarray):
+        aln_type (str): Whether this is a protein or DNA alignment.
+        alphabet (list): The corresponding amino or nucleic acid alphabet.
+        model (str): The distance/substitution model to use when calculating sequence distance.
+        mapping (dict): A mapping from the character alphabet to their indices (used when computing identity distance or
+        referencing subsitution scores).
+        scoring_matrix (np.ndarray): The corresponding scoring/substitution matrix for the chosen model.
     """
 
     def __init__(self, protein=True, model='identity', skip_letters=None):
         """
         Args:
-            protein (Boolean):
-        Returns:
+            protein (bool): Whether or not this calculator will be used on protein alignments or not.
+            model (str): The distance/substitution model to use when calculating sequence distance.
+            skip_letters (list): Which characters to skip when scoring sequences in the alignment.
         """
         if protein:
             self.aln_type = 'protein'
@@ -48,6 +50,17 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         self.scoring_matrix = self._update_scoring_matrix()
 
     def _build_mapping(self):
+        """
+        Build Mapping
+
+        Constructs a dictionary mapping characters in the given alphabet to their position in the alphabet (which
+        corresponds to their index in substitution matrices). It also maps gap characters and skip letters to positions
+        outside of that range.
+
+        Returns:
+            dict: Dictionary mapping a character to a number corresponding to its position in the alphabet or in the
+            scoring/substitution matrix.
+        """
         alphabet_mapping = {char: i for i, char in enumerate(self.alphabet)}
         gap_map = {char: len(self.alphabet) for char in self.gap_characters}
         alphabet_mapping.update(gap_map)
@@ -56,6 +69,15 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return alphabet_mapping
 
     def _update_scoring_matrix(self):
+        """
+        Update Scoring Matrix
+
+        This function acts as a switch statement to generate the correct scoring/substitution matrix based on whether
+        the calculator will be used for proteins or DNA and the model specified.
+
+        Return:
+             numpy.array: The substitution/scoring matrix.
+        """
         if self.model == 'identity':
             substitution_matrix = self._build_identity_scoring_matrix()
         elif self.aln_type == 'dna' or self.aln_type == 'protein':
@@ -65,11 +87,28 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return substitution_matrix
 
     def _build_identity_scoring_matrix(self):
+        """
+        Build Identity Scoring Matrix
+
+        This function builds the scoring matrix if the specified model is identity.
+
+        Return:
+             numpy.array: The identity scoring matrix.
+        """
         substitution_matrix = np.eye(len(self.alphabet) + 2)
         substitution_matrix[len(self.alphabet) + 1, len(self.alphabet) + 1] = 0
         return substitution_matrix
 
     def _rebuild_scoring_matrix(self):
+        """
+        Rebuild Scoring Matrix
+
+        This function converts a Bio.Phylo.TreeConstruction.DistanceMatrix to a numpy array and then adds additional
+        columns/rows for the gap and skip letter characters.
+
+        Returns:
+            numpy.array: The substitution matrix for the specified model.
+        """
         scoring_matrix = np.array(self.scoring_matrix)
         substitution_matrix = np.insert(scoring_matrix, obj=scoring_matrix.shape[0], values=0, axis=0)
         substitution_matrix = np.insert(substitution_matrix, obj=scoring_matrix.shape[1], values=0, axis=1)
@@ -78,11 +117,33 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return substitution_matrix
 
     def _convert_seq_to_numeric(self, seq):
+        """
+        Convert Seq To Numeric
+
+        This function uses an alphabet mapping (see _build_mapping) to convert a sequence to a 1D array of integers.
+
+        Args:
+            seq (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence.
+        Return:
+            numpy.array: A 1D array containing the numerical representation of the passed in sequence.
+        """
         # Convert a SeqRecord sequence to a numerical representation (using indices in scoring_matrix)
         numeric = [self.mapping[char] for char in seq]
         return np.array(numeric)
 
     def _pairwise(self, seq1, seq2):
+        """
+        Pairwise
+
+        This function scores two sequences by converting them via a mapping table, identifying positions to skip,
+        retrieving the substitution scores, and calculating the final distance between the two sequences.
+
+        Args:
+            seq1 (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence to score against seq2.
+            seq2 (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence to score against seq1.
+        Returns:
+            float: The distance between the two sequences.
+        """
         num_seq1 = self._convert_seq_to_numeric(seq1)  # Convert seq1 to its indices in the scoring_matrix
         num_seq2 = self._convert_seq_to_numeric(seq2)  # Convert seq2 to its indices in the scoring_matrix
         non_gap_pos1 = num_seq1 < len(self.alphabet) + 1  # Find all positions which are not skip_letters in seq1
@@ -107,6 +168,16 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return final_score
 
     def get_identity_distance(self, msa):
+        """
+        Get Identity Distance
+
+        Compute the identity distance between the sequences in the provided alignment.
+
+        Args:
+            msa (Bio.Align.MultipleSeqAlignment): The alignment for which to calculate identity distances.
+        Returns:
+            Bio.Phylo.TreeConstruction.DistanceMatrix: The identity distance matrix for the alignment.
+        """
         names = [s.id for s in msa]
         dm = DistanceMatrix(names)
         numerical_alignment = np.vstack([self._convert_seq_to_numeric(seq) for seq in msa])
@@ -121,6 +192,16 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return dm
 
     def get_scoring_matrix_distance(self, msa):
+        """
+        Get Scoring Matrix Distance
+
+        Compute the distance between the sequences in the provided alignment based on the specified distance model.
+
+        Args:
+            msa (Bio.Align.MultipleSeqAlignment): The alignment for which to calculate distances.
+        Returns:
+            Bio.Phylo.TreeConstruction.DistanceMatrix: The distance matrix for the alignment.
+        """
         names = [s.id for s in msa]
         dm = DistanceMatrix(names)
         for seq1, seq2 in combinations(msa, 2):
@@ -144,6 +225,21 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         return dm
 
     def get_et_distance(self, msa):
+        """
+        Get ET Distance
+
+        Calculates the sequence similarity using identity and substitution scoring metrics (this mirrors the previous
+        implmentations used by ETC in the lab).
+
+        Args:
+            msa (Bio.Align.MultipleSeqAlignment): The alignment for which to calculate distances.
+        Returns:
+            Bio.Phylo.TreeConstruction.DistanceMatrix: The identity based seqeunce similarity distance matrix for the
+            alignment.
+            Bio.Phylo.TreeConstruction.DistanceMatrix: The substitution matrix based distance matrix for the alignment.
+            pandas.DataFrame: A DataFrame with intermediate values for the distance calculation.
+            float: The threshold used to determine the cutoff for similarity using the substitution matrix.
+        """
         names = [s.id for s in msa]
         plain_identity = DistanceMatrix(names)
         psuedo_identity = DistanceMatrix(names)
@@ -154,17 +250,12 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         if count > 0:
             sum = np.sum(positive_scores)
             average = float(sum) / count
-            # print(positive_scores)
-            # print('COUNT: {}'.format(count))
-            # print('RUNNING SUM: {}'.format(sum))
-            # print('AVERAGE: {}'.format(average))
             if average < 1.0:
                 threshold = 1.0
             else:
                 threshold = np.floor(average + 0.5)
         else:
             threshold = 1
-        # print('THRESHOLD: {}'.format(threshold))
         # Compute the non-gap length of the sequences
         data_dict = {'Seq1': [], 'Seq2': [], 'Min_Seq_Length': [], 'Id_Count': [], 'Threshold_Count': []}
         seq_conversion = {}
