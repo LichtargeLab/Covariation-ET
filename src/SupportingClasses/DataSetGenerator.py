@@ -71,7 +71,7 @@ class DataSetGenerator(object):
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
                                     database='nr', remote=False, min_fraction=0.7, min_identity=0.40, max_identity=0.98,
-                                    msf=True, fasta=True):
+                                    msf=True, fasta=True, verbose=False):
         """
         Build Dataset
 
@@ -91,6 +91,7 @@ class DataSetGenerator(object):
             max_identity (int): The absolute maximum identity for a passing hit.
             msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
             fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
+            verbose (bool): Whether to write out information during processing.
         """
         protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
         if not os.path.isfile(protein_list_fn):
@@ -100,7 +101,7 @@ class DataSetGenerator(object):
                     initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
                               max_identity, msf, fasta, self.pdb_path, self.sequence_path, self.blast_path,
                               self.filtered_blast_path, self.alignment_path, self.filtered_alignment_path,
-                              self.final_alignment_path))
+                              self.final_alignment_path, verbose))
         res = pool.map_async(generate_protein_data, [(p_id, self.protein_data[p_id]['Chain'])
                                                      for p_id in self.protein_data])
         for data in res.get():
@@ -113,7 +114,7 @@ class DataSetGenerator(object):
 
 def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
                             max_identity, msf, fasta, pdb_path, sequence_path, blast_path, filtered_blast_path,
-                            aln_path, filtered_aln_path, final_aln_path):
+                            aln_path, filtered_aln_path, final_aln_path, verbose):
     """
     Init PDB Alignment Pool
 
@@ -136,6 +137,7 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
         aln_path (str): The directory to which the initial alignments can be written.
         filtered_aln_path (str): Path to a directory where the filtered alignment can be written.
         final_aln_path (str): The directory to which the final alignments can be written.
+        verbose (bool): Whether to write out information during processing.
     """
     global max_seqs
     max_seqs = max_target_seqs
@@ -169,6 +171,8 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
     filtered_aln_dir = filtered_aln_path
     global final_aln_dir
     final_aln_dir = final_aln_path
+    global verbose_out
+    verbose_out = verbose
 
 
 def generate_protein_data(in_tup):
@@ -205,16 +209,17 @@ def generate_protein_data(in_tup):
                                                            sequence_path=sequence_dir, pdb_fn=pdb_fn)
     curr_hit_count, curr_blast_fn = blast_query_sequence(protein_id=protein_id, blast_path=blast_dir,
                                                          sequence_fn=curr_seq_fn, num_threads=1, remote=ncbi,
-                                                         max_target_seqs=max_seqs, database=db)
+                                                         max_target_seqs=max_seqs, database=db, verbose=verbose_out)
     curr_filter_count, curr_filter_fn = filter_blast_sequences(
         protein_id=protein_id, filter_path=filtered_blast_dir, blast_fn=curr_blast_fn, query_seq=curr_seq,
         e_value_threshold=e_value, min_fraction=min_length, min_identity=min_id, max_identity=max_id)
     msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=aln_dir, pileup_fn=curr_filter_fn,
-                                    msf=make_msf, fasta=make_msf)
+                                    msf=make_msf, fasta=make_msf, verbose=verbose_out)
     final_filter_count, final_filter_fn = identity_filter(
         protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
     final_msf_fn, final_fa_fn = align_sequences(protein_id=protein_id, alignment_path=final_aln_dir,
-                                                pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta)
+                                                pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta,
+                                                verbose=verbose_out)
     data = {'PDB': pdb_fn, 'Sequence': curr_seq, 'Length': curr_len, 'Seq_Fasta': curr_seq_fn,
             'BLAST_Hits': curr_hit_count, 'BLAST': curr_blast_fn, 'Filter_Count': curr_filter_count,
             'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn, 'Final_Count': final_filter_count,
@@ -315,7 +320,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn):
 
 
 def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_threads=1, max_target_seqs=20000,
-                         database='nr', remote=False):
+                         database='nr', remote=False, verbose=False):
     """
     BlAST Query Sequence
 
@@ -333,6 +338,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
         database (str): The name of the database used to search for paralogs, homologs, and orthologs.
         remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
+        verbose (bool): Whether to write out information during processing.
     Returns:
         int: The number of hits returned by BLAST
         str: The path to the xml file storing the BLAST output.
@@ -351,10 +357,12 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
                                                  ungapped=False, num_threads=num_threads, evalue=evalue,
                                                  max_target_seqs=max_target_seqs,
                                                  db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
-        print(blastp_cline)
+        if verbose:
+            print(blastp_cline)
         stdout, stderr = blastp_cline()
-        print(stdout)
-        print(stderr)
+        if verbose:
+            print(stdout)
+            print(stderr)
     with open(blast_fn, 'rb') as blast_handle:
         blast_record = NCBIXML.read(blast_handle)
         hit_count = len(blast_record.alignments)
@@ -445,7 +453,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
     return count, pileup_fn
 
 
-def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True):
+def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True, verbose=False):
     """
     Align Sequences
 
@@ -459,6 +467,7 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True)
         pileup_fn (str): The full path to the file with the sequences which should be aligned.
         msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
         fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
+        verbose (bool): Whether to write out information during processing.
     Returns:
         str: The path to the fasta alignment produced by this method (None if fa=False).
         str: The path to the msf alignment produced by this method (None if msf=False).
@@ -472,10 +481,12 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True)
         if not os.path.isfile(fa_fn):
             fa_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True, outfile=fa_fn,
                                            output='FASTA')
-            print(fa_cline)
+            if verbose:
+                print(fa_cline)
             stdout, stderr = fa_cline()
-            print(stdout)
-            print(stderr)
+            if verbose:
+                print(stdout)
+                print(stderr)
     msf_fn = None
     if msf:
         msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
@@ -486,10 +497,12 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True)
             else:
                 msf_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True,
                                                 outfile=msf_fn, output='GCG')
-            print(msf_cline)
+            if verbose:
+                print(msf_cline)
             stdout, stderr = msf_cline()
-            print(stdout)
-            print(stderr)
+            if verbose:
+                print(stdout)
+                print(stderr)
     return msf_fn, fa_fn
 
 
