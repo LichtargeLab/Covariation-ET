@@ -118,8 +118,29 @@ class DataSetGenerator(object):
         if not os.path.isfile(protein_list_fn):
             raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
         self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
-        for p_id in self.protein_data:
-            self.protein_data[p_id]['PDB'] = download_pdb(pdb_path=self.pdb_path, protein_id=p_id, verbose=verbose)
+        # Download the PDBs and parse out the query sequences.
+        pool1 = Pool(num_threads, initializer=init_pdb_processing_pool, initargs=())
+        res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
+        pool1.close()
+        pool1.join()
+        res1 = res1.get()
+        seqs_to_write = []
+        for data1 in res1:
+            self.protein_data[data1[0]].update(data1[1])
+            seqs_to_write.append(data1['Sequence'])
+        # Write out a fasta file containing all the query sequences for BLASTing
+        all_seqs_fn = os.path.join(self.sequence_path, os.path.splitext(os.path.basename(protein_list_fn))[0] +
+                                   '.fasta')
+        with open(all_seqs_fn) as all_seqs_handle:
+            write(seqs_to_write, all_seqs_handle, 'fasta')
+        # BLAST all query sequences at once
+        blast_fn, hits = blast_query_sequence(protein='All_Seqs', blast_path=self.blast_path, sequence_fn=all_seqs_fn,
+                                              evalue=e_value_threshold, num_threads=num_threads,
+                                              max_target_seqs=max_target_seqs, database=database, remote=remote)
+        for p_id in hits:
+            self.protein_data[p_id].update(hits[p_id])
+            self.protein_data[p_id]['BLAST'] = blast_fn
+        # Filter the BLAST hits for each query, align, filter again, and make final alignments.
         # res = []
         # init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
         #                          max_identity, msf, fasta, self.pdb_path, self.sequence_path, self.blast_path,
@@ -128,16 +149,13 @@ class DataSetGenerator(object):
         # for p_id in self.protein_data:
         #     print('Generating data for: {}'.format(p_id))
         #     res.append(generate_protein_data((p_id, self.protein_data[p_id]['Chain'])))
-        pool = Pool(num_threads, initializer=init_pdb_alignment_pool,
+        pool2 = Pool(num_threads, initializer=init_filtering_and_alignment_pool,
                     initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-                              max_identity, msf, fasta, self.sequence_path, self.blast_path,
-                              self.filtered_blast_path, self.alignment_path, self.filtered_alignment_path,
-                              self.final_alignment_path, verbose))
-        res = pool.map_async(generate_protein_data, [(p_id, self.protein_data[p_id]['Chain'],
-                                                      self.protein_data[p_id]['PDB']) for p_id in self.protein_data])
-        pool.close()
-        pool.join()
-        exit()
+                              max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
+                              self.filtered_alignment_path, self.final_alignment_path, verbose))
+        res = pool2.map_async(filtering_and_alignment, [p_id for p_id in self.protein_data])
+        pool2.close()
+        pool2.join()
         res = res.get()
         for data in res:
             # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
@@ -147,9 +165,61 @@ class DataSetGenerator(object):
                   'Filtering'.format(data[1]['BLAST_Hits'], data[1]['Filter_Count'], data[1]['Final_Count']))
 
 
-def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-                            max_identity, msf, fasta, sequence_path, blast_path, filtered_blast_path, aln_path,
-                            filtered_aln_path, final_aln_path, verbose):
+def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
+    """
+    Init PDB Processing Pool
+
+    This function initializes variables needed by all threads downloading PDBs and processing their query sequence.
+
+    Args:
+        pdb_path (str): The location at which PDB structures should be saved.
+        sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
+        lock (multiprocessing.Lock): A lock to control filesystem access while downloading PDBs since many folders need
+        to be checked for and created.
+        verbose (bool): Whether or not to write out verbose output.
+    """
+    global pdb_dir
+    pdb_dir = pdb_path
+    global sequence_dir
+    sequence_dir = sequence_path
+    global fs_lock
+    fs_lock = lock
+    global verbose_out
+    verbose_out = verbose
+
+
+def pdb_processing(in_tuple):
+    """
+    PDB Processing
+
+    This function servers to download a single PDB id's structure and parse out its query sequence.
+
+    Args:
+        in_tuple (tuple): A tuple containing the protein_id and chain_id for the desired protein structure to download
+        and sequence to parse.
+    Returns:
+        str: The protein_id passed in, needed for indexing upon return
+        dict: A dictionary containing data to be added to the protein_data field of the DataSetGenerator including the
+        following keys and values:
+            PDB: (str) The full path to the PDB structure downloaded for this protein.
+            Sequence: (Bio.SeqRecord.SeqRecord) A SeqRecord containing the protein_id and the parsed out sequence.
+            Length: (int) The length of the parsed sequence.
+            Seq_Fasta: (str) The full path to the fasta file containing just the query sequence for this protein.
+    """
+    protein_id = in_tuple[0]
+    chain_id = in_tuple[1]
+    fs_lock.acquire()
+    pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id, verbose=verbose_out)
+    fs_lock.release()
+    seq, length, seq_fn = parse_query_sequence(protein_id=protein_id, chain_id=chain_id, sequence_path=sequence_dir,
+                                               pdb_fn=pdb_fn, verbose=verbose_out)
+    data = {'PDB': pdb_fn, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn}
+    return protein_id, data
+
+
+def init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
+                                      max_identity, msf, fasta, blast_fn, filtered_blast_path, aln_path,
+                                      filtered_aln_path, final_aln_path, verbose):
     """
     Init PDB Alignment Pool
 
@@ -165,14 +235,12 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
         max_identity (int): The absolute maximum identity for a passing hit.
         msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
         fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
-        sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
-        blast_path (str): The location where BLAST output can be written.
+        blast_fn (str): The full path to the BLAST xml containing all proteins' hits.
         filtered_blast_path (str): Directory where filtered sequences can be written in fasta format.
         aln_path (str): The directory to which the initial alignments can be written.
         filtered_aln_path (str): Path to a directory where the filtered alignment can be written.
         final_aln_path (str): The directory to which the final alignments can be written.
         verbose (bool): Whether to write out information during processing.
-        lock (Lock): Lock required to control file system access during PDB downlaoding.
     """
     global max_seqs
     max_seqs = max_target_seqs
@@ -192,10 +260,8 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
     make_msf = msf
     global make_fasta
     make_fasta = fasta
-    global sequence_dir
-    sequence_dir = sequence_path
-    global blast_dir
-    blast_dir = blast_path
+    global blast_file
+    blast_file = blast_fn
     global filtered_blast_dir
     filtered_blast_dir = filtered_blast_path
     global aln_dir
@@ -206,27 +272,20 @@ def init_pdb_alignment_pool(max_target_seqs, e_value_threshold, database, remote
     final_aln_dir = final_aln_path
     global verbose_out
     verbose_out = verbose
-    # global fs_lock
-    # fs_lock = lock
 
 
-def generate_protein_data(in_tup):
+def filtering_and_alignment(protein_id):
     """
+    Filtering And Alignment
 
-    Args:\
-        in_tup (tuple): A tuple containing the following two values:
-            protein_id (str): The protein for which to download a PDB structure and generate an alignment.
-            chain_id (str/char): The chain of interest for the specified protein.
-            pdb_fn (str): The full path to the pdb structure for the protein_id.
+    This method filters the BLAST hits found for the specified protein, aligns them, filters the alignment for identity,
+    and generates a final alignment.
+
+    Args:
+        protein_id (str): The protein for which to download a PDB structure and generate an alignment.
     Returns:
         str: The protein for which data was generated.
         dict: The data and paths to the written data for the protein, the following key value pairs are stored:
-            PDB: (str) The path to the PDB file downloaded.
-            Sequence: (Bio.SeqRecord.SeqRecord) The sequence parsed from the PDB file of the specified protein id.
-            Length: (int) The length of the parsed sequence.
-            Seq_Fasta: (str) The file path to the fasta file where the sequence has been written.
-            BLAST_Hits: (int) The number of hits returned by BLAST
-            BLAST: (str) The path to the xml file storing the BLAST output.
             Filter_Count: (int) The number of sequences passing the filters.
             Filter_BLAST: (str) The file path to the list of sequences writen out after filtering.
             MSF_Aln: (str) The path to the initial fasta alignment produced by this method (None if fa=False).
@@ -237,36 +296,20 @@ def generate_protein_data(in_tup):
             Final_FA_Aln: (str) The path to the final msf alignment produced by this method (None if msf=False).
         float: The time in minutes it took to generate data for this protein.
     """
-    protein_id = in_tup[0]
-    chain_id = in_tup[1]
-    pdb_fn = in_tup[2]
     start = time()
-    # fs_lock.acquire()
-    # print('{} LOCK ACQUIRED'.format(protein_id))
-    # pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id)
-    # print('{} RELEASING LOCK'.format(protein_id))
-    # fs_lock.release()
-    # Start Real code
-    curr_seq, curr_len, curr_seq_fn = parse_query_sequence(protein_id=protein_id, chain_id=chain_id, pdb_fn=pdb_fn,
-                                                           sequence_path=sequence_dir, verbose=verbose_out)
-    curr_hit_count, curr_blast_fn = blast_query_sequence(protein_id=protein_id, blast_path=blast_dir,
-                                                         sequence_fn=curr_seq_fn, num_threads=1, remote=ncbi,
-                                                         max_target_seqs=max_seqs, database=db, verbose=verbose_out)
-    # curr_filter_count, curr_filter_fn = filter_blast_sequences(
-    #     protein_id=protein_id, filter_path=filtered_blast_dir, blast_fn=curr_blast_fn, query_seq=curr_seq,
-    #     e_value_threshold=e_value, min_fraction=min_length, min_identity=min_id, max_identity=max_id)
-    # msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=aln_dir, pileup_fn=curr_filter_fn,
-    #                                 msf=make_msf, fasta=make_msf, verbose=verbose_out)
-    # final_filter_count, final_filter_fn = identity_filter(
-    #     protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
-    # final_msf_fn, final_fa_fn = align_sequences(protein_id=protein_id, alignment_path=final_aln_dir,
-    #                                             pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta,
-    #                                             verbose=verbose_out)
-    # data = {'PDB': pdb_fn, 'Sequence': curr_seq, 'Length': curr_len, 'Seq_Fasta': curr_seq_fn,
-    #         'BLAST_Hits': curr_hit_count, 'BLAST': curr_blast_fn, 'Filter_Count': curr_filter_count,
-    #         'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn, 'Final_Count': final_filter_count,
-    #         'Filtered_Alignment': final_filter_fn, 'Final_MSF_Aln': final_msf_fn, 'Final_FA_Aln': final_fa_fn}
-    data = {}
+    curr_filter_count, curr_filter_fn = filter_blast_sequences(
+        protein_id=protein_id, filter_path=filtered_blast_dir, blast_fn=curr_blast_fn, query_seq=curr_seq,
+        e_value_threshold=e_value, min_fraction=min_length, min_identity=min_id, max_identity=max_id)
+    msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=aln_dir, pileup_fn=curr_filter_fn,
+                                    msf=make_msf, fasta=make_msf, verbose=verbose_out)
+    final_filter_count, final_filter_fn = identity_filter(
+        protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
+    final_msf_fn, final_fa_fn = align_sequences(protein_id=protein_id, alignment_path=final_aln_dir,
+                                                pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta,
+                                                verbose=verbose_out)
+    data = {'Filter_Count': curr_filter_count,'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn,
+            'Final_Count': final_filter_count, 'Filtered_Alignment': final_filter_fn, 'Final_MSF_Aln': final_msf_fn,
+            'Final_FA_Aln': final_fa_fn}
     end = time()
     total = (end - start) / 60.0
     return protein_id, data, total
@@ -386,12 +429,12 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
 
 
 def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_threads=1, max_target_seqs=20000,
-                         database='nr', remote=False, verbose=False):
+                          database='nr', remote=False, verbose=False):
     """
     BlAST Query Sequence
 
-    This function uses a local instance of the BLAST tool and the uniref 90 database to search for homologs and
-    orthologs of the specified protein. The blast results are stored in a subdirectory of the input_path named BLAST
+    This function uses a local instance of the BLAST tool and the specified database to search for homologs and
+    orthologs of the specified protein. The BLAST results are stored in a subdirectory of the input_path named BLAST
     with a file name following the pattern {protein id}.xml. This method assumes that _parse_query_sequence has
     already been performed for the specified protein id.
 
@@ -406,8 +449,8 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
         verbose (bool): Whether to write out information during processing.
     Returns:
-        int: The number of hits returned by BLAST
         str: The path to the xml file storing the BLAST output.
+        dict: Mapping between protein_ids and a dictionary of the BLAST_Hit key and the number of hits returned.
     """
     if verbose:
         print('BLASTing query sequence for: {}'.format(protein_id))
@@ -417,6 +460,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         os.makedirs(blast_path)
     blast_fn = os.path.join(blast_path, '{}.xml'.format(protein_id))
     if not os.path.isfile(blast_fn):
+        start = time()
         if remote:
             blastp_cline = NcbiblastpCommandline(cmd=os.path.join(os.environ.get('BLAST_PATH'), 'blastp'),
                                                  out=blast_fn, query=sequence_fn, outfmt=5, remote=True, ungapped=False,
@@ -433,15 +477,21 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         if verbose:
             print(stdout)
             print(stderr)
+        end = time()
     else:
+        start = end = time()
         if verbose:
             print('BLAST previously completed for: {}'.format(protein_id))
+    hit_counts = {}
     with open(blast_fn, 'rb') as blast_handle:
-        blast_record = NCBIXML.read(blast_handle)
-        hit_count = len(blast_record.alignments)
+        pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3}).*$')
+        blast_iter = NCBIXML.parse(blast_handle)
+        for blast_record in blast_iter:
+            pdb_id_match = pdb_id_pattern.match(blast_record.query)
+            hit_counts[pdb_id_match.group(1)] = {'BLAST_Hits': len(blast_record.alignments)}
     if verbose:
-        print('BLAST for {} contains {} hits'.format(protein_id, hit_count))
-    return hit_count, blast_fn
+        print('BLAST for {} completed in {} mins'.format(protein_id, (end - start) / 60.0))
+    return blast_fn, hit_counts
 
 
 def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
@@ -497,29 +547,33 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 seq_record.alphabet = ExtendedIUPACProtein
                 sequences.append(seq_record)
     else:
+        description_pattern = '{} HSP_identity={} HSP_alignment_length={} Fraction_length={}'
         with open(blast_fn, 'rb') as blast_handle:
-            blast_record = NCBIXML.read(blast_handle)
-            for alignment in blast_record.alignments:
-                aln_seq_record = None
-                aln_identity = None
-                for hsp in alignment.hsps:
-                    if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
-                        subject_length = len(hsp.sbjct.replace('-', ''))
-                        query_length = len(query_seq.seq)
-                        subject_fraction = min(subject_length / float(query_length),
-                                               query_length / float(subject_length))
-                        if min_fraction <= subject_fraction:
-                            identity = hsp.identities / float(hsp.align_length)
-                            if min_identity <= identity and identity <= max_identity:
-                                if identity > aln_identity:
-                                    new_description = '{} HSP_identity={} HSP_alignment_length={} Fraction_length={}'.format(
-                                        alignment.hit_def, hsp.identities, hsp.align_length, subject_fraction)
-                                    aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
-                                                               id=alignment.hit_id, name=alignment.title,
-                                                               description=new_description)
-                                    aln_identity = identity
-                if aln_seq_record:
-                    sequences.append(aln_seq_record)
+            blast_iter = NCBIXML.parse(blast_handle)
+            for blast_record in blast_iter:
+                if not blast_record.query.startswith(protein_id):
+                    continue
+                for alignment in blast_record.alignments:
+                    aln_seq_record = None
+                    aln_identity = None
+                    for hsp in alignment.hsps:
+                        if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
+                            subject_length = len(hsp.sbjct.replace('-', ''))
+                            query_length = len(query_seq.seq)
+                            subject_fraction = min(subject_length / float(query_length),
+                                                   query_length / float(subject_length))
+                            if min_fraction <= subject_fraction:
+                                identity = hsp.identities / float(hsp.align_length)
+                                if min_identity <= identity and identity <= max_identity:
+                                    if identity > aln_identity:
+                                        new_description = description_pattern.format(alignment.hit_def, hsp.identities,
+                                                                                     hsp.align_length, subject_fraction)
+                                        aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
+                                                                   id=alignment.hit_id, name=alignment.title,
+                                                                   description=new_description)
+                                        aln_identity = identity
+                    if aln_seq_record:
+                        sequences.append(aln_seq_record)
         # Add query sequence so that this file can be fed directly to the alignment method.
         sequences = [query_seq] + sequences
         with open(pileup_fn, 'wb') as pileup_handle:
