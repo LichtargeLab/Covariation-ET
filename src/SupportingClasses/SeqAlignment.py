@@ -414,9 +414,9 @@ class SeqAlignment(object):
             elif not x.is_terminal() and y.is_terminal():
                 return 1
             else:
-                if x.branch_length < y.branch_length:
+                if x.total_branch_length < y.total_branch_length:
                     return -1
-                elif x.branch_length > y.branch_length:
+                elif x.total_branch_length < y.total_branch_length:
                     return 1
                 else:
                     return 0
@@ -680,7 +680,9 @@ class SeqAlignment(object):
         self.sequence_assignments = sequence_assignments
         self.tree_order = list(zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0])
         if remove_dir:
-            rmtree(os.path.join(cache_dir, 'joblib'))
+            joblib_dir = os.path.join(cache_dir, 'joblib')
+            if os.path.isdir(joblib_dir):
+                rmtree(joblib_dir)
         return tree_depth
 
     def visualize_tree(self, out_dir=None):

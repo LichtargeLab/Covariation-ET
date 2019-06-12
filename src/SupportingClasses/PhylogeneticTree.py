@@ -18,7 +18,7 @@ class PhylogeneticTree(object):
     """
 
     def __init__(self, alignment, model='identity', protein=True, skip_letters=None, et_distance_model=False,
-                 tree_building_method='upgma', tree_buliding_args={}):
+                 tree_building_method='upgma', tree_building_args={}):
         self.original_alignment = alignment
         self.non_gap_alignment = alignment.remove_gaps()
         self.distance_model = model
@@ -27,7 +27,7 @@ class PhylogeneticTree(object):
         self.et_distance = et_distance_model
         self.distance_matrix = None
         self.tree_method = tree_building_method
-        self.tree_args = tree_buliding_args
+        self.tree_args = tree_building_args
         self.tree = None
         self.node_data = {}
 
