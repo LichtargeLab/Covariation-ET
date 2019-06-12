@@ -815,7 +815,7 @@ def filter_uniref_fasta(in_path, out_path):
                 sequences = []
 
 
-def characterize_alignment(file_name, query_id, abs_max_identity=98, abs_min_identity=40, interval=5):
+def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_identity=98, abs_min_identity=40, interval=5):
     """
     Characterize Alignment
 
@@ -826,6 +826,7 @@ def characterize_alignment(file_name, query_id, abs_max_identity=98, abs_min_ide
         file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is used
         (i.e. the ".." prefix), python's path library will be used to attempt to define the full path.
         query_id (str): The sequence identifier of interest.
+        abs_min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
         abs_max_identity (int): The absolute maximum identity for a passing hit.
         abs_min_identity (int): The absolute minimum identity for a passing hit.
         interval (int): The interval on which to define bins between min_identity and abs_min_identity in case
@@ -844,27 +845,33 @@ def characterize_alignment(file_name, query_id, abs_max_identity=98, abs_min_ide
     query_pos = aln.seq_order.index(query_id)
     full_query = str(aln.alignment[query_pos].seq)
     aligned_length = len(full_query)
+    ungapped_length = len(str(aln.query_sequence).replace('-', ''))
+    seq_fractions = {'Low': 0, 'Passing': 0, 'High': 0}
     max_fraction = 0.0
     min_fraction = 1.0
-    seq_fractions = []
     identity_bins = list(range(abs_min_identity, abs_max_identity, interval))
     print(identity_bins)
     sequences = {x: [] for x in identity_bins}
     out_of_range = {}
-    # if abs_max_identity not in sequences:
-    #     identity_bins.append(abs_max_identity)
-    #     sequences[abs_max_identity] = []
     for i in range(aln.size):
         if aln.seq_order[i] == query_id:
             continue
         full_seq = str(aln.alignment[i].seq)
         ungapped_seq = len(full_seq.replace('-', ''))
-        subject_fraction = ungapped_seq / float(len(str(aln.query_sequence).replace('-', '')))
-        if subject_fraction > max_fraction:
-            max_fraction = subject_fraction
-        if subject_fraction < min_fraction:
-            min_fraction = subject_fraction
-        seq_fractions.append(subject_fraction)
+        frac1 = ungapped_seq / float(ungapped_length)
+        if frac1 < min_fraction:
+            min_fraction = frac1
+        if frac1 > max_fraction:
+            max_fraction = frac1
+        subject_fraction = min(frac1, ungapped_length / float(ungapped_seq))
+        if subject_fraction < abs_min_fraction:
+            if ungapped_seq < ungapped_length:
+                seq_fractions['Low'] += 1
+            else:
+                seq_fractions['High'] += 1
+            continue
+        else:
+            seq_fractions['Passing'] += 1
         id_count = 0
         for j in range(aligned_length):
             if full_query[j] == full_seq[j]:
@@ -928,9 +935,9 @@ def parse_arguments():
                         help='The maximum e-value for a passing hit.')
     parser.add_argument('--min_fraction', type=float, default=0.7, nargs=1,
                         help='The minimum fraction of the query sequence length for a passing hit.')
-    parser.add_argument('--min_identity', type=int, default=40, nargs=1,
+    parser.add_argument('--min_identity', type=int, default=0.40, nargs=1,
                         help='The absolute minimum identity for a passing hit.')
-    parser.add_argument('--max_identity', type=int, default=98, nargs=1,
+    parser.add_argument('--max_identity', type=int, default=0.98, nargs=1,
                         help='The absolute maximum identity for a passing hit.')
     parser.add_argument('--msf', type=bool, default=True, nargs=1,
                         help='Whether or not to create an msf version of the MUSCLE alignment.')
@@ -961,10 +968,13 @@ if __name__ == "__main__":
         filter_uniref_fasta(in_path=args['original_uniref_fasta'], out_path=args['filtered_uniref_fasta'])
     if args['characterize_alignment']:
         results = characterize_alignment(file_name=args['file_name'], query_id=args['query_id'],
-                                         abs_max_identity=args['max_identity'],
-                                         abs_min_identity=args['min_identity'])
-        print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}\n\tAverage:\t{}'.format(results[0], results[1],
-                                                                                          mean(results[2])))
+                                         abs_min_fraction=args['min_fraction'],
+                                         abs_max_identity=int(100 * args['max_identity']),
+                                         abs_min_identity=int(100 * args['min_identity']))
+        print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}'.format(results[0], results[1]))
+        print('\t{} Sequence Fraction Low\n\t{} Sequence Fraction High\n\t{} Sequences Passed'.format(results[2]['Low'],
+                                                                                                      results[2]['High'],
+                                                                                                      results[2]['Passing']))
         print('\nSequence Identities:\n')
         for id_bin in sorted(results[3].keys()):
             print('\tBin_{}:\t{} Sequences'.format(id_bin, len(results[3][id_bin])))
