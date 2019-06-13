@@ -4,6 +4,7 @@ Created on June 3, 2019
 @author: Daniel Konecki
 """
 import os
+import heapq
 import numpy as np
 import cPickle as pickle
 from Bio.Phylo import read, write
@@ -20,7 +21,7 @@ class PhylogeneticTree(object):
     def __init__(self, alignment, model='identity', protein=True, skip_letters=None, et_distance_model=False,
                  tree_building_method='upgma', tree_building_args={}):
         self.original_alignment = alignment
-        self.non_gap_alignment = alignment.remove_gaps()
+        # self.non_gap_alignment = alignment.remove_gaps()
         self.distance_model = model
         self.protein_aln = protein
         self.skip_letters = skip_letters
@@ -77,6 +78,137 @@ class PhylogeneticTree(object):
         method_dict = {'agglomerative': self.__agglomerative_clustering, 'upgma': self.__upgma_tree,
                        'custom': self.__custom_tree}
         self.tree = method_dict[self.tree_method](**self.tree_args)
+
+    def traverse_top_down(self):
+        """
+                Traverse Base Tree
+
+                This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
+                n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
+                object is used.
+
+                Args:
+                    tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
+                Returns:
+                    dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
+                    level has keys corresponding to specific branches within that level and the values are a list of the
+                    sequence identifiers in that branch.
+                """
+
+        def node_cmp(x, y):
+            """
+            Node Comparison
+
+            This method is provided such that lists of nodes are sorted properly for the intended behavior of the UPGMA
+            tree traversal.
+
+            Args:
+                x (Bio.Phylo.BaseTree.Clade): Left object in comparison.
+                y (Bio.Phylo.BaseTree.Clade): Right object for comparison.
+            Returns:
+                int: Old comparator behavior, i.e. 1 x comes before y and -1 if y comes before x. If the two Clades are
+                equal according to this comparison then 0 is returned.
+            """
+            if x.is_terminal() and not y.is_terminal():
+                return -1
+            elif not x.is_terminal() and y.is_terminal():
+                return 1
+            else:
+                if x.total_branch_length() > y.total_branch_length():
+                    return -1
+                elif x.total_branch_length() < y.total_branch_length():
+                    return 1
+                else:
+                    return 0
+
+        # Traverse the tree
+        # yield self.tree.root
+        max_path_length = self.tree.root.total_branch_length()
+        internal_nodes_to_process = []
+        # leaf_nodes_to_process = []
+        heapq.heappush(internal_nodes_to_process, (self.tree.root.branch_length, self.tree.root))
+        while len(internal_nodes_to_process) > 0:
+            # print(internal_nodes_to_process)
+            curr_branch_len, curr_node = heapq.heappop(internal_nodes_to_process)
+            # if curr_node.is_terminal():
+            print(curr_node.name, curr_branch_len)
+            yield curr_node
+            # else:
+            for node in sorted(curr_node.clades, cmp=node_cmp):
+                if node.is_terminal():
+                    path_length = max_path_length + curr_branch_len + node.branch_length
+                    heapq.heappush(internal_nodes_to_process, (path_length, node))
+                else:
+                    # yield node
+                    heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
+            # for node in nodes_to_process:
+            #     current_cluster.append(node)
+            # current_cluster.sort(cmp=node_cmp)
+            # print([(x.name, x.total_branch_length()) for x in current_cluster])
+            # nearest_node = current_cluster.pop()
+            # if not nearest_node.is_terminal():
+            #     nodes_to_process = nearest_node.clades
+            #     print([(x.name, x.total_branch_length()) for x in nodes_to_process])
+            # else:
+            #     nodes_to_process = []
+            # yield nearest_node
+
+    def traverse_bottom_up(self):
+        """
+                Traverse Base Tree
+
+                This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
+                n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
+                object is used.
+
+                Args:
+                    tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
+                Returns:
+                    dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
+                    level has keys corresponding to specific branches within that level and the values are a list of the
+                    sequence identifiers in that branch.
+                """
+
+        def node_cmp(x, y):
+            """
+            Node Comparison
+
+            This method is provided such that lists of nodes are sorted properly for the intended behavior of the UPGMA
+            tree traversal.
+
+            Args:
+                x (Bio.Phylo.BaseTree.Clade): Left object in comparison.
+                y (Bio.Phylo.BaseTree.Clade): Right object for comparison.
+            Returns:
+                int: Old comparator behavior, i.e. 1 x comes before y and -1 if y comes before x. If the two Clades are
+                equal according to this comparison then 0 is returned.
+            """
+            if x.is_terminal() and not y.is_terminal():
+                return 1
+            elif not x.is_terminal() and y.is_terminal():
+                return -1
+            else:
+                if x.total_branch_length > y.total_branch_length:
+                    return -1
+                elif x.total_branch_length < y.total_branch_length:
+                    return 1
+                else:
+                    return 0
+
+        # Traverse the tree
+        nodes_to_process = [self.tree.root.get_terminals()]
+        current_cluster = []
+        while len(nodes_to_process) > 0 or len(current_cluster) > 0:
+            for node in nodes_to_process:
+                current_cluster.append(node)
+            current_cluster.sort(cmp=node_cmp)
+            nearest_node = current_cluster.pop()
+            if nearest_node.root != nearest_node:
+                node_path = self.tree.get_path(nearest_node)
+                nodes_to_process = [node_path[-2]]
+            else:
+                nodes_to_process = []
+            yield nearest_node
 
 
 def go_down_tree(children, n_leaves, x, leaf_labels, nodename, spanner):
