@@ -6,6 +6,7 @@ Created on June 3, 2019
 import os
 import heapq
 import numpy as np
+from re import compile
 import cPickle as pickle
 from Bio.Phylo import read, write
 from sklearn.cluster import AgglomerativeClustering
@@ -47,6 +48,13 @@ class PhylogeneticTree(object):
         """
         """
         custom_tree = read(file=tree_path, format='newick')
+        nodes_to_process = [custom_tree.root]
+        while len(nodes_to_process) > 0:
+            current_node = nodes_to_process.pop()
+            if not current_node.is_terminal():
+                nodes_to_process += current_node.clades
+                current_node.name = 'Inner{}'.format(current_node.confidence)
+                current_node.confidence = None
         return custom_tree
 
     def __upgma_tree(self):
@@ -54,6 +62,15 @@ class PhylogeneticTree(object):
         """
         constructor = DistanceTreeConstructor()
         upgma_tree = constructor.upgma(distance_matrix=self.distance_matrix)
+        name_pattern = compile(r'^Inner(\d+)$')
+        nodes_to_process = [upgma_tree.root]
+        while len(nodes_to_process) > 0:
+            current_node = nodes_to_process.pop()
+            if not current_node.is_terminal():
+                nodes_to_process += current_node.clades
+                name_match = name_pattern.match(current_node.name)
+                new_name = 'Inner{}'.format(self.original_alignment.size - int(name_match.group(1)))
+                current_node.name = new_name
         return upgma_tree
 
     def __agglomerative_clustering(self, cache_dir=None, affinity='euclidean', linkage='ward'):
@@ -128,7 +145,7 @@ class PhylogeneticTree(object):
         # leaf_nodes_to_process = []
         heapq.heappush(internal_nodes_to_process, (self.tree.root.branch_length, self.tree.root))
         while len(internal_nodes_to_process) > 0:
-            # print(internal_nodes_to_process)
+            print(internal_nodes_to_process)
             curr_branch_len, curr_node = heapq.heappop(internal_nodes_to_process)
             # if curr_node.is_terminal():
             print(curr_node.name, curr_branch_len)
