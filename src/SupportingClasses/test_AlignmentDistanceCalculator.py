@@ -35,9 +35,9 @@ class TestAlignmentDistanceCalculator(TestCase):
         with open(cls.protein_list_fn, 'wb') as test_list_handle:
             for structure_id in structure_ids:
                 test_list_handle.write('{}\n'.format(structure_id))
-        cls.data_set = DataSetGenerator(protein_list='Test_Set.txt', input_path=cls.input_path)
-        cls.data_set.build_dataset(num_threads=cls.max_threads, max_target_seqs=cls.max_target_seqs,
-                                   ignore_filter_size=True)
+        cls.data_set = DataSetGenerator(input_path=cls.input_path)
+        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
+                                                 max_target_seqs=cls.max_target_seqs)
 
     @classmethod
     def tearDownClass(cls):
@@ -52,10 +52,10 @@ class TestAlignmentDistanceCalculator(TestCase):
 
     def setUp(self):
         self.query_aln_fa_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['FA_File'],
-                                            query_id=self.small_structure_id)
+                                               query_id=self.small_structure_id)
         self.query_aln_fa_small.import_alignment()
         self.query_aln_fa_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['FA_File'],
-                                          query_id=self.large_structure_id)
+                                               query_id=self.large_structure_id)
         self.query_aln_fa_large.import_alignment()
         self.query_aln_msf_small = deepcopy(self.query_aln_fa_small)
         self.query_aln_msf_small.file_name = self.data_set.protein_data[self.small_structure_id]['MSF_File']
