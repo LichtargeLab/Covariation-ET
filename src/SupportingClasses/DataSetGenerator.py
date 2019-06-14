@@ -92,8 +92,8 @@ class DataSetGenerator(object):
         self.protein_data = None
 
     def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
-                                    database='nr', remote=False, min_fraction=0.7, min_identity=0.40, max_identity=0.98,
-                                    msf=True, fasta=True, verbose=False):
+                                    database='customuniref90.fasta', remote=False, min_fraction=0.7, min_identity=0.40,
+                                    max_identity=0.98, msf=True, fasta=True, verbose=False):
         """
         Build Dataset
 
