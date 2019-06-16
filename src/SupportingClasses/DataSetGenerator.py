@@ -216,10 +216,12 @@ def pdb_processing(in_tuple):
         str: The protein_id passed in, needed for indexing upon return
         dict: A dictionary containing data to be added to the protein_data field of the DataSetGenerator including the
         following keys and values:
-            PDB: (str) The full path to the PDB structure downloaded for this protein.
-            Sequence: (Bio.SeqRecord.SeqRecord) A SeqRecord containing the protein_id and the parsed out sequence.
-            Length: (int) The length of the parsed sequence.
-            Seq_Fasta: (str) The full path to the fasta file containing just the query sequence for this protein.
+            PDB (str): The full path to the PDB structure downloaded for this protein.
+            Chain (str): The chain for which the sequence was parsed, should be the same as that in the protein list
+            file, but may change if that chain is not available. In that case the first (alphabetical) chain is used.
+            Sequence (Bio.SeqRecord.SeqRecord): A SeqRecord containing the protein_id and the parsed out sequence.
+            Length (int): The length of the parsed sequence.
+            Seq_Fasta (str): The full path to the fasta file containing just the query sequence for this protein.
     """
     protein_id = in_tuple[0]
     chain_id = in_tuple[1]
@@ -381,7 +383,9 @@ def download_pdb(pdb_path, protein_id, verbose=False):
     Download PDB
 
     This function downloads the PDB structure file for the given PDB id provided. The file is stored in a file within a
-    sub directory of the provided pdb_path named <pdb_path>/{middle two characters of the PDB id}/pdb{pdb id}.ent
+    sub directory of the provided pdb_path named <pdb_path>/{middle two characters of the PDB id}/pdb{pdb id}.ent. If
+    the PDB structure is not available then an attempt is made to download it as an 'obsolete' PDB structure. If this is
+    also unsuccessful, None is returned.
 
     Args:
         pdb_path (str): The location at which PDB structures should be saved.
@@ -414,7 +418,9 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
     This function opens a downloaded PDB file for a given protein id (for which download_pdb has already been
     called) and extracts the sequence of the specified chain_id for the structure. The parsed sequence is given in
     single letter amino acid codes. The sequence is saved to a file in sequence_path and is given a file name with the
-    pattern {protein id}.fasta.
+    pattern {protein id}.fasta. If the specified chain_id is not available for the structure the first chain
+    (alphabetically) is used. The chain is returned as the last value so the user knows if the specified chain was used
+    or not.
 
     Args:
         protein_id (str): Four letter code for a PDB id whose sequence should be parsed.
@@ -656,11 +662,11 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True,
                 print(fa_cline)
             try:
                 stdout, stderr = fa_cline()
+                if verbose:
+                    print(stdout)
+                    print(stderr)
             except ApplicationError:
                 fa_fn = None
-            if verbose:
-                print(stdout)
-                print(stderr)
     msf_fn = None
     if msf:
         msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
@@ -668,17 +674,17 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True,
             if fasta:
                 msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn, output='GCG')
             else:
-                 msf_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True,
-                                                 outfile=msf_fn, output='GCG')
+                msf_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True,
+                                                outfile=msf_fn, output='GCG')
             if verbose:
                 print(msf_cline)
             try:
                 stdout, stderr = msf_cline()
+                if verbose:
+                    print(stdout)
+                    print(stderr)
             except ApplicationError:
                 msf_fn = None
-            if verbose:
-                print(stdout)
-                print(stderr)
     return msf_fn, fa_fn
 
 
@@ -761,8 +767,6 @@ def determine_identity_bin(identity_count, length, interval, abs_max_identity, a
     similarity_bin = similarity_int - (similarity_int % interval)
     final_bin = None
     if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
-        # if similarity_bin >= min_identity:
-        #     final_bin = min_identity
         if similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
             final_bin = abs_min_identity
         else:
