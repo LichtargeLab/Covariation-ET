@@ -115,6 +115,7 @@ class DataSetGenerator(object):
             fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
             verbose (bool): Whether to write out information during processing.
         """
+        data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
         protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
         if not os.path.isfile(protein_list_fn):
             raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
@@ -122,6 +123,11 @@ class DataSetGenerator(object):
         self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
         # Download the PDBs and parse out the query sequences.
         print('Downloading structures and parsing in query sequences')
+        # res1 = []
+        # init_pdb_processing_pool(self.pdb_path, self.sequence_path, Lock(), verbose)
+        # for p_id in self.protein_data:
+        #     pdb_processing((p_id, self.protein_data[p_id]['Chain']))
+        #
         pool1 = Pool(num_threads, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
                                                                                   Lock(), verbose))
         res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
@@ -131,18 +137,19 @@ class DataSetGenerator(object):
         seqs_to_write = []
         for data1 in res1:
             self.protein_data[data1[0]].update(data1[1])
-            seqs_to_write.append(data1[1]['Sequence'])
+            if data1[1]['Sequence']:
+                seqs_to_write.append(data1[1]['Sequence'])
         # Write out a fasta file containing all the query sequences for BLASTing
-        all_seqs_fn = os.path.join(self.sequence_path, os.path.splitext(os.path.basename(protein_list_fn))[0] +
-                                   '.fasta')
+        all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
         if not os.path.isfile(all_seqs_fn):
             with open(all_seqs_fn, 'wb') as all_seqs_handle:
                 write(seqs_to_write, all_seqs_handle, 'fasta')
         # BLAST all query sequences at once
         print('BLASTing query sequences')
-        blast_fn, hits = blast_query_sequence(protein_id='All_Seqs', blast_path=self.blast_path, sequence_fn=all_seqs_fn,
-                                              evalue=e_value_threshold, num_threads=num_threads,
-                                              max_target_seqs=max_target_seqs, database=database, remote=remote)
+        blast_fn, hits = blast_query_sequence(protein_id=data_set_name + '_All_Seqs', blast_path=self.blast_path,
+                                              sequence_fn=all_seqs_fn, evalue=e_value_threshold,
+                                              num_threads=num_threads, max_target_seqs=max_target_seqs,
+                                              database=database, remote=remote)
         for p_id in hits:
             self.protein_data[p_id].update(hits[p_id])
             self.protein_data[p_id]['BLAST'] = blast_fn
@@ -219,9 +226,13 @@ def pdb_processing(in_tuple):
     fs_lock.acquire()
     pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id, verbose=verbose_out)
     fs_lock.release()
-    seq, length, seq_fn = parse_query_sequence(protein_id=protein_id, chain_id=chain_id, sequence_path=sequence_dir,
-                                               pdb_fn=pdb_fn, verbose=verbose_out)
-    data = {'PDB': pdb_fn, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn}
+    if pdb_fn is None:
+        seq, length, seq_fn = None, None, None
+    else:
+            seq, length, seq_fn, chain_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
+                                                                 sequence_path=sequence_dir, pdb_fn=pdb_fn,
+                                                                 verbose=verbose_out)
+    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn}
     return protein_id, data
 
 
@@ -387,6 +398,10 @@ def download_pdb(pdb_path, protein_id, verbose=False):
         os.makedirs(pdb_path)
     pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path, verbose=verbose)
     pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
+    if not os.path.isfile(pdb_file):
+        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb', obsolete=True)
+        if not os.path.isfile(pdb_file):
+            pdb_file = None
     if verbose:
         print('Completed {} structure download'.format(protein_id))
     return pdb_file
@@ -411,6 +426,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
         str: The sequence parsed from the PDB file of the specified protein id.
         int: The length of the parsed sequence.
         str: The file path to the fasta file where the sequence has been written.
+        str: The chain id for which the sequence was parsed.
     """
     if verbose:
         print('Parsing query sequence for: {}'.format(protein_id))
@@ -432,7 +448,11 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
         parser = PDBParser(PERMISSIVE=1, QUIET=(not verbose))  # corrective
         structure = parser.get_structure(protein_id, pdb_fn)
         model = structure[0]
-        chain = model[chain_id]
+        try:
+            chain = model[chain_id]
+        except KeyError:
+            chain_id = sorted([chain.id for chain in model])[0]
+            chain = model[chain_id]
         sequence = []
         for residue in chain:
             if is_aa(residue.get_resname(), standard=True):
@@ -445,7 +465,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     if verbose:
         print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn
+    return sequence, len(sequence), protein_fasta_fn, chain_id
 
 
 def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_threads=1, max_target_seqs=20000,

@@ -19,7 +19,7 @@ class TestPhylogeneticTree(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.max_threads = cpu_count() - 2
-        cls.max_target_seqs = 500
+        cls.max_target_seqs = 150
         cls.testing_dir = os.path.abspath('../Test/')
         cls.input_path = os.path.join(cls.testing_dir, 'Input')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
@@ -62,7 +62,7 @@ class TestPhylogeneticTree(TestCase):
         # if os.path.exists(wetc_test_dir):
         #     rmtree(wetc_test_dir)
 
-    def test_internal_nodes(self, internal_nodes):
+    def evaluate_internal_nodes(self, internal_nodes):
         non_terminal_pattern = compile(r'^Inner(\d+)$')
         nodes = set()
         for n in internal_nodes:
@@ -71,7 +71,7 @@ class TestPhylogeneticTree(TestCase):
             self.assertNotIn(match.group(1), nodes)
             nodes.add(match.group(1))
 
-    def test_leaf_nodes(self, leaf_nodes, aln):
+    def evaluate_leaf_nodes(self, leaf_nodes, aln):
         leaves = set()
         self.assertEqual(len(leaf_nodes), aln.size)
         for l in leaf_nodes:
@@ -93,9 +93,9 @@ class TestPhylogeneticTree(TestCase):
         self.assertIsNotNone(phylo_tree.tree)
         non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
 
     def test2b_upgma_tree_large(self):
         calculator = AlignmentDistanceCalculator()
@@ -105,9 +105,9 @@ class TestPhylogeneticTree(TestCase):
         self.assertIsNotNone(phylo_tree.tree)
         non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
 
     def test3a_agglomerative_tree_small(self):
         calculator = AlignmentDistanceCalculator()
@@ -119,9 +119,9 @@ class TestPhylogeneticTree(TestCase):
         self.assertIsNotNone(phylo_tree.tree)
         non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
 
     def test3b_agglomerative_tree_large(self):
         calculator = AlignmentDistanceCalculator()
@@ -133,9 +133,9 @@ class TestPhylogeneticTree(TestCase):
         self.assertIsNotNone(phylo_tree.tree)
         non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
 
     def test4a_custom_tree_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
@@ -147,11 +147,11 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
         phylo_tree.construct_tree(dm=None)
         self.assertIsNotNone(phylo_tree.tree)
-        non_terminal_nodes = phylo_tree.tree.get_non_terminals()
+        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_fa_small)
+        self.evaluate_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_fa_small)
 
     def test4b_custom_tree_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
@@ -163,8 +163,8 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
         phylo_tree.construct_tree(dm=None)
         self.assertIsNotNone(phylo_tree.tree)
-        non_terminal_nodes = phylo_tree.tree.get_non_terminals()
+        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
         self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-        self.test_internal_nodes(internal_nodes=non_terminal_nodes)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
-        self.test_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_fa_large)
+        self.evaluate_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_fa_large)
