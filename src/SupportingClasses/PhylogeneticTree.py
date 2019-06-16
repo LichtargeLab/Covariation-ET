@@ -166,19 +166,19 @@ class PhylogeneticTree(object):
 
     def traverse_top_down(self):
         """
-                Traverse Base Tree
+        Traverse Base Tree
 
-                This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
-                n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
-                object is used.
+        This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
+        n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
+        object is used.
 
-                Args:
-                    tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
-                Returns:
-                    dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
-                    level has keys corresponding to specific branches within that level and the values are a list of the
-                    sequence identifiers in that branch.
-                """
+        Args:
+            tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
+        Returns:
+            dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
+            level has keys corresponding to specific branches within that level and the values are a list of the
+            sequence identifiers in that branch.
+        """
 
         def node_cmp(x, y):
             """
@@ -207,8 +207,7 @@ class PhylogeneticTree(object):
                     return 0
 
         # Traverse the tree
-        # yield self.tree.root
-        max_path_length = self.tree.root.total_branch_length()
+        # max_path_length = self.tree.root.total_branch_length()
         internal_nodes_to_process = []
         # leaf_nodes_to_process = []
         heapq.heappush(internal_nodes_to_process, (self.tree.root.branch_length, self.tree.root))
@@ -219,13 +218,13 @@ class PhylogeneticTree(object):
             print(curr_node.name, curr_branch_len)
             yield curr_node
             # else:
-            for node in sorted(curr_node.clades, cmp=node_cmp):
-                if node.is_terminal():
-                    path_length = max_path_length + curr_branch_len + node.branch_length
-                    heapq.heappush(internal_nodes_to_process, (path_length, node))
-                else:
+            for node in curr_node.clades: #  rsorted(curr_node.clades, cmp=node_cmp):
+                # if node.is_terminal():
+                #     path_length = max_path_length + curr_branch_len + node.branch_length
+                #     heapq.heappush(internal_nodes_to_process, (path_length, node))
+                # else:
                     # yield node
-                    heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
+                heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
             # for node in nodes_to_process:
             #     current_cluster.append(node)
             # current_cluster.sort(cmp=node_cmp)
@@ -280,7 +279,7 @@ class PhylogeneticTree(object):
                 else:
                     return 0
 
-        def get_parent(node, tree):
+        def get_parent_and_path_length(node, tree):
             """
             Get Parent
 
@@ -294,24 +293,30 @@ class PhylogeneticTree(object):
                  is the root.
             """
             if node == tree.root:
-                return None
+                parent = None
+                length = 0
             else:
                 node_path = tree.get_path(node)
-                return node_path[-2]
+                parent = node_path[-2]
+                length = np.sum([x.branch_length for x in node_path])
+            return parent, length
 
         # Traverse the tree
         nodes_to_process = [self.tree.root.get_terminals()]
-        current_cluster = []
-        while len(nodes_to_process) > 0 or len(current_cluster) > 0:
-            for node in nodes_to_process:
-                current_cluster.append(node)
-            current_cluster.sort(cmp=node_cmp)
-            nearest_node = current_cluster.pop()
-            if nearest_node.root != nearest_node:
-                nodes_to_process = [get_parent(nearest_node, self.tree)]
-            else:
-                nodes_to_process = []
-            yield nearest_node
+        nodes_visited = set()
+        for leaf in self.tree.root.get_terminals():
+            _, dist = get_parent_and_path_length(leaf, self.tree)
+            nodes_visited.add(leaf.name)
+            heapq.heappush(nodes_to_process, (-1 * dist, leaf))
+        while len(nodes_to_process) > 0:
+            curr_node = heapq.heappop(nodes_to_process)
+            nodes_visited.add(curr_node.name)
+            yield curr_node
+            parent_node, length = get_parent_and_path_length(curr_node, self.tree)
+            if parent_node.name not in nodes_visited:
+                nodes_visited.add(parent_node.name)
+                parent_length = length - curr_node.branch_length
+                heapq.heappush(nodes_to_process, (parent_length, parent_node))
 
 
 def get_cluster_spanner(agg_clusterer):

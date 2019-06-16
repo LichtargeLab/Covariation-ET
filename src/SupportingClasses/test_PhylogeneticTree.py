@@ -79,6 +79,27 @@ class TestPhylogeneticTree(TestCase):
             self.assertNotIn(l.name, leaves)
             leaves.add(l)
 
+    def evaluate_top_down_traversal(self, tree):
+        last_dist = 0.0
+        for node in tree.traverse_top_down():
+            path = tree.tree.get_path(node)
+            dist = sum([x.branch_length for x in path])
+            self.assertGreaterEqual(dist, last_dist)
+            last_dist = dist
+
+    def check_lists_of_nodes_for_equality(self, list1, list2):
+        self.assertEqual(len(list1), len(list2))
+        for i in range(len(list1)):
+            node1 = list1[i]
+            node2 = list2[i]
+            if node1.is_terminal():
+                self.assertTrue(node2.is_terminal())
+                self.assertEqual(node1.name, node2.name)
+            else:
+                self.assertTrue(node2.is_nonterminal())
+                self.assertEqual(set([x.name for x in node1.get_terminals()]),
+                                 set([x.name for x in node2.get_terminals()]))
+
     def test1_init(self):
         phylo_tree = PhylogeneticTree()
         self.assertEqual(phylo_tree.tree_method, 'upgma')
@@ -168,3 +189,91 @@ class TestPhylogeneticTree(TestCase):
         self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
         terminal_nodes = phylo_tree.tree.get_terminals()
         self.evaluate_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_fa_large)
+
+    def test5a_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test5b_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
+                                                          'cache_dir': self.testing_dir})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test5c_traverse_top_down(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        phylo_tree.construct_tree(dm=None)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test5d_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test5e_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
+                                                          'cache_dir': self.testing_dir})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test5f_traverse_top_down(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        phylo_tree.construct_tree(dm=None)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test6a_build_ETC_tree_small(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        etc_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        etc_tree.construct_tree(dm=None)
+        calculator = AlignmentDistanceCalculator(model='blosum62')
+        dm = calculator.get_et_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        etc_nodes = [etc_tree.traverse_top_down()]
+        phylo_nodes = [phylo_tree.traverse_top_down()]
+        self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
+
+    def test6b_build_ETC_tree_large(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        etc_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        etc_tree.construct_tree(dm=None)
+        calculator = AlignmentDistanceCalculator(model='blosum62')
+        dm = calculator.get_et_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        etc_nodes = [etc_tree.traverse_top_down()]
+        phylo_nodes = [phylo_tree.traverse_top_down()]
+        self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
