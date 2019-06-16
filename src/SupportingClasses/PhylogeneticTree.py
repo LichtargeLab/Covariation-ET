@@ -161,6 +161,8 @@ class PhylogeneticTree(object):
         Args:
             filename (str): The full path to the file where the newick formatted tree should be written.
         """
+        if self.tree is None:
+            raise ValueError('Attempting to write tree before construction!')
         with open(filename, 'wb') as tree_handle:
             write(self.tree, file=tree_handle, format='newick')
 
@@ -168,116 +170,33 @@ class PhylogeneticTree(object):
         """
         Traverse Base Tree
 
-        This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
-        n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
-        object is used.
+        This method acts an iterator for the tree traversing from the root to the leaves always yielding the next node
+        according to path length.
 
-        Args:
-            tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
         Returns:
-            dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
-            level has keys corresponding to specific branches within that level and the values are a list of the
-            sequence identifiers in that branch.
+            generator: A generator which will yield a new node ordered from least to greatest path length from the root.
         """
-
-        def node_cmp(x, y):
-            """
-            Node Comparison
-
-            This method is provided such that lists of nodes are sorted properly for the intended behavior of the UPGMA
-            tree traversal.
-
-            Args:
-                x (Bio.Phylo.BaseTree.Clade): Left object in comparison.
-                y (Bio.Phylo.BaseTree.Clade): Right object for comparison.
-            Returns:
-                int: Old comparator behavior, i.e. 1 x comes before y and -1 if y comes before x. If the two Clades are
-                equal according to this comparison then 0 is returned.
-            """
-            if x.is_terminal() and not y.is_terminal():
-                return -1
-            elif not x.is_terminal() and y.is_terminal():
-                return 1
-            else:
-                if x.total_branch_length() > y.total_branch_length():
-                    return -1
-                elif x.total_branch_length() < y.total_branch_length():
-                    return 1
-                else:
-                    return 0
-
         # Traverse the tree
-        # max_path_length = self.tree.root.total_branch_length()
         internal_nodes_to_process = []
-        # leaf_nodes_to_process = []
         heapq.heappush(internal_nodes_to_process, (self.tree.root.branch_length, self.tree.root))
         while len(internal_nodes_to_process) > 0:
-            print(internal_nodes_to_process)
+            # print(internal_nodes_to_process)
             curr_branch_len, curr_node = heapq.heappop(internal_nodes_to_process)
-            # if curr_node.is_terminal():
-            print(curr_node.name, curr_branch_len)
+            # print(curr_node.name, curr_branch_len)
             yield curr_node
-            # else:
-            for node in curr_node.clades: #  rsorted(curr_node.clades, cmp=node_cmp):
-                # if node.is_terminal():
-                #     path_length = max_path_length + curr_branch_len + node.branch_length
-                #     heapq.heappush(internal_nodes_to_process, (path_length, node))
-                # else:
-                    # yield node
+            for node in curr_node.clades:
                 heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
-            # for node in nodes_to_process:
-            #     current_cluster.append(node)
-            # current_cluster.sort(cmp=node_cmp)
-            # print([(x.name, x.total_branch_length()) for x in current_cluster])
-            # nearest_node = current_cluster.pop()
-            # if not nearest_node.is_terminal():
-            #     nodes_to_process = nearest_node.clades
-            #     print([(x.name, x.total_branch_length()) for x in nodes_to_process])
-            # else:
-            #     nodes_to_process = []
-            # yield nearest_node
 
     def traverse_bottom_up(self):
         """
         Traverse Base Tree
 
-        This method generates a dictionary assigning sequences to clusters at each branching level (from 1 the root, to
-        n the number of sequences) of the provided tree. This is useful for methods where a rooted Bio.Phylo.BaseTree
-        object is used.
+        This method acts an iterator for the tree traversing from the leaves to the root always yielding the next node
+        according to path length.
 
-        Args:
-            tree (Bio.Phylo.BaseTree): The tree to traverse and represent as a dictionary.
         Returns:
-            dict: A nested dictionray where the first layer has keys corresponding to branching level and the second
-            level has keys corresponding to specific branches within that level and the values are a list of the
-            sequence identifiers in that branch.
+            generator: A generator which will yield a new node ordered from greatest to least path length from the root.
         """
-
-        def node_cmp(x, y):
-            """
-            Node Comparison
-
-            This method is provided such that lists of nodes are sorted properly for the intended behavior of the UPGMA
-            tree traversal.
-
-            Args:
-                x (Bio.Phylo.BaseTree.Clade): Left object in comparison.
-                y (Bio.Phylo.BaseTree.Clade): Right object for comparison.
-            Returns:
-                int: Old comparator behavior, i.e. 1 x comes before y and -1 if y comes before x. If the two Clades are
-                equal according to this comparison then 0 is returned.
-            """
-            if x.is_terminal() and not y.is_terminal():
-                return 1
-            elif not x.is_terminal() and y.is_terminal():
-                return -1
-            else:
-                if x.total_branch_length > y.total_branch_length:
-                    return -1
-                elif x.total_branch_length < y.total_branch_length:
-                    return 1
-                else:
-                    return 0
 
         def get_parent_and_path_length(node, tree):
             """
@@ -312,10 +231,10 @@ class PhylogeneticTree(object):
             curr_node = heapq.heappop(nodes_to_process)
             nodes_visited.add(curr_node.name)
             yield curr_node
-            parent_node, length = get_parent_and_path_length(curr_node, self.tree)
+            parent_node, curr_length = get_parent_and_path_length(curr_node, self.tree)
             if parent_node.name not in nodes_visited:
                 nodes_visited.add(parent_node.name)
-                parent_length = length - curr_node.branch_length
+                parent_length = curr_length - curr_node.branch_length
                 heapq.heappush(nodes_to_process, (parent_length, parent_node))
 
 
@@ -386,6 +305,7 @@ def go_down_tree(children, n_leaves, x, leaf_labels, nodename, spanner, inner):
         leaf_labels (list): The label for each parameter in array axis=0 of x.
         nodename (int): The intermediate node name whose children are located in children[nodename-n_leaves].
         spanner (function): Callable that computes the dendrite's span
+        inner (list): A list of labels for inner nodes which is used every time an internal node needs to be named.
     Returns:
         str: The str representation of the agglomerative clutering tree in Newick format.
     References:
@@ -433,7 +353,8 @@ def build_newick_tree(children, n_leaves, x, leaf_labels, spanner):
         https://stackoverflow.com/questions/29127013/plot-dendrogram-using-sklearn-agglomerativeclustering
     """
     inner_labels = list(range(1, n_leaves))
-    inner_string, inner_node = go_down_tree(children, n_leaves, x, leaf_labels, len(children)+n_leaves-1, spanner, inner_labels)
+    inner_string, inner_node = go_down_tree(children, n_leaves, x, leaf_labels, len(children)+n_leaves-1, spanner,
+                                            inner_labels)
     prepend_to_root = inner_string + 'Inner{};'.format(inner_labels.pop())
     return prepend_to_root
 
@@ -458,7 +379,5 @@ def convert_agglomerative_clustering_to_newick_tree(clusterer, labels, distance_
         https://stackoverflow.com/questions/29127013/plot-dendrogram-using-sklearn-agglomerativeclustering
     """
     spanner = get_cluster_spanner(clusterer)
-    # leaf_labels is a list of labels for each entry in X
     newick_tree = build_newick_tree(clusterer.children_, clusterer.n_leaves_, distance_matrix, labels, spanner)
-    print(newick_tree)
     return newick_tree
