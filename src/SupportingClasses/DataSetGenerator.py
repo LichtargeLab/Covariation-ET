@@ -8,7 +8,7 @@ import argparse
 from time import time
 from re import compile
 import numpy as np
-from numpy import floor, mean, triu, nonzero
+from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
@@ -231,9 +231,9 @@ def pdb_processing(in_tuple):
     if pdb_fn is None:
         seq, length, seq_fn = None, None, None
     else:
-            seq, length, seq_fn, chain_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
-                                                                 sequence_path=sequence_dir, pdb_fn=pdb_fn,
-                                                                 verbose=verbose_out)
+        seq, length, seq_fn, chain_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
+                                                             sequence_path=sequence_dir, pdb_fn=pdb_fn,
+                                                             verbose=verbose_out)
     data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn}
     return protein_id, data
 
@@ -340,7 +340,7 @@ def filtering_and_alignment(in_tup):
     except ValueError:
         final_msf_fn = None
         final_fa_fn = None
-    data = {'Filter_Count': curr_filter_count,'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn,
+    data = {'Filter_Count': curr_filter_count, 'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn,
             'Final_Count': final_filter_count, 'Filtered_Alignment': final_filter_fn, 'Final_MSF_Aln': final_msf_fn,
             'Final_FA_Aln': final_fa_fn}
     end = time()
@@ -996,9 +996,8 @@ if __name__ == "__main__":
                                          abs_max_identity=int(100 * args['max_identity']),
                                          abs_min_identity=int(100 * args['min_identity']))
         print('Sequence Fraction:\n\tMinimum:\t{}\n\tMaximum:\t{}'.format(results[0], results[1]))
-        print('\t{} Sequence Fraction Low\n\t{} Sequence Fraction High\n\t{} Sequences Passed'.format(results[2]['Low'],
-                                                                                                      results[2]['High'],
-                                                                                                      results[2]['Passing']))
+        print('\t{} Sequence Fraction Low\n\t{} Sequence Fraction High\n\t{} Sequences Passed'.format(
+            results[2]['Low'], results[2]['High'], results[2]['Passing']))
         print('\nSequence Identities:\n')
         for id_bin in sorted(results[3].keys()):
             print('\tBin_{}:\t{} Sequences'.format(id_bin, len(results[3][id_bin])))
