@@ -4,6 +4,7 @@ Created on June 16, 2019
 @author: Daniel Konecki
 """
 import numpy as np
+from Bio.Alphabet import Alphabet
 
 # Common gap characters
 gap_characters = {'-', '.', '*'}
@@ -18,8 +19,8 @@ def build_mapping(alphabet, skip_letters=None):
     outside of that range.
 
     Args:
-        alphabet (Bio.Alphabet,list,str): An alphabet object with the letters that should be mapped, or a list or string
-        containing all of the letters which should be mapped.
+        alphabet (Bio.Alphabet.Alphabet,list,str): An alphabet object with the letters that should be mapped, or a list
+        or string containing all of the letters which should be mapped.
         skip_letters (list): Which characters to skip when scoring sequences in the alignment.
     Returns:
         int: The size of the alphabet (not including gaps or skip letters) represented by this map.
@@ -27,7 +28,7 @@ def build_mapping(alphabet, skip_letters=None):
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
     """
-    if hasattr(alphabet, 'letters'):
+    if isinstance(alphabet, Alphabet):
         letters = alphabet.letters
     elif type(alphabet) == list:
         letters = ''.join(alphabet)
@@ -37,16 +38,18 @@ def build_mapping(alphabet, skip_letters=None):
         raise ValueError("'alphabet' expects values of type Bio.Alphabet or list.")
     alphabet_size = len(letters)
     alpha_map = {char: i for i, char in enumerate(letters)}
-    curr_gaps = gap_characters - set(skip_letters)
-    gap_map = {char: alphabet_size for char in curr_gaps}
-    alpha_map.update(gap_map)
     if skip_letters:
         skip_map = {char: alphabet_size + 1 for char in skip_letters}
         alpha_map.update(skip_map)
+        curr_gaps = gap_characters - set(skip_letters)
+    else:
+        curr_gaps = gap_characters
+    gap_map = {char: alphabet_size for char in curr_gaps}
+    alpha_map.update(gap_map)
     return alphabet_size, curr_gaps, alpha_map
 
 
-def convert_seq_to_numeric(self, seq, mapping):
+def convert_seq_to_numeric(seq, mapping):
     """
     Convert Seq To Numeric
 
