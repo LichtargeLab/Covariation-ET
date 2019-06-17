@@ -4,10 +4,12 @@ Created on May 15, 2019
 @author: Daniel Konecki
 """
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
+from Bio.Alphabet import DNAAlphabet, ProteinAlphabet
 from Bio.Align import MultipleSeqAlignment
 from itertools import combinations
 import pandas as pd
 import numpy as np
+from utils import build_mapping, convert_seq_to_numeric
 
 
 class AlignmentDistanceCalculator(DistanceCalculator):
@@ -45,28 +47,29 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         else:
             self.model = model
         super(AlignmentDistanceCalculator, self).__init__(model=model, skip_letters=skip_letters)
-        self.gap_characters = list(set(['*', '-', '.']) - set(self.skip_letters))
-        self.mapping = self._build_mapping()
+        # self.gap_characters = list(set(['*', '-', '.']) - set(self.skip_letters))
+        _, self.gap_characters, self.mapping = build_mapping(alphabet=self.alphabet, skip_letters=skip_letters)
+        # self.mapping = self._build_mapping()
         self.scoring_matrix = self._update_scoring_matrix()
 
-    def _build_mapping(self):
-        """
-        Build Mapping
-
-        Constructs a dictionary mapping characters in the given alphabet to their position in the alphabet (which
-        corresponds to their index in substitution matrices). It also maps gap characters and skip letters to positions
-        outside of that range.
-
-        Returns:
-            dict: Dictionary mapping a character to a number corresponding to its position in the alphabet or in the
-            scoring/substitution matrix.
-        """
-        alphabet_mapping = {char: i for i, char in enumerate(self.alphabet)}
-        gap_map = {char: len(self.alphabet) for char in self.gap_characters}
-        alphabet_mapping.update(gap_map)
-        skip_map = {char: len(self.alphabet) + 1 for char in self.skip_letters}
-        alphabet_mapping.update(skip_map)
-        return alphabet_mapping
+    # def _build_mapping(self):
+    #     """
+    #     Build Mapping
+    #
+    #     Constructs a dictionary mapping characters in the given alphabet to their position in the alphabet (which
+    #     corresponds to their index in substitution matrices). It also maps gap characters and skip letters to positions
+    #     outside of that range.
+    #
+    #     Returns:
+    #         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet or in the
+    #         scoring/substitution matrix.
+    #     """
+    #     alphabet_mapping = {char: i for i, char in enumerate(self.alphabet)}
+    #     gap_map = {char: len(self.alphabet) for char in self.gap_characters}
+    #     alphabet_mapping.update(gap_map)
+    #     skip_map = {char: len(self.alphabet) + 1 for char in self.skip_letters}
+    #     alphabet_mapping.update(skip_map)
+    #     return alphabet_mapping
 
     def _update_scoring_matrix(self):
         """
@@ -116,20 +119,20 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
         return substitution_matrix
 
-    def _convert_seq_to_numeric(self, seq):
-        """
-        Convert Seq To Numeric
-
-        This function uses an alphabet mapping (see _build_mapping) to convert a sequence to a 1D array of integers.
-
-        Args:
-            seq (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence.
-        Return:
-            numpy.array: A 1D array containing the numerical representation of the passed in sequence.
-        """
-        # Convert a SeqRecord sequence to a numerical representation (using indices in scoring_matrix)
-        numeric = [self.mapping[char] for char in seq]
-        return np.array(numeric)
+    # def _convert_seq_to_numeric(self, seq):
+    #     """
+    #     Convert Seq To Numeric
+    #
+    #     This function uses an alphabet mapping (see _build_mapping) to convert a sequence to a 1D array of integers.
+    #
+    #     Args:
+    #         seq (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence.
+    #     Return:
+    #         numpy.array: A 1D array containing the numerical representation of the passed in sequence.
+    #     """
+    #     # Convert a SeqRecord sequence to a numerical representation (using indices in scoring_matrix)
+    #     numeric = [self.mapping[char] for char in seq]
+    #     return np.array(numeric)
 
     def _pairwise(self, seq1, seq2):
         """
@@ -144,8 +147,12 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         Returns:
             float: The distance between the two sequences.
         """
-        num_seq1 = self._convert_seq_to_numeric(seq1)  # Convert seq1 to its indices in the scoring_matrix
-        num_seq2 = self._convert_seq_to_numeric(seq2)  # Convert seq2 to its indices in the scoring_matrix
+        # num_seq1 = self._convert_seq_to_numeric(seq1)  # Convert seq1 to its indices in the scoring_matrix
+        # Convert seq1 to its indices in the scoring_matrix
+        num_seq1 = convert_seq_to_numeric(seq1, mapping=self.mapping)
+        # num_seq2 = self._convert_seq_to_numeric(seq2)  # Convert seq2 to its indices in the scoring_matrix
+        # Convert seq2 to its indices in the scoring_matrix
+        num_seq2 = convert_seq_to_numeric(seq2, mapping=self.mapping)
         non_gap_pos1 = num_seq1 < len(self.alphabet) + 1  # Find all positions which are not skip_letters in seq1
         non_gap_pos2 = num_seq2 < len(self.alphabet) + 1  # Find all positions which are not skip_letters in seq2
         combined_non_gap_pos = non_gap_pos1 & non_gap_pos2  # Determine positions that are not skip_letters in either
