@@ -82,9 +82,6 @@ class SeqAlignment(object):
         if polymer_type not in {'Protein', 'DNA'}:
             raise ValueError("Expected values for polymer_type are 'Protein' and 'DNA'.")
         self.polymer_type = polymer_type
-        # self.distance_matrix = None
-        # self.tree_order = None
-        # self.sequence_assignments = None
 
     def import_alignment(self, save_file=None, verbose=False):
         """
@@ -105,9 +102,9 @@ class SeqAlignment(object):
             alignment, seq_order, query_sequence = pickle.load(open(save_file, 'rb'))
         else:
             if self.polymer_type == 'protein':
-                alphabet = FullIUPACProtein
+                alphabet = FullIUPACProtein()
             else:
-                alphabet = FullIUPACDNA
+                alphabet = FullIUPACDNA()
             alignment = AlignIO.read(self.file_name, format='fasta', alphabet=alphabet)
             seq_order = []
             query_sequence = None
@@ -129,6 +126,22 @@ class SeqAlignment(object):
         self.seq_length = len(self.query_sequence)
         self.size = len(self.alignment)
         self.marked = [False] * self.size
+
+    def write_out_alignment(self, file_name):
+        """
+        This method writes out the alignment in the standard fa format.  Any sequence which is longer than 60 positions
+        will be split over multiple lines with 60 characters per line.
+
+        Args:
+            file_name (str): Path to file where the alignment should be written.
+        """
+        if os.path.exists(file_name):
+            return
+        start = time()
+        with open(file_name, 'wb') as file_handle:
+            AlignIO.write(self.alignment, handle=file_handle, format="fasta")
+        end = time()
+        print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
     def generate_sub_alignment(self, sequence_ids):
         """
@@ -155,10 +168,6 @@ class SeqAlignment(object):
         sub_records = []
         sub_seq_order = []
         sub_marked = []
-        # if self.tree_order:
-        #     sub_tree_order = []
-        # else:
-        #     sub_tree_order = None
         indices = []
         for i in range(self.size):
             if self.alignment[i].id in sequence_ids:
@@ -166,34 +175,11 @@ class SeqAlignment(object):
                 sub_records.append(self.alignment[i])
                 sub_seq_order.append(self.alignment[i].id)
                 sub_marked.append(self.marked[i])
-            # if (sub_tree_order is not None) and (self.tree_order[i] in sequence_ids):
-            #     sub_tree_order.append(self.tree_order[i])
         new_alignment.alignment = MultipleSeqAlignment(sub_records)
         new_alignment.seq_order = sub_seq_order
-        # new_alignment.tree_order = sub_tree_order
         new_alignment.size = len(new_alignment.seq_order)
         new_alignment.marked = sub_marked
-        # if self.distance_matrix:
-        #     sub_dists = np.array(self.distance_matrix)[indices, :]
-        #     sub_dists = sub_dists[:, indices]
-        #     new_alignment.distance_matrix = self._convert_array_to_distance_matrix(array=sub_dists,
-        #                                                                            names=sub_seq_order)
         return new_alignment
-
-    def write_out_alignment(self, file_name):
-        """
-        This method writes out the alignment in the standard fa format.  Any sequence which is longer than 60 positions
-        will be split over multiple lines with 60 characters per line.
-
-        Args:
-            file_name (str): Path to file where the alignment should be written.
-        """
-        if os.path.exists(file_name):
-            return
-        start = time()
-        AlignIO.write(self.alignment, file_name, "fasta")
-        end = time()
-        print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
     def _subset_columns(self, indices_to_keep):
         """
