@@ -3,6 +3,7 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
+from copy import deepcopy
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -161,10 +162,10 @@ class SeqAlignment(object):
             from the current alignment.
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
-        new_alignment.query_id = self.query_id
-        new_alignment.query_sequence = self.query_sequence
-        new_alignment.seq_length = self.seq_length
-        new_alignment.polymer_type = self.polymer_type
+        new_alignment.query_id = deepcopy(self.query_id)
+        new_alignment.query_sequence = deepcopy(self.query_sequence)
+        new_alignment.seq_length = deepcopy(self.seq_length)
+        new_alignment.polymer_type = deepcopy(self.polymer_type)
         sub_records = []
         sub_seq_order = []
         sub_marked = []
@@ -172,8 +173,8 @@ class SeqAlignment(object):
         for i in range(self.size):
             if self.alignment[i].id in sequence_ids:
                 indices.append(i)
-                sub_records.append(self.alignment[i])
-                sub_seq_order.append(self.alignment[i].id)
+                sub_records.append(deepcopy(self.alignment[i]))
+                sub_seq_order.append(deepcopy(self.alignment[i].id))
                 sub_marked.append(self.marked[i])
         new_alignment.alignment = MultipleSeqAlignment(sub_records)
         new_alignment.seq_order = sub_seq_order
@@ -242,11 +243,47 @@ class SeqAlignment(object):
                 new_alignment = self.alignment
             if save_file is not None:
                 pickle.dump(new_alignment, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-        self.alignment = new_alignment
-        self.query_sequence = self.alignment[self.seq_order.index(self.query_id)].seq
-        self.seq_length = len(self.query_sequence)
+        new_alignment = SeqAlignment(self.file_name, self.query_id)
+        new_alignment.query_id = deepcopy(self.query_id)
+        new_alignment.polymer_type = deepcopy(self.polymer_type)
+        new_alignment.marked = deepcopy(self.marked)
+        new_alignment.alignment = new_alignment
+        new_alignment.query_sequence = new_alignment[self.seq_order.index(self.query_id)]
+        new_alignment.seq_length = len(new_alignment.query_sequence.seq)
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
+        return new_alignment
+
+    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None):  # ,save_dir=None):
+        """
+        Compute Effective Alignment Size
+
+        This method uses the distance_matrix variable (containing sequence identities) to compute the effective size of
+        the current alignment. The equation (given below) and default threshold (62% identity) are taken from
+        PMID:29047157.
+            Meff = SUM_(i=0)^(N) of 1/n_i
+            where n_i are the number of sequences sequence identity >= the identity threshold
+        Args:
+            identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
+            distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix): A precomputed identity distance matrix for this
+            alignment.
+            save_dir (str): The path to a directory wheren a .npz file containing distances between sequences in the
+            alignment can be saved. The file created will be <model>.npz.
+        Returns:
+            float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)
+        """
+        if distance_matrix is None:
+            calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'))
+            distance_matrix = calculator.get_distance(self.alignment)
+        distance_matrix = np.array(distance_matrix)
+        meets_threshold = (1 - distance_matrix) >= identity_threshold
+        meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
+        n_i = np.sum(meets_threshold, axis=1)
+        rec_n_i = 1.0 / n_i
+        effective_alignment_size = np.sum(rec_n_i)
+        if effective_alignment_size > self.size:
+            raise ValueError('Effective alignment size is greater than the original alignment size.')
+        return effective_alignment_size
 
     # def compute_distance_matrix(self, model, save_dir=None):
     #     """
@@ -298,49 +335,6 @@ class SeqAlignment(object):
     #         list_of_lists.append(list(array[i, column_indices]))
     #     dist_mat = DistanceMatrix(names=names, matrix=list_of_lists)
     #     return dist_mat
-
-    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None):  # ,save_dir=None):
-        """
-        Compute Effective Alignment Size
-
-        This method uses the distance_matrix variable (containing sequence identities) to compute the effective size of
-        the current alignment. The equation (given below) and default threshold (62% identity) are taken from
-        PMID:29047157.
-            Meff = SUM_(i=0)^(N) of 1/n_i
-            where n_i are the number of sequences sequence identity >= the identity threshold
-        Args:
-            identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
-            distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix): A precomputed identity distance matrix for this
-            alignment.
-            save_dir (str): The path to a directory wheren a .npz file containing distances between sequences in the
-            alignment can be saved. The file created will be <model>.npz.
-        Returns:
-            float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)
-        """
-        # distance_matrix = None
-        # save_file = None
-        # if save_dir:
-        #     save_file = os.path.join(save_dir, 'identity.pkl')
-        #     if os.path.isfile(save_file):
-        #         with open(save_file, 'rb') as save_handle:
-        #             distance_matrix = pickle.load(save_handle)
-        if distance_matrix is None:
-            calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'))
-            distance_matrix = calculator.get_distance(self.alignment)
-            # calculator = DistanceCalculator(model='identity')
-            # distance_matrix = calculator.get_distance(self.alignment)
-            # if save_file:
-            #     with open(save_file, 'wb') as save_handle:
-            #         pickle.dump(distance_matrix, save_handle, pickle.HIGHEST_PROTOCOL)
-        distance_matrix = np.array(distance_matrix)
-        meets_threshold = (1 - distance_matrix) >= identity_threshold
-        meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
-        n_i = np.sum(meets_threshold, axis=1)
-        rec_n_i = 1.0 / n_i
-        effective_alignment_size = np.sum(rec_n_i)
-        if effective_alignment_size > self.size:
-            raise ValueError('Effective alignment size is greater than the original alignment size.')
-        return effective_alignment_size
 
     # def _agglomerative_clustering(self, n_cluster, cache_dir=None, affinity='euclidean', linkage='ward', model=None):
     #     """

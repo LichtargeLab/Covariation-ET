@@ -12,6 +12,7 @@ from multiprocessing import cpu_count
 from Bio.Align import MultipleSeqAlignment
 from SeqAlignment import SeqAlignment
 from DataSetGenerator import DataSetGenerator
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
 class TestSeqAlignment(TestCase):
@@ -73,7 +74,7 @@ class TestSeqAlignment(TestCase):
         except OSError:
             pass
 
-    def test_init(self):
+    def test1a_init(self):
         with self.assertRaises(TypeError):
             SeqAlignment()
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
@@ -87,6 +88,8 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_small.size, 'size is correctly declared as None.')
         self.assertIsNone(aln_small.marked)
         self.assertEqual(aln_small.polymer_type, 'Protein')
+
+    def test1b_init(self):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         self.assertFalse(aln_large.file_name.startswith('..'), 'Filename set to absolute path.')
@@ -99,7 +102,7 @@ class TestSeqAlignment(TestCase):
         self.assertIsNone(aln_large.marked)
         self.assertEqual(aln_large.polymer_type, 'Protein')
 
-    def test_import_alignment(self):
+    def test2a_import_alignment(self):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         for save in [None, self.save_file_small]:
@@ -122,6 +125,8 @@ class TestSeqAlignment(TestCase):
                 self.assertFalse(os.path.isfile(self.save_file_small), 'No save performed.')
             else:
                 self.assertTrue(os.path.isfile(self.save_file_small), 'Save file made correctly.')
+
+    def test2b_import_alignment(self):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         for save in [None, self.save_file_large]:
@@ -145,7 +150,7 @@ class TestSeqAlignment(TestCase):
             else:
                 self.assertTrue(os.path.isfile(self.save_file_large), 'Save file made correctly.')
 
-    def test_write_out_alignment(self):
+    def test3a_write_out_alignment(self):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         with self.assertRaises(TypeError):
@@ -159,6 +164,8 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(aln_small.query_sequence, aln_small_prime.query_sequence)
         self.assertEqual(aln_small.seq_length, aln_small_prime.seq_length)
         self.assertEqual(aln_small.size, aln_small_prime.size)
+
+    def test3b_write_out_alignment(self):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         with self.assertRaises(TypeError):
@@ -173,7 +180,7 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(aln_large.seq_length, aln_obj2_prime.seq_length)
         self.assertEqual(aln_large.size, aln_obj2_prime.size)
 
-    def test_generate_sub_alignment(self):
+    def test4a_generate_sub_alignment(self):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
@@ -199,6 +206,7 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(len(aln_small_sub2.marked), aln_small.size - aln_small_halved)
         self.assertFalse(any(aln_small_sub2.marked))
 
+    def test4b_generate_sub_alignment(self):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         aln_large.import_alignment()
@@ -224,253 +232,285 @@ class TestSeqAlignment(TestCase):
         self.assertEqual(len(aln_large_sub2.marked), aln_large.size - aln_large_halved)
         self.assertFalse(any(aln_large_sub2.marked))
 
-    def test__subset_columns(self):
-        aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
+    def test5a__subset_columns_one_position(self):
+        aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                                 query_id=self.small_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj1._subset_columns([range(5) + range(745, 749)])
-        aln_obj1.import_alignment()
+            aln_small._subset_columns([0, aln_small.seq_length // 2, aln_small.seq_length - 1])
+        aln_small.import_alignment()
         # One position
-        aln_obj1_alpha = aln_obj1._subset_columns([0])
-        self.assertEqual(len(aln_obj1_alpha), aln_obj1.size)
-        for rec in aln_obj1_alpha:
+        aln_small_alpha = aln_small._subset_columns([0])
+        self.assertEqual(len(aln_small_alpha), aln_small.size)
+        for rec in aln_small_alpha:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[0])
-        aln_obj1_beta = aln_obj1._subset_columns([aln_obj1.seq_length - 1])
-        self.assertEqual(len(aln_obj1_beta), aln_obj1.size)
-        for rec in aln_obj1_beta:
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[0])
+        aln_small_beta = aln_small._subset_columns([aln_small.seq_length - 1])
+        self.assertEqual(len(aln_small_beta), aln_small.size)
+        for rec in aln_small_beta:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length - 1])
-        aln_obj1_gamma = aln_obj1._subset_columns([aln_obj1.seq_length // 2])
-        self.assertEqual(len(aln_obj1_gamma), aln_obj1.size)
-        for rec in aln_obj1_gamma:
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[aln_small.seq_length - 1])
+        aln_small_gamma = aln_small._subset_columns([aln_small.seq_length // 2])
+        self.assertEqual(len(aln_small_gamma), aln_small.size)
+        for rec in aln_small_gamma:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2])
-        # Single Range
-        aln_obj1_delta = aln_obj1._subset_columns(range(5))
-        self.assertEqual(len(aln_obj1_delta), aln_obj1.size)
-        for rec in aln_obj1_delta:
-            self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[:5])
-        aln_obj1_epsilon = aln_obj1._subset_columns(range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
-        self.assertEqual(len(aln_obj1_epsilon), aln_obj1.size)
-        for rec in aln_obj1_epsilon:
-            self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[-5:])
-        aln_obj1_zeta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
-        self.assertEqual(len(aln_obj1_zeta), aln_obj1.size)
-        for rec in aln_obj1_zeta:
-            self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2:
-                                                                       aln_obj1.seq_length // 2 + 5])
-        # Mixed Range and Single Position
-        aln_obj1_eta = aln_obj1._subset_columns([0] + range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5))
-        self.assertEqual(len(aln_obj1_eta), aln_obj1.size)
-        for rec in aln_obj1_eta:
-            self.assertEqual(len(rec.seq), 6)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[0] +
-                                 aln_obj1.query_sequence[aln_obj1.seq_length // 2: aln_obj1.seq_length // 2 + 5])
-        aln_obj1_theta = aln_obj1._subset_columns(range(aln_obj1.seq_length // 2, aln_obj1.seq_length // 2 + 5) +
-                                                  [aln_obj1.seq_length - 1])
-        self.assertEqual(len(aln_obj1_theta), aln_obj1.size)
-        for rec in aln_obj1_theta:
-            self.assertEqual(len(rec.seq), 6)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[aln_obj1.seq_length // 2:
-                                                                       aln_obj1.seq_length // 2 + 5] +
-                                 aln_obj1.query_sequence[aln_obj1.seq_length - 1])
-        aln_obj1_iota = aln_obj1._subset_columns(range(5) + [aln_obj1.seq_length // 2] +
-                                                 range(aln_obj1.seq_length - 5, aln_obj1.seq_length))
-        self.assertEqual(len(aln_obj1_iota), aln_obj1.size)
-        for rec in aln_obj1_iota:
-            self.assertEqual(len(rec.seq), 11)
-            if rec.id == aln_obj1.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj1.query_sequence[:5] +
-                                 aln_obj1.query_sequence[aln_obj1.seq_length // 2] +
-                                 aln_obj1.query_sequence[-5:])
-        aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[aln_small.seq_length // 2])
+
+    def test5b__subset_columns_single_range(self):
+        aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                                 query_id=self.small_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj2._subset_columns([range(5) + range(1501, 1506)])
-        aln_obj2.import_alignment()
+            aln_small._subset_columns([range(5) + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5) +
+                                       range(aln_small.seq_length - 5, aln_small.seq_length)])
+        aln_small.import_alignment()
+        # Single Range
+        aln_small_delta = aln_small._subset_columns(range(5))
+        self.assertEqual(len(aln_small_delta), aln_small.size)
+        for rec in aln_small_delta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[:5])
+        aln_small_epsilon = aln_small._subset_columns(range(aln_small.seq_length - 5, aln_small.seq_length))
+        self.assertEqual(len(aln_small_epsilon), aln_small.size)
+        for rec in aln_small_epsilon:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[-5:])
+        aln_small_zeta = aln_small._subset_columns(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
+        self.assertEqual(len(aln_small_zeta), aln_small.size)
+        for rec in aln_small_zeta:
+            self.assertEqual(len(rec.seq), 5)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[aln_small.seq_length // 2:
+                                                                        aln_small.seq_length // 2 + 5])
+
+    def test5c__subset_columns_range_and_position(self):
+        aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                                 query_id=self.small_structure_id)
+        with self.assertRaises(TypeError):
+            aln_small._subset_columns([0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
+        aln_small.import_alignment()
+        # Mixed Range and Single Position
+        aln_small_eta = aln_small._subset_columns([0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
+        self.assertEqual(len(aln_small_eta), aln_small.size)
+        for rec in aln_small_eta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[0] +
+                                 aln_small.query_sequence[aln_small.seq_length // 2: aln_small.seq_length // 2 + 5])
+        aln_small_theta = aln_small._subset_columns(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5) +
+                                                  [aln_small.seq_length - 1])
+        self.assertEqual(len(aln_small_theta), aln_small.size)
+        for rec in aln_small_theta:
+            self.assertEqual(len(rec.seq), 6)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[aln_small.seq_length // 2:
+                                                                        aln_small.seq_length // 2 + 5] +
+                                 aln_small.query_sequence[aln_small.seq_length - 1])
+        aln_small_iota = aln_small._subset_columns(range(5) + [aln_small.seq_length // 2] +
+                                                   range(aln_small.seq_length - 5, aln_small.seq_length))
+        self.assertEqual(len(aln_small_iota), aln_small.size)
+        for rec in aln_small_iota:
+            self.assertEqual(len(rec.seq), 11)
+            if rec.id == aln_small.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_small.query_sequence[:5] +
+                                 aln_small.query_sequence[aln_small.seq_length // 2] +
+                                 aln_small.query_sequence[-5:])
+
+    def test5d__subset_columns_one_position(self):
+        aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                                 query_id=self.large_structure_id)
+        with self.assertRaises(TypeError):
+            aln_large._subset_columns([0, aln_large.seq_length // 2, aln_large.seq_length - 1])
+        aln_large.import_alignment()
         # One position
-        aln_obj2_alpha = aln_obj2._subset_columns([0])
-        self.assertEqual(len(aln_obj2_alpha), aln_obj2.size)
-        for rec in aln_obj2_alpha:
+        aln_large_alpha = aln_large._subset_columns([0])
+        self.assertEqual(len(aln_large_alpha), aln_large.size)
+        for rec in aln_large_alpha:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0])
-        aln_obj2_beta = aln_obj2._subset_columns([aln_obj2.seq_length - 1])
-        self.assertEqual(len(aln_obj2_beta), aln_obj2.size)
-        for rec in aln_obj2_beta:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[0])
+        aln_large_beta = aln_large._subset_columns([aln_large.seq_length - 1])
+        self.assertEqual(len(aln_large_beta), aln_large.size)
+        for rec in aln_large_beta:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length - 1])
-        aln_obj2_gamma = aln_obj2._subset_columns([aln_obj2.seq_length // 2])
-        self.assertEqual(len(aln_obj2_gamma), aln_obj2.size)
-        for rec in aln_obj2_gamma:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[aln_large.seq_length - 1])
+        aln_large_gamma = aln_large._subset_columns([aln_large.seq_length // 2])
+        self.assertEqual(len(aln_large_gamma), aln_large.size)
+        for rec in aln_large_gamma:
             self.assertEqual(len(rec.seq), 1)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2])
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[aln_large.seq_length // 2])
+
+    def test5e__subset_columns_single_range(self):
+        aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                                 query_id=self.large_structure_id)
+        with self.assertRaises(TypeError):
+            aln_large._subset_columns(range(5) + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5) +
+                                      range(aln_large.seq_length - 5, aln_large.seq_length))
         # Single Range
-        aln_obj2_delta = aln_obj2._subset_columns(range(5))
-        self.assertEqual(len(aln_obj2_delta), aln_obj2.size)
-        for rec in aln_obj2_delta:
+        aln_large_delta = aln_large._subset_columns(range(5))
+        self.assertEqual(len(aln_large_delta), aln_large.size)
+        for rec in aln_large_delta:
             self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0:5])
-        aln_obj2_epsilon = aln_obj2._subset_columns(range(aln_obj2.seq_length - 5, aln_obj2.seq_length))
-        self.assertEqual(len(aln_obj2_epsilon), aln_obj2.size)
-        for rec in aln_obj2_epsilon:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[0:5])
+        aln_large_epsilon = aln_large._subset_columns(range(aln_large.seq_length - 5, aln_large.seq_length))
+        self.assertEqual(len(aln_large_epsilon), aln_large.size)
+        for rec in aln_large_epsilon:
             self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[-5:])
-        aln_obj2_zeta = aln_obj2._subset_columns(range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5))
-        self.assertEqual(len(aln_obj2_zeta), aln_obj2.size)
-        for rec in aln_obj2_zeta:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[-5:])
+        aln_large_zeta = aln_large._subset_columns(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
+        self.assertEqual(len(aln_large_zeta), aln_large.size)
+        for rec in aln_large_zeta:
             self.assertEqual(len(rec.seq), 5)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2:
-                                                                       aln_obj2.seq_length // 2 + 5])
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[aln_large.seq_length // 2:
+                                                                        aln_large.seq_length // 2 + 5])
+
+    def test5f__subset_columns_range_and_position(self):
+        aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                                 query_id=self.large_structure_id)
+        with self.assertRaises(TypeError):
+            aln_large._subset_columns([0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
         # Mixed Range and Single Position
-        aln_obj2_eta = aln_obj2._subset_columns([0] + range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5))
-        self.assertEqual(len(aln_obj2_eta), aln_obj2.size)
-        for rec in aln_obj2_eta:
+        aln_large_eta = aln_large._subset_columns([0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
+        self.assertEqual(len(aln_large_eta), aln_large.size)
+        for rec in aln_large_eta:
             self.assertEqual(len(rec.seq), 6)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[0] +
-                                 aln_obj2.query_sequence[aln_obj2.seq_length // 2: aln_obj2.seq_length // 2 + 5])
-        aln_obj2_theta = aln_obj2._subset_columns(range(aln_obj2.seq_length // 2, aln_obj2.seq_length // 2 + 5) +
-                                                  [aln_obj2.seq_length - 1])
-        self.assertEqual(len(aln_obj2_theta), aln_obj2.size)
-        for rec in aln_obj2_theta:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[0] +
+                                 aln_large.query_sequence[aln_large.seq_length // 2: aln_large.seq_length // 2 + 5])
+        aln_large_theta = aln_large._subset_columns(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5) +
+                                                  [aln_large.seq_length - 1])
+        self.assertEqual(len(aln_large_theta), aln_large.size)
+        for rec in aln_large_theta:
             self.assertEqual(len(rec.seq), 6)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[aln_obj2.seq_length // 2:
-                                                                       aln_obj2.seq_length // 2 + 5] +
-                                 aln_obj2.query_sequence[aln_obj2.seq_length - 1])
-        aln_obj2_iota = aln_obj2._subset_columns(range(5) + [aln_obj2.seq_length // 2] +
-                                                 range(aln_obj2.seq_length - 5, aln_obj2.seq_length))
-        self.assertEqual(len(aln_obj2_iota), aln_obj2.size)
-        for rec in aln_obj2_iota:
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[aln_large.seq_length // 2:
+                                                                       aln_large.seq_length // 2 + 5] +
+                                 aln_large.query_sequence[aln_large.seq_length - 1])
+        aln_large_iota = aln_large._subset_columns(range(5) + [aln_large.seq_length // 2] +
+                                                 range(aln_large.seq_length - 5, aln_large.seq_length))
+        self.assertEqual(len(aln_large_iota), aln_large.size)
+        for rec in aln_large_iota:
             self.assertEqual(len(rec.seq), 11)
-            if rec.id == aln_obj2.query_id[1:]:
-                self.assertEqual(str(rec.seq), aln_obj2.query_sequence[:5] +
-                                 aln_obj2.query_sequence[aln_obj2.seq_length // 2] +
-                                 aln_obj2.query_sequence[-5:])
+            if rec.id == aln_large.query_id[1:]:
+                self.assertEqual(str(rec.seq), aln_large.query_sequence[:5] +
+                                 aln_large.query_sequence[aln_large.seq_length // 2] +
+                                 aln_large.query_sequence[-5:])
 
-    def test_remove_gaps(self):
-        aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
+    def test6a_remove_gaps(self):
+        aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                                 query_id=self.small_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj1.remove_gaps()
-        aln_obj1.import_alignment()
-        aln_obj1_prime = SeqAlignment(self.aln_fn1, self.query1)
-        aln_obj1_prime.import_alignment()
-        aln_obj1_prime.remove_gaps()
-        self.assertEqual(aln_obj1.file_name, aln_obj1_prime.file_name)
-        self.assertEqual(aln_obj1.query_id, aln_obj1_prime.query_id)
-        for i in range(aln_obj1.size):
-            self.assertEqual(aln_obj1.alignment[i].seq, aln_obj1_prime.alignment[i].seq)
-        self.assertEqual(aln_obj1.seq_order, aln_obj1_prime.seq_order)
-        self.assertEqual(aln_obj1.query_sequence, aln_obj1_prime.query_sequence)
-        self.assertEqual(aln_obj1.seq_length, aln_obj1_prime.seq_length)
-        self.assertEqual(aln_obj1.size, aln_obj1_prime.size)
-        self.assertEqual(aln_obj1.distance_matrix, aln_obj1_prime.distance_matrix)
-        self.assertEqual(aln_obj1.tree_order, aln_obj1_prime.tree_order)
-        self.assertEqual(aln_obj1.sequence_assignments, aln_obj1_prime.sequence_assignments)
-        aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-        with self.assertRaises(TypeError):
-            aln_obj2.remove_gaps()
-        aln_obj2.import_alignment()
-        aln_obj2_prime = SeqAlignment(self.aln_fn2, self.query2)
-        aln_obj2_prime.import_alignment()
-        aln_obj2_prime.remove_gaps()
-        self.assertEqual(aln_obj2.file_name, aln_obj2_prime.file_name)
-        self.assertEqual(aln_obj2.query_id, aln_obj2_prime.query_id)
-        for i in range(aln_obj2.size):
-            self.assertEqual(len(aln_obj2_prime.alignment[i].seq), 368)
-        self.assertEqual(aln_obj2.seq_order, aln_obj2_prime.seq_order)
-        self.assertEqual(aln_obj2_prime.query_sequence, self.nongap_sequence2)
-        self.assertEqual(aln_obj2_prime.seq_length, 368)
-        self.assertEqual(aln_obj2.size, aln_obj2_prime.size)
-        self.assertEqual(aln_obj2.distance_matrix, aln_obj2_prime.distance_matrix)
-        self.assertEqual(aln_obj2.tree_order, aln_obj2_prime.tree_order)
-        self.assertEqual(aln_obj2.sequence_assignments, aln_obj2_prime.sequence_assignments)
+            aln_small.remove_gaps()
+        aln_small.import_alignment()
+        aln_small_prime = aln_small.remove_gaps()
+        self.assertEqual(aln_small.file_name, aln_small_prime.file_name)
+        self.assertEqual(aln_small.query_id, aln_small_prime.query_id)
+        self.assertEqual(aln_small.size, aln_small_prime.size)
+        self.assertLess(aln_small_prime.seq_length, aln_small.seq_length)
+        self.assertEqual(aln_small.seq_order, aln_small_prime.seq_order)
+        self.assertEqual(str(aln_small.query_sequence.seq).replace('-', ''), aln_small_prime.query_sequence)
+        for i in range(aln_small.size):
+            self.assertEqual(aln_small_prime.seq_length, len(aln_small_prime.alignment[i].seq))
 
-    def test_compute_distance_matrix(self):
-        # This is not a very good test, should come up with something else in the future, maybe compute the identity of
-        # sequences separately and compare them here.
-        aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
+    def test6b_remove_gaps(self):
+        aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                                 query_id=self.large_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
-        aln_obj1.import_alignment()
-        # Compute distance matrix manually
-        # aln_obj1_num_mat = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
-        aln_obj1_num_mat = aln_obj1._alignment_to_num()
-        value_matrix = np.zeros([aln_obj1.size, aln_obj1.size])
-        for i in range(aln_obj1.size):
-            check = aln_obj1_num_mat - aln_obj1_num_mat[i]
-            value_matrix[i] = np.sum(check == 0, axis=1)
-        value_matrix /= aln_obj1.seq_length
-        value_matrix = 1 - value_matrix
-        # Compute distance matrix using class method
-        aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
-        dist_mat1 = np.array(aln_obj1.distance_matrix)
-        self.assertEqual(0, np.sum(dist_mat1[range(aln_obj1.size), range(aln_obj1.size)]))
-        self.assertEqual(0, np.sum(value_matrix - dist_mat1))
-        aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-        with self.assertRaises(TypeError):
-            aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
-        aln_obj2.import_alignment()
-        # Compute distance matrix manually
-        # aln_obj2_num_mat = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
-        aln_obj2_num_mat = aln_obj2._alignment_to_num()
-        value_matrix = np.zeros([aln_obj2.size, aln_obj2.size])
-        for i in range(aln_obj2.size):
-            check = aln_obj2_num_mat - aln_obj2_num_mat[i]
-            value_matrix[i] = np.sum(check == 0, axis=1)
-        value_matrix /= aln_obj2.seq_length
-        value_matrix = 1 - value_matrix
-        # Compute distance matrix using class method
-        aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
-        dist_mat2 = np.array(aln_obj2.distance_matrix)
-        self.assertEqual(0, np.sum(dist_mat2[range(aln_obj2.size), range(aln_obj2.size)]))
-        self.assertEqual(0, np.sum(value_matrix - dist_mat2))
+            aln_large.remove_gaps()
+        aln_large.import_alignment()
+        aln_large_prime = aln_large.remove_gaps()
+        self.assertEqual(aln_large.file_name, aln_large_prime.file_name)
+        self.assertEqual(aln_large.query_id, aln_large_prime.query_id)
+        self.assertEqual(aln_large.seq_order, aln_large_prime.seq_order)
+        self.assertEqual(aln_large_prime.query_sequence, str(aln_large.query_sequence.seq).replace('-', ''))
+        self.assertLess(aln_large_prime.seq_length, aln_large.seq_length)
+        self.assertEqual(aln_large.size, aln_large_prime.size)
+        for i in range(aln_large.size):
+            self.assertEqual(len(aln_large_prime.alignment[i].seq), aln_large_prime.seq_length)
 
     def test_compute_effective_alignment_size(self):
-        aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
+        aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                                 query_id=self.small_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj1.compute_effective_alignment_size()
-        aln_obj1.import_alignment()
-        aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
-        identity_mat = 1 - np.array(aln_obj1.distance_matrix)
+            aln_small.compute_effective_alignment_size()
+        aln_small.import_alignment()
+        calc = AlignmentDistanceCalculator()
+        distance_mat = np.array(calc.get_distance(aln_small.alignment))
+        identity_mat = 1 - np.array(distance_mat)
         effective_size = 0.0
-        for i in range(aln_obj1.size):
+        for i in range(aln_small.size):
             n_i = 0.0
-            for j in range(aln_obj1.size):
+            for j in range(aln_small.size):
                 if identity_mat[i, j] >= 0.62:
                     n_i += 1.0
             effective_size += 1.0 / n_i
-        self.assertLess(abs(aln_obj1.compute_effective_alignment_size() - effective_size), 1.0e-12)
-        aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
+        self.assertLess(abs(aln_small.compute_effective_alignment_size() - effective_size), 1.0e-12)
+
+    def test_compute_effective_alignment_size(self):
+        aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                                 query_id=self.large_structure_id)
         with self.assertRaises(TypeError):
-            aln_obj2.compute_effective_alignment_size()
-        aln_obj2.import_alignment()
-        aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
-        identity_mat = 1 - np.array(aln_obj2.distance_matrix)
+            aln_large.compute_effective_alignment_size()
+        aln_large.import_alignment()
+        calc = AlignmentDistanceCalculator()
+        distance_mat = np.array(calc.get_distance(aln_large.alignment))
+        identity_mat = 1 - distance_mat
         effective_size = 0.0
-        for i in range(aln_obj2.size):
+        for i in range(aln_large.size):
             n_i = 0.0
-            for j in range(aln_obj2.size):
+            for j in range(aln_large.size):
                 if identity_mat[i, j] >= 0.62:
                     n_i += 1.0
             effective_size += 1.0 / n_i
-        self.assertLess(abs(aln_obj2.compute_effective_alignment_size() - effective_size), 1.0e-12)
+        self.assertLess(abs(aln_large.compute_effective_alignment_size() - effective_size), 1.0e-12)
+
+    # def test_compute_distance_matrix(self):
+    #     # This is not a very good test, should come up with something else in the future, maybe compute the identity of
+    #     # sequences separately and compare them here.
+    #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
+    #     with self.assertRaises(TypeError):
+    #         aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
+    #     aln_obj1.import_alignment()
+    #     # Compute distance matrix manually
+    #     # aln_obj1_num_mat = aln_obj1._alignment_to_num(aa_dict=self.aa_dict)
+    #     aln_obj1_num_mat = aln_obj1._alignment_to_num()
+    #     value_matrix = np.zeros([aln_obj1.size, aln_obj1.size])
+    #     for i in range(aln_obj1.size):
+    #         check = aln_obj1_num_mat - aln_obj1_num_mat[i]
+    #         value_matrix[i] = np.sum(check == 0, axis=1)
+    #     value_matrix /= aln_obj1.seq_length
+    #     value_matrix = 1 - value_matrix
+    #     # Compute distance matrix using class method
+    #     aln_obj1.compute_distance_matrix(model='identity', save_dir=self.save_dir1)
+    #     dist_mat1 = np.array(aln_obj1.distance_matrix)
+    #     self.assertEqual(0, np.sum(dist_mat1[range(aln_obj1.size), range(aln_obj1.size)]))
+    #     self.assertEqual(0, np.sum(value_matrix - dist_mat1))
+    #     aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
+    #     with self.assertRaises(TypeError):
+    #         aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
+    #     aln_obj2.import_alignment()
+    #     # Compute distance matrix manually
+    #     # aln_obj2_num_mat = aln_obj2._alignment_to_num(aa_dict=self.aa_dict)
+    #     aln_obj2_num_mat = aln_obj2._alignment_to_num()
+    #     value_matrix = np.zeros([aln_obj2.size, aln_obj2.size])
+    #     for i in range(aln_obj2.size):
+    #         check = aln_obj2_num_mat - aln_obj2_num_mat[i]
+    #         value_matrix[i] = np.sum(check == 0, axis=1)
+    #     value_matrix /= aln_obj2.seq_length
+    #     value_matrix = 1 - value_matrix
+    #     # Compute distance matrix using class method
+    #     aln_obj2.compute_distance_matrix(model='identity', save_dir=self.save_dir2)
+    #     dist_mat2 = np.array(aln_obj2.distance_matrix)
+    #     self.assertEqual(0, np.sum(dist_mat2[range(aln_obj2.size), range(aln_obj2.size)]))
+    #     self.assertEqual(0, np.sum(value_matrix - dist_mat2))
 
     def test__agglomerative_clustering(self):
         aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
