@@ -187,7 +187,8 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         """
         names = [s.id for s in msa]
         dm = DistanceMatrix(names)
-        numerical_alignment = np.vstack([self._convert_seq_to_numeric(seq) for seq in msa])
+        _, _, mapping = build_mapping(alphabet=msa._alphabet)
+        numerical_alignment = np.vstack([convert_seq_to_numeric(seq, mapping=mapping) for seq in msa])
         msa_size = len(msa)
         for i in range(msa_size):
             check = numerical_alignment - numerical_alignment[i]
