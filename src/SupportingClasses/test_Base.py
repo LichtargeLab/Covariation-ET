@@ -30,21 +30,3 @@ class TestBase(TestCase):
         cls.data_set = DataSetGenerator(input_path=cls.input_path)
         cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
                                                  max_target_seqs=cls.max_target_seqs)
-        # cls.query_aln_fa_small = SeqAlignment(
-        #     file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
-        #     query_id=cls.small_structure_id)
-        # cls.query_aln_fa_small.import_alignment()
-        # cls.query_aln_fa_large = SeqAlignment(
-        #     file_name=cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln'],
-        #     query_id=cls.large_structure_id)
-        # cls.query_aln_fa_large.import_alignment()
-        # cls.query_aln_msf_small = deepcopy(cls.query_aln_fa_small)
-        # cls.query_aln_msf_small.file_name = cls.data_set.protein_data[cls.small_structure_id]['Final_MSF_Aln']
-        # cls.query_aln_msf_large = deepcopy(cls.query_aln_fa_large)
-        # cls.query_aln_msf_large.file_name = cls.data_set.protein_data[cls.large_structure_id]['Final_MSF_Aln']
-        # cls.save_file_small = os.path.join(cls.testing_dir, '{}_aln.pkl'.format(cls.small_structure_id))
-        # cls.save_file_large = os.path.join(cls.testing_dir, '{}_aln.pkl'.format(cls.large_structure_id))
-        # cls.aln_file_small = os.path.join(cls.testing_dir, 'test_{}.fa'.format(cls.small_structure_id))
-        # cls.aln_file_large = os.path.join(cls.testing_dir, 'test_{}.fa'.format(cls.large_structure_id))
-        # cls.save_dir_small = os.path.join(cls.testing_dir, '{}_cache'.format(cls.small_structure_id))
-        # cls.save_dir_large = os.path.join(cls.testing_dir, '{}_cache'.format(cls.large_structure_id))

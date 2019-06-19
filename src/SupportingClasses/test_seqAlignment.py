@@ -7,17 +7,13 @@ import os
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
-from unittest import TestCase
-from multiprocessing import cpu_count
 from Bio.Align import MultipleSeqAlignment
 from utils import build_mapping
 from test_Base import TestBase
 from SeqAlignment import SeqAlignment
-from DataSetGenerator import DataSetGenerator
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
-# class TestSeqAlignment(TestCase):
 class TestSeqAlignment(TestBase):
 
     @classmethod

@@ -82,13 +82,10 @@ class PDBReference(object):
                     for residue in chain:
                         if is_aa(residue.get_resname(), standard=True):
                             res_name = three_to_one(residue.get_resname())
-                        else:
-                            res_name = 'X'
-                        seq[chain.id] += res_name
-                        res_num = residue.get_id()[1]
-                        residue_pos[chain.id][res_num] = res_name
-                        pdb_residue_list[chain.id].append(res_num)
-            print(seq)
+                            seq[chain.id] += res_name
+                            res_num = residue.get_id()[1]
+                            residue_pos[chain.id][res_num] = res_name
+                            pdb_residue_list[chain.id].append(res_num)
             if save_file is not None:
                 pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'wb'),
                             protocol=pickle.HIGHEST_PROTOCOL)
