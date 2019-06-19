@@ -4,12 +4,12 @@ Created on May 15, 2019
 @author: Daniel Konecki
 """
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
-from Bio.Alphabet import DNAAlphabet, ProteinAlphabet
 from Bio.Align import MultipleSeqAlignment
 from itertools import combinations
 import pandas as pd
 import numpy as np
 from utils import build_mapping, convert_seq_to_numeric
+from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
 
 
 class AlignmentDistanceCalculator(DistanceCalculator):
@@ -35,11 +35,11 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         """
         if protein:
             self.aln_type = 'protein'
-            self.alphabet = DistanceCalculator.protein_alphabet
+            self.alphabet = FullIUPACProtein()
             possible_models = DistanceCalculator.protein_models
         else:
             self.aln_type = 'dna'
-            self.alphabet = DistanceCalculator.dna_alphabet
+            self.alphabet = FullIUPACDNA()
             possible_models = DistanceCalculator.dna_models
         possible_models.append('identity')
         if model not in possible_models:
@@ -47,29 +47,9 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         else:
             self.model = model
         super(AlignmentDistanceCalculator, self).__init__(model=model, skip_letters=skip_letters)
-        # self.gap_characters = list(set(['*', '-', '.']) - set(self.skip_letters))
-        _, self.gap_characters, self.mapping = build_mapping(alphabet=self.alphabet, skip_letters=skip_letters)
-        # self.mapping = self._build_mapping()
+        self.alphabet_size, self.gap_characters, self.mapping = build_mapping(alphabet=self.alphabet,
+                                                                              skip_letters=skip_letters)
         self.scoring_matrix = self._update_scoring_matrix()
-
-    # def _build_mapping(self):
-    #     """
-    #     Build Mapping
-    #
-    #     Constructs a dictionary mapping characters in the given alphabet to their position in the alphabet (which
-    #     corresponds to their index in substitution matrices). It also maps gap characters and skip letters to positions
-    #     outside of that range.
-    #
-    #     Returns:
-    #         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet or in the
-    #         scoring/substitution matrix.
-    #     """
-    #     alphabet_mapping = {char: i for i, char in enumerate(self.alphabet)}
-    #     gap_map = {char: len(self.alphabet) for char in self.gap_characters}
-    #     alphabet_mapping.update(gap_map)
-    #     skip_map = {char: len(self.alphabet) + 1 for char in self.skip_letters}
-    #     alphabet_mapping.update(skip_map)
-    #     return alphabet_mapping
 
     def _update_scoring_matrix(self):
         """
@@ -98,8 +78,9 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         Return:
              numpy.array: The identity scoring matrix.
         """
-        substitution_matrix = np.eye(len(self.alphabet) + 2)
-        substitution_matrix[len(self.alphabet) + 1, len(self.alphabet) + 1] = 0
+
+        substitution_matrix = np.eye(self.alphabet_size + 2)
+        substitution_matrix[self.alphabet_size + 1, self.alphabet_size + 1] = 0
         return substitution_matrix
 
     def _rebuild_scoring_matrix(self):
@@ -119,21 +100,6 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
         return substitution_matrix
 
-    # def _convert_seq_to_numeric(self, seq):
-    #     """
-    #     Convert Seq To Numeric
-    #
-    #     This function uses an alphabet mapping (see _build_mapping) to convert a sequence to a 1D array of integers.
-    #
-    #     Args:
-    #         seq (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence.
-    #     Return:
-    #         numpy.array: A 1D array containing the numerical representation of the passed in sequence.
-    #     """
-    #     # Convert a SeqRecord sequence to a numerical representation (using indices in scoring_matrix)
-    #     numeric = [self.mapping[char] for char in seq]
-    #     return np.array(numeric)
-
     def _pairwise(self, seq1, seq2):
         """
         Pairwise
@@ -147,14 +113,12 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         Returns:
             float: The distance between the two sequences.
         """
-        # num_seq1 = self._convert_seq_to_numeric(seq1)  # Convert seq1 to its indices in the scoring_matrix
         # Convert seq1 to its indices in the scoring_matrix
         num_seq1 = convert_seq_to_numeric(seq1, mapping=self.mapping)
-        # num_seq2 = self._convert_seq_to_numeric(seq2)  # Convert seq2 to its indices in the scoring_matrix
         # Convert seq2 to its indices in the scoring_matrix
         num_seq2 = convert_seq_to_numeric(seq2, mapping=self.mapping)
-        non_gap_pos1 = num_seq1 < len(self.alphabet) + 1  # Find all positions which are not skip_letters in seq1
-        non_gap_pos2 = num_seq2 < len(self.alphabet) + 1  # Find all positions which are not skip_letters in seq2
+        non_gap_pos1 = num_seq1 < self.alphabet_size  # Find all positions which are not skip_letters in seq1
+        non_gap_pos2 = num_seq2 < self.alphabet_size  # Find all positions which are not skip_letters in seq2
         combined_non_gap_pos = non_gap_pos1 & non_gap_pos2  # Determine positions that are not skip_letters in either
         # Retrieve scores from scoring_matrix for all positions in the two sequences
         ij_scores = self.scoring_matrix[num_seq1[combined_non_gap_pos], num_seq2[combined_non_gap_pos]]
@@ -187,8 +151,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         """
         names = [s.id for s in msa]
         dm = DistanceMatrix(names)
-        _, _, mapping = build_mapping(alphabet=msa._alphabet)
-        numerical_alignment = np.vstack([convert_seq_to_numeric(seq, mapping=mapping) for seq in msa])
+        numerical_alignment = np.vstack([convert_seq_to_numeric(seq, mapping=self.mapping) for seq in msa])
         msa_size = len(msa)
         for i in range(msa_size):
             check = numerical_alignment - numerical_alignment[i]
@@ -271,7 +234,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             id1 = msa[i].id
             if id1 not in seq_conversion:
                 # Convert seq i in the msa to a numerical representation (indices in scoring_matrix)
-                num_repr1 = self._convert_seq_to_numeric(msa[i])
+                num_repr1 = convert_seq_to_numeric(msa[i], self.mapping)
                 # Find all positions which are not gaps or skip_letters in seq1 and the resulting sequence length
                 non_gap_pos1 = num_repr1 < len(self.alphabet)
                 non_gap_length1 = np.sum(non_gap_pos1)
@@ -281,7 +244,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 id2 = msa[j].id
                 if id2 not in seq_conversion:
                     # Convert seq j in the msa to a numerical representation (indices used in scoring_matrix)
-                    num_repr2 = self._convert_seq_to_numeric(msa[j])
+                    num_repr2 = convert_seq_to_numeric(msa[j], mapping=self.mapping)
                     # Find all positions which are not skip_letters in seq2
                     non_gap_pos2 = num_repr2 < len(self.alphabet)
                     non_gap_length2 = np.sum(non_gap_pos2)
@@ -310,3 +273,13 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 data_dict['Id_Count'].append(identity_count)
                 data_dict['Threshold_Count'].append(scoring_matrix_count)
         return plain_identity, psuedo_identity, pd.DataFrame(data_dict), threshold
+
+
+def convert_array_to_distance_matrix(array, names):
+    indices = np.tril_indices(array.shape[0], 0, array.shape[1])
+    list_of_lists = []
+    for i in range(array.shape[0]):
+        column_indices = indices[1][indices[0] == i]
+        list_of_lists.append(list(array[i, column_indices]))
+    dist_mat = DistanceMatrix(names=names, matrix=list_of_lists)
+    return dist_mat

@@ -10,14 +10,12 @@ from time import time
 from subprocess import Popen, PIPE
 from Bio.Align.Applications import MuscleCommandline
 from dotenv import find_dotenv, load_dotenv
+from AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-# dotenv_path = find_dotenv(raise_error_if_not_found=True)
-# print(dotenv_path)
-# load_dotenv(dotenv_path)
 
 
 class ETMIPWrapper(object):
@@ -144,8 +142,7 @@ class ETMIPWrapper(object):
         id_dist_df = pd. read_csv(file_path2, sep='\t', header=0, index_col=0)
         intermediate_df = pd.read_csv(file_path3, sep='\t', header=0, index_col=False, comment='%')
         array_data = np.asarray(aln_dist_df,dtype=float)
-        self.alignment.distance_matrix = self.alignment._convert_array_to_distance_matrix(array_data,
-                                                                                          list(aln_dist_df.columns))
+        self.alignment.distance_matrix = convert_array_to_distance_matrix(array_data, list(aln_dist_df.columns))
         return aln_dist_df, id_dist_df, intermediate_df
 
     def calculate_scores(self, out_dir, delete_files=True):

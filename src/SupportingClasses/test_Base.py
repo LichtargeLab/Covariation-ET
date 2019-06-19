@@ -30,3 +30,16 @@ class TestBase(TestCase):
         cls.data_set = DataSetGenerator(input_path=cls.input_path)
         cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
                                                  max_target_seqs=cls.max_target_seqs)
+
+    @classmethod
+    def tearDownClass(cls):
+        # rmtree(cls.input_path)
+        del cls.max_threads
+        del cls.max_target_seqs
+        del cls.testing_dir
+        del cls.input_path
+        del cls.protein_list_path
+        del cls.small_structure_id
+        del cls.large_structure_id
+        del cls.protein_list_fn
+        del cls.data_set
