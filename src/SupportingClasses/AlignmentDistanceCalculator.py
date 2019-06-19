@@ -236,7 +236,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 # Convert seq i in the msa to a numerical representation (indices in scoring_matrix)
                 num_repr1 = convert_seq_to_numeric(msa[i], self.mapping)
                 # Find all positions which are not gaps or skip_letters in seq1 and the resulting sequence length
-                non_gap_pos1 = num_repr1 < len(self.alphabet)
+                non_gap_pos1 = num_repr1 < self.alphabet_size
                 non_gap_length1 = np.sum(non_gap_pos1)
                 seq_conversion[id1] = {'non_gap_length': non_gap_length1, 'non_gap_pos': non_gap_pos1,
                                        'num_repr': num_repr1}
@@ -246,7 +246,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                     # Convert seq j in the msa to a numerical representation (indices used in scoring_matrix)
                     num_repr2 = convert_seq_to_numeric(msa[j], mapping=self.mapping)
                     # Find all positions which are not skip_letters in seq2
-                    non_gap_pos2 = num_repr2 < len(self.alphabet)
+                    non_gap_pos2 = num_repr2 < self.alphabet_size
                     non_gap_length2 = np.sum(non_gap_pos2)
                     seq_conversion[id2] = {'non_gap_length': non_gap_length2, 'non_gap_pos': non_gap_pos2,
                                            'num_repr': num_repr2}
