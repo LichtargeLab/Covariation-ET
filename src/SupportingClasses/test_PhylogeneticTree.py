@@ -1,40 +1,20 @@
 import os
 import numpy as np
-from time import time
 from re import compile
 from copy import deepcopy
 from shutil import rmtree
-from unittest import TestCase
-from multiprocessing import cpu_count
-from Bio.Phylo.TreeConstruction import DistanceCalculator
+from test_Base import TestBase
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
-from DataSetGenerator import DataSetGenerator
-from PhylogeneticTree import PhylogeneticTree
+from PhylogeneticTree import PhylogeneticTree, get_path_length
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
-class TestPhylogeneticTree(TestCase):
+class TestPhylogeneticTree(TestBase):
 
     @classmethod
     def setUpClass(cls):
-        cls.max_threads = cpu_count() - 2
-        cls.max_target_seqs = 150
-        cls.testing_dir = os.path.abspath('../Test/')
-        cls.input_path = os.path.join(cls.testing_dir, 'Input')
-        cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
-        if not os.path.isdir(cls.protein_list_path):
-            os.makedirs(cls.protein_list_path)
-        cls.small_structure_id = '7hvp'
-        cls.large_structure_id = '2zxe'
-        cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
-        structure_ids = [cls.small_structure_id, cls.large_structure_id]
-        with open(cls.protein_list_fn, 'wb') as test_list_handle:
-            for structure_id in structure_ids:
-                test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
-        cls.data_set = DataSetGenerator(input_path=cls.input_path)
-        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
-                                                 max_target_seqs=cls.max_target_seqs)
+        super(TestPhylogeneticTree, cls).setUpClass()
         cls.query_aln_fa_small = SeqAlignment(file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
                                                query_id=cls.small_structure_id)
         cls.query_aln_fa_small.import_alignment()
@@ -45,12 +25,6 @@ class TestPhylogeneticTree(TestCase):
         cls.query_aln_msf_small.file_name = cls.data_set.protein_data[cls.small_structure_id]['Final_MSF_Aln']
         cls.query_aln_msf_large = deepcopy(cls.query_aln_fa_large)
         cls.query_aln_msf_large.file_name = cls.data_set.protein_data[cls.large_structure_id]['Final_MSF_Aln']
-
-    # @classmethod
-    # def tearDownClass(cls):
-        # rmtree(cls.input_path)
-
-    # def setUp(self):
 
     def tearDown(self):
         if os.path.exists('./identity.pkl'):
@@ -80,8 +54,10 @@ class TestPhylogeneticTree(TestCase):
             leaves.add(l)
 
     def get_path_length(self, node, tree):
-        path = tree.tree.get_path(node)
-        dist = sum([x.branch_length for x in path])
+        path = tree.get_path(node)
+        dist = 0
+        for node in path:
+            dist += node.branch_length
         return dist
 
     def evaluate_top_down_traversal(self, phylo_tree):
@@ -98,18 +74,37 @@ class TestPhylogeneticTree(TestCase):
             self.assertLessEqual(dist, last_dist)
             last_dist = dist
 
+    @staticmethod
+    def build_node_groups(phylo_tree):
+        node_groups = []
+        curr_nodes = []
+        prev_dist = 0
+        for node in phylo_tree.traverse_top_down():
+            path_length = get_path_length(phylo_tree.tree.get_path(node))
+            if prev_dist != path_length:
+                node_groups.append(curr_nodes)
+            else:
+                curr_nodes.append(node)
+        return node_groups
+
     def check_lists_of_nodes_for_equality(self, list1, list2):
         self.assertEqual(len(list1), len(list2))
         for i in range(len(list1)):
-            node1 = list1[i]
-            node2 = list2[i]
-            if node1.is_terminal():
-                self.assertTrue(node2.is_terminal())
-                self.assertEqual(node1.name, node2.name)
-            else:
-                self.assertTrue(node2.is_nonterminal())
-                self.assertEqual(set([x.name for x in node1.get_terminals()]),
-                                 set([x.name for x in node2.get_terminals()]))
+            group1 = list1[i]
+            group1 = sorted(group1, cmp=compare_nodes)
+            group2 = list2[i]
+            group2 = sorted(group2, cmp=compare_nodes)
+            self.assertEqual(len(group1), len(group2))
+            for j in range(len(group1)):
+                node1 = group1[j]
+                node2 = group2[j]
+                if node1.is_terminal():
+                    self.assertTrue(node2.is_terminal())
+                    self.assertEqual(node1.name, node2.name)
+                else:
+                    self.assertTrue(node2.is_bifurcating())
+                    self.assertEqual(set([x.name for x in node1.get_terminals()]),
+                                     set([x.name for x in node2.get_terminals()]))
 
     def test1_init(self):
         phylo_tree = PhylogeneticTree()
@@ -255,14 +250,14 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree.construct_tree(dm=None)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test5a_traverse_bottom_up(self):
+    def test6a_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test5b_traverse_bottom_up(self):
+    def test6b_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -271,7 +266,7 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test5c_traverse_bottom_up(self):
+    def test6c_traverse_bottom_up(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -282,14 +277,14 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree.construct_tree(dm=None)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test5d_traverse_bottom_up(self):
+    def test6d_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test5e_traverse_bottom_up(self):
+    def test6e_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -298,7 +293,7 @@ class TestPhylogeneticTree(TestCase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test5f_traverse_bottom_up(self):
+    def test6f_traverse_bottom_up(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -319,11 +314,11 @@ class TestPhylogeneticTree(TestCase):
         etc_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
         etc_tree.construct_tree(dm=None)
         calculator = AlignmentDistanceCalculator(model='blosum62')
-        dm = calculator.get_et_distance(self.query_aln_fa_small.alignment)
+        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
-        etc_nodes = [etc_tree.traverse_top_down()]
-        phylo_nodes = [phylo_tree.traverse_top_down()]
+        etc_nodes = self.build_node_groups(etc_tree)
+        phylo_nodes = self.build_node_groups(phylo_tree)
         self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
 
     def test7b_build_ETC_tree_large(self):
@@ -336,11 +331,11 @@ class TestPhylogeneticTree(TestCase):
         etc_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
         etc_tree.construct_tree(dm=None)
         calculator = AlignmentDistanceCalculator(model='blosum62')
-        dm = calculator.get_et_distance(self.query_aln_fa_large.alignment)
+        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
-        etc_nodes = [etc_tree.traverse_top_down()]
-        phylo_nodes = [phylo_tree.traverse_top_down()]
+        etc_nodes = self.build_node_groups(etc_tree)
+        phylo_nodes = self.build_node_groups(phylo_tree)
         self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
 
     def test8_write_out_tree(self):
@@ -357,6 +352,21 @@ class TestPhylogeneticTree(TestCase):
         self.assertTrue(os.path.isfile(nhx_fn))
         loaded_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_fn})
         loaded_tree.construct_tree(dm=None)
-        self.check_lists_of_nodes_for_equality(list1=[phylo_tree.traverse_top_down()],
-                                               list2=[loaded_tree.traverse_top_down()])
+        phylo_nodes = self.build_node_groups(phylo_tree)
+        loaded_nodes = self.build_node_groups(loaded_tree)
+        self.check_lists_of_nodes_for_equality(list1=phylo_nodes, list2=loaded_nodes)
         os.remove(nhx_fn)
+
+
+def compare_nodes(node1, node2):
+    if node1.is_terminal and not node2.is_terminal():
+        return -1
+    elif not node1.is_terminal() and node2.is_terminal():
+        return 1
+    else:
+        if node1.name < node2.name:
+            return 1
+        elif node1.name > node2.name:
+            return -1
+        else:
+            return 0

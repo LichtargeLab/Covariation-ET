@@ -176,13 +176,10 @@ class PhylogeneticTree(object):
         Returns:
             generator: A generator which will yield a new node ordered from least to greatest path length from the root.
         """
-        # Traverse the tree
         internal_nodes_to_process = []
-        heapq.heappush(internal_nodes_to_process, (self.tree.root.branch_length, self.tree.root))
+        heapq.heappush(internal_nodes_to_process, (0, self.tree.root))
         while len(internal_nodes_to_process) > 0:
-            # print(internal_nodes_to_process)
             curr_branch_len, curr_node = heapq.heappop(internal_nodes_to_process)
-            # print(curr_node.name, curr_branch_len)
             yield curr_node
             for node in curr_node.clades:
                 heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
@@ -197,45 +194,45 @@ class PhylogeneticTree(object):
         Returns:
             generator: A generator which will yield a new node ordered from greatest to least path length from the root.
         """
-
-        def get_parent_and_path_length(node, tree):
-            """
-            Get Parent
-
-            Get the parent of the passed in node.
-
-            Args:
-                node (Bio.Phylo.BaseTree.Clade): The node whose parent you would like to find.
-                tree (Bio.Phylo.BaseTree): The tree to which the node belongs.
-            Returns:
-                 Bio.Phylo.BaseTree.Clade: The parent node of the passed in node, None is returned if the node provided
-                 is the root.
-            """
-            if node == tree.root:
-                parent = None
-                length = 0
-            else:
-                node_path = tree.get_path(node)
-                parent = node_path[-2]
-                length = np.sum([x.branch_length for x in node_path])
-            return parent, length
-
-        # Traverse the tree
-        nodes_to_process = [self.tree.root.get_terminals()]
+        nodes_to_process = []
         nodes_visited = set()
         for leaf in self.tree.root.get_terminals():
-            _, dist = get_parent_and_path_length(leaf, self.tree)
+            path = self.tree.get_path(leaf)
+            dist = get_path_length(path)
             nodes_visited.add(leaf.name)
-            heapq.heappush(nodes_to_process, (-1 * dist, leaf))
+            heapq.heappush(nodes_to_process, (-1 * dist, path, leaf))
         while len(nodes_to_process) > 0:
-            curr_node = heapq.heappop(nodes_to_process)
+            curr_dist, curr_path, curr_node = heapq.heappop(nodes_to_process)
             nodes_visited.add(curr_node.name)
             yield curr_node
-            parent_node, curr_length = get_parent_and_path_length(curr_node, self.tree)
+            if len(curr_path) > 1:
+                parent_node = curr_path[-2]
+            else:
+                parent_node = None
+            parent_path = curr_path[:-1]
+            parent_dist = curr_dist + curr_node.branch_length
+            if parent_node is None:
+                continue
             if parent_node.name not in nodes_visited:
-                nodes_visited.add(parent_node.name)
-                parent_length = curr_length - curr_node.branch_length
-                heapq.heappush(nodes_to_process, (parent_length, parent_node))
+                heapq.heappush(nodes_to_process, (parent_dist, parent_path, parent_node))
+
+
+def get_path_length(path):
+    """
+    Get Parent
+
+    Get the parent of the passed in node.
+
+    Args:
+        path (list): A list of Bio.Phylo.BaseTree.Clade objects which constitute a path between the root and a target
+        node.
+    Returns:
+         float: The length of the path passed in.
+    """
+    dist = 0
+    for node in path:
+        dist += node.branch_length
+    return dist
 
 
 def get_cluster_spanner(agg_clusterer):
