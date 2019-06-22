@@ -91,7 +91,7 @@ class DataSetGenerator(object):
             os.makedirs(self.final_alignment_path)
         self.protein_data = None
 
-    def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=20000, e_value_threshold=0.05,
+    def build_pdb_alignment_dataset(self, protein_list_fn, num_threads=1, max_target_seqs=2500, e_value_threshold=0.05,
                                     database='customuniref90.fasta', remote=False, min_fraction=0.7, min_identity=0.40,
                                     max_identity=0.98, msf=True, fasta=True, verbose=False):
         """
@@ -406,6 +406,7 @@ def download_pdb(pdb_path, protein_id, verbose=False):
         pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb', obsolete=True)
         if not os.path.isfile(pdb_file):
             pdb_file = None
+            print('Structure does not exist in obsolete: {}'.format(protein_id))
     if verbose:
         print('Completed {} structure download'.format(protein_id))
     return pdb_file
