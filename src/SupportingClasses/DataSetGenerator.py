@@ -5,9 +5,10 @@ Created on May 23, 2019
 """
 import os
 import argparse
+import numpy as np
+import pandas as pd
 from time import time
 from re import compile
-import numpy as np
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
 from Bio.Seq import Seq
@@ -17,13 +18,13 @@ from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
 from Bio.Application import ApplicationError
-from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.PDB.Polypeptide import three_to_one, is_aa
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
 from SeqAlignment import SeqAlignment
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from EvolutionaryTraceAlphabet import FullIUPACProtein
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -114,6 +115,9 @@ class DataSetGenerator(object):
             msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
             fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
             verbose (bool): Whether to write out information during processing.
+        Return:
+            pandas.DataFrame: Summary of sequence counts at the BLAST, filtered BLAST, and filtered alignment stages as
+            well as the time it took to generate data for a specific sequence.
         """
         data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
         protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
@@ -123,11 +127,6 @@ class DataSetGenerator(object):
         self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
         # Download the PDBs and parse out the query sequences.
         print('Downloading structures and parsing in query sequences')
-        # res1 = []
-        # init_pdb_processing_pool(self.pdb_path, self.sequence_path, Lock(), verbose)
-        # for p_id in self.protein_data:
-        #     pdb_processing((p_id, self.protein_data[p_id]['Chain']))
-        #
         pool1 = Pool(num_threads, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
                                                                                   Lock(), verbose))
         res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
@@ -155,13 +154,6 @@ class DataSetGenerator(object):
             self.protein_data[p_id]['BLAST'] = blast_fn
         # Filter the BLAST hits for each query, align, filter again, and make final alignments.
         print('Filtering BLAST hits, aligning, filtering by identity, and re-aligning')
-        # res = []
-        # init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction,
-        #                                   min_identity, max_identity, msf, fasta, blast_fn, self.filtered_blast_path,
-        #                                   self.alignment_path, self.filtered_alignment_path, self.final_alignment_path,
-        #                                   verbose)
-        # for p_id in self.protein_data:
-        #     res.append(filtering_and_alignment((p_id, self.protein_data[p_id]['Sequence'])))
         pool2 = Pool(num_threads, initializer=init_filtering_and_alignment_pool,
                     initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
                               max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
@@ -171,13 +163,22 @@ class DataSetGenerator(object):
         pool2.close()
         pool2.join()
         res = res.get()
+        summary = {'Protein_ID': [], 'BLAST_Hits': [], 'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Time': []}
         for data in res:
             # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
             self.protein_data[data[0]].update(data[1])
-            print('It took {} min to generate data for {}'.format(data[2], data[0]))
-            print('\t{} Sequence Returned By Blast\n\t{} Sequences After Initial Filtering\n\t{} Sequences After '
-                  'Identity Filtering'.format(hits[data[0]]['BLAST_Hits'], data[1]['Filter_Count'],
-                                              data[1]['Final_Count']))
+            summary['Protein_ID'].append(data[0])
+            summary['BLAST_Hits'].append(hits[data[0]]['BLAST_Hits'])
+            summary['Filtered_BLAST'].append(data[1]['Filter_Count'])
+            summary['Filtered_Alignment'].append(data[1]['Final_Count'])
+            summary['Time'].append(data[2])
+            if verbose:
+                print('It took {} min to generate data for {}'.format(data[2], data[0]))
+                print('\t{} Sequence Returned By Blast\n\t{} Sequences After Initial Filtering\n\t{} Sequences After '
+                      'Identity Filtering'.format(hits[data[0]]['BLAST_Hits'], data[1]['Filter_Count'],
+                                                  data[1]['Final_Count']))
+        df = pd.DataFrame(summary)
+        return df
 
 
 def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
@@ -448,7 +449,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
         with open(protein_fasta_fn, 'rb') as protein_fasta_handle:
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
             sequence = seq_iter.next()
-            sequence.alphabet = ExtendedIUPACProtein
+            sequence.alphabet = FullIUPACProtein()
     else:
         if verbose:
             print('Parsing query sequence from file: {}'.format(pdb_fn))
@@ -465,7 +466,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             if is_aa(residue.get_resname(), standard=True):
                 res_name = three_to_one(residue.get_resname())
                 sequence.append(res_name)
-        sequence = SeqRecord(Seq(''.join(sequence), alphabet=ExtendedIUPACProtein), id=protein_id,
+        sequence = SeqRecord(Seq(''.join(sequence), alphabet=FullIUPACProtein()), id=protein_id,
                              description='Target Query')
         seq_records = [sequence]
         with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
@@ -542,7 +543,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
 
 
 def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
-                           min_identity=0.40, max_identity=0.98):
+                           min_identity=0.40, max_identity=0.98, alphabet=FullIUPACProtein(), verbose=False):
     """
     Restrict Sequences
 
@@ -564,6 +565,8 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
         min_identity (float): The absolute minimum identity for a passing hit.
         max_identity (float): The absolute maximum identity for a passing hit.
+        alphabet (Bio.Alphabet.Alphavet): The alphabet to use when filtering BLAST sequences.
+        verbose (bool): Whether to write out information during processing.
     Returns:
         int: The number of sequences passing the filters.
         str: The file path to the list of sequences writen out after filtering.
@@ -591,7 +594,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 if identity < min_identity or identity > max_identity:
                     raise ValueError('Sequences in the filtered fasta do not met the identity requirement.\n'
                                      '{}: Identity={}'.format(seq_record.id, identity))
-                seq_record.alphabet = ExtendedIUPACProtein
+                seq_record.alphabet = FullIUPACProtein()
                 sequences.append(seq_record)
     else:
         description_pattern = '{} HSP_identity={} HSP_alignment_length={} Fraction_length={}'
@@ -615,7 +618,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                                     if identity > aln_identity:
                                         new_description = description_pattern.format(alignment.hit_def, hsp.identities,
                                                                                      hsp.align_length, subject_fraction)
-                                        aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=ExtendedIUPACProtein),
+                                        aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
                                                                    id=alignment.hit_id, name=alignment.title,
                                                                    description=new_description)
                                         aln_identity = identity
@@ -719,7 +722,12 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
         calculator = AlignmentDistanceCalculator()
         alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
         alignment.import_alignment()
-        distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
+        try:
+            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
+        except KeyError as e:
+            print('Removing bad sequences: {}'.format(protein_id))
+            alignment = alignment.remove_bad_sequences()
+            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
         to_keep = set()
         to_remove = set()
         query_seq_pos = alignment.seq_order.index(protein_id)
@@ -968,6 +976,8 @@ def parse_arguments():
                         help='Whether or not to create an msf version of the MUSCLE alignment.')
     parser.add_argument('--fasta', type=bool, default=True, nargs=1,
                         help='Whether or not to create an fasta version of the MUSCLE alignment.')
+    parser.add_argument('--verbose', default=False, action='store_true',
+                        help='Whether or not to print out information during data set generation')
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -1011,4 +1021,4 @@ if __name__ == "__main__":
             protein_list_fn=args['protein_list_fn'], num_threads=args['num_threads'],
             max_target_seqs=args['max_target_seqs'], e_value_threshold=args['e_value_threshold'],
             min_fraction=args['min_fraction'], min_identity=args['min_identity'],
-            max_identity=args['abs_max_identity'], msf=args['msf'], fasta=args['fasta'])
+            max_identity=args['abs_max_identity'], msf=args['msf'], fasta=args['fasta'], verbose=args['verbose'])
