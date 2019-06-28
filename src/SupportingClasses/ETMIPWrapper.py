@@ -10,6 +10,7 @@ from time import time
 from subprocess import Popen, PIPE
 from Bio.Align.Applications import MuscleCommandline
 from dotenv import find_dotenv, load_dotenv
+from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
@@ -61,6 +62,9 @@ class ETMIPWrapper(object):
         self.scores = None
         # self.raw_scores = None
         self.coverage = None
+        self.distance_matrix = None
+        self.tree = None
+        self.rank_group_assignments = None
         self.time = None
 
     def check_alignment(self):
@@ -138,12 +142,84 @@ class ETMIPWrapper(object):
         file_path3 = os.path.join(out_dir, 'etc_out.debug.tsv')
         if not os.path.isfile(file_path1) or not os.path.isfile(file_path2) or not os.path.isfile(file_path3):
             raise ValueError('Provided directory does not contain expected distance files!')
-        aln_dist_df = pd. read_csv(file_path1, sep='\t', header=0, index_col=0)
-        id_dist_df = pd. read_csv(file_path2, sep='\t', header=0, index_col=0)
+        aln_dist_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
+        id_dist_df = pd.read_csv(file_path2, sep='\t', header=0, index_col=0)
         intermediate_df = pd.read_csv(file_path3, sep='\t', header=0, index_col=False, comment='%')
         array_data = np.asarray(aln_dist_df,dtype=float)
-        self.alignment.distance_matrix = convert_array_to_distance_matrix(array_data, list(aln_dist_df.columns))
+        self.distance_matrix = convert_array_to_distance_matrix(array_data, list(aln_dist_df.columns))
         return aln_dist_df, id_dist_df, intermediate_df
+
+    def import_phylogenetic_tree(self, out_dir, file_name='etc_out.nhx'):
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, file_name)
+        if not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected distance files!')
+        tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': file_path1})
+        tree.construct_tree(dm=self.alignment.seq_order)
+        self.tree = tree
+
+    def import_assignments(self, out_dir):
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, 'etc_out.group.tsv')
+        if not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected distance files!')
+        from time import time
+        start = time()
+        full_df = pd.read_csv(file_path1, sep='\t', comment='%', header=None, index_col=None,
+                              names=range(1 + self.alignment.size))
+        table_names = ['Mapping', 'Nodes']
+        tables = full_df[0].isin(['Rank']).cumsum()
+        table_dict = {table_names[k - 1]: t.iloc[:] for k, t in full_df.groupby(tables)}
+        rank_group_assignments = {}
+        inter1 = time()
+        print('Reading in the csv took {} min'.format((inter1 - start) / 60.0))
+        rank_group_mapping = table_dict['Mapping']
+        rank_group_mapping.rename(columns={i: label for i, label in enumerate(rank_group_mapping.iloc[0])},
+                                  inplace=True)
+        rank_group_mapping.drop(index=0, inplace=True)
+        rank_group_mapping = rank_group_mapping.astype(int)
+        rank_group_mapping.set_index('Rank', inplace=True)
+        for rank in rank_group_mapping.index:
+            if rank not in rank_group_assignments:
+                rank_group_assignments[rank] = {}
+            for terminal in rank_group_mapping.columns:
+                group = rank_group_mapping.at[rank, terminal]
+                if group not in rank_group_assignments[rank]:
+                    rank_group_assignments[rank][group] = {'node': None, 'terminals': []}
+                rank_group_assignments[rank][group]['terminals'].append(terminal)
+        inter2 = time()
+        print('Importing table 1 took {} min'.format((inter2 - inter1) / 60.0))
+        node_mapping = {}
+        for node in self.tree.traverse_top_down():
+            if node.is_terminal():
+                node_mapping[(self.alignment.seq_order.index(node.name) + 1) * -1] = node
+            else:
+                node_mapping[int(node.name.strip('Inner'))] = node
+        inter3 = time()
+        print('Mapping nodes took {} min'.format((inter3 - inter2) / 60.0))
+        rank_group_nodes = table_dict['Nodes']
+        rank_group_nodes.dropna(axis=1, how='all', inplace=True)
+        rank_group_nodes.rename(columns={i: label for i, label in enumerate(rank_group_nodes.iloc[0])}, inplace=True)
+        rank_group_nodes.drop(index=rank_group_nodes.index[0], inplace=True)
+        rank_group_nodes = rank_group_nodes.astype(int)
+        rank_group_nodes.set_index(['Rank', 'Group'], inplace=True)
+        # print(rank_group_nodes)
+        # raise ValueError('just checking')
+        for rank in rank_group_nodes.index.get_level_values('Rank'):
+            for group in rank_group_nodes.index.get_level_values('Group'):
+                node_index = int(rank_group_nodes.at[(rank, group), 'Root_Node'])
+                if node_index == 0:
+                    break
+                if rank not in rank_group_assignments:
+                    raise ValueError('Rank: {} in node table but not mapping! Group: {} Node: {}'.format(rank, group,
+                                                                                                         node_index))
+                node = node_mapping[node_index]
+                rank_group_assignments[rank][group]['node'] = node
+        end = time()
+        print('Importing table 2 took {} min'.format((end - inter3) / 60.0))
+        self.rank_group_assignments = rank_group_assignments
 
     def calculate_scores(self, out_dir, delete_files=True):
         """
