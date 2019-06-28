@@ -48,6 +48,8 @@ class PhylogeneticTree(object):
                 tree_path (str/path): The path to a file where the desired tree has been written in 'newick' format.
         tree (Bio.Phylo.Newick.Tree): The tree constructed using the specified method, until construct_tree has been
         called it is None.
+        size (int): The number of terminal nodes in the tree (size of the alignment used to calculate the distance
+        matrix used for tree construction).
     """
 
     def __init__(self, tree_building_method='upgma', tree_building_args={}):
@@ -55,6 +57,7 @@ class PhylogeneticTree(object):
         self.tree_method = tree_building_method
         self.tree_args = tree_building_args
         self.tree = None
+        self.size = None
 
     def _custom_tree(self, tree_path):
         """
@@ -151,6 +154,51 @@ class PhylogeneticTree(object):
                        'custom': self._custom_tree}
         self.__distance_matrix = dm
         self.tree = method_dict[self.tree_method](**self.tree_args)
+        self.size = len(dm)
+
+    def rename_internal_nodes(self):
+        """
+        Rename Internal Nodes
+
+        This function renames all internal nodes so that trees constructed by different methods will follow the same
+        internal node naming convention. The convention in this case is that every internal node has the name Inner{}
+        where {} is replaced by an integer. The larger the integer the further down in the tree the node finds itself
+        (i.e. the root node will have the integer 1 while the lowest will have the integer
+        len(self.tree.get_terminals) - 1
+        """
+        node_pattern = 'Inner{}'
+        node_counter = len(self.tree.get_terminals()) - 1
+        for node in self.traverse_bottom_up():
+            if node.is_bifurcating():
+                node.name = node_pattern.format(node_counter)
+                node_counter -= 1
+
+    def assign_group_rank(self):
+        """
+        Assign Group Rank
+
+        This function traverses the tree from top to bottom assigning each node to a rank and group and tracking which
+        leaf/terminal nodes are related to that node.
+
+        Return:
+            dict: First level of the dictionary maps a rank to another dictionary. The second level of the dictionary
+            maps a group value to another dictionary. This third level of the dictionary maps the key 'node' to the node
+            which is the root of the group at the given rank and 'terminals' to a list of node names for the leaf/
+            terminal nodes which are ancestors of the root node.
+        """
+        rank_group_mapping = {}
+        iterator = self.traverse_by_rank()
+        for rank_nodes in iterator:
+            rank = len(rank_nodes)
+            rank_group_mapping[rank] = {}
+            for group in range(1, rank + 1):
+                current_node = rank_nodes[group - 1]
+                rank_group_mapping[rank][group] = {'node': current_node, 'terminals': []}
+                if current_node.is_bifurcating():
+                    rank_group_mapping[rank][group]['terminals'] += [t.name for t in current_node.get_terminals()]
+                else:
+                    rank_group_mapping[rank][group]['terminals'].append(current_node.name)
+        return rank_group_mapping
 
     def write_out_tree(self, filename):
         """
@@ -165,6 +213,35 @@ class PhylogeneticTree(object):
             raise ValueError('Attempting to write tree before construction!')
         with open(filename, 'wb') as tree_handle:
             write(self.tree, file=tree_handle, format='newick')
+
+    def traverse_by_rank(self):
+        """
+        Traverse By Rank
+
+        This method acts as an iterator for the tree, traversing from the root to the leaves always yielding a full list
+        of nodes which constitute a rank (level in the tree). This means each new list generated should be larger than
+        the previous list by 1 which is achieved by finding the shallowest inner node and replacing it with its two
+        children.
+
+        Returns:
+             generator: A generator which will yield a list of nodes corresponding to a rank/level in the tree.
+        """
+        next_node_to_split = [(0.0, self.tree.root)]
+        current_nodes = [self.tree.root]
+        while len(current_nodes) < self.size:
+            yield current_nodes
+            path_len, node_to_split = heapq.heappop(next_node_to_split)
+            new_nodes = []
+            for node in current_nodes:
+                if node == node_to_split:
+                    for child in node_to_split.clades:
+                        new_nodes.append(child)
+                        if not child.is_terminal():
+                            heapq.heappush(next_node_to_split, (path_len + child.branch_length, child))
+                else:
+                    new_nodes.append(node)
+            current_nodes = new_nodes
+        yield current_nodes
 
     def traverse_top_down(self):
         """
