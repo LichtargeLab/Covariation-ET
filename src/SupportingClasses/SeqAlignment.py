@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from seaborn import heatmap, clustermap
 from Bio import AlignIO
 from Bio.Seq import Seq
+from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Align.AlignInfo import SummaryInfo
@@ -257,6 +258,28 @@ class SeqAlignment(object):
         new_alignment.seq_order = deepcopy(self.seq_order)
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
+        return new_alignment
+
+    def remove_bad_sequences(self):
+        """
+        Remove Bad Sequences
+
+        This function checks each sequence in the alignment and keeps it if all characters are in the specified alphabet
+        (or a gap).
+
+        Return:
+            SeqAlignment: A new SeqAlignment object which is a subset of this instance with all sequences which do not
+            obey the specified alphabet removed.
+        """
+        start = time()
+        valid_chars = set(Gapped(self.alphabet).letters)
+        to_keep = []
+        for i in range(self.size):
+            if all(char in valid_chars for char in self.alignment[i].seq):
+                to_keep.append(self.seq_order[i])
+        new_alignment = self.generate_sub_alignment(sequence_ids=to_keep)
+        end = time()
+        print('Removing sequences that do not fit the alphabet took {} min'.format((end - start) / 60.00))
         return new_alignment
 
     def generate_positional_sub_alignment(self, i, j):
