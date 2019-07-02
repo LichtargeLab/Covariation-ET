@@ -1,8 +1,9 @@
 import os
 import numpy as np
+from time import time
 from re import compile
-from copy import deepcopy
 from shutil import rmtree
+from copy import deepcopy
 from test_Base import TestBase
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
@@ -83,8 +84,9 @@ class TestPhylogeneticTree(TestBase):
             path_length = get_path_length(phylo_tree.tree.get_path(node))
             if prev_dist != path_length:
                 node_groups.append(curr_nodes)
-            else:
-                curr_nodes.append(node)
+                curr_nodes = []
+                prev_dist = path_length
+            curr_nodes.append(node)
         return node_groups
 
     def check_nodes(self, node1, node2):
@@ -108,13 +110,40 @@ class TestPhylogeneticTree(TestBase):
                 node1 = group1[j]
                 node2 = group2[j]
                 self.check_nodes(node1=node1, node2=node2)
-                # if node1.is_terminal():
-                #     self.assertTrue(node2.is_terminal())
-                #     self.assertEqual(node1.name, node2.name)
-                # else:
-                #     self.assertTrue(node2.is_bifurcating())
-                #     self.assertEqual(set([x.name for x in node1.get_terminals()]),
-                #                      set([x.name for x in node2.get_terminals()]))
+
+    def evaluate_rank(self, rank, dict1, dict2):
+        d1_keys = set(dict1.keys())
+        d2_keys = set(dict2.keys())
+        for k1 in dict1:
+            print('Group1: {}'.format(k1))
+            if k1 not in d1_keys:
+                continue
+            node1 = dict1[k1]['node']
+            terminals1 = dict1[k1]['terminals']
+            for k2 in dict2:
+                print('Group2: {}'.format(k2))
+                if k2 not in d2_keys:
+                    continue
+                node2 = dict2[k2]['node']
+                terminals2 = dict2[k2]['terminals']
+                if set(terminals1) == set(terminals2):
+                    self.check_nodes(node1, node2)
+                else:
+                    continue
+                d1_keys.remove(k1)
+                d2_keys.remove(k2)
+                break
+            print(len(d1_keys))
+            print(d1_keys)
+            if len(d1_keys) != rank - k1:
+                for k in d1_keys:
+                    print(dict1[k]['node'])
+                    print(dict1[k]['terminals'])
+                for k in d2_keys:
+                    print(dict2[k]['node'])
+                    print(dict2[k]['terminals'])
+            self.assertEqual(len(d1_keys), len(d2_keys))
+            self.assertEqual(len(d1_keys), rank - k1)
 
     def test1_init(self):
         phylo_tree = PhylogeneticTree()
@@ -320,16 +349,34 @@ class TestPhylogeneticTree(TestBase):
             os.makedirs(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        calculator = AlignmentDistanceCalculator(model='blosum62')
-        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
+        phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
         etc_nodes = self.build_node_groups(et_mip_obj.tree)
+        print(etc_nodes)
         phylo_nodes = self.build_node_groups(phylo_tree)
+        print(phylo_nodes)
         self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
 
-    def test7b_build_ETC_tree_large(self):
+    # def test7b_bulid_ETC_tree_small(self):
+    #     wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+    #     if not os.path.isdir(wetc_test_dir):
+    #         os.makedirs(wetc_test_dir)
+    #     et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+    #     et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+    #     et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+    #     calculator = AlignmentDistanceCalculator(model='blosum62')
+    #     _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
+    #     phylo_tree = PhylogeneticTree()
+    #     phylo_tree.construct_tree(dm=dm)
+    #     etc_nodes = self.build_node_groups(et_mip_obj.tree)
+    #     print(etc_nodes)
+    #     phylo_nodes = self.build_node_groups(phylo_tree)
+    #     print(phylo_nodes)
+    #     self.check_lists_of_nodes_for_equality(etc_nodes, phylo_nodes)
+
+    def test7c_build_ETC_tree_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -429,46 +476,10 @@ class TestPhylogeneticTree(TestBase):
             self.assertTrue(expected_terminals == all_terminals_set)
             previous_nodes = all_roots
 
-    def evaluate_rank(self, rank, dict1, dict2):
-        d1_keys = set(dict1.keys())
-        d2_keys = set(dict2.keys())
-        for k1 in dict1:
-            print('Group1: {}'.format(k1))
-            if k1 not in d1_keys:
-                continue
-            node1 = dict1[k1]['node']
-            terminals1 = dict1[k1]['terminals']
-            for k2 in dict2:
-                print('Group2: {}'.format(k2))
-                if k2 not in d2_keys:
-                    continue
-                node2 = dict2[k2]['node']
-                terminals2 = dict2[k2]['terminals']
-                if set(terminals1) == set(terminals2):
-                    self.check_nodes(node1, node2)
-                else:
-                    continue
-                d1_keys.remove(k1)
-                d2_keys.remove(k2)
-                break
-            print(len(d1_keys))
-            print(d1_keys)
-            if len(d1_keys) != rank - k1:
-                for k in d1_keys:
-                    print(dict1[k]['node'])
-                    print(dict1[k]['terminals'])
-                for k in d2_keys:
-                    print(dict2[k]['node'])
-                    print(dict2[k]['terminals'])
-            self.assertEqual(len(d1_keys), len(d2_keys))
-            self.assertEqual(len(d1_keys), rank - k1)
-
-
     def test10a_compare_assignments_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        from time import time
         start = time()
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
         inter1 = time()
@@ -477,36 +488,43 @@ class TestPhylogeneticTree(TestBase):
         inter2 = time()
         print('Score calculation took {} min'.format((inter2 - inter1) / 60.0))
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        expected_assignments = et_mip_obj.tree.assign_group_rank()
         inter3 = time()
         print('Tree construction too {} min'.format((inter3 - inter2) / 60.0))
         et_mip_obj.import_assignments(out_dir=wetc_test_dir)
         end = time()
         print('Assignment import took {} min'.format((end - inter3) / 60.0))
-        calculator = AlignmentDistanceCalculator(model='blosum62')
-        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        self.assertEqual(len(assignments.keys()), len(expected_assignments.keys()))
+        assignments = et_mip_obj.tree.assign_group_rank()
         print(assignments)
         print(et_mip_obj.rank_group_assignments)
+        self.assertEqual(len(assignments.keys()), len(et_mip_obj.rank_group_assignments.keys()))
         for rank in assignments:
-            print('Rank: {}'.format(rank))
-            self.assertTrue(rank in expected_assignments)
-            self.assertEqual(len(assignments[rank].keys()), len(expected_assignments[rank].keys()))
-            self.evaluate_rank(rank, assignments[rank], expected_assignments[rank])
-        #
-        # self.assertEqual(len(assignments.keys()), len(et_mip_obj.rank_group_assignments.keys()))
-        # print(assignments)
-        # print(et_mip_obj.rank_group_assignments)
-        # for rank in assignments:
-        #     print('Rank: {}'.format(rank))
-        #     self.assertTrue(rank in et_mip_obj.rank_group_assignments)
-        #     self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
-        #     self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
+            self.assertTrue(rank in et_mip_obj.rank_group_assignments)
+            self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
+            self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
-    # def test10b_compare_assignments_large(self):
+    def test10b_compare_assignments_large(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        start = time()
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        inter1 = time()
+        print('Initializatoin took {} min'.format((inter1 - start) / 60.0))
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        inter2 = time()
+        print('Score calculation took {} min'.format((inter2 - inter1) / 60.0))
+        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+        assignments = et_mip_obj.tree.assign_group_rank()
+        inter3 = time()
+        print('Tree construction too {} min'.format((inter3 - inter2) / 60.0))
+        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
+        end = time()
+        print('Assignment import took {} min'.format((end - inter3) / 60.0))
+        self.assertEqual(len(assignments.keys()), len(et_mip_obj.rank_group_assignments.keys()))
+        for rank in assignments:
+            self.assertTrue(rank in et_mip_obj.rank_group_assignments)
+            self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
+            self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
 def compare_nodes(node1, node2):
     if node1.is_terminal and not node2.is_terminal():
