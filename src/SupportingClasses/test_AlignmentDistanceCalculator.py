@@ -75,10 +75,7 @@ class TestAlignmentDistanceCalculator(TestBase):
         blosum62_dist_official = blosum62_calc_official.get_distance(self.query_aln_fa_small.alignment)
         print('Official implementation took {} min'.format((time() - start) / 60.0))
         self.assertTrue(blosum62_dist_current.names == blosum62_dist_official.names)
-        print(np.array(blosum62_dist_current))
-        print(np.array(blosum62_dist_official))
         diff = np.array(blosum62_dist_current) - np.array(blosum62_dist_official)
-        print(diff)
         self.assertTrue(not diff.any())
 
     def test2b_get_distance_large_blosum62(self):
@@ -111,6 +108,10 @@ class TestAlignmentDistanceCalculator(TestBase):
         diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
         diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
+        joined = intermediate_df1.merge(intermediate_df2, on=['Seq1', 'Seq2'], how='inner', suffixes=('ETC', 'Python'))
+        self.assertTrue(joined['Min_Seq_LengthETC'].equals(joined['Min_Seq_LengthPython']))
+        self.assertTrue(joined['Id_CountETC'].equals(joined['Id_CountPython']))
+        self.assertTrue(joined['Threshold_CountETC'].equals(joined['Threshold_CountPython']))
         self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
         self.assertTrue(not diff_id_threshold.any())
         self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
@@ -133,6 +134,10 @@ class TestAlignmentDistanceCalculator(TestBase):
         diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
         diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
+        joined = intermediate_df1.merge(intermediate_df2, on=['Seq1', 'Seq2'], how='inner', suffixes=('ETC', 'Python'))
+        self.assertTrue(joined['Min_Seq_LengthETC'].equals(joined['Min_Seq_LengthPython']))
+        self.assertTrue(joined['Id_CountETC'].equals(joined['Id_CountPython']))
+        self.assertTrue(joined['Threshold_CountETC'].equals(joined['Threshold_CountPython']))
         self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
         self.assertTrue(not diff_id_threshold.any())
         self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)

@@ -22,7 +22,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         alphabet (list): The corresponding amino or nucleic acid alphabet.
         model (str): The distance/substitution model to use when calculating sequence distance.
         mapping (dict): A mapping from the character alphabet to their indices (used when computing identity distance or
-        referencing subsitution scores).
+        referencing substitution scores).
         scoring_matrix (np.ndarray): The corresponding scoring/substitution matrix for the chosen model.
     """
 
@@ -200,12 +200,12 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         Get ET Distance
 
         Calculates the sequence similarity using identity and substitution scoring metrics (this mirrors the previous
-        implmentations used by ETC in the lab).
+        implementations used by ETC in the lab).
 
         Args:
             msa (Bio.Align.MultipleSeqAlignment): The alignment for which to calculate distances.
         Returns:
-            Bio.Phylo.TreeConstruction.DistanceMatrix: The identity based seqeunce similarity distance matrix for the
+            Bio.Phylo.TreeConstruction.DistanceMatrix: The identity based sequence similarity distance matrix for the
             alignment.
             Bio.Phylo.TreeConstruction.DistanceMatrix: The substitution matrix based distance matrix for the alignment.
             pandas.DataFrame: A DataFrame with intermediate values for the distance calculation.
