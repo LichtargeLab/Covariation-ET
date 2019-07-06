@@ -13,12 +13,7 @@ from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from Bio.Align.AlignInfo import SummaryInfo
 from scipy.stats import zscore
-from Bio.Phylo import read, write
-# from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
-from sklearn.cluster import AgglomerativeClustering
-from shutil import rmtree
 import cPickle as pickle
 from time import time
 import pandas as pd
@@ -41,21 +36,16 @@ class SeqAlignment(object):
         alignment (Bio.Align.MultipleSeqAlignment): A biopython representation for a multiple sequence alignment and its
         sequences.
         seq_order (list): List of sequence ids in the order in which they were parsed from the alignment file.
-        query_sequence (str): The sequence matching the sequence identifier given by the query_id attribute.
-        seq_length (int): The length of the query sequence.
+        query_sequence (Bio.Seq.Seq): The sequence matching the sequence identifier given by the query_id attribute.
+        seq_length (int): The length of the query sequence (including gaps and ambiguity characters).
         size (int): The number of sequences in the alignment represented by this object.
         marked (list): List of boolean values tracking whether a sequence has been marked or not (this is generally used
-        to track which sequences should be skipped during an anlysis (for instance in the zoom version of Evolutionary
+        to track which sequences should be skipped during an analysis (for instance in the zoom version of Evolutionary
         Trace).
-        distance_matrix (np.array): A matrix with the identity scores between sequences in the alignment.
-        tree_order (list): A list of sequence IDs ordered as they would be in the leaves of a phylogenetic tree, or some
-        other purposeful ordering, which should be observed when writing the alignment to file.
-        sequence_assignments (dict): An attribute used to track the assignment of sequences to clusters or branches at
-        different levels of a phylogenetic/clustering tree. The key for the first level of the dictionary corresponds to
-        the level of the tree, while the key in the second level corresponds to the specific branch cluster, and the
-        value corresponds to the sequence ID.
-        polymer_type (str): What kind of polymer is represented, at the moment the expected values are 'Protein' and
-        'DNA'.
+        polymer_type (str): Whether the represented alignment is a 'Protein' or 'DNA' alignment (these are currently the
+        only two options.
+        alphabet (EvolutionaryTraceAlphabet): The protein or DNA alphabet to use for this alignment (used by default if
+        calculating sequence distances).
     """
 
     def __init__(self, file_name, query_id, polymer_type='Protein'):
@@ -170,6 +160,7 @@ class SeqAlignment(object):
         new_alignment.query_sequence = deepcopy(self.query_sequence)
         new_alignment.seq_length = deepcopy(self.seq_length)
         new_alignment.polymer_type = deepcopy(self.polymer_type)
+        new_alignment.alphabet = deepcopy(self.alphabet)
         sub_records = []
         sub_seq_order = []
         sub_marked = []
@@ -249,13 +240,14 @@ class SeqAlignment(object):
                 pickle.dump(new_aln, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
-        new_alignment.polymer_type = deepcopy(self.polymer_type)
-        new_alignment.marked = deepcopy(self.marked)
         new_alignment.alignment = new_aln
+        new_alignment.seq_order = deepcopy(self.seq_order)
         new_alignment.query_sequence = new_aln[self.seq_order.index(self.query_id)].seq
         new_alignment.seq_length = len(new_alignment.query_sequence)
         new_alignment.size = deepcopy(self.size)
-        new_alignment.seq_order = deepcopy(self.seq_order)
+        new_alignment.polymer_type = deepcopy(self.polymer_type)
+        new_alignment.marked = deepcopy(self.marked)
+        new_alignment.alphabet = deepcopy(self.alphabet)
         end = time()
         print('Removing gaps took {} min'.format((end - start) / 60.0))
         return new_alignment
@@ -415,11 +407,7 @@ class SeqAlignment(object):
             unique_chars, counts = np.unique(numeric_aln[:, i], return_counts=True)
             highest_count = np.max(counts)
             positions_majority = np.where(counts == highest_count)
-            # print(positions_majority)
             consensus_seq.append(reverse_mapping[unique_chars[positions_majority[0][0]]])
-        # print(consensus_seq)
-        # print(type(consensus_seq))
-        # test_seq = Seq(consensus_seq, alphabet=self.alphabet)
         consensus_record = SeqRecord(id='Consensus Sequence', seq=Seq(''.join(consensus_seq), alphabet=self.alphabet))
         return consensus_record
 
@@ -440,15 +428,23 @@ class SeqAlignment(object):
         for seq_record in self.alignment:
             numeric_reps.append(convert_seq_to_numeric(seq_record.seq, mapping))
         alignment_to_num = np.stack(numeric_reps)
-        # aa_dict = {k:i for i, k in enumerate(self.alignment.alphabet.letters + '-')}
-        # alignment_to_num = np.zeros((self.size, self.seq_length))
-        # for i in range(self.size):
-        #     for j in range(self.seq_length):
-        #         curr_seq = self.alignment[i]
-        #         alignment_to_num[i, j] = aa_dict[curr_seq[j]]
         return alignment_to_num
 
     def _gap_z_score_check(self, z_score_cutoff, num_aln, gap_num):
+        """
+        Gap Z Score Check
+
+        This function computes the z-score for the gap count of each sequence. This is intended for use when pruning an
+        alignment or tree based on sequence gap content.
+
+        Args:
+            z_score_cutoff (int/float): The z-score below which to pass a sequence.
+            num_aln (numpy.array): A numerical (array) representation of a sequence alignment.
+            gap_num (int): The number to which a gap character maps in the num_aln.
+        Returns:
+            numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
+            count whose z-score passes the set cutoff and False otherwise.
+        """
         gap_check = num_aln == gap_num
         gap_count = np.sum(gap_check, axis=1)
         gap_z_scores = zscore(gap_count)
@@ -456,6 +452,24 @@ class SeqAlignment(object):
         return passing_z_scores
 
     def _gap_percentile_check(self, percentile_cutoff, num_aln, gap_num, mapping):
+        """
+        Gap Percentile Check
+
+        This function computes a consensus sequence for the provided alignment and then checks the percentage of
+        positions where the gap content of each sequence differs from that of the consensus. If the percentage is higher
+        than the provided cutoff the sequence does not get marked as passing.
+
+        Args:
+            percentile_cutoff (float): The percentage (expressed as a decimal; e.g. 15% = 0.15), of gaps differeing from
+            the consensus, above which a sequence does not pass the filter.
+            num_aln (numpy.array): A numerical (array) representation of a sequence alignment.
+            gap_num (int): The number to which a gap character maps in the num_aln.
+            mapping (dict): Dictionary mapping a character to a number corresponding to its position in the alphabet
+            and/or in the scoring/substitution matrix.
+        Returns:
+            numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
+            difference from the consensus whose percentile passes the set cutoff and False otherwise.
+        """
         consensus_seq = self.consensus_sequence()
         numeric_consensus = convert_seq_to_numeric(seq=consensus_seq, mapping=mapping)
         gap_consensus = numeric_consensus == gap_num
@@ -467,6 +481,26 @@ class SeqAlignment(object):
         return passing_fractions
 
     def gap_evaluation(self, size_cutoff=15, z_score_cutoff=20, percentile_cutoff=0.15):
+        """
+        Gap Evaluation
+
+        This method evaluates each sequence in the alignment and determines if it passes a gap filter. If the alignment
+        is larger than size_cutoff a z-score is used to evaluate gap content and identify and sequences which are
+        heavily gapped (as specified by the z_score_cutoff). Otherwise, a consensus sequence is computed and the
+        difference in gapped positions between each sequence in the alignment and the consensus sequence is calculated
+        with sequences passing if the difference is less than the percentile_cutoff. This function is intended for
+        filtering alignments and/or phylogenetic trees.
+
+        Args:
+            size_cutoff (int): The number of sequences above which to use a z-score when evaluating gap outliers and
+            below which to use a percentage of the consensus sequence.
+            z_score_cutoff (int/float): The z-score below which to pass a sequence.
+            percentile_cutoff (float): The percentage (expressed as a decimal; e.g. 15% = 0.15), of gaps differeing from
+            the consensus, above which a sequence does not pass the filter.
+        Return:
+            list: A list of the sequence IDs which pass the gap cut off used for this alignment.
+            list: A list of sequences which do not pass the gap cut off used for this alignment.
+        """
         alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
         numeric_aln = self._alignment_to_num(mapping)
         gap_number = self.alphabet.size
