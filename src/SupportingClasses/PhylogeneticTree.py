@@ -76,8 +76,9 @@ class PhylogeneticTree(object):
             current_node = nodes_to_process.pop()
             if not current_node.is_terminal():
                 nodes_to_process += current_node.clades
-                current_node.name = 'Inner{}'.format(current_node.confidence)
-                current_node.confidence = None
+                if current_node.confidence:
+                    current_node.name = 'Inner{}'.format(current_node.confidence)
+                    current_node.confidence = None
         return custom_tree
 
     def _upgma_tree(self):
@@ -166,12 +167,14 @@ class PhylogeneticTree(object):
         (i.e. the root node will have the integer 1 while the lowest will have the integer
         len(self.tree.get_terminals) - 1
         """
+        starting_node_pos = int(self.tree.root.name.strip('Inner'))
+        if starting_node_pos == 1:
+            return
         node_pattern = 'Inner{}'
-        node_counter = len(self.tree.get_terminals()) - 1
         for node in self.traverse_bottom_up():
-            if node.is_bifurcating():
-                node.name = node_pattern.format(node_counter)
-                node_counter -= 1
+            if not node.is_terminal():
+                node_pos = int(node.name.strip('Inner'))
+                node.name = node_pattern.format(self.size - node_pos)
 
     def assign_group_rank(self):
         """
@@ -221,23 +224,32 @@ class PhylogeneticTree(object):
         This method acts as an iterator for the tree, traversing from the root to the leaves always yielding a full list
         of nodes which constitute a rank (level in the tree). This means each new list generated should be larger than
         the previous list by 1 which is achieved by finding the shallowest inner node and replacing it with its two
-        children.
+        children. The node to replace is chosen by looking at the inner node names, the expected naming format is
+        "Inner<int>" where <int> is the position of that node in the tree construction process. Nodes may be named in
+        increasing order (self.tree.root.name="Inner1") or decreasing order (self.tree.root.name="Inner<self.size - 1>")
 
         Returns:
              generator: A generator which will yield a list of nodes corresponding to a rank/level in the tree.
         """
-        next_node_to_split = [(0.0, self.tree.root)]
+        root_pos = int(self.tree.root.name.strip('Inner'))
+        reverse = -1 if (root_pos == (self.size - 1)) else 1
+        next_node_to_split = [(reverse * root_pos, self.tree.root)]
         current_nodes = [self.tree.root]
         while len(current_nodes) < self.size:
+            # print('!' * 100)
+            # print([(l, x.branch_length, x.name) for l, x in next_node_to_split])
             yield current_nodes
-            path_len, node_to_split = heapq.heappop(next_node_to_split)
+            pos, node_to_split = heapq.heappop(next_node_to_split)
+            # print(node_to_split.name)
+            # print(pos)
+            # print(node_to_split.branch_length)
             new_nodes = []
             for node in current_nodes:
                 if node == node_to_split:
                     for child in node_to_split.clades:
                         new_nodes.append(child)
                         if not child.is_terminal():
-                            heapq.heappush(next_node_to_split, (path_len + child.branch_length, child))
+                            heapq.heappush(next_node_to_split, (reverse * int(child.name.strip('Inner')), child))
                 else:
                     new_nodes.append(node)
             current_nodes = new_nodes
