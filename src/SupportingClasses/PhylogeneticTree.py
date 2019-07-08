@@ -7,6 +7,7 @@ import os
 import heapq
 import numpy as np
 from Bio.Phylo import read, write
+from Bio.Phylo.TreeConstruction import DistanceMatrix
 from sklearn.cluster import AgglomerativeClustering
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 
@@ -17,7 +18,7 @@ class PhylogeneticTree(object):
     trees by several different methods, including loading a pre-existing tree.
 
     Attributes:
-        __distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix)
+        distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix) The distance matrix a tree is based on.
         tree_method (str): The method by which to construct a phylogenetic tree. The currently supported options are:
             'upgma'
             'agglomerative'
@@ -53,7 +54,7 @@ class PhylogeneticTree(object):
     """
 
     def __init__(self, tree_building_method='upgma', tree_building_args={}):
-        self.__distance_matrix = None
+        self.distance_matrix = None
         self.tree_method = tree_building_method
         self.tree_args = tree_building_args
         self.tree = None
@@ -92,7 +93,7 @@ class PhylogeneticTree(object):
             the target alignment.
         """
         constructor = DistanceTreeConstructor()
-        upgma_tree = constructor.upgma(distance_matrix=self.__distance_matrix)
+        upgma_tree = constructor.upgma(distance_matrix=self.distance_matrix)
         return upgma_tree
 
     def _agglomerative_clustering(self, cache_dir=None, affinity='euclidean', linkage='ward'):
@@ -129,11 +130,11 @@ class PhylogeneticTree(object):
             taken from the following StackOverflow discussion, the solution used was provided by user: lucianopaz
             https://stackoverflow.com/questions/29127013/plot-dendrogram-using-sklearn-agglomerativeclustering
         """
-        ml_model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=len(self.__distance_matrix),
+        ml_model = AgglomerativeClustering(affinity=affinity, linkage=linkage, n_clusters=len(self.distance_matrix),
                                            memory=cache_dir, compute_full_tree=True)
-        ml_model.fit(np.array(self.__distance_matrix))
+        ml_model.fit(np.array(self.distance_matrix))
         newick_tree_string = convert_agglomerative_clustering_to_newick_tree(
-            clusterer=ml_model, labels=self.__distance_matrix.names, distance_matrix=np.array(self.__distance_matrix))
+            clusterer=ml_model, labels=self.distance_matrix.names, distance_matrix=np.array(self.distance_matrix))
         newick_fn = os.path.join(cache_dir, 'joblib', 'agg_clustering_{}_{}.newick'.format(affinity, linkage))
         with open(newick_fn, 'wb') as newick_handle:
             newick_handle.write(newick_tree_string)
@@ -153,9 +154,109 @@ class PhylogeneticTree(object):
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
                        'custom': self._custom_tree}
-        self.__distance_matrix = dm
+        if isinstance(dm, DistanceMatrix):
+            self.distance_matrix = dm
+        else:
+            raise ValueError('Distance matrix (dm) must have type Bio.Phylo.TreeConstruction.DistanceMatrix!')
         self.tree = method_dict[self.tree_method](**self.tree_args)
         self.size = len(dm)
+
+    def write_out_tree(self, filename):
+        """
+        Write Out Tree
+
+        Writes the tree structure to file using the newick format.
+
+        Args:
+            filename (str): The full path to the file where the newick formatted tree should be written.
+        """
+        if self.tree is None:
+            raise ValueError('Attempting to write tree before construction!')
+        with open(filename, 'wb') as tree_handle:
+            write(self.tree, file=tree_handle, format='newick')
+
+    def traverse_top_down(self):
+        """
+        Traverse Base Tree
+
+        This method acts an iterator for the tree traversing from the root to the leaves always yielding the next node
+        according to path length.
+
+        Returns:
+            generator: A generator which will yield a new node ordered from least to greatest path length from the root.
+        """
+        nodes_to_process = []
+        heapq.heappush(nodes_to_process, (0, self.tree.root))
+        while len(nodes_to_process) > 0:
+            curr_branch_len, curr_node = heapq.heappop(nodes_to_process)
+            yield curr_node
+            for node in curr_node.clades:
+                heapq.heappush(nodes_to_process, (curr_branch_len + node.branch_length, node))
+
+    def traverse_bottom_up(self):
+        """
+        Traverse Base Tree
+
+        This method acts an iterator for the tree traversing from the leaves to the root always yielding the next node
+        according to path length.
+
+        Returns:
+            generator: A generator which will yield a new node ordered from greatest to least path length from the root.
+        """
+        nodes_to_process = []
+        nodes_visited = set()
+        for leaf in self.tree.root.get_terminals():
+            path = self.tree.get_path(leaf)
+            dist = get_path_length(path)
+            nodes_visited.add(leaf.name)
+            heapq.heappush(nodes_to_process, (-1 * dist, path, leaf))
+        while len(nodes_to_process) > 0:
+            curr_dist, curr_path, curr_node = heapq.heappop(nodes_to_process)
+            yield curr_node
+            if len(curr_path) > 1:
+                parent_node = curr_path[-2]
+                parent_path = curr_path[:-1]
+                parent_dist = curr_dist + curr_node.branch_length
+                if parent_node.name not in nodes_visited:
+                    nodes_visited.add(parent_node.name)
+                    heapq.heappush(nodes_to_process, (parent_dist, parent_path, parent_node))
+            else:
+                if self.tree.root.name not in nodes_visited:
+                    nodes_visited.add(self.tree.root.name)
+                    heapq.heappush(nodes_to_process, (0.0, [], self.tree.root))
+
+    def traverse_by_rank(self):
+        """
+        Traverse By Rank
+
+        This method acts as an iterator for the tree, traversing from the root to the leaves always yielding a full list
+        of nodes which constitute a rank (level in the tree). This means each new list generated should be larger than
+        the previous list by 1 which is achieved by finding the shallowest inner node and replacing it with its two
+        children. The node to replace is chosen by looking at the inner node names, the expected naming format is
+        "Inner<int>" where <int> is the position of that node in the tree construction process. Nodes may be named in
+        increasing order (self.tree.root.name="Inner1") or decreasing order (self.tree.root.name="Inner<self.size - 1>")
+
+        Returns:
+             generator: A generator which will yield a list of nodes corresponding to a rank/level in the tree.
+        """
+        root_pos = int(self.tree.root.name.strip('Inner'))
+        reverse = -1 if (root_pos == (self.size - 1)) else 1
+        next_node_to_split = [(reverse * root_pos, self.tree.root)]
+        current_nodes = [self.tree.root]
+        while len(current_nodes) < self.size:
+            yield current_nodes
+            pos, node_to_split = heapq.heappop(next_node_to_split)
+            new_nodes = []
+            for node in current_nodes:
+                if node == node_to_split:
+                    for child in node_to_split.clades:
+                        new_nodes.append(child)
+                        if not child.is_terminal():
+                            heapq.heappush(next_node_to_split, (reverse * int(child.name.strip('Inner')), child))
+                else:
+                    new_nodes.append(node)
+            current_nodes = new_nodes
+        yield current_nodes
 
     def rename_internal_nodes(self):
         """
@@ -202,108 +303,6 @@ class PhylogeneticTree(object):
                 else:
                     rank_group_mapping[rank][group]['terminals'].append(current_node.name)
         return rank_group_mapping
-
-    def write_out_tree(self, filename):
-        """
-        Write Out Tree
-
-        Writes the tree structure to file using the newick format.
-
-        Args:
-            filename (str): The full path to the file where the newick formatted tree should be written.
-        """
-        if self.tree is None:
-            raise ValueError('Attempting to write tree before construction!')
-        with open(filename, 'wb') as tree_handle:
-            write(self.tree, file=tree_handle, format='newick')
-
-    def traverse_by_rank(self):
-        """
-        Traverse By Rank
-
-        This method acts as an iterator for the tree, traversing from the root to the leaves always yielding a full list
-        of nodes which constitute a rank (level in the tree). This means each new list generated should be larger than
-        the previous list by 1 which is achieved by finding the shallowest inner node and replacing it with its two
-        children. The node to replace is chosen by looking at the inner node names, the expected naming format is
-        "Inner<int>" where <int> is the position of that node in the tree construction process. Nodes may be named in
-        increasing order (self.tree.root.name="Inner1") or decreasing order (self.tree.root.name="Inner<self.size - 1>")
-
-        Returns:
-             generator: A generator which will yield a list of nodes corresponding to a rank/level in the tree.
-        """
-        root_pos = int(self.tree.root.name.strip('Inner'))
-        reverse = -1 if (root_pos == (self.size - 1)) else 1
-        next_node_to_split = [(reverse * root_pos, self.tree.root)]
-        current_nodes = [self.tree.root]
-        while len(current_nodes) < self.size:
-            # print('!' * 100)
-            # print([(l, x.branch_length, x.name) for l, x in next_node_to_split])
-            yield current_nodes
-            pos, node_to_split = heapq.heappop(next_node_to_split)
-            # print(node_to_split.name)
-            # print(pos)
-            # print(node_to_split.branch_length)
-            new_nodes = []
-            for node in current_nodes:
-                if node == node_to_split:
-                    for child in node_to_split.clades:
-                        new_nodes.append(child)
-                        if not child.is_terminal():
-                            heapq.heappush(next_node_to_split, (reverse * int(child.name.strip('Inner')), child))
-                else:
-                    new_nodes.append(node)
-            current_nodes = new_nodes
-        yield current_nodes
-
-    def traverse_top_down(self):
-        """
-        Traverse Base Tree
-
-        This method acts an iterator for the tree traversing from the root to the leaves always yielding the next node
-        according to path length.
-
-        Returns:
-            generator: A generator which will yield a new node ordered from least to greatest path length from the root.
-        """
-        internal_nodes_to_process = []
-        heapq.heappush(internal_nodes_to_process, (0, self.tree.root))
-        while len(internal_nodes_to_process) > 0:
-            curr_branch_len, curr_node = heapq.heappop(internal_nodes_to_process)
-            yield curr_node
-            for node in curr_node.clades:
-                heapq.heappush(internal_nodes_to_process, (curr_branch_len + node.branch_length, node))
-
-    def traverse_bottom_up(self):
-        """
-        Traverse Base Tree
-
-        This method acts an iterator for the tree traversing from the leaves to the root always yielding the next node
-        according to path length.
-
-        Returns:
-            generator: A generator which will yield a new node ordered from greatest to least path length from the root.
-        """
-        nodes_to_process = []
-        nodes_visited = set()
-        for leaf in self.tree.root.get_terminals():
-            path = self.tree.get_path(leaf)
-            dist = get_path_length(path)
-            nodes_visited.add(leaf.name)
-            heapq.heappush(nodes_to_process, (-1 * dist, path, leaf))
-        while len(nodes_to_process) > 0:
-            curr_dist, curr_path, curr_node = heapq.heappop(nodes_to_process)
-            nodes_visited.add(curr_node.name)
-            yield curr_node
-            if len(curr_path) > 1:
-                parent_node = curr_path[-2]
-            else:
-                parent_node = None
-            parent_path = curr_path[:-1]
-            parent_dist = curr_dist + curr_node.branch_length
-            if parent_node is None:
-                continue
-            if parent_node.name not in nodes_visited:
-                heapq.heappush(nodes_to_process, (parent_dist, parent_path, parent_node))
 
 
 def get_path_length(path):
@@ -422,7 +421,7 @@ def go_down_tree(children, n_leaves, x, leaf_labels, nodename, spanner, inner):
 
 def build_newick_tree(children, n_leaves, x, leaf_labels, spanner):
     """
-    Build Newcki Tree
+    Build Newick Tree
 
     Generate a string representation (Newick tree) from the sklearn.cluster.AgglomerativeClustering.fit output.
 
