@@ -156,7 +156,9 @@ class ETMIPWrapper(object):
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected distance files!')
         tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': file_path1})
-        tree.construct_tree(dm=self.alignment.seq_order)
+        if self.distance_matrix is None:
+            self.import_distance_matrices(out_dir=out_dir)
+        tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
 
     def import_assignments(self, out_dir):
