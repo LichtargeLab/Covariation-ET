@@ -4,14 +4,18 @@ Created on May 28, 2019
 @author: Daniel Konecki
 """
 import os
+from time import time
 from shutil import rmtree
 from unittest import TestCase
 from Bio.Seq import Seq
+from Bio.SeqIO import write
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
-from multiprocessing import cpu_count
+from multiprocessing import cpu_count, Lock
+from EvolutionaryTraceAlphabet import FullIUPACProtein
 from DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence,
-                              blast_query_sequence, filter_blast_sequences, align_sequences, identity_filter)
+                              init_pdb_processing_pool, pdb_processing, blast_query_sequence, filter_blast_sequences,
+                              align_sequences, identity_filter, init_filtering_and_alignment_pool,
+                              filtering_and_alignment)
 
 
 class TestDataSetGenerator(TestCase):
@@ -19,6 +23,9 @@ class TestDataSetGenerator(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.max_target_seqs = 100
+        cls.max_e_value = 0.05
+        cls.local_database = 'customuniref90.fasta'
+        cls.remote_database = 'nr'
         cls.max_threads = cpu_count() - 2
         cls.input_path = os.path.join(os.path.abspath('../Test/'), 'Input_Temp')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
@@ -26,7 +33,7 @@ class TestDataSetGenerator(TestCase):
             os.makedirs(cls.protein_list_path)
         cls.small_structure_id = '7hvp'
         cls.small_query_seq = SeqRecord(Seq('PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLEEMNLPGKWKPKMIGGIGGFIKVRQYDQIPVEIGHKAIGTV'
-                                            'LVGPTPVNIIGRNLLTQIGTLNF', alphabet=ExtendedIUPACProtein),
+                                            'LVGPTPVNIIGRNLLTQIGTLNF', alphabet=FullIUPACProtein),
                                         id=cls.small_structure_id, description='Target Query')
         cls.large_structure_id = '2zxe'
         cls.large_query_seq = SeqRecord(Seq(
@@ -39,7 +46,7 @@ class TestDataSetGenerator(TestCase):
             'SDLKDLSTEVLDDILHYHTEIVFARTSPQQKLIIVEGCQRQGAIVAVTGDGVNDSPALKKADIGVAMGISGSDVSKQAADMILLDDNFASIVTGVEEGRLIFDNLK'
             'KSIAYTLTSNIPEITPFLVFIIGNVPLPLGTVTILCIDLGTDMVPAISLAYEQAESDIMKRQPRNPKTDKLVNERLISMAYGQIGMIQALGGFFSYFVILAENGFL'
             'PMDLIGKRVRWDDRWISDVEDSFGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSIFQQGMKNKILIFGLFEETALAAFLSYCPGTDVALRMYPLKP'
-            'SWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', alphabet=ExtendedIUPACProtein), id=cls.large_structure_id,
+            'SWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', alphabet=FullIUPACProtein), id=cls.large_structure_id,
             description='Target Query')
         cls.protein_list_name = 'Test_Set.txt'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, cls.protein_list_name)
@@ -49,6 +56,7 @@ class TestDataSetGenerator(TestCase):
         cls.expected_pdb_fn_large = os.path.join(cls.pdb_path, '{}'.format(cls.large_structure_id[1:3]),
                                                  'pdb{}.ent'.format(cls.large_structure_id))
         cls.sequence_path = os.path.join(cls.input_path, 'Sequences')
+        cls.expected_seq_fn = os.path.join(cls.sequence_path, 'Test_Set.fasta')
         cls.expected_seq_fn_small = os.path.join(cls.sequence_path, '{}.fasta'.format(cls.small_structure_id))
         cls.expected_seq_fn_large = os.path.join(cls.sequence_path, '{}.fasta'.format(cls.large_structure_id))
         cls.blast_path = os.path.join(cls.input_path, 'BLAST')
@@ -95,7 +103,102 @@ class TestDataSetGenerator(TestCase):
         del cls.protein_list_path
         del cls.input_path
 
-    def test1_import_protein_list(self):
+    def test1_init(self):
+        test_generator = DataSetGenerator(input_path=self.input_path)
+        self.assertTrue(os.path.isdir(self.pdb_path))
+        self.assertTrue(os.path.isdir(self.sequence_path))
+        self.assertTrue(os.path.isdir(self.blast_path))
+        self.assertTrue(os.path.isdir(self.filtered_blast_path))
+        self.assertTrue(os.path.isdir(self.alignment_path))
+        self.assertTrue(os.path.isdir(self.filtered_alignment_path))
+        self.assertTrue(os.path.isdir(self.final_alignment_path))
+        self.assertEqual(test_generator.pdb_path, self.pdb_path)
+        self.assertEqual(test_generator.sequence_path, self.sequence_path)
+        self.assertEqual(test_generator.blast_path, self.blast_path)
+        self.assertEqual(test_generator.filtered_blast_path, self.filtered_blast_path)
+        self.assertEqual(test_generator.alignment_path, self.alignment_path)
+        self.assertEqual(test_generator.filtered_alignment_path, self.filtered_alignment_path)
+        self.assertEqual(test_generator.final_alignment_path, self.final_alignment_path)
+
+    def test2_build_pdb_alignment_dataset(self):
+        for fn in os.listdir(self.input_path):
+            if fn != os.path.basename(self.protein_list_path):
+                rmtree(os.path.join(self.input_path, fn))
+        test_generator = DataSetGenerator(input_path=self.input_path)
+        test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, num_threads=self.max_threads,
+                                                   max_target_seqs=self.max_target_seqs)
+        self.assertTrue(self.small_structure_id in test_generator.protein_data)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Chain'], 'A')
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['PDB'], self.expected_pdb_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_small))
+        self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Sequence'].seq),
+                         str(self.small_query_seq.seq))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Length'],
+                         len(str(self.small_query_seq.seq)))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Seq_Fasta'], self.expected_seq_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_seq_fn_small))
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        print(test_generator.protein_data[self.small_structure_id]['BLAST'])
+        print(self.expected_blast_fn)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST'], self.expected_blast_fn)
+
+        self.assertTrue(os.path.isfile(self.expected_blast_fn))
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Filter_Count'],
+                             test_generator.protein_data[self.small_structure_id]['BLAST_Hits'] + 1)
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_BLAST'],
+                         self.expected_filtered_blast_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_filtered_blast_fn_small))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_Aln'], self.expected_msf_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_msf_fn_small))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_Aln'], self.expected_fa_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_fa_fn_small))
+        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Final_Count'],
+                             test_generator.protein_data[self.small_structure_id]['Filter_Count'])
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_Alignment'],
+                         self.expected_filtered_aln_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_filtered_aln_fn_small))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_MSF_Aln'],
+                         self.expected_final_msf_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_final_msf_fn_small))
+        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_FA_Aln'],
+                         self.expected_final_fa_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_final_fa_fn_small))
+        self.assertTrue(self.large_structure_id in test_generator.protein_data)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Chain'], 'A')
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['PDB'], self.expected_pdb_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
+        self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Sequence'].seq),
+                         str(self.large_query_seq.seq))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Length'],
+                         len(str(self.large_query_seq.seq)))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Seq_Fasta'], self.expected_seq_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_seq_fn_large))
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST'], self.expected_blast_fn)
+        self.assertTrue(os.path.isfile(self.expected_blast_fn))
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Filter_Count'],
+                             test_generator.protein_data[self.large_structure_id]['BLAST_Hits'] + 1)
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_BLAST'],
+                         self.expected_filtered_blast_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_filtered_blast_fn_large))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_Aln'], self.expected_msf_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_msf_fn_large))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_Aln'], self.expected_fa_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_fa_fn_large))
+        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Final_Count'],
+                             test_generator.protein_data[self.large_structure_id]['Filter_Count'])
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_Alignment'],
+                         self.expected_filtered_aln_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_filtered_aln_fn_large))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_MSF_Aln'],
+                         self.expected_final_msf_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_final_msf_fn_large))
+        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_FA_Aln'],
+                         self.expected_final_fa_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_final_fa_fn_large))
+        self.assertTrue(os.path.isfile(self.expected_seq_fn))
+
+    def test3_import_protein_list(self):
         with self.assertRaises(IOError):
             import_protein_list(protein_list_fn=self.protein_list_name)
         protein_dict = import_protein_list(protein_list_fn=self.protein_list_fn)
@@ -104,7 +207,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(self.large_structure_id in protein_dict)
         self.assertEqual(protein_dict[self.large_structure_id]['Chain'], 'A')
 
-    def test2_download_pdb(self):
+    def test4a_pdb_processing_download_pdb(self):
         if os.path.isdir(self.pdb_path):
             rmtree(self.pdb_path)
         pdb_fn_small = download_pdb(pdb_path=self.pdb_path, protein_id=self.small_structure_id)
@@ -116,11 +219,11 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(pdb_fn_large, self.expected_pdb_fn_large)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
 
-    def test3_parse_query_sequence(self):
+    def test4b_pdb_processing_parse_query_sequence(self):
         if os.path.isdir(self.sequence_path):
             rmtree(self.sequence_path)
         if not os.path.isdir(self.pdb_path):
-            self.test2__download_pdb()
+            self.test4a_pdb_processing_download_pdb()
         seq_small, len_small, seq_fn_small, chain_small = parse_query_sequence(protein_id=self.small_structure_id,
                                                                                chain_id='A',
                                                                                sequence_path=self.sequence_path,
@@ -140,127 +243,147 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(seq_fn_large, self.expected_seq_fn_large)
         self.assertEqual(chain_large, 'A')
 
-    def test4a_blast_query_sequence_single_thread(self):
+    def test4c_pdb_processing(self):
+        test_lock = Lock()
+        init_pdb_processing_pool(pdb_path=self.pdb_path, sequence_path=self.sequence_path, lock=test_lock,
+                                 verbose=False)
+        p_id, p_data = pdb_processing(in_tuple=(self.small_structure_id, 'A'))
+        self.assertEqual(p_id, self.small_structure_id)
+        self.assertEqual(p_data['PDB'], self.expected_pdb_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_small))
+        self.assertEqual(p_data['Chain'], 'A')
+        self.assertEqual(str(p_data['Sequence'].seq), str(self.small_query_seq.seq))
+        self.assertEqual(p_data['Length'], len(self.small_query_seq.seq))
+        self.assertEqual(p_data['Seq_Fasta'], self.expected_seq_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_seq_fn_small))
+
+    def test4d_pdb_processing(self):
+        test_lock = Lock()
+        init_pdb_processing_pool(pdb_path=self.pdb_path, sequence_path=self.sequence_path, lock=test_lock,
+                                 verbose=False)
+        p_id, p_data = pdb_processing(in_tuple=(self.large_structure_id, 'A'))
+        self.assertEqual(p_id, self.large_structure_id)
+        self.assertEqual(p_data['PDB'], self.expected_pdb_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
+        self.assertEqual(p_data['Chain'], 'A')
+        self.assertEqual(str(p_data['Sequence'].seq), str(self.large_query_seq.seq))
+        self.assertEqual(p_data['Length'], len(self.large_query_seq.seq))
+        self.assertEqual(p_data['Seq_Fasta'], self.expected_seq_fn_large)
+        self.assertTrue(os.path.isfile(self.expected_seq_fn_large))
+
+    def test5a_filtering_and_alignment_blast_query_sequence_single_thread(self):
         if os.path.isdir(self.blast_path):
             rmtree(self.blast_path)
         if not os.path.isdir(self.sequence_path):
-            self.test3__parse_query_sequence()
-        if os.path.isfile(self.expected_blast_fn_small):
-            os.remove(self.expected_blast_fn_small)
-        blast_fn_small, count_small = blast_query_sequence(
-            protein_id=self.small_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_small,
-            evalue=0.05, num_threads=1, max_target_seqs=self.max_target_seqs, remote=False)
+            self.test4b_pdb_processing_parse_query_sequence()
+        if not os.path.isfile(self.expected_seq_fn):
+            with open(self.expected_seq_fn, 'wb') as seq_handle:
+                write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
+        if os.path.isfile(self.expected_blast_fn):
+            os.remove(self.expected_blast_fn)
+        blast_fn_all, count_all = blast_query_sequence(
+            protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
+            evalue=self.max_e_value, num_threads=1, max_target_seqs=self.max_target_seqs,
+            database=self.local_database, remote=False)
         self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_small, self.expected_blast_fn_small)
-        self.assertTrue(os.path.isfile(blast_fn_small))
-        self.assertLessEqual(count_small[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
-        if os.path.isfile(self.expected_blast_fn_large):
-            os.remove(self.expected_blast_fn_large)
-        blast_fn_large, count_large = blast_query_sequence(
-            protein_id=self.large_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_large,
-            evalue=0.05, num_threads=1, max_target_seqs=self.max_target_seqs, remote=False)
-        self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_large, self.expected_blast_fn_large)
-        self.assertTrue(os.path.isfile(blast_fn_large))
-        self.assertLessEqual(count_large[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertEqual(blast_fn_all, self.expected_blast_fn)
+        self.assertTrue(os.path.isfile(blast_fn_all))
+        self.assertLessEqual(count_all[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertLessEqual(count_all[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
 
-    def test4b__blast_query_sequence_multi_thread(self):
+    def test5b_filtering_and_alignment_blast_query_sequence_multi_thread(self):
         if os.path.isdir(self.blast_path):
             rmtree(self.blast_path)
         if not os.path.isdir(self.sequence_path):
-            self.test3__parse_query_sequence()
-        if os.path.isfile(self.expected_blast_fn_small):
-            os.remove(self.expected_blast_fn_small)
-        blast_fn_small, count_small = blast_query_sequence(
-            protein_id=self.small_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_small,
-            evalue=0.05, num_threads=self.max_threads, max_target_seqs=self.max_target_seqs, remote=False)
+            self.test4b_pdb_processing_parse_query_sequence()
+        if not os.path.isfile(self.expected_seq_fn):
+            with open(self.expected_seq_fn, 'wb') as seq_handle:
+                write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
+        if os.path.isfile(self.expected_blast_fn):
+            os.remove(self.expected_blast_fn)
+        blast_fn_all, count_all = blast_query_sequence(
+            protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
+            evalue=self.max_e_value, num_threads=self.max_threads, max_target_seqs=self.max_target_seqs,
+            database=self.local_database, remote=False)
         self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_small, self.expected_blast_fn_small)
-        self.assertTrue(os.path.isfile(blast_fn_small))
-        self.assertLessEqual(count_small[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
-        if os.path.isfile(self.expected_blast_fn_large):
-            os.remove(self.expected_blast_fn_large)
-        blast_fn_large, count_large = blast_query_sequence(
-            protein_id=self.large_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_large,
-            evalue=0.05, num_threads=self.max_threads, max_target_seqs=self.max_target_seqs, remote=False)
-        self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_large, self.expected_blast_fn_large)
-        self.assertTrue(os.path.isfile(blast_fn_large))
-        self.assertLessEqual(count_large[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertEqual(blast_fn_all, self.expected_blast_fn)
+        self.assertTrue(os.path.isfile(blast_fn_all))
+        self.assertLessEqual(count_all[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertLessEqual(count_all[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
 
-    def test4c__blast_query_sequence_remote(self):
+    def test5c_filtering_and_alignment_blast_query_sequence_remote(self):
         if os.path.isdir(self.blast_path):
             rmtree(self.blast_path)
         if not os.path.isdir(self.sequence_path):
-            self.test3__parse_query_sequence()
-        if os.path.isfile(self.expected_blast_fn_small):
-            os.remove(self.expected_blast_fn_small)
-        blast_fn_small, count_small = blast_query_sequence(
-            protein_id=self.small_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_small,
-            evalue=0.05, num_threads=self.max_threads, max_target_seqs=100, database='nr', remote=True)
+            self.test4b_pdb_processing_parse_query_sequence()
+        if not os.path.isfile(self.expected_seq_fn):
+            with open(self.expected_seq_fn, 'wb') as seq_handle:
+                write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
+        if os.path.isfile(self.expected_blast_fn):
+            os.remove(self.expected_blast_fn)
+        blast_fn_all, count_all = blast_query_sequence(
+            protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
+            evalue=self.max_e_value, num_threads=1, max_target_seqs=self.max_target_seqs, database=self.remote_database,
+            remote=True)
         self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_small, self.expected_blast_fn_small)
-        self.assertTrue(os.path.isfile(blast_fn_small))
-        self.assertLessEqual(count_small[self.small_structure_id]['BLAST_Hits'], 100)
-        if os.path.isfile(self.expected_blast_fn_large):
-            os.remove(self.expected_blast_fn_large)
-        blast_fn_large, count_large = blast_query_sequence(
-            protein_id=self.large_structure_id, blast_path=self.blast_path, sequence_fn=self.expected_seq_fn_large,
-            evalue=0.05, num_threads=self.max_threads, max_target_seqs=100, database='nr', remote=False)
-        self.assertTrue(os.path.isdir(self.blast_path))
-        self.assertEqual(blast_fn_large, self.expected_blast_fn_large)
-        self.assertTrue(os.path.isfile(blast_fn_large))
-        self.assertLessEqual(count_large[self.large_structure_id]['BLAST_Hits'], 100)
+        self.assertEqual(blast_fn_all, self.expected_blast_fn)
+        self.assertTrue(os.path.isfile(blast_fn_all))
+        self.assertLessEqual(count_all[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
+        self.assertLessEqual(count_all[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
 
-    def test5a_filter_blast_sequences(self):
+    def test5d_filtering_and_alignment_filter_blast_sequences(self):
         if os.path.isdir(self.filtered_blast_path):
             rmtree(self.filtered_blast_path)
         if not os.path.isdir(self.blast_path):
-            self.test4b__blast_query_sequence_multi_thread()
+            self.test5b_filtering_and_alignment_blast_query_sequence_multi_thread()
         if os.path.isfile(self.expected_filtered_blast_fn_small):
             os.remove(self.expected_filtered_blast_fn_small)
         num_seqs_small, pileup_fn_small = filter_blast_sequences(
             protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.small_query_seq)
         self.assertGreaterEqual(num_seqs_small, 0)
+        self.assertLessEqual(num_seqs_small, self.max_target_seqs + 1)
         self.assertEqual(pileup_fn_small, self.expected_filtered_blast_fn_small)
         if os.path.isfile(self.expected_filtered_blast_fn_large):
             os.remove(self.expected_filtered_blast_fn_large)
         num_seqs_large, pileup_fn_large = filter_blast_sequences(
             protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.large_query_seq)
         self.assertGreaterEqual(num_seqs_large, 0)
+        self.assertLessEqual(num_seqs_large, self.max_target_seqs + 1)
         self.assertEqual(pileup_fn_large, self.expected_filtered_blast_fn_large)
 
-    def test5b_filter_blast_sequences_loading(self):
+    def test5e_filtering_and_alignment_filter_blast_sequences_loading(self):
         if os.path.isdir(self.filtered_blast_path):
             rmtree(self.filtered_blast_path)
         if not os.path.isdir(self.blast_path):
-            self.test4b__blast_query_sequence_multi_thread()
+            self.test5b_filtering_and_alignment_blast_query_sequence_multi_thread()
         if os.path.isfile(self.expected_filtered_blast_fn_small):
             os.remove(self.expected_filtered_blast_fn_small)
         num_seqs_small1, pileup_fn_small1 = filter_blast_sequences(
             protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.small_query_seq)
         num_seqs_small2, pileup_fn_small2 = filter_blast_sequences(
             protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.small_query_seq)
         self.assertEqual(num_seqs_small1, num_seqs_small2)
         self.assertEqual(pileup_fn_small1, pileup_fn_small2)
+        if os.path.isfile(self.expected_filtered_blast_fn_large):
+            os.remove(self.expected_filtered_blast_fn_large)
         num_seqs_large1, pileup_fn_large1 = filter_blast_sequences(
             protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.large_query_seq)
         num_seqs_large2, pileup_fn_large2 = filter_blast_sequences(
             protein_id=self.large_structure_id, filter_path=self.filtered_blast_path,
-            blast_fn=self.expected_blast_fn_large, query_seq=self.large_query_seq)
+            blast_fn=self.expected_blast_fn, query_seq=self.large_query_seq)
         self.assertGreaterEqual(num_seqs_large1, num_seqs_large2)
         self.assertEqual(pileup_fn_large1, pileup_fn_large2)
 
-    def test6a_align_sequences(self):
+    def test5f_filtering_and_alignment_align_sequences(self):
         if os.path.isdir(self.alignment_path):
             rmtree(self.alignment_path)
-        if not os.path.isdir(self.filtered_blast_path):
-            self.test5a_filter_blast_sequences()
+        if not os.path.isfile(self.expected_filtered_blast_fn_small):
+            self.test5d_filtering_and_alignment_filter_blast_sequences()
         if os.path.isfile(self.expected_msf_fn_small):
             os.remove(self.expected_msf_fn_small)
         if os.path.isfile(self.expected_fa_fn_small):
@@ -268,10 +391,10 @@ class TestDataSetGenerator(TestCase):
         msf_fn_small, fa_fn_small = align_sequences(protein_id=self.small_structure_id,
                                                     alignment_path=self.alignment_path,
                                                     pileup_fn=self.expected_filtered_blast_fn_small)
-        self.assertTrue(os.path.isfile(self.expected_fa_fn_small))
         self.assertEqual(fa_fn_small, self.expected_fa_fn_small)
-        self.assertTrue(os.path.isfile(self.expected_msf_fn_small))
+        self.assertTrue(os.path.isfile(self.expected_fa_fn_small))
         self.assertEqual(msf_fn_small, self.expected_msf_fn_small)
+        self.assertTrue(os.path.isfile(self.expected_msf_fn_small))
         if os.path.isfile(self.expected_msf_fn_large):
             os.remove(self.expected_msf_fn_large)
         if os.path.isfile(self.expected_fa_fn_large):
@@ -284,11 +407,11 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(os.path.isfile(self.expected_fa_fn_large))
         self.assertEqual(fa_fn_large, self.expected_fa_fn_large)
 
-    def test6b_align_sequences_fasta_only(self):
+    def test5g_filtering_and_alignment_align_sequences_fasta_only(self):
         if os.path.isdir(self.alignment_path):
             rmtree(self.alignment_path)
         if not os.path.isdir(self.filtered_blast_path):
-            self.test5a_filter_blast_sequences()
+            self.test5d_filtering_and_alignment_filter_blast_sequences()
         if os.path.isfile(self.expected_msf_fn_small):
             os.remove(self.expected_msf_fn_small)
         if os.path.isfile(self.expected_fa_fn_small):
@@ -310,11 +433,11 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(fa_fn_large, self.expected_fa_fn_large)
         self.assertIsNone(msf_fn_large)
 
-    def test6c_align_sequences_msf_only(self):
+    def test5h_filtering_and_alignment_align_sequences_msf_only(self):
         if os.path.isdir(self.alignment_path):
             rmtree(self.alignment_path)
         if not os.path.isdir(self.filtered_blast_path):
-            self.test5a_filter_blast_sequences()
+            self.test5d_filtering_and_alignment_filter_blast_sequences()
         if os.path.isfile(self.expected_msf_fn_small):
             os.remove(self.expected_msf_fn_small)
         if os.path.isfile(self.expected_fa_fn_small):
@@ -336,14 +459,14 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(msf_fn_large, self.expected_msf_fn_large)
         self.assertIsNone(fa_fn_large)
 
-    def test7_identity_filter(self):
+    def test5i_filtering_and_alignment_identity_filter(self):
         if os.path.isdir(self.filtered_alignment_path):
             rmtree(self.filtered_alignment_path)
         if (not os.path.isdir(self.alignment_path) or not os.path.isfile(self.expected_fa_fn_small) or
-            not os.path.isfile(self.expected_fa_fn_large)):
-            self.test6a_align_sequences()
+                not os.path.isfile(self.expected_fa_fn_large)):
+            self.test5f_filtering_and_alignment_align_sequences()
         if not os.path.isdir(self.filtered_blast_path):
-            self.test5a_filter_blast_sequences()
+            self.test5d_filtering_and_alignment_filter_blast_sequences()
         max_count_small, _ = filter_blast_sequences(
             protein_id=self.small_structure_id, filter_path=self.filtered_blast_path,
             blast_fn=self.expected_blast_fn_small, query_seq=self.small_query_seq)
@@ -363,68 +486,50 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(os.path.isfile(filtered_aln_fn_small))
         self.assertLessEqual(count_large, max_count_large)
 
-    def test8_init(self):
-        test_generator = DataSetGenerator(input_path=self.input_path)
-        self.assertEqual(test_generator.input_path, self.input_path)
-        self.assertEqual(test_generator.protein_list_path, self.protein_list_path)
-        self.assertEqual(test_generator.pdb_path, self.pdb_path)
-        self.assertEqual(test_generator.sequence_path, self.sequence_path)
-        self.assertEqual(test_generator.blast_path, self.blast_path)
-        self.assertEqual(test_generator.filtered_blast_path, self.filtered_blast_path)
-        self.assertEqual(test_generator.alignment_path, self.alignment_path)
-        self.assertEqual(test_generator.filtered_alignment_path, self.filtered_alignment_path)
-        self.assertEqual(test_generator.final_alignment_path, self.final_alignment_path)
-        self.assertIsNone(test_generator.protein_data)
+    def test5j_filtering_and_alignment(self):
+        if not os.path.isfile(self.expected_blast_fn):
+            self.test5b_filtering_and_alignment_blast_query_sequence_multi_thread()
+        init_filtering_and_alignment_pool(max_target_seqs=self.max_target_seqs, e_value_threshold=self.max_e_value,
+                                          database='customuniref90.fasta', remote=False, min_fraction=0.7,
+                                          min_identity=0.40, max_identity=0.98, msf=True, fasta=True,
+                                          blast_fn=self.expected_blast_fn, filtered_blast_path=self.filtered_blast_path,
+                                          aln_path=self.alignment_path, filtered_aln_path=self.filtered_alignment_path,
+                                          final_aln_path=self.final_alignment_path, verbose=False)
+        start = time()
+        p_id, p_data, p_time = filtering_and_alignment(in_tup=(self.small_structure_id, self.small_query_seq))
+        end = time()
+        self.assertEqual(p_id, self.small_structure_id)
+        self.assertLessEqual(p_data['Filter_Count'], self.max_target_seqs + 1)
+        self.assertEqual(p_data['Filtered_BLAST'], self.expected_filtered_blast_fn_small)
+        self.assertEqual(p_data['MSF_Aln'], self.expected_msf_fn_small)
+        self.assertEqual(p_data['FA_Aln'], self.expected_fa_fn_small)
+        self.assertLessEqual(p_data['Final_Count'], p_data['Filter_Count'])
+        self.assertEqual(p_data['Filtered_Alignment'], self.expected_filtered_aln_fn_small)
+        self.assertEqual(p_data['Final_MSF_Aln'], self.expected_final_msf_fn_small)
+        self.assertEqual(p_data['Final_FA_Aln'], self.expected_final_fa_fn_small)
+        outer_time = (end - start) / 60.0
+        self.assertLessEqual(p_time, outer_time)
 
-    def test9_build_pdb_alignment_dataset(self):
-        test_generator = DataSetGenerator(input_path=self.input_path)
-        test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, num_threads=self.max_threads,
-                                                   max_target_seqs=self.max_target_seqs)
-        self.assertTrue(self.small_structure_id in test_generator.protein_data)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Chain'], 'A')
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['PDB'], self.expected_pdb_fn_small)
-        self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Sequence'].seq),
-                         str(self.small_query_seq.seq))
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Length'],
-                         len(str(self.small_query_seq.seq)))
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Seq_Fasta'], self.expected_seq_fn_small)
-        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST'], self.expected_blast_fn)
-        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Filter_Count'],
-                             test_generator.protein_data[self.small_structure_id]['BLAST_Hits'] + 1)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_BLAST'],
-                         self.expected_filtered_blast_fn_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['MSF_Aln'], self.expected_msf_fn_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['FA_Aln'], self.expected_fa_fn_small)
-        self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['Final_Count'],
-                             test_generator.protein_data[self.small_structure_id]['Filter_Count'])
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Filtered_Alignment'],
-                         self.expected_filtered_aln_fn_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_MSF_Aln'],
-                         self.expected_final_msf_fn_small)
-        self.assertEqual(test_generator.protein_data[self.small_structure_id]['Final_FA_Aln'],
-                         self.expected_final_fa_fn_small)
-        self.assertTrue(self.large_structure_id in test_generator.protein_data)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Chain'], 'A')
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['PDB'], self.expected_pdb_fn_large)
-        self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Sequence'].seq),
-                         str(self.large_query_seq.seq))
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Length'],
-                         len(str(self.large_query_seq.seq)))
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Seq_Fasta'], self.expected_seq_fn_large)
-        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['BLAST'], self.expected_blast_fn)
-        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Filter_Count'],
-                             test_generator.protein_data[self.large_structure_id]['BLAST_Hits'] + 1)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_BLAST'],
-                         self.expected_filtered_blast_fn_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['MSF_Aln'], self.expected_msf_fn_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['FA_Aln'], self.expected_fa_fn_large)
-        self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['Final_Count'],
-                             test_generator.protein_data[self.large_structure_id]['Filter_Count'])
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Filtered_Alignment'],
-                         self.expected_filtered_aln_fn_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_MSF_Aln'],
-                         self.expected_final_msf_fn_large)
-        self.assertEqual(test_generator.protein_data[self.large_structure_id]['Final_FA_Aln'],
-                         self.expected_final_fa_fn_large)
+    def test5k_filtering_and_alignment(self):
+        if not os.path.isfile(self.expected_blast_fn):
+            self.test5b_filtering_and_alignment_blast_query_sequence_multi_thread()
+        init_filtering_and_alignment_pool(max_target_seqs=self.max_target_seqs, e_value_threshold=self.max_e_value,
+                                          database='customuniref90.fasta', remote=False, min_fraction=0.7,
+                                          min_identity=0.40, max_identity=0.98, msf=True, fasta=True,
+                                          blast_fn=self.expected_blast_fn, filtered_blast_path=self.filtered_blast_path,
+                                          aln_path=self.alignment_path, filtered_aln_path=self.filtered_alignment_path,
+                                          final_aln_path=self.final_alignment_path, verbose=False)
+        start = time()
+        p_id, p_data, p_time = filtering_and_alignment(in_tup=(self.large_structure_id, self.large_query_seq))
+        end = time()
+        self.assertEqual(p_id, self.large_structure_id)
+        self.assertLessEqual(p_data['Filter_Count'], self.max_target_seqs + 1)
+        self.assertEqual(p_data['Filtered_BLAST'], self.expected_filtered_blast_fn_large)
+        self.assertEqual(p_data['MSF_Aln'], self.expected_msf_fn_large)
+        self.assertEqual(p_data['FA_Aln'], self.expected_fa_fn_large)
+        self.assertLessEqual(p_data['Final_Count'], p_data['Filter_Count'])
+        self.assertEqual(p_data['Filtered_Alignment'], self.expected_filtered_aln_fn_large)
+        self.assertEqual(p_data['Final_MSF_Aln'], self.expected_final_msf_fn_large)
+        self.assertEqual(p_data['Final_FA_Aln'], self.expected_final_fa_fn_large)
+        outer_time = (end - start) / 60.0
+        self.assertLessEqual(p_time, outer_time)
