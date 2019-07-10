@@ -5,6 +5,7 @@ Created on May 23, 2019
 """
 import numpy as np
 from copy import deepcopy
+from Bio import Alphabet
 from utils import build_mapping
 
 
@@ -18,14 +19,15 @@ class FrequencyTable(object):
         alignment.
     """
 
-    def __init__(self, msa):
+    def __init__(self, alphabet):
         """
         Initialization for a FrequencyTable object.
 
         Args:
-            msa (Bio.Align.MultipleSequenceAlignment): The multiple sequence alignment which the counts are for.
+            alphabet (Bio.Alphabet.Alphabet): The alphabet used for the multiple sequence alignment which the counts are
+            for.
         """
-        self.msa = msa
+        self.alphabet = alphabet
         self.__position_table = {}
 
     def _add_position(self, pos):
@@ -148,7 +150,7 @@ class FrequencyTable(object):
             and m is the length of the sequences in the alignment. Each position in the matrix specifies the count of a
             character at a given position.
         """
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=self.msa._alphabet)
+        alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
         mat = np.zeros((alpha_size + 1, len(self.__position_table)))
         positions = self.get_positions()
         for i in range(len(positions)):
@@ -170,13 +172,15 @@ class FrequencyTable(object):
             FrequencyTable: A new instance of the FrequencyTable class with the combined data of the two provided
             instances.
         """
-        merged_aln = self.msa + other.msa
+        if not isinstance(other, FrequencyTable):
+            raise ValueError('FrequencyTable can only be combined with another FrequencyTable instance.')
+        merged_alpha = Alphabet._consensus_alphabet([self.alphabet, other.alphabet])
         merged_table = {}
         for i in self.get_positions():
             merged_table[i] = {}
             chars = set(self.get_chars(pos=i)).union(set(other.get_chars(pos=1)))
             for char in chars:
                 merged_table[i][char] = self.get_count(pos=i, char=char) + other.get_count(pos=i, char=char)
-        new_table = FrequencyTable(msa=merged_aln)
+        new_table = FrequencyTable(alphabet=merged_alpha)
         new_table.__position_table = merged_table
         return new_table
