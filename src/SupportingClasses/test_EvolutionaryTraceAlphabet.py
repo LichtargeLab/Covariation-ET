@@ -13,13 +13,15 @@ class TestEvolutionaryTraceAlphabet(TestCase):
 
     def test1_DNA_alphabet(self):
         dna_alphabet = FullIUPACDNA()
-        self.assertEqual(dna_alphabet.size, 4)
+        self.assertEqual(dna_alphabet.size, 1)
+        self.assertEqual(len(dna_alphabet.letters), 4)
         for char in DistanceCalculator.dna_alphabet:
             self.assertTrue(char in dna_alphabet.letters)
 
     def test2_protein_alphabet(self):
         protein_alphabet = FullIUPACProtein()
-        self.assertEqual(protein_alphabet.size, 23)
+        self.assertEqual(protein_alphabet.size, 1)
+        self.assertEqual(len(protein_alphabet.letters), 23)
         for char in DistanceCalculator.protein_alphabet:
             self.assertTrue(char in protein_alphabet.letters)
 

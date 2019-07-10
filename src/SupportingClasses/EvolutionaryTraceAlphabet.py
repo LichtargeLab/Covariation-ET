@@ -14,7 +14,7 @@ class FullIUPACProtein(Alphabet.ProteinAlphabet):
     the IUPAC Protein alphabet but less than the ExtendedIUPACProtein alphabet.
     """
     letters = ''.join(DistanceCalculator.protein_alphabet)
-    size = len(letters)
+    size = 1
 
 
 class FullIUPACDNA(Alphabet.DNAAlphabet):
@@ -23,7 +23,7 @@ class FullIUPACDNA(Alphabet.DNAAlphabet):
     IUPAC Protein alphabet but less than the ExtendedIUPACProtein alphabet.
     """
     letters = ''.join(DistanceCalculator.dna_alphabet)
-    size = len(letters)
+    size = 1
 
 
 class MultiPositionAlphabet(Alphabet.Alphabet):
