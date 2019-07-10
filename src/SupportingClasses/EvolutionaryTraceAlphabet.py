@@ -3,6 +3,7 @@ Created on June 16, 2019
 
 @author: Daniel Konecki
 """
+from itertools import permutations, product
 from Bio import Alphabet
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 
@@ -23,3 +24,24 @@ class FullIUPACDNA(Alphabet.DNAAlphabet):
     """
     letters = ''.join(DistanceCalculator.dna_alphabet)
     size = len(letters)
+
+
+class MultiPositionAlphabet(Alphabet.Alphabet):
+    """
+    This class represents teh full set of character combinations represented by an alphabet which spans mutliple
+    positions. For example if you wanted to look at pairs of amino acids this would have the size n!/(n-k)! where n is
+    the size of the amino acid alphabet and k is 2 (since you are looking at pairs).
+    """
+
+    def __init__(self, alphabet, size):
+        """
+        The initialization for a multiple position alphabet starting from some initial alphabet.
+
+        Args:
+            alphabet (Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The alphabet which should be expanded to consider
+            multiple positions.
+            size (int): The number of positions an alphabet should cover.
+        """
+        self.size = size
+        self.letters = [''.join(list(x)) for x in product(alphabet.letters, repeat=size)]
+        # self.letters = [''.join(list(x)) for x in permutations(alphabet.letters, size)]
