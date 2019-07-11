@@ -19,10 +19,10 @@ from time import time
 import pandas as pd
 import numpy as np
 import os
-from utils import build_mapping
-from utils import convert_seq_to_numeric
+from FrequencyTable import FrequencyTable
+from utils import build_mapping, convert_seq_to_numeric
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA
+from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
 
 
 class SeqAlignment(object):
@@ -562,69 +562,47 @@ class SeqAlignment(object):
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
 
-    # def set_tree_ordering(self, tree_depth=None, cache_dir=None, clustering_args={}, clustering='agglomerative'):
-    #     """
-    #     Determine the ordering of the sequences from the full clustering tree
-    #     used when separating the alignment into sub-clusters.
-    #
-    #     Args:
-    #         tree_depth (None, tuple, or list): The levels of the phylogenetic tree to consider when analyzing this
-    #         alignment, which determines the attributes sequence_assignments and tree_ordering. The following options are
-    #         available:
-    #             None: All branches from the top of the tree (1) to the leaves (size) will be analyzed.
-    #             tuple: If a tuple is provided with two ints these will be taken as a range, the top of the tree (1), and
-    #             all branches between the first and second (non-inclusive) integer will be analyzed.
-    #             list: All branches listed will be analyzed, as well as the top of the tree (1) even if not listed.
-    #         cache_dir (str): The path to the directory where the clustering model can be stored for access later when
-    #         identifying different numbers of clusters.
-    #         clustering_args (dict): Additional arguments needed by various clustering/tree building algorithms. If no
-    #         other arguments are needed (as is the case when using 'random' or default settings for 'agglomerative') the
-    #         dictionary can be left empty.
-    #         clustering (str): The type of clustering/tree building to use. Current options are:
-    #             agglomerative
-    #             upgma
-    #             random
-    #             custom
-    #     Return:
-    #         list: The explicit list of tree levels analyzed, as described above in the tree_depth Args section.
-    #     """
-    #     method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
-    #                    'random': self._random_assignment, 'custom': self._custom_tree}
-    #     curr_order = [0] * self.size
-    #     sequence_assignments = {1: {0: set(self.seq_order)}}
-    #     if tree_depth is None:
-    #         tree_depth = range(1, self.size + 1)
-    #     elif isinstance(tree_depth, tuple):
-    #         if len(tree_depth) != 2:
-    #             raise ValueError('If a tuple is provided for tree_depth, two values must be specified.')
-    #         tree_depth = list(range(tree_depth[0], tree_depth[1]))
-    #     elif isinstance(tree_depth, list):
-    #         pass
-    #     else:
-    #         raise ValueError('tree_depth must be None, a tuple, or a list.')
-    #     if tree_depth[0] != 1:
-    #         tree_depth = [1] + tree_depth
-    #     if cache_dir is None:
-    #         remove_dir = True
-    #         cache_dir = os.getcwd()
-    #     else:
-    #         remove_dir = False
-    #     for k in tree_depth:
-    #         cluster_list = method_dict[clustering](n_cluster=k, cache_dir=cache_dir, **clustering_args)
-    #         new_clusters = self._re_label_clusters(curr_order, cluster_list)
-    #         curr_order = new_clusters
-    #         sequence_assignments[k] = {}
-    #         for i, c in enumerate(curr_order):
-    #             if c not in sequence_assignments[k]:
-    #                 sequence_assignments[k][c] = set()
-    #             sequence_assignments[k][c].add(self.seq_order[i])
-    #     self.sequence_assignments = sequence_assignments
-    #     self.tree_order = list(zip(*sorted(zip(self.seq_order, curr_order), key=lambda x: x[1]))[0])
-    #     if remove_dir:
-    #         joblib_dir = os.path.join(cache_dir, 'joblib')
-    #         if os.path.isdir(joblib_dir):
-    #             rmtree(joblib_dir)
-    #     return tree_depth
+    def characterize_positions(self, single=True, pair=True):
+        """
+        Characterize Positions
+
+        This method is meant to characterize the nucleic/amino acids at all positions in the aligned sequence across all
+        sequences in the current alignment. This can be used by other methods to determine with a position is conserved
+        in a given alignment, or compute more complex characterizations like positional entropy etc. This method can
+        characterize single positions as well as pairs of positions and this can be done at the same time or separately.
+
+        Args:
+            single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
+            pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
+            alignment.
+        Returns:
+            FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
+            FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
+            requested.
+        """
+        pos_specific = None
+        if single:
+            pos_specific = FrequencyTable(alphabet=Gapped(self.alphabet), pos_size=1)
+        pair_specific = None
+        if pair:
+            pair_specific = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2),
+                                           pos_size=2)
+        # Iterate over all sequences
+        for s in range(self.size):
+            # Iterate over all positions
+            for i in range(self.seq_length):
+                # If single is specified, track the amino acid for this sequence and position
+                if single:
+                    pos_specific.increment_count(pos=i, char=self.alignment[s, i])
+                # If pair is not specified continue to the next position
+                if not pair:
+                    continue
+                # If pair is specified iterate over all positions up to the current one (filling in upper triangle)
+                for j in range(i, self.seq_length):
+                    # Track the pair of amino acids for the positions i,j
+                    pair_specific.increment_count(pos=(i, j), char='{}{}'.format(self.alignment[s, i],
+                                                                                 self.alignment[s, j]))
+        return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):
     #     """
@@ -671,47 +649,6 @@ class SeqAlignment(object):
     #         with open(save_file, 'wb') as save_handle:
     #             pickle.dump(cluster_list, save_handle, pickle.HIGHEST_PROTOCOL)
     #     return cluster_list
-    #
-    # @staticmethod
-    # def _re_label_clusters(prev, curr):
-    #     """
-    #     Relabel Clusters
-    #
-    #     This method takes in a two sets of cluster labels and ensures that the new one (curr) aggrees in its ordering
-    #     with the previous one (prev). This makes for easier tracking of matching clusters when using methods which do
-    #     not have stable cluster labels even if the clusters themselves are stable.
-    #
-    #     Args:
-    #         prev (list): A list of cluster labels.
-    #         curr (list): A list of cluster labels which may need to change, must have the same length as prev.
-    #     Returns:
-    #         list: A new list of cluster labels based on the passed in list (curr). Cluster assignment does not change,
-    #         i.e. the same elements are together in clusters, but the labels change to represent the labels of those
-    #         clusters in the previous (prev) set of labels.
-    #     """
-    #     if len(prev) != len(curr):
-    #         raise ValueError('Cluster labels do not match in length: {} vs {}.'.format(len(prev), len(curr)))
-    #     curr_labels = set()
-    #     prev_to_curr = {}
-    #     for i in range(len(prev)):
-    #         prev_c = prev[i]
-    #         curr_c = curr[i]
-    #         if (prev_c not in prev_to_curr) and (curr_c not in curr_labels):
-    #             prev_to_curr[prev_c] = {'clusters': [], 'indices': []}
-    #         if curr_c not in curr_labels:
-    #             curr_labels.add(curr_c)
-    #             prev_to_curr[prev_c]['clusters'].append(curr_c)
-    #             prev_to_curr[prev_c]['indices'].append(i)
-    #     curr_to_new = {}
-    #     counter = 0
-    #     prev_labels = sorted(prev_to_curr.keys())
-    #     for c in prev_labels:
-    #         for curr_c in zip(*sorted(zip(prev_to_curr[c]['clusters'], prev_to_curr[c]['indices']),
-    #                                   key=lambda x: x[1]))[0]:
-    #             curr_to_new[curr_c] = counter
-    #             counter += 1
-    #     new_labels = [curr_to_new[c] for c in curr]
-    #     return new_labels
     #
     # def visualize_tree(self, out_dir=None):
     #     """

@@ -950,150 +950,163 @@ class TestSeqAlignment(TestBase):
                                  mapping[aln_large.alignment[i, j]])
         self.assertTrue(os.path.isfile(os.path.join(self.save_dir_large, name.replace(' ', '_') + '.eps')))
 
-    # def test_set_tree_ordering(self):
-    #
-    #     def check(seq_dict, curr, prev=None):
-    #         if prev is None:
-    #             return True
-    #         c_prev = 0
-    #         c_curr = 0
-    #         while (c_prev != (prev - 1)) and (c_curr != (curr - 1)):
-    #             if not seq_dict[curr][c_curr].issubset(seq_dict[prev][c_prev]):
-    #                 c_prev += 1
-    #             if not seq_dict[curr][c_curr].issubset(seq_dict[prev][c_prev]):
-    #                 return False
-    #             c_curr += 1
-    #         return True
-    #
-    #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj1.set_tree_ordering()
-    #     aln_obj1.import_alignment()
-    #     aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1,
-    #                                clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for k in range(2, 5):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k-1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj1.set_tree_ordering(tree_depth=clusters)
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for i in range(len(clusters)):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
-    #                         'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
-    #     aln_obj1.set_tree_ordering()
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for k in range(1, aln_obj1.size):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
-    #     aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj2._random_assignment(n_cluster=2)
-    #     aln_obj2.import_alignment()
-    #     aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2,
-    #                                clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for k in range(2, 5):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj2.set_tree_ordering(tree_depth=clusters)
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for i in range(len(clusters)):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
-    #     aln_obj2.set_tree_ordering()
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for k in range(1, aln_obj2.size):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
-    #     ################################################################################################################
-    #     aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1, clustering='random')
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     # self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     # for k in range(2, 5):
-    #     #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj1.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir1, clustering='random')
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     # for i in range(len(clusters)):
-    #     #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
-    #     #                     'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
-    #     aln_obj1.set_tree_ordering(clustering='random', cache_dir=self.save_dir1)
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     # for k in range(1, aln_obj1.size):
-    #     #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
-    #     aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2, clustering='random')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     # for k in range(2, 5):
-    #     #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj2.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir2, clustering='random')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     # self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     # for i in range(len(clusters)):
-    #     #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
-    #     aln_obj2.set_tree_ordering(cache_dir=self.save_dir2, clustering='random')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     # for k in range(1, aln_obj2.size):
-    #     #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
-    #     ################################################################################################################
-    #     aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1, clustering='upgma')
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     # self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for k in range(2, 5):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj1.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir1, clustering='upgma')
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for i in range(len(clusters)):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]),
-    #                         'Error on i:{}, curr:{}, prev:{}'.format(i, clusters[i], clusters[i - 1]))
-    #     aln_obj1.set_tree_ordering(clustering='upgma', cache_dir=self.save_dir1)
-    #     self.assertEqual(set(aln_obj1.seq_order), set(aln_obj1.tree_order))
-    #     self.assertNotEqual(aln_obj1.seq_order, aln_obj1.tree_order)
-    #     self.assertTrue(check(aln_obj1.sequence_assignments, curr=1))
-    #     for k in range(1, aln_obj1.size):
-    #         self.assertTrue(check(aln_obj1.sequence_assignments, curr=k, prev=k - 1))
-    #     aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2, clustering='upgma')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for k in range(2, 5):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
-    #     clusters = [1, 2, 3, 5, 7, 10, 25]
-    #     aln_obj2.set_tree_ordering(tree_depth=clusters, cache_dir=self.save_dir2, clustering='upgma')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     # self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for i in range(len(clusters)):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=clusters[i], prev=clusters[i - 1]))
-    #     aln_obj2.set_tree_ordering(cache_dir=self.save_dir2, clustering='upgma')
-    #     self.assertEqual(set(aln_obj2.seq_order), set(aln_obj2.tree_order))
-    #     self.assertNotEqual(aln_obj2.seq_order, aln_obj2.tree_order)
-    #     self.assertTrue(check(aln_obj2.sequence_assignments, curr=1))
-    #     for k in range(1, aln_obj2.size):
-    #         self.assertTrue(check(aln_obj2.sequence_assignments, curr=k, prev=k - 1))
+    def test18a_characterize_positions(self):
+        # Test single position only for the small sequence
+        aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        single_table, pair_table = aln_small_sub.characterize_positions(single=True, pair=False)
+        self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
+        for i in range(self.query_aln_fa_small.seq_length):
+            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
+            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
+        self.assertIsNone(pair_table)
+
+    def test18b_characterize_positions(self):
+        # Test single position only for the large sequence
+        aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        single_table, pair_table = aln_large_sub.characterize_positions(single=True, pair=False)
+        self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
+        for i in range(self.query_aln_fa_large.seq_length):
+            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
+            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
+        self.assertIsNone(pair_table)
+
+    def test18c_characterize_positions(self):
+        # Test pair position only for the small sequence
+        aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        single_table, pair_table = aln_small_sub.characterize_positions(single=False, pair=True)
+        self.assertIsNone(single_table)
+        positions = []
+        for i in range(self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
+                position = (i, j)
+                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
+                                                                      self.query_aln_fa_small.query_sequence[j]])
+                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
+                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
+                positions.append(position)
+        self.assertEqual(pair_table.get_positions(), positions)
+
+    def test18d_characterize_positions(self):
+        # Test pair position only for the large sequence
+        aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        single_table, pair_table = aln_large_sub.characterize_positions(single=False, pair=True)
+        self.assertIsNone(single_table)
+        positions = []
+        for i in range(self.query_aln_fa_large.seq_length):
+            for j in range(i, self.query_aln_fa_large.seq_length):
+                position = (i, j)
+                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
+                                                                      self.query_aln_fa_large.query_sequence[j]])
+                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
+                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
+                positions.append(position)
+        self.assertEqual(pair_table.get_positions(), positions)
+
+    def test18e_characterize_positions(self):
+        # Test single position and pairs only for the small sequence
+        aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        single_table, pair_table = aln_small_sub.characterize_positions(single=True, pair=True)
+        self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
+        for i in range(self.query_aln_fa_small.seq_length):
+            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
+            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
+        positions = []
+        for i in range(self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
+                position = (i, j)
+                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
+                                                                      self.query_aln_fa_small.query_sequence[j]])
+                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
+                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
+                positions.append(position)
+        self.assertEqual(pair_table.get_positions(), positions)
+
+    def test18f_characterize_positions(self):
+        # Test single position and pairs only for the large sequence
+        aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        single_table, pair_table = aln_large_sub.characterize_positions(single=True, pair=True)
+        self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
+        for i in range(self.query_aln_fa_large.seq_length):
+            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
+            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
+        positions = []
+        for i in range(self.query_aln_fa_large.seq_length):
+            for j in range(i, self.query_aln_fa_large.seq_length):
+                position = (i, j)
+                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
+                                                                      self.query_aln_fa_large.query_sequence[j]])
+                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
+                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
+                positions.append(position)
+        self.assertEqual(pair_table.get_positions(), positions)
+
+    def test18g_characterize_positions(self):
+        # Test combination of two alignments frequency tables
+        seq_order = self.query_aln_fa_small.seq_order
+        aln_small_sub1 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[seq_order[0]])
+        single_table1, pair_table1 = aln_small_sub1.characterize_positions(single=True, pair=True)
+        aln_small_sub2 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[seq_order[1]])
+        single_table2, pair_table2 = aln_small_sub2.characterize_positions(single=True, pair=True)
+        aln_small_sub3 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=seq_order[:2])
+        single_table3, pair_table3 = aln_small_sub3.characterize_positions(single=True, pair=True)
+        single_combined = single_table1 + single_table2
+        self.assertTrue(isinstance(single_table3.alphabet, type(single_combined.alphabet)))
+        self.assertEqual(len(single_table3.alphabet.letters), len(single_combined.alphabet.letters))
+        for char in single_table3.alphabet.letters:
+            self.assertTrue(char in single_combined.alphabet.letters)
+        self.assertEqual(single_table3.position_size, single_combined.position_size)
+        self.assertEqual(single_table3.get_table(), single_combined.get_table())
+        self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
+        for i in single_table3.get_positions():
+            self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
+            for c in single_table3.get_chars(pos=i):
+                self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
+        pair_combined = pair_table1 + pair_table2
+        self.assertTrue(isinstance(pair_table3.alphabet, type(pair_combined.alphabet)))
+        self.assertEqual(len(pair_table3.alphabet.letters), len(pair_combined.alphabet.letters))
+        for char in pair_table3.alphabet.letters:
+            self.assertTrue(char in pair_combined.alphabet.letters)
+        self.assertEqual(pair_table3.position_size, pair_combined.position_size)
+        self.assertEqual(pair_table3.get_table(), pair_combined.get_table())
+        self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
+        for i in pair_table3.get_positions():
+            self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
+            for c in pair_table3.get_chars(pos=i):
+                self.assertEqual(pair_table3.get_count(pos=i, char=c), pair_combined.get_count(pos=i, char=c))
+
+    def test18h_characterize_positions(self):
+        # Test combination of two alignments frequency tables
+        seq_order = self.query_aln_fa_large.seq_order
+        aln_large_sub1 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[seq_order[0]])
+        single_table1, pair_table1 = aln_large_sub1.characterize_positions(single=True, pair=True)
+        aln_large_sub2 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[seq_order[1]])
+        single_table2, pair_table2 = aln_large_sub2.characterize_positions(single=True, pair=True)
+        aln_large_sub3 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=seq_order[:2])
+        single_table3, pair_table3 = aln_large_sub3.characterize_positions(single=True, pair=True)
+        single_combined = single_table1 + single_table2
+        self.assertTrue(isinstance(single_table3.alphabet, type(single_combined.alphabet)))
+        self.assertEqual(len(single_table3.alphabet.letters), len(single_combined.alphabet.letters))
+        for char in single_table3.alphabet.letters:
+            self.assertTrue(char in single_combined.alphabet.letters)
+        self.assertEqual(single_table3.position_size, single_combined.position_size)
+        self.assertEqual(single_table3.get_table(), single_combined.get_table())
+        self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
+        for i in single_table3.get_positions():
+            self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
+            for c in single_table3.get_chars(pos=i):
+                self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
+        pair_combined = pair_table1 + pair_table2
+        self.assertTrue(isinstance(pair_table3.alphabet, type(pair_combined.alphabet)))
+        self.assertEqual(len(pair_table3.alphabet.letters), len(pair_combined.alphabet.letters))
+        for char in pair_table3.alphabet.letters:
+            self.assertTrue(char in pair_combined.alphabet.letters)
+        self.assertEqual(pair_table3.position_size, pair_combined.position_size)
+        self.assertEqual(pair_table3.get_table(), pair_combined.get_table())
+        self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
+        for i in pair_table3.get_positions():
+            self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
+            for c in pair_table3.get_chars(pos=i):
+                self.assertEqual(pair_table3.get_count(pos=i, char=c), pair_combined.get_count(pos=i, char=c))
 
     # def test_visualize_tree(self):
     #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
@@ -1204,194 +1217,6 @@ class TestSeqAlignment(TestBase):
     #     self.assertTrue(1 in set(aln_obj2_clusters3))
     #     self.assertTrue(2 in set(aln_obj2_clusters3))
     #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'joblib', 'K_3.pkl')))
-    #
-    # def test__re_label_clusters(self):
-    #     labels_0 = [0] * 10
-    #     labels_1_expected = [0] * 5 + [1] * 5
-    #     labels_1_test_1 = [1] * 5 + [0] * 5
-    #
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_1_test_1), labels_1_expected)
-    #     labels_1_test_2 = [0] * 5 + [1] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_1_test_2), labels_1_expected)
-    #     labels_2_expected = [0] * 3 + [1] * 2 + [2] * 5
-    #     labels_2_test_1 = [0] * 3 + [1] * 2 + [2] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_1), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_1), labels_2_expected)
-    #     labels_2_test_2 = [0] * 3 + [2] * 2 + [1] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_2), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_2), labels_2_expected)
-    #     labels_2_test_3 = [1] * 3 + [0] * 2 + [2] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_3), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_3), labels_2_expected)
-    #     labels_2_test_4 = [1] * 3 + [2] * 2 + [0] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_4), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_4), labels_2_expected)
-    #     labels_2_test_5 = [2] * 3 + [0] * 2 + [1] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_5), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_5), labels_2_expected)
-    #     labels_2_test_6 = [2] * 3 + [1] * 2 + [0] * 5
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_2_test_6), labels_2_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_2_test_6), labels_2_expected)
-    #     labels_3_expected = [0] * 3 + [1] * 2 + [2] * 2 + [3] * 3
-    #     labels_3_test_1 = [0] * 3 + [1] * 2 + [2] * 2 + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_1), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_1), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_1), labels_3_expected)
-    #     labels_3_test_2 = [0] * 3 + [1] * 2 + [3] * 2 + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_2), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_2), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_2), labels_3_expected)
-    #     labels_3_test_3 = [0] * 3 + [2] * 2 + [1] * 2 + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_3), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_3), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_3), labels_3_expected)
-    #     labels_3_test_4 = [0] * 3 + [2] * 2 + [3] * 2 + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_4), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_4), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_4), labels_3_expected)
-    #     labels_3_test_5 = [0] * 3 + [3] * 2 + [1] * 2 + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_5), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_5), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_5), labels_3_expected)
-    #     labels_3_test_6 = [0] * 3 + [3] * 2 + [2] * 2 + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_6), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_6), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_6), labels_3_expected)
-    #     labels_3_test_7 = [3] * 3 + [0] * 2 + [1] * 2 + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_7), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_7), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_7), labels_3_expected)
-    #     labels_3_test_8 = [3] * 3 + [0] * 2 + [2] * 2 + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_8), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_8), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_8), labels_3_expected)
-    #     labels_3_test_9 = [3] * 3 + [1] * 2 + [2] * 2 + [0] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_9), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_9), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_9), labels_3_expected)
-    #     labels_3_test_10 = [3] * 3 + [1] * 2 + [0] * 2 + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_10), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_10), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_10), labels_3_expected)
-    #     labels_3_test_11 = [3] * 3 + [2] * 2 + [1] * 2 + [0] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_11), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_11), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_11), labels_3_expected)
-    #     labels_3_test_12 = [3] * 3 + [2] * 2 + [0] * 2 + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_3_test_12), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_3_test_12), labels_3_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_3_test_12), labels_3_expected)
-    #     labels_4_expected = [0] * 3 + [1] * 2 + [2, 3] + [4] * 3
-    #     labels_4_test_1 = [0] * 3 + [1] * 2 + [2, 3] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_1), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_1), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_1), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_1), labels_4_expected)
-    #     labels_4_test_2 = [0] * 3 + [1] * 2 + [2, 4] + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_2), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_2), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_2), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_2), labels_4_expected)
-    #     labels_4_test_3 = [0] * 3 + [1] * 2 + [3, 2] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_3), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_3), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_3), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_3), labels_4_expected)
-    #     labels_4_test_4 = [0] * 3 + [1] * 2 + [3, 4] + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_4), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_4), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_4), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_4), labels_4_expected)
-    #     labels_4_test_5 = [0] * 3 + [2] * 2 + [1, 3] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_5), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_5), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_5), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_5), labels_4_expected)
-    #     labels_4_test_6 = [0] * 3 + [2] * 2 + [1, 4] + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_6), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_6), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_6), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_6), labels_4_expected)
-    #     labels_4_test_7 = [0] * 3 + [2] * 2 + [3, 1] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_7), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_7), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_7), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_7), labels_4_expected)
-    #     labels_4_test_8 = [0] * 3 + [2] * 2 + [3, 4] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_8), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_8), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_8), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_8), labels_4_expected)
-    #     labels_4_test_9 = [0] * 3 + [2] * 2 + [4, 1] + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_9), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_9), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_9), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_9), labels_4_expected)
-    #     labels_4_test_10 = [0] * 3 + [2] * 2 + [4, 3] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_10), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_10), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_10), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_10), labels_4_expected)
-    #     labels_4_test_11 = [0] * 3 + [3] * 2 + [1, 2] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_11), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_11), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_11), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_11), labels_4_expected)
-    #     labels_4_test_12 = [0] * 3 + [3] * 2 + [1, 4] + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_12), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_12), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_12), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_12), labels_4_expected)
-    #     labels_4_test_13 = [0] * 3 + [3] * 2 + [2, 1] + [4] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_13), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_13), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_13), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_13), labels_4_expected)
-    #     labels_4_test_14 = [0] * 3 + [3] * 2 + [2, 4] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_14), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_14), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_14), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_14), labels_4_expected)
-    #     labels_4_test_15 = [0] * 3 + [3] * 2 + [4, 1] + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_15), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_15), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_15), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_15), labels_4_expected)
-    #     labels_4_test_16 = [0] * 3 + [3] * 2 + [4, 2] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_16), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_16), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_16), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_16), labels_4_expected)
-    #     labels_4_test_17 = [0] * 3 + [4] * 2 + [1, 2] + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_17), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_17), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_17), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_17), labels_4_expected)
-    #     labels_4_test_18 = [0] * 3 + [4] * 2 + [1, 3] + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_18), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_18), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_18), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_18), labels_4_expected)
-    #     labels_4_test_19 = [0] * 3 + [4] * 2 + [2, 1] + [3] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_19), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_19), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_19), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_19), labels_4_expected)
-    #     labels_4_test_20 = [0] * 3 + [4] * 2 + [2, 3] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_20), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_20), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_20), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_20), labels_4_expected)
-    #     labels_4_test_21 = [0] * 3 + [4] * 2 + [3, 1] + [2] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_21), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_21), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_21), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_21), labels_4_expected)
-    #     labels_4_test_22 = [0] * 3 + [4] * 2 + [3, 2] + [1] * 3
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_0, labels_4_test_22), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_1_expected, labels_4_test_22), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_2_expected, labels_4_test_22), labels_4_expected)
-    #     self.assertEqual(SeqAlignment._re_label_clusters(labels_3_expected, labels_4_test_22), labels_4_expected)
 
 
 def subset_string(in_str, positions):
