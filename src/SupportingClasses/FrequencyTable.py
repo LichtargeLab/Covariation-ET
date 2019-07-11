@@ -14,20 +14,26 @@ class FrequencyTable(object):
     This class represents the position or pair specific nucleic or amino acid counts for a given alignment.
 
     Attributes:
-        msa (Bio.Align.MultipleSequenceAlignment): The multiple sequence alignment which the counts are for.
+        alphabet (Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The un/gapped alphabet for which this frequency table is
+        valid.
+        position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
+        be 1, if it measures pairs of positions this should be 2, etc.
         __position_table (dict): A structure storing the position specific counts for amino acids found in the
         alignment.
     """
 
-    def __init__(self, alphabet):
+    def __init__(self, alphabet, pos_size=1):
         """
         Initialization for a FrequencyTable object.
 
         Args:
-            alphabet (Bio.Alphabet.Alphabet): The alphabet used for the multiple sequence alignment which the counts are
-            for.
+            alphabet (Bio.Alphabet.Alphabet): The alphabet for which the frequency counts tracked by this table are
+            valid.
         """
+        if alphabet.size != pos_size:
+            raise ValueError('Alphabet size must be equal to pos_size!')
         self.alphabet = alphabet
+        self.position_size = pos_size
         self.__position_table = {}
 
     def _add_position(self, pos):
@@ -40,6 +46,16 @@ class FrequencyTable(object):
             pos (int/tuple): A sequence position from the alignment.
         """
         if pos not in self.__position_table:
+            if self.position_size == 1:
+                if not isinstance(pos, int):
+                    raise TypeError('Position does not match size specification: {} X {}'.format(self.position_size,
+                                                                                                 type(pos)))
+            elif self.position_size > 1:
+                if not isinstance(pos, tuple) or len(pos) != self.position_size:
+                    raise TypeError('Position does not match size specification: {} X {}'.format(self.position_size,
+                                                                                                 type(pos)))
+            else:
+                pass
             self.__position_table[pos] = {}
 
     def _add_pos_char(self, pos, char):
@@ -52,6 +68,9 @@ class FrequencyTable(object):
             pos (int/tuple): A sequence position from the alignment.
             char (char/str): The character or string to add for the specified position.
         """
+        if char not in self.alphabet.letters:
+            raise ValueError('The character {} is not in the specified alphabet: {}'.format(char,
+                                                                                            self.alphabet.letters))
         self._add_position(pos)
         if char not in self.__position_table[pos]:
             self.__position_table[pos][char] = 0
@@ -106,20 +125,6 @@ class FrequencyTable(object):
         """
         return list(self.__position_table[pos].keys())
 
-    def get_count_array(self, pos):
-        """
-        Get Count Array
-
-        Returns an array containing the counts for all characters at a specified position, the order for the counts is
-        the same as the order of the characters returned by get_chars().
-
-        Args:
-            pos (int/tuple): A sequence position from the alignment.
-        Returns:
-            np.array: An array of the counts for characters at a given position.
-        """
-        return np.array([self.__position_table[pos][char] for char in self.get_chars(pos)], dtype=np.dtype(int))
-
     def get_count(self, pos, char):
         """
         Get Count
@@ -138,6 +143,23 @@ class FrequencyTable(object):
         else:
             return 0
 
+    def get_count_array(self, pos):
+        """
+        Get Count Array
+
+        Returns an array containing the counts for all characters at a specified position, the order for the counts is
+        the same as the order of the characters returned by get_chars().
+
+        Args:
+            pos (int/tuple): A sequence position from the alignment.
+        Returns:
+            np.array: An array of the counts for characters at a given position.
+        """
+        if pos in self.__position_table:
+            return np.array([self.__position_table[pos][char] for char in self.get_chars(pos)], dtype=np.dtype(int))
+        else:
+            return None
+
     def get_count_matrix(self):
         """
         Get Count Matrix
@@ -150,12 +172,14 @@ class FrequencyTable(object):
             and m is the length of the sequences in the alignment. Each position in the matrix specifies the count of a
             character at a given position.
         """
+        if len(self.__position_table) == 0:
+            return None
         alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
-        mat = np.zeros((alpha_size + 1, len(self.__position_table)))
+        mat = np.zeros((len(self.__position_table), alpha_size))
         positions = self.get_positions()
         for i in range(len(positions)):
             pos = positions[i]
-            for char in self.__position_table[i]:
+            for char in self.__position_table[pos]:
                 j = mapping[char]
                 mat[i, j] = self.get_count(pos=pos, char=char)
         return mat
@@ -174,13 +198,19 @@ class FrequencyTable(object):
         """
         if not isinstance(other, FrequencyTable):
             raise ValueError('FrequencyTable can only be combined with another FrequencyTable instance.')
+        if self.position_size != other.position_size:
+            raise ValueError('FrequencyTables must have the same position size to be joined.')
         merged_alpha = Alphabet._consensus_alphabet([self.alphabet, other.alphabet])
-        merged_table = {}
-        for i in self.get_positions():
-            merged_table[i] = {}
-            chars = set(self.get_chars(pos=i)).union(set(other.get_chars(pos=1)))
-            for char in chars:
-                merged_table[i][char] = self.get_count(pos=i, char=char) + other.get_count(pos=i, char=char)
-        new_table = FrequencyTable(alphabet=merged_alpha)
+        merged_table = deepcopy(self.__position_table)
+        for i in other.get_positions():
+            if i not in merged_table:
+                merged_table[i] = other.__position_table[i]
+                continue
+            for char in other.get_chars(pos=i):
+                if char not in merged_table[i]:
+                    merged_table[i][char] = other.get_count(pos=i, char=char)
+                else:
+                    merged_table[i][char] += other.get_count(pos=i, char=char)
+        new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
         new_table.__position_table = merged_table
         return new_table
