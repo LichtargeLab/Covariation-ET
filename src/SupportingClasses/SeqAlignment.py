@@ -598,7 +598,7 @@ class SeqAlignment(object):
                 if not pair:
                     continue
                 # If pair is specified iterate over all positions up to the current one (filling in upper triangle)
-                for j in range(i, self.seq_length):
+                for j in range(i + 1, self.seq_length):
                     # Track the pair of amino acids for the positions i,j
                     pair_specific.increment_count(pos=(i, j), char='{}{}'.format(self.alignment[s, i],
                                                                                  self.alignment[s, j]))
