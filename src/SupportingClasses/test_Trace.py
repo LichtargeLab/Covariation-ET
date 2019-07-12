@@ -92,6 +92,20 @@ class TestTrace(TestBase):
 
     def test2b_characterize_rank_groups(self):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            group_assignments=self.assignments_small, position_specific=True, pair_specific=True)
+        trace_small.characterize_rank_groups(processes=self.max_processes)
+        for rank in trace_small.assignments:
+            for group in trace_small.assignments[rank]:
+                sub_aln = self.query_aln_fa_small.generate_sub_alignment(
+                    sequence_ids=trace_small.assignments[rank][group]['terminals'])
+                single_table, pair_table = sub_aln.characterize_positions(single=True, pair=True)
+                self.assertTrue('single' in trace_small.assignments[rank][group])
+                self.assertEqual(trace_small.assignments[rank][group]['single'].get_table(), single_table.get_table())
+                self.assertTrue('pair' in trace_small.assignments[rank][group])
+                self.assertEqual(trace_small.assignments[rank][group]['pair'].get_table(), pair_table.get_table())
+
+    def test2c_characterize_rank_groups(self):
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                             group_assignments=self.assignments_small, position_specific=True, pair_specific=False)
         trace_small.characterize_rank_groups()
         for rank in trace_small.assignments:
@@ -104,7 +118,7 @@ class TestTrace(TestBase):
                 self.assertTrue('pair' in trace_small.assignments[rank][group])
                 self.assertIsNone(trace_small.assignments[rank][group]['pair'])
 
-    def test2c_characterize_rank_groups(self):
+    def test2d_characterize_rank_groups(self):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                             group_assignments=self.assignments_small, position_specific=False, pair_specific=True)
         trace_small.characterize_rank_groups()
