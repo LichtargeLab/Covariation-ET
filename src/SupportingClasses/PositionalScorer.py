@@ -51,6 +51,19 @@ class PositionalScorer(object):
         self.metric = metric
 
     def score_group(self, freq_table):
+        """
+        Score Group
+
+        This function is intended to generate a score vector/matrix/tensor for a single group. It does so by scoring
+        each position characterized in a FrequencyTable and using those scores to fill in a properly dimensioned
+        vector/matrix/tensor.
+
+        Args:
+            freq_table (FrequencyTable): The table characterizing the character counts at each position in an alignment.
+        Returns:
+            np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
+            as determined by the specified metric.
+        """
         scoring_functions = {'identity': group_identity_score}
         scores = np.zeros(self.dimensions)
         for pos in freq_table.get_positions():
@@ -62,6 +75,22 @@ class PositionalScorer(object):
         return scores
 
     def score_rank(self, score_tensor):
+        """
+        Score Rank
+
+        This function is intended to generate a score vector/matrix/tensor for a single rank. It acts as a switch
+        statement, calling the correct method to compute final scores for a set of group of scores.
+
+        Args:
+            score_tensor (np.array): A matrix/tensor with shape (n, s1, ..., sp) where n is the number of groups at the
+            rank to be scored, s is the sequence length for the alignment being characterized, and p is the
+            position_size specified at initialization. For example a score_tensor for rank 3 and an alignment with
+            sequence length 20, scoring pairs of positions will have shape (3, 20, 20). This can be achieved by stacking
+            all group scores at the desired rank along axis 0.
+        Returns:
+            np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
+            as determined by the specified metric.
+        """
         scoring_functions = {'identity': rank_identity_score}
         scores = scoring_functions[self.metric](score_tensor)
         return scores
