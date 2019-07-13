@@ -65,6 +65,7 @@ class ETMIPWrapper(object):
         self.distance_matrix = None
         self.tree = None
         self.rank_group_assignments = None
+        self.rank_scores = None
         self.time = None
 
     def check_alignment(self):
@@ -88,6 +89,27 @@ class ETMIPWrapper(object):
             self.msf_path = new_file_name
         else:
             self.msf_path = self.alignment.file_name
+
+    def import_rank_sores(self, out_dir, file_name_format='etc_out.rank_{}.tsv', rank_type='id'):
+        """
+        Import Rank Scores
+
+        This function import intermediate ranks files (ending in .tsv) to the self.rank_scores attribute.
+
+        Args:
+            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
+            rank_type (str): The rank type ('identity', 'realvalue', etc.) for which to import scores.
+        Return:
+            np.array: Rank scores for each position in the analyzed alignment.
+        """
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, file_name_format.format(rank_type))
+        if not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected rank file!')
+        rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
+        self.rank_scores = rank_df['Rank'].values
 
     def import_covariance_scores(self, out_dir):
         """
