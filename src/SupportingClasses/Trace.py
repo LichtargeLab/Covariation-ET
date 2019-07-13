@@ -74,10 +74,11 @@ class Trace(object):
         for rank in sorted(self.assignments.keys()):
             group_scores = []
             for group in sorted(self.assignments[rank].keys()):
-                group_scores.append(scorer.group_score(self.assignments[rank][group][pos_type]))
+                group_scores.append(scorer.score_group(self.assignments[rank][group][pos_type]))
             group_scores = np.stack(group_scores, axis=0)
-            rank_scores = scorer.rank_score(group_scores)
+            rank_scores = scorer.score_rank(group_scores)
             final_scores += rank_scores
+        final_scores += 1
         end = time()
         print('Trace of {} positions with {} metric took: {} min'.format(pos_type, scorer.metric, (end - start) / 60.0))
         return final_scores

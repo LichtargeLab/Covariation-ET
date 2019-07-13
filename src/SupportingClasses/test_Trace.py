@@ -207,7 +207,7 @@ class TestTrace(TestBase):
         print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
 
-    def test3a_trace(self):
+    def test3b_trace(self):
         # Test trace, metric identity, against ETC large alignment
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
