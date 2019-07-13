@@ -3,9 +3,10 @@ Created on May 23, 2019
 
 @author: Daniel Konecki
 """
+import numpy as np
+from Queue import Empty
 from time import sleep, time
-from Queue import Queue, Empty
-from multiprocessing import Pool
+from multiprocessing import Manager, Pool, Queue
 
 
 class Trace(object):
@@ -46,65 +47,65 @@ class Trace(object):
         for n in self.phylo_tree.traverse_bottom_up():
             if not n.is_terminal():
                 queue.put_nowait(n)
+        pool_manager = Manager()
+        frequency_tables = pool_manager.dict()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue))
-        res = pool.map_async(func=characterization, iterable=list(range(processes)))
-        frequency_tables = {}
-
-        # queue_time = time()
-        # print('Queue initialized in: {} min'.format((queue_time - start) / 60.0))
-        # while queue.qsize() > 0:
-        #     while1_start = time()
-        #     node = queue.get_nowait()
-        #     print('Processing node: {} min'.format(node.name))
-        #     if node.is_terminal():
-        #         print('Is Terminal')
-        #         sub_aln = self.aln.generate_sub_alignment(sequence_ids=[node.name])
-        #         pos_table, pair_table = sub_aln.characterize_positions(single=self.pos_specific,
-        #                                                                pair=self.pair_specific)
-        #     else:
-        #         print('Is Non-terminal')
-        #         child1 = node.clades[0].name
-        #         child2 = node.clades[1].name
-        #         print('Children: {}, {}'.format(child1, child2))
-        #         success = False
-        #         component1 = None
-        #         component2 = None
-        #         while not success:
-        #             while2_start = time()
-        #             try:
-        #                 component1 = frequency_tables[child1]
-        #                 component2 = frequency_tables[child2]
-        #                 success = True
-        #             except KeyError:
-        #                 sleep(0.5)
-        #                 exit()
-        #             while2_end = time()
-        #             print('Inner while took: {} min'.format((while2_end - while2_start) / 60.0))
-        #         if self.pos_specific:
-        #             pos_table = component1['single'] + component2['single']
-        #         else:
-        #             pos_table = None
-        #         if self.pair_specific:
-        #             pair_table = component1['pair'] + component2['pair']
-        #         else:
-        #             pair_table = None
-        #     component = {'single': pos_table, 'pair': pair_table}
-        #     frequency_tables[node.name] = component
-        #     while1_end = time()
-        #     print('Outer while loop took: {} min'.format((while1_end - while1_start) / 60.0))
+                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue, frequency_tables))
+        pool.map_async(func=characterization, iterable=list(range(processes)))
+        pool.close()
+        pool.join()
+        frequency_tables = dict(frequency_tables)
         for rank in self.assignments:
             for group in self.assignments[rank]:
                 self.assignments[rank][group].update(frequency_tables[self.assignments[rank][group]['node'].name])
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
+
+    def trace(self, scorer, processes=1):
+        pos_type = None
+        final_scores = None
+        if scorer.position_size == 1:
+            pos_type = 'single'
+            final_scores = np.zeros(scorer.dimensions)
+        elif scorer.position_size == 2:
+            pos_type = 'pair'
+            final_scores = np.zeros(scorer.dimensions)
+        else:
+            raise ValueError('Currently only scorers with size 1 (position specific) or 2 (pair specific) are valid.')
+        for rank in self.assignments:
+            group_scores = []
+            for group in self.assignments[rank]:
+                group_scores.append(scorer.group_score(self.assignments[rank][group][pos_type]))
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = scorer.rank_score(group_scores)
+
+
+
+
     # def single_position_trace(self):
     #
     # def pair_position_trace(self):
 
 
-def init_characterization_pool(alignment, pos_specific, pair_specific, queue):
+def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict):
+    """
+    Init Characterization Pool
+
+    This function initializes a pool of workers with shared resources so that they can quickly characterize the sub
+    alignments for each node in the phylogenetic tree.
+
+    Args:
+        alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
+        sub alignments for the terminal nodes in the tree.
+        pos_specific (bool): Whether or not to characterize single positions.
+        pair_specific (bool): Whether or not to characterize pairs of positions.
+        queue (multiprocessing.Queue): A queue which contains all nodes in the phylogenetic tree over which the trace is
+        being performed. The nodes should be inserted in an order which makes sense for the efficient characterization
+        of nodes (i.e. leaves to root).
+        sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
+        deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
+    """
     global aln
     aln = alignment
     global single
@@ -113,39 +114,57 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue):
     pair = pair_specific
     global node_queue
     node_queue = queue
+    global freq_tables
+    freq_tables = sharable_dict
 
 
 def characterization(processor):
-    frequency_tables = {}
+    """
+    Characterization
+
+    This function pulls nodes from a queue in order to characterize them. If the node is terminal then a sub-alignment
+    is generated from the full alignment (provided by init_characterization_pool) and the individual positions (if
+    specified by pos_specific in init_characterization_pool) and pairs of positions (if specified by pair_specific in
+    init_characterization) are characterized for their nucleic/amino acid content. If the node is non-terminal then the
+    dictionary of frequency tables (sharable_dict provided by init_characterization_pool) is accessed to retrieve the
+    characterization for the nodes children; these are then summed. Each node that is completed by a worker process is
+    added to the dictionary provided to init_characterization as sharable_dict, which is where results can be found
+    after all processes finish.
+
+    Args:
+        processor (int): The processor in the pool which is being called.
+    """
+    # Track how many nodes this process has completed
+    count = 0
+    # Run until no more nodes are available
     while not node_queue.empty():
+        # Retrieve the next node from the queue
         try:
             node = node_queue.get_nowait()
         except Empty:
-            break
-        print('Process {} characterizing node: {}'.format(processor, node.name))
+            # If no node is available the queue is likely empty, repeat the loop checking the queue status.
+            continue
         if node.is_terminal():
-            print('Is Terminal')
+            # If the node is terminal (a leaf) retrieve its sub_alignment and characterize it.
             sub_aln = aln.generate_sub_alignment(sequence_ids=[node.name])
             pos_table, pair_table = sub_aln.characterize_positions(single=single, pair=pair)
         else:
-            print('Is Non-terminal')
+            # If a node is non-terminal retrieve its childrens' characterizations and merge them to get the parent
+            # characterization.
             child1 = node.clades[0].name
             child2 = node.clades[1].name
-            print('Children: {}, {}'.format(child1, child2))
             success = False
             component1 = None
             component2 = None
             while not success:
-                while2_start = time()
+                # Attempt to retrieve the current node's childrens' data, sleep and try again if it is not already in
+                # the dictionary, until success.
                 try:
-                    component1 = frequency_tables[child1]
-                    component2 = frequency_tables[child2]
+                    component1 = freq_tables[child1]
+                    component2 = freq_tables[child2]
                     success = True
                 except KeyError:
                     sleep(0.5)
-                    # exit()
-                while2_end = time()
-                print('Inner while took: {} min'.format((while2_end - while2_start) / 60.0))
             if single:
                 pos_table = component1['single'] + component2['single']
             else:
@@ -154,6 +173,8 @@ def characterization(processor):
                 pair_table = component1['pair'] + component2['pair']
             else:
                 pair_table = None
-        component = {'single': pos_table, 'pair': pair_table}
-        frequency_tables[node.name] = component
-    return frequency_tables
+        # Store the current nodes characterization in the shared dictionary.
+        tables = {'single': pos_table, 'pair': pair_table}
+        freq_tables[node.name] = tables
+        count += 1
+    print('Processor {} Completed {} node characterizations'.format(processor, count))
