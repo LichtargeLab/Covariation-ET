@@ -40,6 +40,17 @@ class Trace(object):
         self.pair_specific = pair_specific
 
     def characterize_rank_groups(self, processes=1):
+        """
+        Characterize Rank Group
+
+        This function iterates over the rank and group assignments and characterizes all positions for each sub
+        alignment. Characterization consists of FrequencyTable objects which are added to the group_assignments
+        dictionary provided at initialization (single position FrequencyTables are added under the key 'single', while
+        FrequencyTAbles for pairs of positions are added under the key 'pair').
+
+        Args:
+            processes (int): The maximum number of sequences to use when performing this characterization.
+        """
         start = time()
         queue = Queue(maxsize=(self.aln.size * 2) - 1)
         for t in self.phylo_tree.tree.get_terminals():
@@ -61,23 +72,81 @@ class Trace(object):
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
+    # def trace(self, scorer, processes=1):
+    #     start = time()
+    #     # pos_type = None
+    #     if scorer.position_size == 1:
+    #         pos_type = 'single'
+    #     elif scorer.position_size == 2:
+    #         pos_type = 'pair'
+    #     else:
+    #         raise ValueError('Currently only scorers with size 1 (position specific) or 2 (pair specific) are valid.')
+    #     final_scores = np.zeros(scorer.dimensions)
+    #     for rank in sorted(self.assignments.keys()):
+    #         group_scores = []
+    #         for group in sorted(self.assignments[rank].keys()):
+    #             group_scores.append(scorer.score_group(self.assignments[rank][group][pos_type]))
+    #         group_scores = np.stack(group_scores, axis=0)
+    #         rank_scores = scorer.score_rank(group_scores)
+    #         final_scores += rank_scores
+    #     final_scores += 1
+    #     end = time()
+    #     print('Trace of {} positions with {} metric took: {} min'.format(pos_type, scorer.metric, (end - start) / 60.0))
+    #     return final_scores
+
     def trace(self, scorer, processes=1):
+        """
+        Trace
+
+        The central part of the Evolutionary Trace algorithm. This function is a multiprocessed version of the trace
+        process which scores sub alignments for groups within each rank of a phylogenetic tree and then combines them to
+        generate a rank score. Rank scores are combined to calculate a final importance score for each position (or pair
+        of positions). The group and rank level scores can be computed based on different metrics which are dictated by
+        the provided PositionalScorer object.
+
+        Args:
+            scorer (PositionalScorer): The scoring object to use when computing the group and rank scores.
+            processes (int): The maximum number of sequences to use when performing this characterization.
+        Returns:
+            np.array: A properly dimensioned vector/matrix/tensor of importance scores for each position in the
+            alignment being traced.
+        pseudocode:
+            final_scores = np.zeros(scorer.dimensions)
+            for rank in sorted(self.assignments.keys()):
+                group_scores = []
+                for group in sorted(self.assignments[rank].keys()):
+                    group_scores.append(scorer.score_group(self.assignments[rank][group][pos_type]))
+                group_scores = np.stack(group_scores, axis=0)
+                rank_scores = scorer.score_rank(group_scores)
+                final_scores += rank_scores
+            final_scores += 1
+        """
         start = time()
-        # pos_type = None
+        # position_type = None
         if scorer.position_size == 1:
-            pos_type = 'single'
+            position_type = 'single'
         elif scorer.position_size == 2:
-            pos_type = 'pair'
+            position_type = 'pair'
         else:
             raise ValueError('Currently only scorers with size 1 (position specific) or 2 (pair specific) are valid.')
+        group_queue = Queue(maxsize=(self.aln.size * 2) - 1)
+        rank_queue = Queue(maxsize=self.aln.size)
+        manager = Manager()
+        group_dict = manager.dict()
+        rank_dict = manager.dict()
+        for rank in sorted(self.assignments.keys(), reverse=True):
+            for group in sorted(self.assignments[rank].keys(), reverse=True):
+                group_queue.put_nowait((rank, group))
+                group_dict[group] = []
+        pool = Pool(processes=processes, initializer=init_trace_pool,
+                    initargs=(position_type, group_queue, rank_queue, self.assignments, scorer, group_dict, rank_dict))
+        pool.map_async(trace_sub, list(range(processes)))
+        pool.close()
+        pool.join()
+        rank_dict = dict(rank_dict)
         final_scores = np.zeros(scorer.dimensions)
-        for rank in sorted(self.assignments.keys()):
-            group_scores = []
-            for group in sorted(self.assignments[rank].keys()):
-                group_scores.append(scorer.score_group(self.assignments[rank][group][pos_type]))
-            group_scores = np.stack(group_scores, axis=0)
-            rank_scores = scorer.score_rank(group_scores)
-            final_scores += rank_scores
+        for rank in rank_dict:
+            final_scores += rank_dict[rank]
         final_scores += 1
         end = time()
         print('Trace of {} positions with {} metric took: {} min'.format(pos_type, scorer.metric, (end - start) / 60.0))
@@ -174,3 +243,75 @@ def characterization(processor):
         freq_tables[node.name] = tables
         count += 1
     print('Processor {} Completed {} node characterizations'.format(processor, count))
+
+
+def init_trace_pool(position_type, group_queue, rank_queue, a_dict, scorer, group_dict, rank_dict):
+    """
+    Init Trace Pool
+
+    This function initializes a pool of workers with shared resources so that they can quickly perform the trace
+    algorithm.
+
+    Args:
+        position_type (str): 'single' or 'pair' describing what kinds of positions are being traced.
+        group_queue (multiprocessing.Queue): A queue containing the groups which still need to be processed. Groups are
+        described as a tuple where the first element is the rank and the second element is the group.
+        rank_queue (multiprocessing.Queue): A queue containing the ranks to be processed (the queue should begin empty
+        and will be added to as groups are processed).
+        a_dict (dict): The group assignments for nodes in the tree.
+        scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
+        group_dict (multiprocessing.Manager.dict): A dictionary to hold the group scores for a given rank.
+        rank_dict (multiprocessing.Manager.dict): A dictionary to hold the scores for a given rank.
+    """
+    global pos_type
+    pos_type = position_type
+    global g_queue
+    g_queue = group_queue
+    global r_queue
+    r_queue = rank_queue
+    global assignments
+    assignments = a_dict
+    global pos_scorer
+    pos_scorer = scorer
+    global g_dict
+    g_dict = group_dict
+    global r_dict
+    r_dict = rank_dict
+
+
+def trace_sub(processor):
+    """
+    Trace Sub
+
+    A function which performs the group and rank scoring part of the trace algorithm. It depends on the init_trace_pool
+    function to set up the necessary shared resources. If all groups have been processed for a given rank then that
+    rank is pulled from the rank_queue and scored. These scores are recorded in the rank_dict which is where they can be
+    retrieved after the pool completes. If no ranks are available for processing then a group is pulled from the
+    group_queue and scored.
+
+    Args:
+        processor (int): Which processor is executing this function.
+    """
+    start = time()
+    group_count = 0
+    rank_count = 0
+    while (not g_queue.empty()) or (not r_queue.empty()):
+        try:
+            rank = r_queue.get_nowait()
+
+            group_scores = np.stack(g_dict[rank], axis=0)
+            rank_scores = pos_scorer.score_rank(group_scores)
+            r_dict[rank] = rank_scores
+            del g_dict[rank]
+        except Empty:
+            try:
+                rank, group = g_queue.get_nowait()
+            except Empty:
+                continue
+            group_score = pos_scorer.score_group(assignments[rank][group][pos_type])
+            g_dict[rank].append(group_score)
+            if rank == len(g_dict[rank]):
+                r_queue.put_nowait(rank)
+    end = time()
+    print('Processor {} completed {} groups and {} ranks in {} min'.format(processor, group_count, rank_count,
+                                                                           (end - start) / 60.0))

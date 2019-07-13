@@ -4,6 +4,7 @@ Created on July 11, 2019
 @author: Daniel Konecki
 """
 import os
+import numpy as np
 from copy import deepcopy
 from multiprocessing import Queue, Manager
 from test_Base import TestBase
@@ -12,7 +13,7 @@ from SeqAlignment import SeqAlignment
 from PositionalScorer import PositionalScorer
 from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from Trace import Trace, init_characterization_pool, characterization
+from Trace import Trace, init_characterization_pool, characterization, init_trace_pool, trace_sub
 
 
 class TestTrace(TestBase):
@@ -184,7 +185,117 @@ class TestTrace(TestBase):
                 self.assertTrue('pair' in trace_small.assignments[rank][group])
                 self.assertEqual(trace_small.assignments[rank][group]['pair'].get_table(), pair_table.get_table())
 
-    def test3a_trace(self):
+    def test3a_trace_pool_functions(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
+        group_queue = Queue(maxsize=(2 * self.query_aln_fa_small.seq_length) - 1)
+        rank_queue = Queue(maxsize=self.query_aln_fa_small.seq_length)
+        manager = Manager()
+        group_dict = manager.dict()
+        rank_dict = manager.dict()
+        init_trace_pool(position_type='single', group_queue=group_queue, rank_queue=rank_queue,
+                        a_dict=trace_small.assignments, scorer=scorer, group_dict=group_dict, rank_dict=rank_dict)
+        trace_sub(processor=1)
+        rank_dict = dict(rank_dict)
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                group_scores.append(scorer.score_group(assignments[rank][group]['single']))
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            for i in range(self.query_aln_fa_small.seq_length):
+                if rank_scores[i] == 0:
+                    self.assertEqual(rank_dict[rank][i], 0)
+                else:
+                    self.assertEqual(rank_dict[rank][i], 1)
+
+    def test3b_trace_pool_functions(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
+        group_queue = Queue(maxsize=(2 * self.query_aln_fa_large.seq_length) - 1)
+        rank_queue = Queue(maxsize=self.query_aln_fa_large.seq_length)
+        manager = Manager()
+        group_dict = manager.dict()
+        rank_dict = manager.dict()
+        init_trace_pool(position_type='single', group_queue=group_queue, rank_queue=rank_queue,
+                        a_dict=trace_large.assignments, scorer=scorer, group_dict=group_dict, rank_dict=rank_dict)
+        trace_sub(processor=1)
+        rank_dict = dict(rank_dict)
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                group_scores.append(scorer.score_group(assignments[rank][group]['single']))
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            for i in range(self.query_aln_fa_large.seq_length):
+                if rank_scores[i] == 0:
+                    self.assertEqual(rank_dict[rank][i], 0)
+                else:
+                    self.assertEqual(rank_dict[rank][i], 1)
+
+    def test3c_trace(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
+        rank_id = trace_small.trace(scorer=scorer, processes=self.max_threads)
+        ranks = np.ones(self.query_aln_fa_small.seq_length)
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                group_scores.append(scorer.score_group(assignments[rank][group]['single']))
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            for i in range(self.query_aln_fa_large.seq_length):
+                if rank_scores[i] != 0:
+                    ranks[i] += 1
+        diff_ranks = rank_id - ranks
+        self.assertTrue(not diff_ranks.any())
+
+    def test3d_trace(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
+        rank_id = trace_large.trace(scorer=scorer, processes=self.max_threads)
+        ranks = np.ones(self.query_aln_fa_large.seq_length)
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                group_scores.append(scorer.score_group(assignments[rank][group]['single']))
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            for i in range(self.query_aln_fa_large.seq_length):
+                if rank_scores[i] != 0:
+                    ranks[i] += 1
+        diff_ranks = rank_id - ranks
+        self.assertTrue(not diff_ranks.any())
+
+    def test3e_trace(self):
         # Test trace, metric identity, against ETC small alignment
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
@@ -207,7 +318,7 @@ class TestTrace(TestBase):
         print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
 
-    def test3b_trace(self):
+    def test3f_trace(self):
         # Test trace, metric identity, against ETC large alignment
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
