@@ -61,31 +61,26 @@ class Trace(object):
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
-
     def trace(self, scorer, processes=1):
-        pos_type = None
-        final_scores = None
+        start = time()
+        # pos_type = None
         if scorer.position_size == 1:
             pos_type = 'single'
-            final_scores = np.zeros(scorer.dimensions)
         elif scorer.position_size == 2:
             pos_type = 'pair'
-            final_scores = np.zeros(scorer.dimensions)
         else:
             raise ValueError('Currently only scorers with size 1 (position specific) or 2 (pair specific) are valid.')
-        for rank in self.assignments:
+        final_scores = np.zeros(scorer.dimensions)
+        for rank in sorted(self.assignments.keys()):
             group_scores = []
-            for group in self.assignments[rank]:
+            for group in sorted(self.assignments[rank].keys()):
                 group_scores.append(scorer.group_score(self.assignments[rank][group][pos_type]))
             group_scores = np.stack(group_scores, axis=0)
             rank_scores = scorer.rank_score(group_scores)
-
-
-
-
-    # def single_position_trace(self):
-    #
-    # def pair_position_trace(self):
+            final_scores += rank_scores
+        end = time()
+        print('Trace of {} positions with {} metric took: {} min'.format(pos_type, scorer.metric, (end - start) / 60.0))
+        return final_scores
 
 
 def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict):

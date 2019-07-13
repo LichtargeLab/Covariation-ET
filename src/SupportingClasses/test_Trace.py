@@ -3,9 +3,13 @@ Created on July 11, 2019
 
 @author: Daniel Konecki
 """
+import os
+from copy import deepcopy
 from multiprocessing import Queue, Manager
 from test_Base import TestBase
+from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
+from PositionalScorer import PositionalScorer
 from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from Trace import Trace, init_characterization_pool, characterization
@@ -32,6 +36,10 @@ class TestTrace(TestBase):
         calc = AlignmentDistanceCalculator()
         cls.phylo_tree_large.construct_tree(dm=calc.get_distance(cls.query_aln_fa_large.alignment))
         cls.assignments_large = cls.phylo_tree_large.assign_group_rank()
+        cls.query_aln_msf_small = deepcopy(cls.query_aln_fa_small)
+        cls.query_aln_msf_small.file_name = cls.data_set.protein_data[cls.small_structure_id]['Final_MSF_Aln']
+        cls.query_aln_msf_large = deepcopy(cls.query_aln_fa_large)
+        cls.query_aln_msf_large.file_name = cls.data_set.protein_data[cls.large_structure_id]['Final_MSF_Aln']
 
     def test1a_init(self):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
@@ -175,3 +183,49 @@ class TestTrace(TestBase):
                 self.assertIsNone(trace_small.assignments[rank][group]['single'])
                 self.assertTrue('pair' in trace_small.assignments[rank][group])
                 self.assertEqual(trace_small.assignments[rank][group]['pair'].get_table(), pair_table.get_table())
+
+    def test3a_trace(self):
+        # Test trace, metric identity, against ETC small alignment
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
+        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
+        rank_ids = trace_small.trace(scorer=scorer)
+        print(rank_ids)
+        print(et_mip_obj.rank_scores)
+        diff_ranks = rank_ids - et_mip_obj.rank_scores
+        print(diff_ranks)
+        self.assertTrue(not diff_ranks.any())
+
+    def test3a_trace(self):
+        # Test trace, metric identity, against ETC large alignment
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
+        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
+        rank_ids = trace_large.trace(scorer=scorer)
+        print(rank_ids)
+        print(et_mip_obj.rank_scores)
+        diff_ranks = rank_ids - et_mip_obj.rank_scores
+        print(diff_ranks)
+        self.assertTrue(not diff_ranks.any())
