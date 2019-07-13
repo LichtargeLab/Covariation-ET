@@ -41,11 +41,7 @@ class PositionalScorer(object):
         """
         self.sequence_length = seq_length
         self.position_size = pos_size
-        if pos_size == 1:
-            self.dimensions = self.sequence_length
-        else:
-            self.dimensions = (self.sequence_length, self.sequence_length)
-        # self.dimensions = tuple([self.sequence_length] * pos_size)
+        self.dimensions = tuple([self.sequence_length] * pos_size)
         if (self.position_size == 1) and (metric not in ambiguous_metrics | single_only_metrics):
             raise ValueError('Provided metric: {} not available for pos_size: {}, please select from:\n{}'.format(
                 metric, self.position_size, ', '.join(list(ambiguous_metrics | single_only_metrics))))

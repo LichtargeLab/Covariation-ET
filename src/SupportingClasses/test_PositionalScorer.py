@@ -245,4 +245,76 @@ class TestTrace(TestBase):
         diff_pair = rank_pair_scores - expected_rank_pair_scores
         self.assertTrue(not diff_pair.any())
 
-    # def test4a_score_group(self):
+    def test4a_score_group(self):
+        # Score group using identity metric terminals
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
+        expected_group_score_single = np.zeros(2)
+        expected_group_score_pair = np.zeros((2, 2))
+        for t in self.terminals:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.terminals[t]['single'])
+            diff_single = group_score_single - expected_group_score_single
+            self.assertTrue(not diff_single.any())
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.terminals[t]['pair'])
+            diff_pair = group_score_pair - expected_group_score_pair
+            self.assertTrue(not diff_pair.any())
+
+    def test4b_score_group(self):
+        # Score group using identity metric parents
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
+        expected_group_score_single = np.array([0, 1])
+        expected_group_score_pair = np.zeros((2, 2))
+        expected_group_score_pair[0, 1] = 1
+        for f in self.first_parents:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.first_parents[f]['single'])
+            diff_single = group_score_single - expected_group_score_single
+            self.assertTrue(not diff_single.any())
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.first_parents[f]['pair'])
+            diff_pair = group_score_pair - expected_group_score_pair
+            self.assertTrue(not diff_pair.any())
+
+    def test5a_score_rank(self):
+        # Score rank using identity metric terminals
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
+        expected_rank_score_single = np.zeros(2)
+        expected_rank_score_pair = np.zeros((2, 2))
+        group_scores_single = []
+        group_scores_pair = []
+        for t in self.terminals:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.terminals[t]['single'])
+            group_scores_single.append(group_score_single)
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.terminals[t]['pair'])
+            group_scores_pair.append(group_score_pair)
+        group_scores_single = np.stack(group_scores_single, axis=0)
+        rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single)
+        diff_single = rank_score_single - expected_rank_score_single
+        self.assertTrue(not diff_single.any())
+        group_scores_pair = np.stack(group_scores_pair, axis=0)
+        rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair)
+        diff_pair = rank_score_pair - expected_rank_score_pair
+        self.assertTrue(not diff_pair.any())
+
+    def test5b_score_rank(self):
+        # Score rank using identity metric parents
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
+        expected_rank_score_single = np.array([0, 1])
+        expected_rank_score_pair = np.zeros((2, 2))
+        expected_rank_score_pair[0, 1] = 1
+        group_scores_single = []
+        group_scores_pair = []
+        for f in self.first_parents:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.first_parents[f]['single'])
+            group_scores_single.append(group_score_single)
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.first_parents[f]['pair'])
+            group_scores_pair.append(group_score_pair)
+        group_scores_single = np.stack(group_scores_single, axis=0)
+        rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single)
+        diff_single = rank_score_single - expected_rank_score_single
+        self.assertTrue(not diff_single.any())
+        group_scores_pair = np.stack(group_scores_pair, axis=0)
+        rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair)
+        diff_pair = rank_score_pair - expected_rank_score_pair
+        self.assertTrue(not diff_pair.any())
