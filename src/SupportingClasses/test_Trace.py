@@ -194,16 +194,35 @@ class TestTrace(TestBase):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
                             position_specific=True, pair_specific=False)
         trace_small.characterize_rank_groups(processes=self.max_threads)
+
+        print(max(list(assignments.keys())))
+        print(min(list(assignments.keys())))
+        # exit()
+
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
-        group_queue = Queue(maxsize=(2 * self.query_aln_fa_small.seq_length) - 1)
-        rank_queue = Queue(maxsize=self.query_aln_fa_small.seq_length)
+        # group_queue = Queue(maxsize=10000)
+        group_queue = Queue(maxsize=np.sum(range(self.query_aln_fa_small.size + 1)))
+        # group_queue = Queue(maxsize=(2 * self.query_aln_fa_small.size) - 1)
+        rank_queue = Queue(maxsize=self.query_aln_fa_small.size)
         manager = Manager()
         group_dict = manager.dict()
         rank_dict = manager.dict()
+        print(np.sum(range(self.query_aln_fa_small.size + 1)))
+        count = 0
+        for rank in sorted(assignments.keys(), reverse=True):
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                count += 1
+                # print(count)
+                group_queue.put_nowait((rank, group))
+                group_dict[rank] = []
         init_trace_pool(position_type='single', group_queue=group_queue, rank_queue=rank_queue,
                         a_dict=trace_small.assignments, scorer=scorer, group_dict=group_dict, rank_dict=rank_dict)
         trace_sub(processor=1)
         rank_dict = dict(rank_dict)
+
+        print(max(list(rank_dict.keys())))
+        print(min(list(rank_dict.keys())))
+
         for rank in sorted(assignments.keys(), reverse=True):
             group_scores = []
             for group in sorted(assignments[rank].keys(), reverse=True):

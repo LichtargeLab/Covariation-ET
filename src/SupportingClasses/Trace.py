@@ -52,7 +52,8 @@ class Trace(object):
             processes (int): The maximum number of sequences to use when performing this characterization.
         """
         start = time()
-        queue = Queue(maxsize=(self.aln.size * 2) - 1)
+        # queue = Queue(maxsize=(self.aln.size * 2) - 1)
+        queue = Queue(maxsize=np.sum(range(self.aln.size)))
         for t in self.phylo_tree.tree.get_terminals():
             queue.put_nowait(t)
         for n in self.phylo_tree.traverse_bottom_up():
