@@ -211,6 +211,7 @@ class TestTrace(TestBase):
             group_scores = np.stack(group_scores, axis=0)
             rank_scores = np.sum(group_scores, axis=0)
             for i in range(self.query_aln_fa_small.seq_length):
+                print('Rank: {} and I: {}'.format(rank, i))
                 if rank_scores[i] == 0:
                     self.assertEqual(rank_dict[rank][i], 0)
                 else:
