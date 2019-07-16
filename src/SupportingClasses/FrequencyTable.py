@@ -81,7 +81,8 @@ class FrequencyTable(object):
         """
         Increment Count
 
-        This function increments the count of a character or string for the specified position.
+        This function increments the count of a character or string for the specified position. It also updates the
+        frequencies attribute so that stale frequencies cannot be accidentally used.
 
         Args:
             pos (int/tuple): A sequence position from the alignment.
@@ -89,13 +90,7 @@ class FrequencyTable(object):
         """
         self._add_pos_char(pos, char)
         self.__position_table[pos][char]['count'] += 1
-
-    # def compute_frequencies(self, normalization=None):
-    #     """
-    #
-    #     :param normalization:
-    #     :return:
-    #     """
+        self.frequencies = False
 
     def get_table(self):
         """
@@ -143,7 +138,7 @@ class FrequencyTable(object):
 
         Args:
             pos (int/tuple): A sequence position from the alignment.
-            char (char/str): The character or string to add for the specified position.
+            char (char/str): The character or string to look for at the specified position.
         Returns:
             int: The count of the specified character at the specified position.
         """
@@ -194,6 +189,110 @@ class FrequencyTable(object):
                 mat[i, j] = self.get_count(pos=pos, char=char)
         return mat
 
+    def _find_normalization(self):
+        """
+        Find Normalization
+
+        This function looks for the largest number of sequences characterized for any given position by computing the
+        cumulative sum over all characters observed at each position.
+
+        Returns:
+            int: The greatest number of observations made for any position in the alignment.
+        """
+        count_mat = self.get_count_matrix()
+        if count_mat is None:
+            return 0
+        cumulative_counts = np.sum(count_mat, axis=0)
+        max_count = int(np.max(cumulative_counts))
+        return max_count
+
+    def compute_frequencies(self, normalization=None):
+        """
+        Compute Frequencies
+
+        This function uses the counts for each position to compute frequencies for each character observed. If a
+        normalization value is provided it will be used as the denominator of the frequency calculation. If no
+        normalization value is provided the _find_normalization will be called which will determine the max number of
+        observations for any column and will be used as the denominator.
+
+        Args:
+            normalization (int): The size of the alignment which is characterized by this FrequencyTable. If None,
+            _find_normalization will be used to determine the normalization value.
+        """
+        if normalization is None:
+            normalization = self._find_normalization()
+        for pos in self.__position_table:
+            for char in self.__position_table[pos]:
+                self.__position_table[pos][char]['frequency'] = (float(self.__position_table[pos][char]['count']) /
+                                                                 normalization)
+        self.frequencies = True
+
+    def get_frequency(self, pos, char):
+        """
+        Get Frequency
+
+        Returns the frequency for a character at a specific position, if the character is not present at that position 0
+        is returned.
+
+        Args:
+            pos (int/tuple): A sequence position from the alignment.
+            char (char/str): The character or string to look for the at specified position.
+        Returns:
+            float: The frequency of the specified character at the specified position.
+        """
+        if not self.frequencies:
+            raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
+        if (pos in self.__position_table) and (char in self.__position_table[pos]):
+            return self.__position_table[pos][char]['frequency']
+        else:
+            return 0.0
+
+    def get_frequency_array(self, pos):
+        """
+        Get Frequency Array
+
+        Returns an array containing the frequencies for all characters at a specified position, the order for the
+        frequencies is the same as the order of the characters returned by get_chars().
+
+        Args:
+            pos (int/tuple): A sequence position from the alignment.
+        Returns:
+            np.array: An array of the frequencies for characters at a given position.
+        """
+        if not self.frequencies:
+            raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
+        if pos in self.__position_table:
+            return np.array([self.__position_table[pos][char]['frequency'] for char in self.get_chars(pos)],
+                            dtype=np.dtype(float))
+        else:
+            return None
+
+    def get_frequency_matrix(self):
+        """
+        Get Frequency Matrix
+
+        Returns a matrix of frequencies where axis=0 represents characters from the alphabet and axis=1 represents
+        positions in the alignment.
+
+        Returns:
+            np.array: An nXm array where n is the length of the alphabet used by the alignment (plus the gap character)
+            and m is the length of the sequences in the alignment. Each position in the matrix specifies the
+            frequency of a character at a given position.
+        """
+        if not self.frequencies:
+            raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
+        if len(self.__position_table) == 0:
+            return None
+        alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
+        mat = np.zeros((len(self.__position_table), alpha_size))
+        positions = self.get_positions()
+        for i in range(len(positions)):
+            pos = positions[i]
+            for char in self.__position_table[pos]:
+                j = mapping[char]
+                mat[i, j] = self.get_frequency(pos=pos, char=char)
+        return mat
+
     def __add__(self, other):
         """
         Overloads the + operator, combining the information from two FrequencyTables. The intention of this behavior is
@@ -215,26 +314,22 @@ class FrequencyTable(object):
         merged_alpha = Alphabet._consensus_alphabet([self.alphabet, other.alphabet])
         # Copy current table as starting point
         merged_table = deepcopy(self.__position_table)
-        # If frequencies had been computed, remove them from the new instance of the table
-        if self.frequencies:
-            for pos in self.__position_table:
-                for char in self.__position_table[pos]:
-                    del(merged_table[pos][char]['frequency'])
         # Add any positions/characters in the other table which were not in the current table, and combine any that were
         # in both
         for pos in other.get_positions():
             if pos not in merged_table:
                 merged_table[pos] = other.__position_table[pos]
-                # If frequencies had been computed, remove them from the new instance of the table
-                if other.frequencies:
-                    for char in other.__position_table[pos]:
-                        del (merged_table[pos][char]['frequency'])
                 continue
             for char in other.get_chars(pos=pos):
                 if char not in merged_table[pos]:
                     merged_table[pos][char] = {'count': other.get_count(pos=pos, char=char)}
                 else:
                     merged_table[pos][char]['count'] += other.get_count(pos=pos, char=char)
+        # If frequencies had been computed, remove them from the new instance of the table
+        for pos in merged_table:
+            for char in merged_table[pos]:
+                if 'frequency' in merged_table[pos][char]:
+                    del (merged_table[pos][char]['frequency'])
         new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
         new_table.__position_table = merged_table
         return new_table

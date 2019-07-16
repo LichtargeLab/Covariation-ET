@@ -281,7 +281,239 @@ class TestFrequencyTable(TestBase):
         diff3 = freq_table.get_count_matrix() - expected_table2
         self.assertTrue(not diff3.any())
 
-    def test11a_add(self):
+    def test11a__find_normalization(self):
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        self.assertEqual(freq_table._find_normalization(), 0)
+        freq_table.increment_count(pos=1, char='A')
+        self.assertEqual(freq_table._find_normalization(), 1)
+        freq_table.increment_count(pos=1, char='A')
+        self.assertEqual(freq_table._find_normalization(), 2)
+        freq_table.increment_count(pos=2, char='G')
+        self.assertEqual(freq_table._find_normalization(), 2)
+
+    def test11b__find_normalization(self):
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        self.assertEqual(freq_table._find_normalization(), 0)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        self.assertEqual(freq_table._find_normalization(), 1)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        self.assertEqual(freq_table._find_normalization(), 2)
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        self.assertEqual(freq_table._find_normalization(), 2)
+
+    def test12a_compute_frequencies(self):
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {})
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 1, 'frequency': 1.0}}})
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 2, 'frequency': 1.0}}})
+        freq_table.increment_count(pos=2, char='G')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 2, 'frequency': 1.0}},
+                                                  2: {'G': {'count': 1, 'frequency': 0.5}}})
+
+    def test12b_compute_frequencies(self):
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {})
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 1, 'frequency': 1.0}}})
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 2, 'frequency': 1.0}}})
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 2, 'frequency': 1.0}},
+                                                  (2, 3): {'GG': {'count': 1, 'frequency': 0.5}}})
+
+    def test13a_get_frequency(self):
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=1, char='A'), 0.0)
+        self.assertEqual(freq_table.get_frequency(pos=2, char='G'), 0.0)
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=1, char='A'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=2, char='G'), 0.0)
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=1, char='A'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=2, char='G'), 0.0)
+        freq_table.increment_count(pos=2, char='G')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=1, char='A'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=2, char='G'), 0.5)
+
+    def test13b_get_frequency(self):
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=(1, 2), char='AA'), 0.0)
+        self.assertEqual(freq_table.get_frequency(pos=(2, 3), char='GG'), 0.0)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=(1, 2), char='AA'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=(2, 3), char='GG'), 0.0)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=(1, 2), char='AA'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=(2, 3), char='GG'), 0.0)
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency(pos=1, char='A')
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency(pos=(1, 2), char='AA'), 1.0)
+        self.assertEqual(freq_table.get_frequency(pos=(2, 3), char='GG'), 0.5)
+
+    def test14a_get_frequency_array(self):
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertIsNone(freq_table.get_frequency_array(pos=1))
+        self.assertIsNone(freq_table.get_frequency_array(pos=2))
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=1), np.array([1.0]))
+        self.assertIsNone(freq_table.get_frequency_array(pos=2))
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=1), np.array([1.0]))
+        self.assertIsNone(freq_table.get_frequency_array(pos=2))
+        freq_table.increment_count(pos=2, char='G')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=1), np.array([1.0]))
+        self.assertEqual(freq_table.get_frequency_array(pos=2), np.array([0.5]))
+
+    def test14b_get_frequency_array(self):
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertIsNone(freq_table.get_frequency_array(pos=(1, 2)))
+        self.assertIsNone(freq_table.get_frequency_array(pos=(2, 3)))
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=(1, 2)), np.array([1.0]))
+        self.assertIsNone(freq_table.get_frequency_array(pos=(2, 3)))
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=(1, 2)), np.array([1.0]))
+        self.assertIsNone(freq_table.get_frequency_array(pos=(2, 3)))
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_array(pos=1)
+        freq_table.compute_frequencies()
+        self.assertEqual(freq_table.get_frequency_array(pos=(1, 2)), np.array([1.0]))
+        self.assertEqual(freq_table.get_frequency_array(pos=(2, 3)), np.array([0.5]))
+
+    def test15a_get_frequency_matrix(self):
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        alpha_size, gap_chars, mapping = build_mapping(alphabet=freq_table.alphabet)
+        self.assertIsNone(freq_table.get_frequency_matrix())
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        expected_table = np.zeros((1, alpha_size))
+        expected_table[0, mapping['A']] = 1.0
+        diff = freq_table.get_frequency_matrix() - expected_table
+        self.assertTrue(not diff.any())
+        freq_table.increment_count(pos=1, char='A')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        diff2 = freq_table.get_frequency_matrix() - expected_table
+        self.assertTrue(not diff2.any())
+        freq_table.increment_count(pos=2, char='G')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        expected_table2 = np.zeros((2, alpha_size))
+        expected_table2[0, mapping['A']] = 1.0
+        expected_table2[1, mapping['G']] = 0.5
+        diff3 = freq_table.get_frequency_matrix() - expected_table2
+        self.assertTrue(not diff3.any())
+
+    def test15b_get_frequency_matrix(self):
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        alpha_size, gap_chars, mapping = build_mapping(alphabet=freq_table.alphabet)
+        self.assertIsNone(freq_table.get_frequency_matrix())
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        expected_table = np.zeros((1, alpha_size))
+        expected_table[0, mapping['AA']] = 1.0
+        diff = freq_table.get_frequency_matrix() - expected_table
+        self.assertTrue(not diff.any())
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        diff2 = freq_table.get_frequency_matrix() - expected_table
+        self.assertTrue(not diff2.any())
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        with self.assertRaises(RuntimeError):
+            freq_table.get_frequency_matrix()
+        freq_table.compute_frequencies()
+        expected_table2 = np.zeros((2, alpha_size))
+        expected_table2[0, mapping['AA']] = 1.0
+        expected_table2[1, mapping['GG']] = 0.5
+        diff3 = freq_table.get_frequency_matrix() - expected_table2
+        self.assertTrue(not diff3.any())
+
+    def test16a_add(self):
         freq_table = FrequencyTable(alphabet=FullIUPACProtein())
         freq_table.increment_count(pos=1, char='A')
         freq_table.increment_count(pos=1, char='A')
@@ -317,7 +549,7 @@ class TestFrequencyTable(TestBase):
             for c in freq_table.get_chars(pos=i):
                 self.assertEqual(freq_table.get_count(pos=i, char=c), freq_table_sum2.get_count(pos=i, char=c))
 
-    def test11b_add(self):
+    def test16b_add(self):
         freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
         freq_table.increment_count(pos=(1, 2), char='AA')
         freq_table.increment_count(pos=(1, 2), char='AA')
@@ -352,3 +584,145 @@ class TestFrequencyTable(TestBase):
             self.assertEqual(freq_table.get_chars(pos=i), freq_table_sum2.get_chars(pos=i))
             for c in freq_table.get_chars(pos=i):
                 self.assertEqual(freq_table.get_count(pos=i, char=c), freq_table_sum2.get_count(pos=i, char=c))
+
+    def test16c_add(self):
+        # Ensure that if frequencies have been computed for the first table, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table.increment_count(pos=1, char='A')
+        freq_table.increment_count(pos=1, char='A')
+        freq_table1 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table1.increment_count(pos=1, char='A')
+        freq_table1.compute_frequencies()  # Compute frequencies for first table
+        freq_table2 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table2.increment_count(pos=1, char='A')
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=2, char='G')
+        freq_table3 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table3.increment_count(pos=2, char='G')
+        freq_table_sum1.compute_frequencies()  # Compute frequencies for the first table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16d_add(self):
+        # Ensure that if frequencies have been computed for the first table, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table1 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table1.increment_count(pos=(1, 2), char='AA')
+        freq_table1.compute_frequencies()  # Compute frequencies for first table
+        freq_table2 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table2.increment_count(pos=(1, 2), char='AA')
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        freq_table3 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table3.increment_count(pos=(2, 3), char='GG')
+        freq_table_sum1.compute_frequencies()  # Compute frequencies for the first table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16e_add(self):
+        # Ensure that if frequencies have been computed for the second table, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table.increment_count(pos=1, char='A')
+        freq_table.increment_count(pos=1, char='A')
+        freq_table1 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table1.increment_count(pos=1, char='A')
+        freq_table2 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table2.increment_count(pos=1, char='A')
+        freq_table2.compute_frequencies()  # Compute frequencies for second table
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=2, char='G')
+        freq_table3 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table3.increment_count(pos=2, char='G')
+        freq_table3.compute_frequencies()  # Compute frequencies for the second table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16f_add(self):
+        # Ensure that if frequencies have been computed for the second table, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table1 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table1.increment_count(pos=(1, 2), char='AA')
+        freq_table2 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table2.increment_count(pos=(1, 2), char='AA')
+        freq_table2.compute_frequencies()  # Compute frequencies for second table
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        freq_table3 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table3.increment_count(pos=(2, 3), char='GG')
+        freq_table3.compute_frequencies()  # Compute frequencies for the second table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16g_add(self):
+        # Ensure that if frequencies have been computed for both tables, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table.increment_count(pos=1, char='A')
+        freq_table.increment_count(pos=1, char='A')
+        freq_table1 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table1.increment_count(pos=1, char='A')
+        freq_table1.compute_frequencies()  # Compute frequencies for first table
+        freq_table2 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table2.increment_count(pos=1, char='A')
+        freq_table2.compute_frequencies()  # Compute frequencies for second table
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=2, char='G')
+        freq_table3 = FrequencyTable(alphabet=FullIUPACProtein())
+        freq_table3.increment_count(pos=2, char='G')
+        freq_table3.compute_frequencies()  # Compute frequencies for the second table
+        freq_table_sum1.compute_frequencies()  # Compute frequencies for the first table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16h_add(self):
+        # Ensure that if frequencies have been computed for both tables, the merged table has no frequencies.
+        freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table.increment_count(pos=(1, 2), char='AA')
+        freq_table1 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table1.increment_count(pos=(1, 2), char='AA')
+        freq_table1.compute_frequencies()  # Compute frequencies for first table
+        freq_table2 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table2.increment_count(pos=(1, 2), char='AA')
+        freq_table2.compute_frequencies()  # Compute frequencies for second table
+        freq_table_sum1 = freq_table1 + freq_table2
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        freq_table.increment_count(pos=(2, 3), char='GG')
+        freq_table3 = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
+        freq_table3.increment_count(pos=(2, 3), char='GG')
+        freq_table3.compute_frequencies()  # Compute frequencies for the second table
+        freq_table_sum1.compute_frequencies()  # Compute frequencies for the first table
+        freq_table_sum2 = freq_table_sum1 + freq_table3
+        # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
+        # are equal tests what we are hoping to test.
+        self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
