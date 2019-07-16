@@ -21,7 +21,9 @@ class FrequencyTable(object):
         be 1, if it measures pairs of positions this should be 2, etc.
         __position_table (dict): A structure storing the position specific counts for amino acids found in the
         alignment.
-        frequencies (bool): Whether or not the frequencies for this table have been computed yet or not.
+        __frequencies (bool): Whether or not the frequencies for this table have been computed yet or not.
+        __lock (multiprocessing.RLock): A recrusive lock used to add an acquire/release clause around all functions in
+        order to make this class safer for use in synchronized settings.
     """
 
     def __init__(self, alphabet, pos_size=1):
@@ -38,7 +40,7 @@ class FrequencyTable(object):
         self.position_size = pos_size
         self.__position_table = {}
         self.__depth = 0
-        self.frequencies = False
+        self.__frequencies = False
         self.__lock = RLock()
 
     def _add_position(self, pos):
@@ -101,7 +103,7 @@ class FrequencyTable(object):
         total_depth = np.sum(self.get_count_array(pos=pos))
         if total_depth > self.__depth:
             self.__depth = total_depth
-        self.frequencies = False
+        self.__frequencies = False
         self.__lock.release()
 
     def get_table(self):
@@ -241,12 +243,12 @@ class FrequencyTable(object):
         each character observed.
         """
         self.__lock.acquire()
-        if not self.frequencies:
+        if not self.__frequencies:
             for pos in self.__position_table:
                 for char in self.__position_table[pos]:
                     self.__position_table[pos][char]['frequency'] = (float(self.__position_table[pos][char]['count']) /
                                                                      self.__depth)
-            self.frequencies = True
+            self.__frequencies = True
         self.__lock.release()
 
     def get_frequency(self, pos, char):
@@ -263,7 +265,7 @@ class FrequencyTable(object):
             float: The frequency of the specified character at the specified position.
         """
         self.__lock.acquire()
-        if not self.frequencies:
+        if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if (pos in self.__position_table) and (char in self.__position_table[pos]):
             freq = self.__position_table[pos][char]['frequency']
@@ -285,7 +287,7 @@ class FrequencyTable(object):
             np.array: An array of the frequencies for characters at a given position.
         """
         self.__lock.acquire()
-        if not self.frequencies:
+        if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if pos in self.__position_table:
             arr = np.array([self.__position_table[pos][char]['frequency'] for char in self.get_chars(pos)],
@@ -308,7 +310,7 @@ class FrequencyTable(object):
             frequency of a character at a given position.
         """
         self.__lock.acquire()
-        if not self.frequencies:
+        if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if len(self.__position_table) == 0:
             mat = None

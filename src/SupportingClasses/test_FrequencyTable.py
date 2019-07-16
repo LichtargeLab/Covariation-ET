@@ -33,7 +33,6 @@ class TestFrequencyTable(TestBase):
             self.assertTrue(char in freq_table.alphabet.letters)
         self.assertEqual(freq_table.position_size, 1)
         self.assertTrue(freq_table.get_table() == {})
-        self.assertFalse(freq_table.frequencies)
         self.assertEqual(freq_table.get_depth(), 0)
 
     def test1b_init(self):
@@ -44,7 +43,6 @@ class TestFrequencyTable(TestBase):
         self.assertFalse('-' in freq_table.alphabet.letters)
         self.assertEqual(freq_table.position_size, 1)
         self.assertTrue(freq_table.get_table() == {})
-        self.assertFalse(freq_table.frequencies)
         self.assertEqual(freq_table.get_depth(), 0)
 
     def test1c_init(self):
