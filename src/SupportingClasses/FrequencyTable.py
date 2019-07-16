@@ -36,6 +36,7 @@ class FrequencyTable(object):
         self.alphabet = alphabet
         self.position_size = pos_size
         self.__position_table = {}
+        self.__depth = 0
         self.frequencies = False
 
     def _add_position(self, pos):
@@ -90,6 +91,9 @@ class FrequencyTable(object):
         """
         self._add_pos_char(pos, char)
         self.__position_table[pos][char]['count'] += 1
+        total_depth = np.sum(self.get_count_array(pos=pos))
+        if total_depth > self.__depth:
+            self.__depth = total_depth
         self.frequencies = False
 
     def get_table(self):
@@ -104,6 +108,17 @@ class FrequencyTable(object):
             character at that position.
         """
         return deepcopy(self.__position_table)
+
+    def get_depth(self):
+        """
+        Get Depth
+
+        Returns the maximum number of observations for any position.
+
+        Returns:
+             int: The maximum number of observations found for any position in the FrequencyTable
+        """
+        return  deepcopy(self.__depth)
 
     def get_positions(self):
         """
@@ -189,22 +204,22 @@ class FrequencyTable(object):
                 mat[i, j] = self.get_count(pos=pos, char=char)
         return mat
 
-    def _find_normalization(self):
-        """
-        Find Normalization
-
-        This function looks for the largest number of sequences characterized for any given position by computing the
-        cumulative sum over all characters observed at each position.
-
-        Returns:
-            int: The greatest number of observations made for any position in the alignment.
-        """
-        count_mat = self.get_count_matrix()
-        if count_mat is None:
-            return 0
-        cumulative_counts = np.sum(count_mat, axis=0)
-        max_count = int(np.max(cumulative_counts))
-        return max_count
+    # def _find_normalization(self):
+    #     """
+    #     Find Normalization
+    #
+    #     This function looks for the largest number of sequences characterized for any given position by computing the
+    #     cumulative sum over all characters observed at each position.
+    #
+    #     Returns:
+    #         int: The greatest number of observations made for any position in the alignment.
+    #     """
+    #     count_mat = self.get_count_matrix()
+    #     if count_mat is None:
+    #         return 0
+    #     cumulative_counts = np.sum(count_mat, axis=0)
+    #     max_count = int(np.max(cumulative_counts))
+    #     return max_count
 
     def compute_frequencies(self, normalization=None):
         """
@@ -219,12 +234,12 @@ class FrequencyTable(object):
             normalization (int): The size of the alignment which is characterized by this FrequencyTable. If None,
             _find_normalization will be used to determine the normalization value.
         """
-        if normalization is None:
-            normalization = self._find_normalization()
+        # if normalization is None:
+        #     normalization = self._find_normalization()
         for pos in self.__position_table:
             for char in self.__position_table[pos]:
                 self.__position_table[pos][char]['frequency'] = (float(self.__position_table[pos][char]['count']) /
-                                                                 normalization)
+                                                                 self.__depth)
         self.frequencies = True
 
     def get_frequency(self, pos, char):
@@ -332,4 +347,5 @@ class FrequencyTable(object):
                     del (merged_table[pos][char]['frequency'])
         new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
         new_table.__position_table = merged_table
+        new_table.__depth = int(np.max(np.sum(new_table.get_count_matrix(), axis=0)))
         return new_table
