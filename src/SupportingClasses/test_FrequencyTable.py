@@ -33,6 +33,7 @@ class TestFrequencyTable(TestBase):
             self.assertTrue(char in freq_table.alphabet.letters)
         self.assertEqual(freq_table.position_size, 1)
         self.assertTrue(freq_table.get_table() == {})
+        self.assertFalse(freq_table.frequencies)
 
     def test1b_init(self):
         freq_table = FrequencyTable(alphabet=FullIUPACProtein())
@@ -42,6 +43,7 @@ class TestFrequencyTable(TestBase):
         self.assertFalse('-' in freq_table.alphabet.letters)
         self.assertEqual(freq_table.position_size, 1)
         self.assertTrue(freq_table.get_table() == {})
+        self.assertFalse(freq_table.frequencies)
 
     def test1c_init(self):
         with self.assertRaises(ValueError):
@@ -87,13 +89,13 @@ class TestFrequencyTable(TestBase):
             freq_table._add_pos_char(pos=(1, 2), char='AA')
         # Test inserting single correct position and character
         freq_table._add_pos_char(pos=1, char='A')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 0}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 0}}})
         # Test re-inserting single correct position and character
         freq_table._add_pos_char(pos=1, char='A')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 0}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 0}}})
         # Test inserting another correct position and character
         freq_table._add_pos_char(pos=2, char='G')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 0}, 2: {'G': 0}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 0}}, 2: {'G': {'count': 0}}})
 
     def test3b__add_pos_char(self):
         freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
@@ -105,13 +107,13 @@ class TestFrequencyTable(TestBase):
             freq_table._add_pos_char(pos=(1, 2, 3), char='AAA')
         # Test inserting single correct position and character
         freq_table._add_pos_char(pos=(1, 2), char='AA')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 0}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 0}}})
         # Test re-inserting single correct position and character
         freq_table._add_pos_char(pos=(1, 2), char='AA')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 0}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 0}}})
         # Test inserting another correct position and character
         freq_table._add_pos_char(pos=(2, 3), char='GG')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 0}, (2, 3): {'GG': 0}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 0}}, (2, 3): {'GG': {'count': 0}}})
 
     def test4a_increment_count(self):
         freq_table = FrequencyTable(alphabet=FullIUPACProtein())
@@ -120,13 +122,13 @@ class TestFrequencyTable(TestBase):
             freq_table.increment_count(pos=(1, 2), char='AA')
         # Test inserting single correct position and character
         freq_table.increment_count(pos=1, char='A')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 1}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 1}}})
         # Test re-inserting single correct position and character
         freq_table.increment_count(pos=1, char='A')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 2}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 2}}})
         # Test inserting another correct position and character
         freq_table.increment_count(pos=2, char='G')
-        self.assertEqual(freq_table.get_table(), {1: {'A': 2}, 2: {'G': 1}})
+        self.assertEqual(freq_table.get_table(), {1: {'A': {'count': 2}}, 2: {'G': {'count': 1}}})
 
     def test4b_increment_count(self):
         freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2), pos_size=2)
@@ -138,13 +140,13 @@ class TestFrequencyTable(TestBase):
             freq_table.increment_count(pos=(1, 2, 3), char='AAA')
         # Test inserting single correct position and character
         freq_table.increment_count(pos=(1, 2), char='AA')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 1}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 1}}})
         # Test re-inserting single correct position and character
         freq_table.increment_count(pos=(1, 2), char='AA')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 2}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 2}}})
         # Test inserting another correct position and character
         freq_table.increment_count(pos=(2, 3), char='GG')
-        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': 2}, (2, 3): {'GG': 1}})
+        self.assertEqual(freq_table.get_table(), {(1, 2): {'AA': {'count': 2}}, (2, 3): {'GG': {'count': 1}}})
 
     def test5_get_table(self):
         freq_table = FrequencyTable(alphabet=FullIUPACProtein())

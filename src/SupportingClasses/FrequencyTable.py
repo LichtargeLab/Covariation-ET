@@ -20,6 +20,7 @@ class FrequencyTable(object):
         be 1, if it measures pairs of positions this should be 2, etc.
         __position_table (dict): A structure storing the position specific counts for amino acids found in the
         alignment.
+        frequencies (bool): Whether or not the frequencies for this table have been computed yet or not.
     """
 
     def __init__(self, alphabet, pos_size=1):
@@ -35,6 +36,7 @@ class FrequencyTable(object):
         self.alphabet = alphabet
         self.position_size = pos_size
         self.__position_table = {}
+        self.frequencies = False
 
     def _add_position(self, pos):
         """
@@ -73,7 +75,7 @@ class FrequencyTable(object):
                                                                                             self.alphabet.letters))
         self._add_position(pos)
         if char not in self.__position_table[pos]:
-            self.__position_table[pos][char] = 0
+            self.__position_table[pos][char] = {'count' : 0}
 
     def increment_count(self, pos, char):
         """
@@ -86,7 +88,14 @@ class FrequencyTable(object):
             char (char/str): The character or string to add for the specified position.
         """
         self._add_pos_char(pos, char)
-        self.__position_table[pos][char] += 1
+        self.__position_table[pos][char]['count'] += 1
+
+    # def compute_frequencies(self, normalization=None):
+    #     """
+    #
+    #     :param normalization:
+    #     :return:
+    #     """
 
     def get_table(self):
         """
@@ -139,7 +148,7 @@ class FrequencyTable(object):
             int: The count of the specified character at the specified position.
         """
         if (pos in self.__position_table) and (char in self.__position_table[pos]):
-            return self.__position_table[pos][char]
+            return self.__position_table[pos][char]['count']
         else:
             return 0
 
@@ -156,7 +165,8 @@ class FrequencyTable(object):
             np.array: An array of the counts for characters at a given position.
         """
         if pos in self.__position_table:
-            return np.array([self.__position_table[pos][char] for char in self.get_chars(pos)], dtype=np.dtype(int))
+            return np.array([self.__position_table[pos][char]['count'] for char in self.get_chars(pos)],
+                            dtype=np.dtype(int))
         else:
             return None
 
@@ -188,7 +198,8 @@ class FrequencyTable(object):
         """
         Overloads the + operator, combining the information from two FrequencyTables. The intention of this behavior is
         that during the trace FrequencyTables can be joined as nodes in the phylogenetic tree are joined, such that more
-        expensive calculations can be avoided.
+        expensive calculations can be avoided. If the frequencies for either table have been calculated before, these
+        are not included when combining the two tables.
 
         Args:
             other (FrequencyTable): Another instance of the FrequencyTable class which should be combined with this one.
@@ -200,17 +211,30 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTable can only be combined with another FrequencyTable instance.')
         if self.position_size != other.position_size:
             raise ValueError('FrequencyTables must have the same position size to be joined.')
+        # Determine the alphabet from the two FrequencyTables
         merged_alpha = Alphabet._consensus_alphabet([self.alphabet, other.alphabet])
+        # Copy current table as starting point
         merged_table = deepcopy(self.__position_table)
-        for i in other.get_positions():
-            if i not in merged_table:
-                merged_table[i] = other.__position_table[i]
+        # If frequencies had been computed, remove them from the new instance of the table
+        if self.frequencies:
+            for pos in self.__position_table:
+                for char in self.__position_table[pos]:
+                    del(merged_table[pos][char]['frequency'])
+        # Add any positions/characters in the other table which were not in the current table, and combine any that were
+        # in both
+        for pos in other.get_positions():
+            if pos not in merged_table:
+                merged_table[pos] = other.__position_table[pos]
+                # If frequencies had been computed, remove them from the new instance of the table
+                if other.frequencies:
+                    for char in other.__position_table[pos]:
+                        del (merged_table[pos][char]['frequency'])
                 continue
-            for char in other.get_chars(pos=i):
-                if char not in merged_table[i]:
-                    merged_table[i][char] = other.get_count(pos=i, char=char)
+            for char in other.get_chars(pos=pos):
+                if char not in merged_table[pos]:
+                    merged_table[pos][char] = {'count': other.get_count(pos=pos, char=char)}
                 else:
-                    merged_table[i][char] += other.get_count(pos=i, char=char)
+                    merged_table[pos][char]['count'] += other.get_count(pos=pos, char=char)
         new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
         new_table.__position_table = merged_table
         return new_table
