@@ -5,7 +5,10 @@ Created on July 10, 2019
 """
 import numpy as np
 from test_Base import TestBase
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import Alphabet, Gapped
+from Bio.Align import MultipleSeqAlignment
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
@@ -718,3 +721,43 @@ class TestFrequencyTable(TestBase):
         # Since frequencies were not compute for the original frequency table checking that the underlying dictionaries
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum2.get_table())
+
+    def test16i_add(self):
+        # Test for correct depth after combining two frequency tables.
+        alpha = FullIUPACProtein()
+        seq1 = SeqRecord(Seq('MV', alphabet=alpha), id='Seq1')
+        seq3 = SeqRecord(Seq('MY', alphabet=alpha), id='Seq3')
+        aln3 = MultipleSeqAlignment([seq3], alphabet=alpha)
+        seq_aln3 = SeqAlignment(file_name='test', query_id='Seq1')
+        seq_aln3.seq_length = 2
+        seq_aln3.size = 1
+        seq_aln3.seq_order = ['Seq3']
+        seq_aln3.alignment = aln3
+        seq_aln3.alphabet = alpha
+        seq_aln3.query_sequence = seq1.seq
+        seq_aln3.marked = [False]
+        single3, pair3 = seq_aln3.characterize_positions()
+        seq4 = SeqRecord(Seq('MT', alphabet=alpha), id='Seq4')
+        aln4 = MultipleSeqAlignment([seq4], alphabet=alpha)
+        seq_aln4 = SeqAlignment(file_name='test', query_id='Seq1')
+        seq_aln4.seq_length = 2
+        seq_aln4.size = 1
+        seq_aln4.seq_order = ['Seq4']
+        seq_aln4.alignment = aln4
+        seq_aln4.alphabet = alpha
+        seq_aln4.query_sequence = seq1.seq
+        seq_aln4.marked = [False]
+        single4, pair4 = seq_aln4.characterize_positions()
+        aln6 = MultipleSeqAlignment([seq3, seq4], alphabet=alpha)
+        seq_aln6 = SeqAlignment(file_name='test', query_id='Seq1')
+        seq_aln6.seq_length = 2
+        seq_aln6.size = 2
+        seq_aln6.seq_order = ['Seq3', 'Seq4']
+        seq_aln6.alignment = aln6
+        seq_aln6.alphabet = alpha
+        seq_aln6.query_sequence = seq1.seq
+        seq_aln6.marked = [False, False]
+        single6 = single3 + single4
+        pair6 = pair3 + pair4
+        self.assertEqual(single6.get_depth(), 2)
+        self.assertEqual(pair6.get_depth(), 2)

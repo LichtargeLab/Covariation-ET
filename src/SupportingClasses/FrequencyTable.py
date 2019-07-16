@@ -366,6 +366,6 @@ class FrequencyTable(object):
                     del (merged_table[pos][char]['frequency'])
         new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
         new_table.__position_table = merged_table
-        new_table.__depth = int(np.max(np.sum(new_table.get_count_matrix(), axis=0)))
+        new_table.__depth = int(np.max(np.sum(new_table.get_count_matrix(), axis=1)))
         self.__lock.release()
         return new_table
