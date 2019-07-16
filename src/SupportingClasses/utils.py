@@ -4,7 +4,7 @@ Created on June 16, 2019
 @author: Daniel Konecki
 """
 import numpy as np
-from Bio.Alphabet import Alphabet
+from Bio.Alphabet import Alphabet, Gapped
 
 # Common gap characters
 gap_characters = {'-', '.', '*'}
@@ -28,7 +28,7 @@ def build_mapping(alphabet, skip_letters=None):
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
     """
-    if isinstance(alphabet, Alphabet):
+    if isinstance(alphabet, Alphabet) or isinstance(alphabet, Gapped):
         letters = alphabet.letters
     elif type(alphabet) == list:
         letters = ''.join(alphabet)
