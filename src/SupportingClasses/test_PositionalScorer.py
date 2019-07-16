@@ -12,7 +12,8 @@ from SeqAlignment import SeqAlignment
 from PhylogeneticTree import PhylogeneticTree
 from EvolutionaryTraceAlphabet import FullIUPACProtein
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from PositionalScorer import PositionalScorer, group_identity_score, rank_identity_score
+from PositionalScorer import (PositionalScorer, group_identity_score, rank_identity_score, group_plain_entropy_score,
+                              rank_plain_entropy_score)
 
 
 class TestTrace(TestBase):
@@ -142,13 +143,6 @@ class TestTrace(TestBase):
             pos_scorer = PositionalScorer(seq_length=self.data_set.protein_data[self.small_structure_id]['Length'],
                                           pos_size=2, metric='fake')
 
-    # def test2a_group_identity_score(self):
-    #     for x in self.terminals_small:
-    #         for i in range(self.query_aln_fa_small.seq_length):
-    #             self.assertEqual(group_identity_score(freq_table=self.terminals_small[x]['single'], pos=i), 0)
-    #             for j in range(i, self.query_aln_fa_small.seq_length):
-    #                 self.assertEqual(group_identity_score(freq_table=self.terminals_small[x]['pair'], pos=(i, j)), 0)
-
     def test2a_group_identity_score(self):
         for x in self.terminals:
             for i in range(2):
@@ -156,27 +150,9 @@ class TestTrace(TestBase):
                 for j in range(i + 1, 2):
                     self.assertEqual(group_identity_score(freq_table=self.terminals[x]['pair'], pos=(i, j)), 0)
 
-    # def test2b_group_identity_score(self):
-    #     for x in self.first_parents_small:
-    #         for i in range(self.query_aln_fa_small.seq_length):
-    #             if self.first_parents_small[x]['aln'][0, i] == self.first_parents_small[x]['aln'][1, i]:
-    #                 expected_score = 0
-    #             else:
-    #                 expected_score = 1
-    #             self.assertEqual(group_identity_score(freq_table=self.terminals_small[x]['single'], pos=i),
-    #                              expected_score)
-    #             for j in range(i, self.query_aln_fa_small.seq_length):
-    #                 if ((self.first_parents_small[x]['aln'][0, i]) + self.first_parents_small[x]['aln'][0, j] ==
-    #                         (self.first_parents_small[x]['aln'][1, i] + self.first_parents_small[x]['aln'][1, j])):
-    #                     expected_score = 0
-    #                 else:
-    #                     expected_score = 1
-    #                 self.assertEqual(group_identity_score(freq_table=self.terminals_small[x]['pair'], pos=(i, j)))
-
     def test2b_group_identity_score(self):
         for x in self.first_parents:
             for i in range(2):
-                print('I: {}'.format(i))
                 if self.first_parents[x]['aln'].alignment[0, i] == self.first_parents[x]['aln'].alignment[1, i]:
                     expected_score1 = 0
                 else:
@@ -184,17 +160,12 @@ class TestTrace(TestBase):
                 self.assertEqual(group_identity_score(freq_table=self.first_parents[x]['single'], pos=i),
                                  expected_score1)
                 for j in range(i + 1, 2):
-                    print('J: {}'.format(j))
                     char1 = self.first_parents[x]['aln'].alignment[0, i] + self.first_parents[x]['aln'].alignment[0, j]
-                    print(char1)
                     char2 = self.first_parents[x]['aln'].alignment[1, i] + self.first_parents[x]['aln'].alignment[1, j]
-                    print(char2)
                     if char1 == char2:
                         expected_score2 = 0
                     else:
                         expected_score2 = 1
-                    print('Frequency Table')
-                    print(self.first_parents[x]['pair'].get_table())
                     self.assertEqual(group_identity_score(freq_table=self.first_parents[x]['pair'], pos=(i, j)),
                                      expected_score2)
 
@@ -245,7 +216,81 @@ class TestTrace(TestBase):
         diff_pair = rank_pair_scores - expected_rank_pair_scores
         self.assertTrue(not diff_pair.any())
 
-    def test4a_score_group(self):
+    def test4a_group_plain_entropy_score(self):
+        for x in self.terminals:
+            for i in range(2):
+                self.assertEqual(group_plain_entropy_score(freq_table=self.terminals[x]['single'], pos=i), 0.0)
+                for j in range(i + 1, 2):
+                    self.assertEqual(group_identity_score(freq_table=self.terminals[x]['pair'], pos=(i, j)), 0.0)
+
+    def test4b_group_plain_entropy_score(self):
+        for x in self.first_parents:
+            for i in range(2):
+                if self.first_parents[x]['aln'].alignment[0, i] == self.first_parents[x]['aln'].alignment[1, i]:
+                    expected_score1 = 0.0
+                else:
+                    expected_score1 = -1 * np.sum([0.5 * np.log(0.5)] * 2)
+                self.assertEqual(group_plain_entropy_score(freq_table=self.first_parents[x]['single'], pos=i),
+                                 expected_score1)
+                for j in range(i + 1, 2):
+                    char1 = self.first_parents[x]['aln'].alignment[0, i] + self.first_parents[x]['aln'].alignment[0, j]
+                    char2 = self.first_parents[x]['aln'].alignment[1, i] + self.first_parents[x]['aln'].alignment[1, j]
+                    if char1 == char2:
+                        expected_score2 = 0.0
+                    else:
+                        expected_score2 = -1 * np.sum([0.5 * np.log(0.5)] * 2)
+                    self.assertEqual(group_plain_entropy_score(freq_table=self.first_parents[x]['pair'], pos=(i, j)),
+                                     expected_score2)
+
+    def test5a_rank_plain_entropy_score(self):
+        group_single_scores = []
+        group_pair_scores = []
+        for x in self.terminals:
+            group_single_score = np.zeros(2)
+            group_pair_score = np.zeros((2, 2))
+            for i in range(2):
+                group_single_score[i] = group_plain_entropy_score(freq_table=self.terminals[x]['single'], pos=i)
+                for j in range(i + 1, 2):
+                    group_pair_score[i, j] = group_plain_entropy_score(freq_table=self.terminals[x]['pair'], pos=(i, j))
+            group_single_scores.append(group_single_score)
+            group_pair_scores.append(group_pair_score)
+        group_single_scores = np.stack(group_single_scores, axis=0)
+        rank_single_scores = rank_plain_entropy_score(score_matrix=group_single_scores)
+        expected_rank_single_scores = np.zeros(2)
+        diff_single = rank_single_scores - expected_rank_single_scores
+        self.assertTrue(not diff_single.any())
+        group_pair_scores = np.stack(group_pair_scores, axis=0)
+        rank_pair_scores = rank_plain_entropy_score(score_matrix=group_pair_scores)
+        expected_rank_pair_scores = np.zeros((2, 2))
+        diff_pair = rank_pair_scores - expected_rank_pair_scores
+        self.assertTrue(not diff_pair.any())
+
+    def test5b_rank_plain_entropy_score(self):
+        group_single_scores = []
+        group_pair_scores = []
+        for x in self.first_parents:
+            group_single_score = np.zeros(2)
+            group_pair_score = np.zeros((2, 2))
+            for i in range(2):
+                group_single_score[i] = group_plain_entropy_score(freq_table=self.first_parents[x]['single'], pos=i)
+                for j in range(i + 1, 2):
+                    group_pair_score[i, j] = group_plain_entropy_score(freq_table=self.first_parents[x]['pair'],
+                                                                       pos=(i, j))
+            group_single_scores.append(group_single_score)
+            group_pair_scores.append(group_pair_score)
+        group_single_scores = np.stack(group_single_scores, axis=0)
+        rank_single_scores = rank_plain_entropy_score(score_matrix=group_single_scores)
+        expected_rank_single_scores = np.array([0, -1 * np.sum([0.5 * np.log(0.5)] * 2)])
+        diff_single = rank_single_scores - expected_rank_single_scores
+        self.assertTrue(not diff_single.any())
+        group_pair_scores = np.stack(group_pair_scores, axis=0)
+        rank_pair_scores = rank_plain_entropy_score(score_matrix=group_pair_scores)
+        expected_rank_pair_scores = np.zeros((2, 2))
+        expected_rank_pair_scores[0, 1] = -1 * np.sum([0.5 * np.log(0.5)] * 2)
+        diff_pair = rank_pair_scores - expected_rank_pair_scores
+        self.assertTrue(not diff_pair.any())
+
+    def test6a_score_group(self):
         # Score group using identity metric terminals
         pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
         pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
@@ -259,7 +304,7 @@ class TestTrace(TestBase):
             diff_pair = group_score_pair - expected_group_score_pair
             self.assertTrue(not diff_pair.any())
 
-    def test4b_score_group(self):
+    def test6b_score_group(self):
         # Score group using identity metric parents
         pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
         pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
@@ -274,7 +319,36 @@ class TestTrace(TestBase):
             diff_pair = group_score_pair - expected_group_score_pair
             self.assertTrue(not diff_pair.any())
 
-    def test5a_score_rank(self):
+    def test7a_score_group(self):
+        # Score group using plain entropy metric terminals
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='plain_entropy')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='plain_entropy')
+        expected_group_score_single = np.zeros(2)
+        expected_group_score_pair = np.zeros((2, 2))
+        for t in self.terminals:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.terminals[t]['single'])
+            diff_single = group_score_single - expected_group_score_single
+            self.assertTrue(not diff_single.any())
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.terminals[t]['pair'])
+            diff_pair = group_score_pair - expected_group_score_pair
+            self.assertTrue(not diff_pair.any())
+
+    def test7b_score_group(self):
+        # Score group using plain entropy metric parents
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='plain_entropy')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='plain_entropy')
+        expected_group_score_single = np.array([0, -1 * np.sum([0.5 * np.log(0.5)] * 2)])
+        expected_group_score_pair = np.zeros((2, 2))
+        expected_group_score_pair[0, 1] = -1 * np.sum([0.5 * np.log(0.5)] * 2)
+        for f in self.first_parents:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.first_parents[f]['single'])
+            diff_single = group_score_single - expected_group_score_single
+            self.assertTrue(not diff_single.any())
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.first_parents[f]['pair'])
+            diff_pair = group_score_pair - expected_group_score_pair
+            self.assertTrue(not diff_pair.any())
+
+    def test8a_score_rank(self):
         # Score rank using identity metric terminals
         pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
         pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
@@ -296,13 +370,58 @@ class TestTrace(TestBase):
         diff_pair = rank_score_pair - expected_rank_score_pair
         self.assertTrue(not diff_pair.any())
 
-    def test5b_score_rank(self):
+    def test8b_score_rank(self):
         # Score rank using identity metric parents
         pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='identity')
         pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='identity')
         expected_rank_score_single = np.array([0, 1])
         expected_rank_score_pair = np.zeros((2, 2))
         expected_rank_score_pair[0, 1] = 1
+        group_scores_single = []
+        group_scores_pair = []
+        for f in self.first_parents:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.first_parents[f]['single'])
+            group_scores_single.append(group_score_single)
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.first_parents[f]['pair'])
+            group_scores_pair.append(group_score_pair)
+        group_scores_single = np.stack(group_scores_single, axis=0)
+        rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single)
+        diff_single = rank_score_single - expected_rank_score_single
+        self.assertTrue(not diff_single.any())
+        group_scores_pair = np.stack(group_scores_pair, axis=0)
+        rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair)
+        diff_pair = rank_score_pair - expected_rank_score_pair
+        self.assertTrue(not diff_pair.any())
+
+    def test9a_score_rank(self):
+        # Score rank using plain entropy metric terminals
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='plain_entropy')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='plain_entropy')
+        expected_rank_score_single = np.zeros(2)
+        expected_rank_score_pair = np.zeros((2, 2))
+        group_scores_single = []
+        group_scores_pair = []
+        for t in self.terminals:
+            group_score_single = pos_scorer_single.score_group(freq_table=self.terminals[t]['single'])
+            group_scores_single.append(group_score_single)
+            group_score_pair = pos_scorer_pair.score_group(freq_table=self.terminals[t]['pair'])
+            group_scores_pair.append(group_score_pair)
+        group_scores_single = np.stack(group_scores_single, axis=0)
+        rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single)
+        diff_single = rank_score_single - expected_rank_score_single
+        self.assertTrue(not diff_single.any())
+        group_scores_pair = np.stack(group_scores_pair, axis=0)
+        rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair)
+        diff_pair = rank_score_pair - expected_rank_score_pair
+        self.assertTrue(not diff_pair.any())
+
+    def test9b_score_rank(self):
+        # Score rank using plain entropy metric parents
+        pos_scorer_single = PositionalScorer(seq_length=2, pos_size=1, metric='plain_entropy')
+        pos_scorer_pair = PositionalScorer(seq_length=2, pos_size=2, metric='plain_entropy')
+        expected_rank_score_single = np.array([0, -1 * np.sum([0.5 * np.log(0.5)] * 2)])
+        expected_rank_score_pair = np.zeros((2, 2))
+        expected_rank_score_pair[0, 1] = -1 * np.sum([0.5 * np.log(0.5)] * 2)
         group_scores_single = []
         group_scores_pair = []
         for f in self.first_parents:

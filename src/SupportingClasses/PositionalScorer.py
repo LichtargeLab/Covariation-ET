@@ -4,8 +4,9 @@ Created on July 12, 2019
 @author: Daniel Konecki
 """
 import numpy as np
+from scipy.stats import entropy
 
-ambiguous_metrics = {'identity'}
+ambiguous_metrics = {'identity', 'plain_entropy'}
 
 single_only_metrics = set()
 
@@ -64,7 +65,7 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'identity': group_identity_score}
+        scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score}
         scores = np.zeros(self.dimensions)
         for pos in freq_table.get_positions():
             score = scoring_functions[self.metric](freq_table, pos)
@@ -91,7 +92,7 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'identity': rank_identity_score}
+        scoring_functions = {'identity': rank_identity_score, 'plain_entropy': rank_plain_entropy_score}
         scores = scoring_functions[self.metric](score_tensor)
         return scores
 
@@ -129,8 +130,50 @@ def rank_identity_score(score_matrix):
     Args:
         score_matrix (np.array):
     Returns:
-
+        np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
+        is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
     """
     cumulative_scores = np.sum(score_matrix, axis=0)
     rank_scores = 1 * (cumulative_scores != 0)
+    return rank_scores
+
+
+def group_plain_entropy_score(freq_table, pos):
+    """
+    Group Plain Entropy Score
+
+    This function computes the plain entropy for a given group. In this case entropy is computed using the formula:
+    S = -Sum(pk * log(pk), axis=0) as given by scipy.stats.entropy. Here k is a character in the valid alphabet while
+    pk is the frequency of that character in the alignment at the current position.
+
+    Args:
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the plain entropy
+        score.
+        pos (int/tuple): The position in the sequence/list of pairs for which to compute the plain entropy score.
+    Returns:
+        float: The plain entropy for the specified position in the FrequencyTable.
+    """
+    freq_table.compute_frequencies()
+    positional_frequencies = freq_table.get_frequency_array(pos=pos)
+    positional_entropy = entropy(positional_frequencies)
+    return positional_entropy
+
+
+def rank_plain_entropy_score(score_matrix):
+    """
+    Rank Identity Score
+
+    This computes the final rank specific plain entropy score for all positions in a characterized alignment. The plain
+    identity is normalized by rank.
+
+    Args:
+        score_matrix (np.array):
+    Returns:
+        np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
+        is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
+    """
+    rank = score_matrix.shape[0]
+    weight = 1.0 / rank
+    cumulative_scores = np.sum(score_matrix, axis=0)
+    rank_scores = weight * cumulative_scores
     return rank_scores
