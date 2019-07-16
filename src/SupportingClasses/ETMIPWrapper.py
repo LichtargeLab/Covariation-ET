@@ -66,6 +66,8 @@ class ETMIPWrapper(object):
         self.tree = None
         self.rank_group_assignments = None
         self.rank_scores = None
+        self.rho = None
+        self.entropy = None
         self.time = None
 
     def check_alignment(self):
@@ -94,12 +96,12 @@ class ETMIPWrapper(object):
         """
         Import Rank Scores
 
-        This function import intermediate ranks files (ending in .tsv) to the self.rank_scores attribute.
+        This function imports intermediate ranks files (ending in .tsv) to the self.rank_scores attribute.
 
         Args:
             out_dir (str): The path to the directory where the ET-MIp scores have been written.
             file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
-            rank_type (str): The rank type ('identity', 'realvalue', etc.) for which to import scores.
+            rank_type (str): The rank type ('identity', 'weak', etc.) for which to import scores.
         Return:
             np.array: Rank scores for each position in the analyzed alignment.
         """
@@ -110,6 +112,30 @@ class ETMIPWrapper(object):
             raise ValueError('Provided directory does not contain expected rank file!')
         rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         self.rank_scores = rank_df['Rank'].values
+
+    def import_entropy_rank_sores(self, out_dir, file_name_format='etc_out.rank_{}_entropy.tsv', rank_type='plain'):
+        """
+        Import Entropy Rank Scores
+
+        This function imports intermediate ranks files (ending in .tsv) to the self.rho and self.entropy attributes.
+
+        Args:
+            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
+            rank_type (str): The rank type ('plain', etc.) for which to import scores.
+        Return:
+            np.array: Rank scores for each position in the analyzed alignment.
+        """
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, file_name_format.format(rank_type))
+        if not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected rank file!')
+        rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
+        self.rho = rank_df['Rho'].values
+        self.entropy = {}
+        for i in range(1, self.alignment.size + 1):
+            self.entropy[i] = rank_df['Rank {} Entropy'.format(i)].values
 
     def import_covariance_scores(self, out_dir):
         """
