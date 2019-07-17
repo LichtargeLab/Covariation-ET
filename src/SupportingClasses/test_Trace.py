@@ -393,10 +393,10 @@ class TestTrace(TestBase):
         trace_small.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
         rank_ids = trace_small.trace(scorer=scorer)
-        print(rank_ids)
-        print(et_mip_obj.rank_scores)
+        # print(rank_ids)
+        # print(et_mip_obj.rank_scores)
         diff_ranks = rank_ids - et_mip_obj.rank_scores
-        print(diff_ranks)
+        # print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
 
     def test3f_trace(self):
@@ -416,8 +416,66 @@ class TestTrace(TestBase):
         trace_large.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
         rank_ids = trace_large.trace(scorer=scorer)
-        print(rank_ids)
-        print(et_mip_obj.rank_scores)
+        # print(rank_ids)
+        # print(et_mip_obj.rank_scores)
         diff_ranks = rank_ids - et_mip_obj.rank_scores
+        # print(diff_ranks)
+        self.assertTrue(not diff_ranks.any())
+
+     ###################################################################################################################
+
+    def test3g_trace(self):
+        # Test trace, metric plain entropy, against ETC small alignment
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        # Perform the wetc traces
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        # Import the values needed to run a comparable trace with the python implementation
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
+        # Import the scores to compare to
+        et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
+        # Perform the trace with the python implementation
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
+        rank_plain_entropy = trace_small.trace(scorer=scorer)
+        # Compare the two sets of scores
+        print(rank_plain_entropy)
+        print(et_mip_obj.rho)
+        diff_ranks = rank_plain_entropy - et_mip_obj.rho
+        print(diff_ranks)
+        self.assertTrue(not diff_ranks.any())
+
+    def test3h_trace(self):
+        # Test trace, metric plain entropy, against ETC large alignment
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        # Perform the wetc traces
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        # Import the values needed to run a comparable trace with the python implementation
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
+        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
+        # Import the scores to compare to
+        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
+        # Perform the trace with the python implementation
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
+        rank_plain_entropy = trace_large.trace(scorer=scorer)
+        # Compare the two sets of scores
+        print(rank_plain_entropy)
+        print(et_mip_obj.rank_scores)
+        diff_ranks = rank_plain_entropy - et_mip_obj.rank_scores
         print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
