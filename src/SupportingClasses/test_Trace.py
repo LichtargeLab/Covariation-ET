@@ -424,7 +424,178 @@ class TestTrace(TestBase):
 
      ###################################################################################################################
 
-    def test3g_trace(self):
+    def test4a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment and plain entropy
+        # metric
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
+        manager = Manager()
+        group_queue = Queue(maxsize=(self.query_aln_fa_small.size * 2) - 1)
+        for node_name in trace_small.unique_nodes:
+            group_queue.put_nowait(node_name)
+        group_dict = manager.dict()
+        init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=True,
+                          pair_specific=False, u_dict=trace_small.unique_nodes)
+        trace_groups(processor=0)
+        self.assertEqual(len(group_dict.keys()), len(trace_small.unique_nodes.keys()))
+        group_dict = dict(group_dict)
+        for node_name in group_dict:
+            self.assertTrue('single_scores' in group_dict[node_name])
+            expected_scores = scorer.score_group(trace_small.unique_nodes[node_name]['single'])
+            diff = group_dict[node_name]['single_scores'] - expected_scores
+            self.assertTrue(not diff.any())
+            self.assertTrue('pair_scores' in group_dict[node_name])
+            self.assertIsNone(group_dict[node_name]['pair_scores'])
+            trace_small.unique_nodes[node_name].update(group_dict[node_name])
+        #
+        rank_queue = Queue(maxsize=self.query_aln_fa_small.size)
+        for rank in assignments:
+            rank_queue.put_nowait(rank)
+        rank_dict = manager.dict()
+        init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=True,
+                         pair_specific=False, a_dict=assignments, u_dict=trace_small.unique_nodes)
+        trace_ranks(processor=0)
+        rank_dict = dict(rank_dict)
+        for rank in assignments.keys():
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                node_name = assignments[rank][group]['node'].name
+                group_scores.append(trace_small.unique_nodes[node_name]['single_scores'])
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            diff = rank_dict[rank] - rank_scores
+            self.assertTrue(not diff.any())
+            # for i in range(self.query_aln_fa_small.seq_length):
+            #     if rank_scores[i] == 0:
+            #         self.assertEqual(rank_dict[rank]['single_ranks'][i], 0)
+            #     else:
+            #         self.assertEqual(rank_dict[rank]['single_ranks'][i], 1)
+
+    def test4b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment and plain entropy
+        # metric
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
+        manager = Manager()
+        group_queue = Queue(maxsize=(self.query_aln_fa_large.size * 2) - 1)
+        for node_name in trace_large.unique_nodes:
+            group_queue.put_nowait(node_name)
+        group_dict = manager.dict()
+        init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=True,
+                          pair_specific=False, u_dict=trace_large.unique_nodes)
+        trace_groups(processor=0)
+        self.assertEqual(len(group_dict.keys()), len(trace_large.unique_nodes.keys()))
+        group_dict = dict(group_dict)
+        for node_name in group_dict:
+            self.assertTrue('single_scores' in group_dict[node_name])
+            expected_scores = scorer.score_group(trace_large.unique_nodes[node_name]['single'])
+            diff = group_dict[node_name]['single_scores'] - expected_scores
+            self.assertTrue(not diff.any())
+            self.assertTrue('pair_scores' in group_dict[node_name])
+            self.assertIsNone(group_dict[node_name]['pair_scores'])
+            trace_large.unique_nodes[node_name].update(group_dict[node_name])
+        #
+        rank_queue = Queue(maxsize=self.query_aln_fa_large.size)
+        for rank in assignments:
+            rank_queue.put_nowait(rank)
+        rank_dict = manager.dict()
+        init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=True,
+                         pair_specific=False, a_dict=assignments, u_dict=trace_large.unique_nodes)
+        trace_ranks(processor=0)
+        rank_dict = dict(rank_dict)
+        for rank in assignments.keys():
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                node_name = assignments[rank][group]['node'].name
+                group_scores.append(trace_large.unique_nodes[node_name]['single_scores'])
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            diff = rank_dict[rank] - rank_scores
+            self.assertTrue(not diff.any())
+
+    def test4c_trace(self):
+        # Perform plain entropy trace on single positions only for the small alignment
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_small.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
+        rank_id = trace_small.trace(scorer=scorer, processes=self.max_threads)
+        ranks = np.ones(self.query_aln_fa_small.seq_length)
+        unique_scores = {}
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                node_name = assignments[rank][group]['node'].name
+                if node_name not in unique_scores:
+                    group_score = scorer.score_group(trace_small.unique_nodes[node_name]['single'])
+                    unique_scores[node_name] = group_score
+                else:
+                    group_score = unique_scores[node_name]
+                group_scores.append(group_score)
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            ranks += rank_scores
+            # for i in range(self.query_aln_fa_small.seq_length):
+            #     if rank_scores[i] != 0:
+            #         ranks[i] += 1
+        diff_ranks = rank_id - ranks
+        self.assertTrue(not diff_ranks.any())
+
+    def test4d_trace(self):
+        # Perform plain entropy trace on single positions only for the large alignment
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
+                            position_specific=True, pair_specific=False)
+        trace_large.characterize_rank_groups(processes=self.max_threads)
+        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
+        rank_id = trace_large.trace(scorer=scorer, processes=self.max_threads)
+        ranks = np.ones(self.query_aln_fa_large.seq_length)
+        unique_scores = {}
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in sorted(assignments[rank].keys(), reverse=True):
+                node_name = assignments[rank][group]['node'].name
+                if node_name not in unique_scores:
+                    group_score = scorer.score_group(trace_large.unique_nodes[node_name]['single'])
+                    unique_scores[node_name] = group_score
+                else:
+                    group_score = unique_scores[node_name]
+                group_scores.append(group_score)
+            group_scores = np.stack(group_scores, axis=0)
+            rank_scores = np.sum(group_scores, axis=0)
+            ranks += rank_scores
+            # for i in range(self.query_aln_fa_large.seq_length):
+            #     if rank_scores[i] != 0:
+            #         ranks[i] += 1
+        diff_ranks = rank_id - ranks
+        self.assertTrue(not diff_ranks.any())
+
+    def test4e_trace(self):
         # Test trace, metric plain entropy, against ETC small alignment
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
@@ -452,7 +623,7 @@ class TestTrace(TestBase):
         print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
 
-    def test3h_trace(self):
+    def test4f_trace(self):
         # Test trace, metric plain entropy, against ETC large alignment
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
