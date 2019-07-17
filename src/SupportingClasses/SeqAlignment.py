@@ -582,26 +582,17 @@ class SeqAlignment(object):
         """
         pos_specific = None
         if single:
-            pos_specific = FrequencyTable(alphabet=Gapped(self.alphabet), pos_size=1)
+            pos_specific = FrequencyTable(alphabet=Gapped(self.alphabet), seq_len=self.seq_length, pos_size=1)
         pair_specific = None
         if pair:
             pair_specific = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2),
-                                           pos_size=2)
+                                           seq_len=self.seq_length, pos_size=2)
         # Iterate over all sequences
         for s in range(self.size):
-            # Iterate over all positions
-            for i in range(self.seq_length):
-                # If single is specified, track the amino acid for this sequence and position
-                if single:
-                    pos_specific.increment_count(pos=i, char=self.alignment[s, i])
-                # If pair is not specified continue to the next position
-                if not pair:
-                    continue
-                # If pair is specified iterate over all positions up to the current one (filling in upper triangle)
-                for j in range(i + 1, self.seq_length):
-                    # Track the pair of amino acids for the positions i,j
-                    pair_specific.increment_count(pos=(i, j), char='{}{}'.format(self.alignment[s, i],
-                                                                                 self.alignment[s, j]))
+            if single:
+                pos_specific.characterize_sequence(seq_rec=self.alignment[s])
+            if pair:
+                pair_specific.characterize_sequence(seq_rec=self.alignment[s])
         return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):

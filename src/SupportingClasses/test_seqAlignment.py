@@ -977,7 +977,7 @@ class TestSeqAlignment(TestBase):
         self.assertIsNone(single_table)
         positions = []
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i, self.query_aln_fa_small.seq_length):
+            for j in range(i + 1, self.query_aln_fa_small.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
                                                                       self.query_aln_fa_small.query_sequence[j]])
@@ -993,7 +993,7 @@ class TestSeqAlignment(TestBase):
         self.assertIsNone(single_table)
         positions = []
         for i in range(self.query_aln_fa_large.seq_length):
-            for j in range(i, self.query_aln_fa_large.seq_length):
+            for j in range(i + 1, self.query_aln_fa_large.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
                                                                       self.query_aln_fa_large.query_sequence[j]])
@@ -1012,7 +1012,7 @@ class TestSeqAlignment(TestBase):
             self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
         positions = []
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i, self.query_aln_fa_small.seq_length):
+            for j in range(i + 1, self.query_aln_fa_small.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
                                                                       self.query_aln_fa_small.query_sequence[j]])
@@ -1031,7 +1031,7 @@ class TestSeqAlignment(TestBase):
             self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
         positions = []
         for i in range(self.query_aln_fa_large.seq_length):
-            for j in range(i, self.query_aln_fa_large.seq_length):
+            for j in range(i + 1, self.query_aln_fa_large.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
                                                                       self.query_aln_fa_large.query_sequence[j]])
