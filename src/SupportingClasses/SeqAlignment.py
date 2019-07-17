@@ -590,9 +590,9 @@ class SeqAlignment(object):
         # Iterate over all sequences
         for s in range(self.size):
             if single:
-                pos_specific.characterize_sequence(seq_rec=self.alignment[s])
+                pos_specific.characterize_sequence(seq=self.alignment[s].seq)
             if pair:
-                pair_specific.characterize_sequence(seq_rec=self.alignment[s])
+                pair_specific.characterize_sequence(seq=self.alignment[s].seq)
         return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):

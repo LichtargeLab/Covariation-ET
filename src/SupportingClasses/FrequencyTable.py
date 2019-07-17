@@ -26,22 +26,26 @@ class FrequencyTable(object):
         order to make this class safer for use in synchronized settings.
     """
 
-    def __init__(self, alphabet, pos_size=1):
+    def __init__(self, alphabet, seq_len, pos_size=1):
         """
         Initialization for a FrequencyTable object.
 
         Args:
-            alphabet (Bio.Alphabet.Alphabet): The alphabet for which the frequency counts tracked by this table are
-            valid.
+            alphabet (Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The alphabet for which the frequency counts tracked by
+            this table are valid.
+            seq_len (int): The length of the sequences in the alignment characterized by this FrequencyTable.
+            pos_size (int): The size of a position in the alignment to be characterized (single positions = 1, pairs of
+            positions = 2, etc.).
         """
         if alphabet.size != pos_size:
             raise ValueError('Alphabet size must be equal to pos_size!')
         self.alphabet = alphabet
         self.position_size = pos_size
+        self.sequence_length = seq_len
         self.__position_table = {}
         self.__depth = 0
         self.__frequencies = False
-        self.__lock = RLock()
+        # self.__lock = RLock()
 
     def _add_position(self, pos):
         """
@@ -52,7 +56,7 @@ class FrequencyTable(object):
         Args
             pos (int/tuple): A sequence position from the alignment.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if pos not in self.__position_table:
             if self.position_size == 1:
                 if not isinstance(pos, int):
@@ -65,7 +69,7 @@ class FrequencyTable(object):
             else:
                 pass
             self.__position_table[pos] = {}
-        self.__lock.release()
+        # self.__lock.release()
 
     def _add_pos_char(self, pos, char):
         """
@@ -77,16 +81,16 @@ class FrequencyTable(object):
             pos (int/tuple): A sequence position from the alignment.
             char (char/str): The character or string to add for the specified position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if char not in self.alphabet.letters:
             raise ValueError('The character {} is not in the specified alphabet: {}'.format(char,
                                                                                             self.alphabet.letters))
         self._add_position(pos)
         if char not in self.__position_table[pos]:
             self.__position_table[pos][char] = {'count': 0}
-        self.__lock.release()
+        # self.__lock.release()
 
-    def increment_count(self, pos, char):
+    def _increment_count(self, pos, char):
         """
         Increment Count
 
@@ -97,14 +101,29 @@ class FrequencyTable(object):
             pos (int/tuple): A sequence position from the alignment.
             char (char/str): The character or string to add for the specified position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         self._add_pos_char(pos, char)
         self.__position_table[pos][char]['count'] += 1
-        total_depth = np.sum(self.get_count_array(pos=pos))
-        if total_depth > self.__depth:
-            self.__depth = total_depth
+        # total_depth = np.sum(self.get_count_array(pos=pos))
+        # if total_depth > self.__depth:
+        #     self.__depth = total_depth
         self.__frequencies = False
-        self.__lock.release()
+        # self.__lock.release()
+
+    def characterize_sequence(self, seq):
+        # Iterate over all positions
+        for i in range(self.sequence_length):
+            # If single is specified, track the amino acid for this sequence and position
+            if self.position_size == 1:
+                self._increment_count(pos=i, char=seq[i])
+            # If pair is not specified continue to the next position
+            if self.position_size != 2:
+                continue
+            # If pair is specified iterate over all positions up to the current one (filling in upper triangle)
+            for j in range(i + 1, self.sequence_length):
+                # Track the pair of amino acids for the positions i,j
+                self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
+        self.__depth += 1
 
     def get_table(self):
         """
@@ -117,9 +136,9 @@ class FrequencyTable(object):
             dictionaries where the key is the character from the alphabet of interest mapping to the count of that
             character at that position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         table = deepcopy(self.__position_table)
-        self.__lock.release()
+        # self.__lock.release()
         return table
 
     def get_depth(self):
@@ -131,9 +150,9 @@ class FrequencyTable(object):
         Returns:
              int: The maximum number of observations found for any position in the FrequencyTable
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         depth = deepcopy(self.__depth)
-        self.__lock.release()
+        # self.__lock.release()
         return depth
 
     def get_positions(self):
@@ -145,9 +164,9 @@ class FrequencyTable(object):
         Returns:
             list: The positions tracked in this frequency table.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         positions = list(sorted(self.__position_table.keys()))
-        self.__lock.release()
+        # self.__lock.release()
         return positions
 
     def get_chars(self, pos):
@@ -161,9 +180,9 @@ class FrequencyTable(object):
         Returns:
             list: All characters present at the specified position in the alignment.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         characters = list(self.__position_table[pos].keys())
-        self.__lock.release()
+        # self.__lock.release()
         return characters
 
     def get_count(self, pos, char):
@@ -179,12 +198,12 @@ class FrequencyTable(object):
         Returns:
             int: The count of the specified character at the specified position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if (pos in self.__position_table) and (char in self.__position_table[pos]):
             count = self.__position_table[pos][char]['count']
         else:
             count = 0
-        self.__lock.release()
+        # self.__lock.release()
         return count
 
     def get_count_array(self, pos):
@@ -199,13 +218,13 @@ class FrequencyTable(object):
         Returns:
             np.array: An array of the counts for characters at a given position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if pos in self.__position_table:
             arr = np.array([self.__position_table[pos][char]['count'] for char in self.get_chars(pos)],
                            dtype=np.dtype(int))
         else:
             arr = None
-        self.__lock.release()
+        # self.__lock.release()
         return arr
 
     def get_count_matrix(self):
@@ -220,7 +239,7 @@ class FrequencyTable(object):
             and m is the length of the sequences in the alignment. Each position in the matrix specifies the count of a
             character at a given position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if len(self.__position_table) == 0:
             mat = None
         else:
@@ -232,7 +251,7 @@ class FrequencyTable(object):
                 for char in self.__position_table[pos]:
                     j = mapping[char]
                     mat[i, j] = self.get_count(pos=pos, char=char)
-        self.__lock.release()
+        # self.__lock.release()
         return mat
 
     def compute_frequencies(self):
@@ -242,14 +261,14 @@ class FrequencyTable(object):
         This function uses the counts for each position and the depth tracked by the instance to compute frequencies for
         each character observed.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if not self.__frequencies:
             for pos in self.__position_table:
                 for char in self.__position_table[pos]:
                     self.__position_table[pos][char]['frequency'] = (float(self.__position_table[pos][char]['count']) /
                                                                      self.__depth)
             self.__frequencies = True
-        self.__lock.release()
+        # self.__lock.release()
 
     def get_frequency(self, pos, char):
         """
@@ -264,14 +283,14 @@ class FrequencyTable(object):
         Returns:
             float: The frequency of the specified character at the specified position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if (pos in self.__position_table) and (char in self.__position_table[pos]):
             freq = self.__position_table[pos][char]['frequency']
         else:
             freq = 0.0
-        self.__lock.release()
+        # self.__lock.release()
         return freq
 
     def get_frequency_array(self, pos):
@@ -286,7 +305,7 @@ class FrequencyTable(object):
         Returns:
             np.array: An array of the frequencies for characters at a given position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if pos in self.__position_table:
@@ -294,7 +313,7 @@ class FrequencyTable(object):
                            dtype=np.dtype(float))
         else:
             arr = None
-        self.__lock.release()
+        # self.__lock.release()
         return arr
 
     def get_frequency_matrix(self):
@@ -309,7 +328,7 @@ class FrequencyTable(object):
             and m is the length of the sequences in the alignment. Each position in the matrix specifies the
             frequency of a character at a given position.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if not self.__frequencies:
             raise RuntimeError('Frequencies have not been computed, please call compute_frequencies()')
         if len(self.__position_table) == 0:
@@ -323,7 +342,7 @@ class FrequencyTable(object):
                 for char in self.__position_table[pos]:
                     j = mapping[char]
                     mat[i, j] = self.get_frequency(pos=pos, char=char)
-        self.__lock.release()
+        # self.__lock.release()
         return mat
 
     def __add__(self, other):
@@ -339,11 +358,13 @@ class FrequencyTable(object):
             FrequencyTable: A new instance of the FrequencyTable class with the combined data of the two provided
             instances.
         """
-        self.__lock.acquire()
+        # self.__lock.acquire()
         if not isinstance(other, FrequencyTable):
             raise ValueError('FrequencyTable can only be combined with another FrequencyTable instance.')
         if self.position_size != other.position_size:
             raise ValueError('FrequencyTables must have the same position size to be joined.')
+        if self.sequence_length != other.sequence_length:
+            raise ValueError('FrequencyTables must have the same sequence length to be joined.')
         # Determine the alphabet from the two FrequencyTables
         merged_alpha = Alphabet._consensus_alphabet([self.alphabet, other.alphabet])
         # Copy current table as starting point
@@ -364,8 +385,9 @@ class FrequencyTable(object):
             for char in merged_table[pos]:
                 if 'frequency' in merged_table[pos][char]:
                     del (merged_table[pos][char]['frequency'])
-        new_table = FrequencyTable(alphabet=merged_alpha, pos_size=self.position_size)
+        new_table = FrequencyTable(alphabet=merged_alpha, seq_len=self.sequence_length, pos_size=self.position_size)
         new_table.__position_table = merged_table
-        new_table.__depth = int(np.max(np.sum(new_table.get_count_matrix(), axis=1)))
-        self.__lock.release()
+        axis = self.position_size - 1
+        new_table.__depth = self.__depth + other.__depth
+        # self.__lock.release()
         return new_table
