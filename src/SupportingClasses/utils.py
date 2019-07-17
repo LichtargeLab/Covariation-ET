@@ -44,6 +44,7 @@ def build_mapping(alphabet, skip_letters=None):
         curr_gaps = gap_characters - set(skip_letters)
     else:
         curr_gaps = gap_characters
+    curr_gaps = curr_gaps - set(letters)
     gap_map = {char: alphabet_size for char in curr_gaps}
     alpha_map.update(gap_map)
     return alphabet_size, curr_gaps, alpha_map

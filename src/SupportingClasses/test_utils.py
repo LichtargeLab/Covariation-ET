@@ -5,6 +5,7 @@ Created on June 17, 2019
 """
 import numpy as np
 from unittest import TestCase
+from Bio.Alphabet import  Gapped
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from utils import build_mapping, convert_seq_to_numeric
 
@@ -42,6 +43,16 @@ class TestUtils(TestCase):
         self.assertEqual(size, len(alphabet.letters))
         self.assertEqual(len(gap_chars), 3)
         self.assertEqual(gap_chars, self.expected_gap_chars)
+        for char in gap_chars:
+            self.assertEqual(mapping[char], size)
+        self.assertEqual(len(mapping), size + len(gap_chars))
+
+    def test1d_build_mapping_from_gapped_alphabet(self):
+        alphabet = Gapped(ExtendedIUPACProtein())
+        size, gap_chars, mapping = build_mapping(alphabet=alphabet)
+        self.assertEqual(size, len(alphabet.letters))
+        self.assertEqual(len(gap_chars), 2)
+        self.assertEqual(gap_chars, {'.', '*'})
         for char in gap_chars:
             self.assertEqual(mapping[char], size)
         self.assertEqual(len(mapping), size + len(gap_chars))
