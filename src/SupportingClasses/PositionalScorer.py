@@ -153,7 +153,6 @@ def group_plain_entropy_score(freq_table, pos):
     Returns:
         float: The plain entropy for the specified position in the FrequencyTable.
     """
-    freq_table.compute_frequencies()
     positional_frequencies = freq_table.get_frequency_array(pos=pos)
     positional_entropy = entropy(positional_frequencies)
     return positional_entropy

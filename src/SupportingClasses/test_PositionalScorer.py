@@ -56,6 +56,8 @@ class TestTrace(TestBase):
         seq_aln1.query_sequence = seq1.seq
         seq_aln1.marked = [False]
         single1, pair1 = seq_aln1.characterize_positions()
+        single1.compute_frequencies()
+        pair1.compute_frequencies()
         seq2 = SeqRecord(Seq('MG', alphabet=alpha), id='Seq2')
         aln2 = MultipleSeqAlignment([seq2], alphabet=alpha)
         seq_aln2 = SeqAlignment(file_name='test', query_id='Seq1')
@@ -67,6 +69,8 @@ class TestTrace(TestBase):
         seq_aln2.query_sequence = seq1.seq
         seq_aln2.marked = [False]
         single2, pair2 = seq_aln2.characterize_positions()
+        single2.compute_frequencies()
+        pair2.compute_frequencies()
         seq3 = SeqRecord(Seq('MY', alphabet=alpha), id='Seq3')
         aln3 = MultipleSeqAlignment([seq3], alphabet=alpha)
         seq_aln3 = SeqAlignment(file_name='test', query_id='Seq1')
@@ -78,6 +82,8 @@ class TestTrace(TestBase):
         seq_aln3.query_sequence = seq1.seq
         seq_aln3.marked = [False]
         single3, pair3 = seq_aln3.characterize_positions()
+        single3.compute_frequencies()
+        pair3.compute_frequencies()
         seq4 = SeqRecord(Seq('MT', alphabet=alpha), id='Seq4')
         aln4 = MultipleSeqAlignment([seq4], alphabet=alpha)
         seq_aln4 = SeqAlignment(file_name='test', query_id='Seq1')
@@ -89,6 +95,8 @@ class TestTrace(TestBase):
         seq_aln4.query_sequence = seq1.seq
         seq_aln4.marked = [False]
         single4, pair4 = seq_aln4.characterize_positions()
+        single4.compute_frequencies()
+        pair4.compute_frequencies()
         cls.terminals = {'Seq1': {'aln': seq_aln1, 'single': single1, 'pair': pair1},
                          'Seq2': {'aln': seq_aln2, 'single': single2, 'pair': pair2},
                          'Seq3': {'aln': seq_aln3, 'single': single3, 'pair': pair3},
@@ -103,7 +111,9 @@ class TestTrace(TestBase):
         seq_aln5.query_sequence = seq1.seq
         seq_aln5.marked = [False, False]
         single5 = single1 + single2
+        single5.compute_frequencies()
         pair5 = pair1 + pair2
+        pair5.compute_frequencies()
         aln6 = MultipleSeqAlignment([seq3, seq4], alphabet=alpha)
         seq_aln6 = SeqAlignment(file_name='test', query_id='Seq1')
         seq_aln6.seq_length = 2
@@ -114,7 +124,9 @@ class TestTrace(TestBase):
         seq_aln6.query_sequence = seq1.seq
         seq_aln6.marked = [False, False]
         single6 = single3 + single4
+        single6.compute_frequencies()
         pair6 = pair3 + pair4
+        pair6.compute_frequencies()
         cls.first_parents = {'Inner1': {'aln': seq_aln5, 'single': single5, 'pair': pair5},
                              'Inner2': {'aln': seq_aln6, 'single': single6, 'pair': pair6}}
 
