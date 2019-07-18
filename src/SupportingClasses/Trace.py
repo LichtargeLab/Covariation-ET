@@ -232,6 +232,11 @@ def characterization(processor):
                 pair_table = component1['pair'] + component2['pair']
             else:
                 pair_table = None
+        # Compute frequencies for the FrequencyTables generated for the current node
+        if single:
+            pos_table.compute_frequencies()
+        if pair:
+            pair_table.compute_frequencies()
         # Store the current nodes characterization in the shared dictionary.
         tables = {'single': pos_table, 'pair': pair_table}
         freq_tables[node.name] = tables

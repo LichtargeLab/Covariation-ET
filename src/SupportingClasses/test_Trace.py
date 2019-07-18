@@ -108,6 +108,8 @@ class TestTrace(TestBase):
         self.assertEqual(len(test_dict), 3)
         sub_aln1 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[x.name for x in parent_node.clades])
         single_table1, pair_table1 = sub_aln1.characterize_positions()
+        single_table1.compute_frequencies()
+        pair_table1.compute_frequencies()
         self.assertTrue(parent_node.name in test_dict)
         self.assertTrue('single' in test_dict[parent_node.name])
         self.assertTrue('pair' in test_dict[parent_node.name])
@@ -115,6 +117,8 @@ class TestTrace(TestBase):
         self.assertEqual(test_dict[parent_node.name]['pair'].get_table(), pair_table1.get_table())
         sub_aln2 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[parent_node.clades[0].name])
         single_table2, pair_table2 = sub_aln2.characterize_positions()
+        single_table2.compute_frequencies()
+        pair_table2.compute_frequencies()
         self.assertTrue(parent_node.clades[0].name in test_dict)
         self.assertTrue('single' in test_dict[parent_node.clades[0].name])
         self.assertTrue('pair' in test_dict[parent_node.clades[0].name])
@@ -122,6 +126,8 @@ class TestTrace(TestBase):
         self.assertEqual(test_dict[parent_node.clades[0].name]['pair'].get_table(), pair_table2.get_table())
         sub_aln3 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[parent_node.clades[1].name])
         single_table3, pair_table3 = sub_aln3.characterize_positions()
+        single_table3.compute_frequencies()
+        pair_table3.compute_frequencies()
         self.assertTrue(parent_node.clades[1].name in test_dict)
         self.assertTrue('single' in test_dict[parent_node.clades[1].name])
         self.assertTrue('pair' in test_dict[parent_node.clades[1].name])
@@ -144,6 +150,8 @@ class TestTrace(TestBase):
                     sub_aln = self.query_aln_fa_small.generate_sub_alignment(
                         sequence_ids=trace_small.assignments[rank][group]['terminals'])
                     single_table, pair_table = sub_aln.characterize_positions(single=True, pair=True)
+                    single_table.compute_frequencies()
+                    pair_table.compute_frequencies()
                     self.assertEqual(trace_small.unique_nodes[node_name]['single'].get_table(),
                                      single_table.get_table())
                     self.assertEqual(trace_small.unique_nodes[node_name]['pair'].get_table(), pair_table.get_table())
@@ -164,6 +172,8 @@ class TestTrace(TestBase):
                     sub_aln = self.query_aln_fa_small.generate_sub_alignment(
                         sequence_ids=trace_small.assignments[rank][group]['terminals'])
                     single_table, pair_table = sub_aln.characterize_positions(single=True, pair=True)
+                    single_table.compute_frequencies()
+                    pair_table.compute_frequencies()
                     self.assertEqual(trace_small.unique_nodes[node_name]['single'].get_table(),
                                      single_table.get_table())
                     self.assertEqual(trace_small.unique_nodes[node_name]['pair'].get_table(), pair_table.get_table())
@@ -184,6 +194,7 @@ class TestTrace(TestBase):
                     sub_aln = self.query_aln_fa_small.generate_sub_alignment(
                         sequence_ids=trace_small.assignments[rank][group]['terminals'])
                     single_table, pair_table = sub_aln.characterize_positions(single=True, pair=False)
+                    single_table.compute_frequencies()
                     self.assertEqual(trace_small.unique_nodes[node_name]['single'].get_table(),
                                      single_table.get_table())
                     self.assertIsNone(trace_small.unique_nodes[node_name]['pair'])
@@ -203,7 +214,8 @@ class TestTrace(TestBase):
                 if node_name not in visited:
                     sub_aln = self.query_aln_fa_small.generate_sub_alignment(
                         sequence_ids=trace_small.assignments[rank][group]['terminals'])
-                    single_table, pair_table = sub_aln.characterize_positions(single=True, pair=True)
+                    single_table, pair_table = sub_aln.characterize_positions(single=False, pair=True)
+                    pair_table.compute_frequencies()
                     self.assertIsNone(trace_small.unique_nodes[node_name]['single'])
                     self.assertEqual(trace_small.unique_nodes[node_name]['pair'].get_table(), pair_table.get_table())
                     visited.add(node_name)
@@ -464,19 +476,26 @@ class TestTrace(TestBase):
         trace_ranks(processor=0)
         rank_dict = dict(rank_dict)
         for rank in assignments.keys():
+            print('RANK: {}'.format(rank))
             group_scores = []
             for group in sorted(assignments[rank].keys(), reverse=True):
                 node_name = assignments[rank][group]['node'].name
-                group_scores.append(trace_small.unique_nodes[node_name]['single_scores'])
+                group_score = trace_small.unique_nodes[node_name]['single_scores']
+                group_scores.append(group_score)
             group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
-            diff = rank_dict[rank] - rank_scores
-            self.assertTrue(not diff.any())
-            # for i in range(self.query_aln_fa_small.seq_length):
-            #     if rank_scores[i] == 0:
-            #         self.assertEqual(rank_dict[rank]['single_ranks'][i], 0)
-            #     else:
-            #         self.assertEqual(rank_dict[rank]['single_ranks'][i], 1)
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
+            diff = rank_dict[rank]['single_ranks'] - rank_scores
+            not_passing = diff > 1E-15
+            # if not_passing.any():
+            #     print(rank_dict[rank]['single_ranks'])
+            #     print(rank_scores)
+            #     indices = np.nonzero(not_passing)
+            #     print(diff[indices])
+            #     print(rank_dict[rank]['single_ranks'][indices])
+            #     print(rank_scores[indices])
+            self.assertTrue(not not_passing.any())
+            self.assertIsNone(rank_dict[rank]['pair_ranks'])
 
     def test4b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment and plain entropy
@@ -523,9 +542,19 @@ class TestTrace(TestBase):
                 node_name = assignments[rank][group]['node'].name
                 group_scores.append(trace_large.unique_nodes[node_name]['single_scores'])
             group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
-            diff = rank_dict[rank] - rank_scores
-            self.assertTrue(not diff.any())
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
+            diff = rank_dict[rank]['single_ranks'] - rank_scores
+            not_passing = diff > 1E-15
+            # if not_passing.any():
+            #     print(rank_dict[rank]['single_ranks'])
+            #     print(rank_scores)
+            #     indices = np.nonzero(not_passing)
+            #     print(diff[indices])
+            #     print(rank_dict[rank]['single_ranks'][indices])
+            #     print(rank_scores[indices])
+            self.assertTrue(not not_passing.any())
+            self.assertIsNone(rank_dict[rank]['pair_ranks'])
 
     def test4c_trace(self):
         # Perform plain entropy trace on single positions only for the small alignment
@@ -539,7 +568,7 @@ class TestTrace(TestBase):
                             position_specific=True, pair_specific=False)
         trace_small.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
-        rank_id = trace_small.trace(scorer=scorer, processes=self.max_threads)
+        rank_plain_entropy = trace_small.trace(scorer=scorer, processes=self.max_threads)
         ranks = np.ones(self.query_aln_fa_small.seq_length)
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
@@ -553,12 +582,18 @@ class TestTrace(TestBase):
                     group_score = unique_scores[node_name]
                 group_scores.append(group_score)
             group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
             ranks += rank_scores
-            # for i in range(self.query_aln_fa_small.seq_length):
-            #     if rank_scores[i] != 0:
-            #         ranks[i] += 1
-        diff_ranks = rank_id - ranks
+        diff_ranks = rank_plain_entropy - ranks
+        not_passing = diff_ranks > 1E-14
+        # if not_passing.any():
+        #     print(rank_plain_entropy)
+        #     print(ranks)
+        #     indices = np.nonzero(not_passing)
+        #     print(diff_ranks[indices])
+        #     print(rank_plain_entropy[indices])
+        #     print(ranks[indices])
         self.assertTrue(not diff_ranks.any())
 
     def test4d_trace(self):
@@ -573,7 +608,7 @@ class TestTrace(TestBase):
                             position_specific=True, pair_specific=False)
         trace_large.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
-        rank_id = trace_large.trace(scorer=scorer, processes=self.max_threads)
+        rank_plain_entropy = trace_large.trace(scorer=scorer, processes=self.max_threads)
         ranks = np.ones(self.query_aln_fa_large.seq_length)
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
@@ -587,13 +622,19 @@ class TestTrace(TestBase):
                     group_score = unique_scores[node_name]
                 group_scores.append(group_score)
             group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
             ranks += rank_scores
-            # for i in range(self.query_aln_fa_large.seq_length):
-            #     if rank_scores[i] != 0:
-            #         ranks[i] += 1
-        diff_ranks = rank_id - ranks
-        self.assertTrue(not diff_ranks.any())
+        diff_ranks = rank_plain_entropy - ranks
+        not_passing = diff_ranks > 1E-13
+        # if not_passing.any():
+        #     print(rank_plain_entropy)
+        #     print(ranks)
+        #     indices = np.nonzero(not_passing)
+        #     print(diff_ranks[indices])
+        #     print(rank_plain_entropy[indices])
+        #     print(ranks[indices])
+        self.assertTrue(not not_passing.any())
 
     def test4e_trace(self):
         # Test trace, metric plain entropy, against ETC small alignment
@@ -616,12 +657,41 @@ class TestTrace(TestBase):
         trace_small.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
         rank_plain_entropy = trace_small.trace(scorer=scorer)
-        # Compare the two sets of scores
-        print(rank_plain_entropy)
-        print(et_mip_obj.rho)
-        diff_ranks = rank_plain_entropy - et_mip_obj.rho
-        print(diff_ranks)
-        self.assertTrue(not diff_ranks.any())
+        # Compare the rank scores computed by both methods
+        for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
+            group_scores = []
+            for group in et_mip_obj.rank_group_assignments[rank]:
+                node_name = et_mip_obj.rank_group_assignments[rank][group]['node'].name
+                group_score = trace_small.unique_nodes[node_name]['single_scores']
+                group_scores.append(group_score)
+            group_scores = np.stack(group_scores, axis=0)
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
+            diff_rank = et_mip_obj.entropy[rank] - rank_scores
+            not_passing_rank = diff_rank > 1E-6
+            # if not_passing_rank.any():
+            #     print('RANK {} COMPARISON FAILED'.format(rank))
+            #     print(rank_scores)
+            #     print(et_mip_obj.entropy[rank])
+            #     print(diff_rank)
+            #     indices = np.nonzero(not_passing_rank)
+            #     print(rank_scores[indices])
+            #     print(et_mip_obj.entropy[rank][indices])
+            #     print(diff_rank[indices])
+            self.assertTrue(not not_passing_rank.any())
+        # Compare the final ranks computed by both methods
+        diff_final = rank_plain_entropy - et_mip_obj.rho
+        not_passing_final = diff_final > 1E-6
+        # if not_passing_final.any():
+        #     print('FINAL COMPARISON FAILED')
+        #     print(rank_plain_entropy)
+        #     print(et_mip_obj.rho)
+        #     print(diff_final)
+        #     indices = np.nonzero(not_passing_final)
+        #     print(rank_plain_entropy[indices])
+        #     print(et_mip_obj.rho[indices])
+        #     print(diff_final[indices])
+        self.assertTrue(not not_passing_final.any())
 
     def test4f_trace(self):
         # Test trace, metric plain entropy, against ETC large alignment
@@ -636,7 +706,7 @@ class TestTrace(TestBase):
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
         et_mip_obj.import_assignments(out_dir=wetc_test_dir)
         # Import the scores to compare to
-        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
+        et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
         # Perform the trace with the python implementation
         trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
@@ -644,9 +714,38 @@ class TestTrace(TestBase):
         trace_large.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
         rank_plain_entropy = trace_large.trace(scorer=scorer)
-        # Compare the two sets of scores
-        print(rank_plain_entropy)
-        print(et_mip_obj.rank_scores)
-        diff_ranks = rank_plain_entropy - et_mip_obj.rank_scores
-        print(diff_ranks)
-        self.assertTrue(not diff_ranks.any())
+        # Compare the rank scores computed by both methods
+        for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
+            group_scores = []
+            for group in et_mip_obj.rank_group_assignments[rank]:
+                node_name = et_mip_obj.rank_group_assignments[rank][group]['node'].name
+                group_score = trace_large.unique_nodes[node_name]['single_scores']
+                group_scores.append(group_score)
+            group_scores = np.stack(group_scores, axis=0)
+            weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
+            diff_rank = et_mip_obj.entropy[rank] - rank_scores
+            not_passing_rank = diff_rank > 1E-6
+            # if not_passing_rank.any():
+            #     print('RANK {} COMPARISON FAILED'.format(rank))
+            #     print(rank_scores)
+            #     print(et_mip_obj.entropy[rank])
+            #     print(diff_rank)
+            #     indices = np.nonzero(not_passing_rank)
+            #     print(rank_scores[indices])
+            #     print(et_mip_obj.entropy[rank][indices])
+            #     print(diff_rank[indices])
+            self.assertTrue(not not_passing_rank.any())
+        # Compare the final ranks computed by both methods
+        diff_final = rank_plain_entropy - et_mip_obj.rho
+        not_passing_final = diff_final > 1E-6
+        # if not_passing_final.any():
+        #     print('FINAL COMPARISON FAILED')
+        #     print(rank_plain_entropy)
+        #     print(et_mip_obj.rho)
+        #     print(diff_final)
+        #     indices = np.nonzero(not_passing_final)
+        #     print(rank_plain_entropy[indices])
+        #     print(et_mip_obj.rho[indices])
+        #     print(diff_final[indices])
+        self.assertTrue(not not_passing_final.any())
