@@ -134,7 +134,7 @@ class ETMIPWrapper(object):
         rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         self.rho = rank_df['Rho'].values
         self.entropy = {}
-        for i in range(1, self.alignment.size + 1):
+        for i in range(1, self.alignment.size):
             self.entropy[i] = rank_df['Rank {} Entropy'.format(i)].values
 
     def import_covariance_scores(self, out_dir):
