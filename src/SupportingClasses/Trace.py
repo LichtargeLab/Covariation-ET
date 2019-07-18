@@ -6,7 +6,8 @@ Created on May 23, 2019
 import numpy as np
 from Queue import Empty
 from time import sleep, time
-from multiprocessing import Lock, Manager, Pool, Queue
+from multiprocessing import Manager, Pool, Queue
+from utils import gap_characters
 
 
 class Trace(object):
@@ -73,7 +74,7 @@ class Trace(object):
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
-    def trace(self, scorer, processes=1):
+    def trace(self, scorer, gap_correction=0.6, processes=1):
         """
         Trace
 
@@ -86,6 +87,10 @@ class Trace(object):
         Args:
             scorer (PositionalScorer): The scoring object to use when computing the group and rank scores.
             processes (int): The maximum number of sequences to use when performing this characterization.
+            gap_correction (float): If this value is set then after the trace has been performed positions in the
+            alignment where the gap / alignment size ratio is greater than the gap_correction will have their final
+            scores set to the highest (least important) value computed up to that point. If you do not want to perform
+            this correction please set gap_correction to None.
         Returns:
             np.array: A properly dimensioned vector/matrix/tensor of importance scores for each position in the
             alignment being traced.
@@ -117,8 +122,8 @@ class Trace(object):
         group_dict = dict(group_dict)
         for node_name in group_dict:
             self.unique_nodes[node_name].update(group_dict[node_name])
-        intermediate = time()
-        print('Group processing completed in {} min'.format((intermediate - start) / 60.0))
+        group_time = time()
+        print('Group processing completed in {} min'.format((group_time - start) / 60.0))
         # For each rank collect all group scores and compute a final rank score
         rank_queue = Queue(maxsize=self.aln.size)
         for rank in sorted(self.assignments.keys(), reverse=True):
@@ -141,8 +146,26 @@ class Trace(object):
             else:
                 pass
         final_scores += 1
+        rank_time = time()
+        print('Rank processing completed in {} min'.format((rank_time - group_time) / 60.0))
+        # Perform gap correction, if a column gap content threshold has been set.
+        if gap_correction is not None:
+            pos_type = 'single' if scorer.position_size == 1 else 'pair'
+            # The FrequencyTable for the root node is used because it characterizes all sequences and its depth is equal
+            # to the alignment size. The resulting gap frequencies are equivalent to gap count / alignment size.
+            root_node_name = self.phylo_tree.tree.root.name
+            freq_table = self.unique_nodes[root_node_name][pos_type]
+            gap_chars = list(set(freq_table.alphabet.letters).intersection(gap_characters))
+            if len(gap_chars) > 1:
+                raise ValueError('More than one gap character present in alignment alphabet! {}'.format(gap_chars))
+            gap_char = gap_chars[0]
+            max_rank_score = np.max(final_scores)
+            for i in range(freq_table.sequence_length):
+                if freq_table.get_frequency(pos=i, char=gap_char) > gap_correction:
+                    final_scores[i] = max_rank_score
+            gap_time = time()
+            print('Gap correction completed in {} min'.format((gap_time - rank_time) / 60.0))
         end = time()
-        print('Rank processing completed in {} min'.format((end - intermediate) / 60.0))
         print('Trace of with {} metric took: {} min'.format(scorer.metric, (end - start) / 60.0))
         return final_scores
 

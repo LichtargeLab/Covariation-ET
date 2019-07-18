@@ -568,7 +568,7 @@ class TestTrace(TestBase):
                             position_specific=True, pair_specific=False)
         trace_small.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_small.trace(scorer=scorer, processes=self.max_threads)
+        rank_plain_entropy = trace_small.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
         ranks = np.ones(self.query_aln_fa_small.seq_length)
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
@@ -608,7 +608,7 @@ class TestTrace(TestBase):
                             position_specific=True, pair_specific=False)
         trace_large.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_large.trace(scorer=scorer, processes=self.max_threads)
+        rank_plain_entropy = trace_large.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
         ranks = np.ones(self.query_aln_fa_large.seq_length)
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
@@ -650,6 +650,7 @@ class TestTrace(TestBase):
         et_mip_obj.import_assignments(out_dir=wetc_test_dir)
         # Import the scores to compare to
         et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
+        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir, rank_type='rvET')
         # Perform the trace with the python implementation
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
@@ -658,6 +659,7 @@ class TestTrace(TestBase):
         scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
         rank_plain_entropy = trace_small.trace(scorer=scorer)
         # Compare the rank scores computed by both methods
+        rank_scores = []
         for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
             group_scores = []
             for group in et_mip_obj.rank_group_assignments[rank]:
@@ -666,8 +668,8 @@ class TestTrace(TestBase):
                 group_scores.append(group_score)
             group_scores = np.stack(group_scores, axis=0)
             weight = 1.0 / rank
-            rank_scores = weight * np.sum(group_scores, axis=0)
-            diff_rank = et_mip_obj.entropy[rank] - rank_scores
+            rank_score = weight * np.sum(group_scores, axis=0)
+            diff_rank = et_mip_obj.entropy[rank] - rank_score
             not_passing_rank = diff_rank > 1E-6
             # if not_passing_rank.any():
             #     print('RANK {} COMPARISON FAILED'.format(rank))
@@ -679,19 +681,35 @@ class TestTrace(TestBase):
             #     print(et_mip_obj.entropy[rank][indices])
             #     print(diff_rank[indices])
             self.assertTrue(not not_passing_rank.any())
+            rank_scores.append(rank_score)
         # Compare the final ranks computed by both methods
-        diff_final = rank_plain_entropy - et_mip_obj.rho
+        final_ranks = 1 + np.sum(np.stack(rank_scores, axis=0), axis=0)
+        # diff_final = rank_plain_entropy - et_mip_obj.rho
+        diff_final = final_ranks - et_mip_obj.rho
         not_passing_final = diff_final > 1E-6
         # if not_passing_final.any():
         #     print('FINAL COMPARISON FAILED')
-        #     print(rank_plain_entropy)
+        #     print(final_ranks)
         #     print(et_mip_obj.rho)
         #     print(diff_final)
         #     indices = np.nonzero(not_passing_final)
-        #     print(rank_plain_entropy[indices])
+        #     print(final_ranks[indices])
         #     print(et_mip_obj.rho[indices])
         #     print(diff_final[indices])
         self.assertTrue(not not_passing_final.any())
+        # Compare the rank scores after gap correction
+        diff_plain_entropy = rank_plain_entropy - et_mip_obj.rank_scores
+        not_passing_plain_entropy = diff_plain_entropy > 1E-13
+        # if not_passing_plain_entropy.any():
+        #     print('GAP CORRECTION FAILED')
+        #     print(rank_plain_entropy)
+        #     print(et_mip_obj.rank_scores)
+        #     print(diff_plain_entropy)
+        #     indices = np.nonzero(not_passing_plain_entropy)
+        #     print(rank_plain_entropy[indices])
+        #     print(et_mip_obj.rank_scores[indices])
+        #     print(diff_plain_entropy[indices])
+        self.assertTrue(not not_passing_plain_entropy.any())
 
     def test4f_trace(self):
         # Test trace, metric plain entropy, against ETC large alignment
@@ -707,6 +725,7 @@ class TestTrace(TestBase):
         et_mip_obj.import_assignments(out_dir=wetc_test_dir)
         # Import the scores to compare to
         et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
+        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir, rank_type='rvET')
         # Perform the trace with the python implementation
         trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
@@ -715,6 +734,7 @@ class TestTrace(TestBase):
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
         rank_plain_entropy = trace_large.trace(scorer=scorer)
         # Compare the rank scores computed by both methods
+        rank_scores = []
         for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
             group_scores = []
             for group in et_mip_obj.rank_group_assignments[rank]:
@@ -723,8 +743,8 @@ class TestTrace(TestBase):
                 group_scores.append(group_score)
             group_scores = np.stack(group_scores, axis=0)
             weight = 1.0 / rank
-            rank_scores = weight * np.sum(group_scores, axis=0)
-            diff_rank = et_mip_obj.entropy[rank] - rank_scores
+            rank_score = weight * np.sum(group_scores, axis=0)
+            diff_rank = et_mip_obj.entropy[rank] - rank_score
             not_passing_rank = diff_rank > 1E-6
             # if not_passing_rank.any():
             #     print('RANK {} COMPARISON FAILED'.format(rank))
@@ -736,16 +756,32 @@ class TestTrace(TestBase):
             #     print(et_mip_obj.entropy[rank][indices])
             #     print(diff_rank[indices])
             self.assertTrue(not not_passing_rank.any())
+            rank_scores.append(rank_score)
         # Compare the final ranks computed by both methods
-        diff_final = rank_plain_entropy - et_mip_obj.rho
+        final_ranks = 1 + np.sum(np.stack(rank_scores, axis=0), axis=0)
+        # diff_final = rank_plain_entropy - et_mip_obj.rho
+        diff_final = final_ranks - et_mip_obj.rho
         not_passing_final = diff_final > 1E-6
         # if not_passing_final.any():
         #     print('FINAL COMPARISON FAILED')
-        #     print(rank_plain_entropy)
+        #     print(final_ranks)
         #     print(et_mip_obj.rho)
         #     print(diff_final)
         #     indices = np.nonzero(not_passing_final)
-        #     print(rank_plain_entropy[indices])
+        #     print(final_ranks[indices])
         #     print(et_mip_obj.rho[indices])
         #     print(diff_final[indices])
         self.assertTrue(not not_passing_final.any())
+        # Compare the rank scores after gap correction
+        diff_plain_entropy = rank_plain_entropy - et_mip_obj.rank_scores
+        not_passing_plain_entropy = diff_plain_entropy > 1E-13
+        # if not_passing_plain_entropy.any():
+        #     print('GAP CORRECTION FAILED')
+        #     print(rank_plain_entropy)
+        #     print(et_mip_obj.rank_scores)
+        #     print(diff_plain_entropy)
+        #     indices = np.nonzero(not_passing_plain_entropy)
+        #     print(rank_plain_entropy[indices])
+        #     print(et_mip_obj.rank_scores[indices])
+        #     print(diff_plain_entropy[indices])
+        self.assertTrue(not not_passing_plain_entropy.any())
