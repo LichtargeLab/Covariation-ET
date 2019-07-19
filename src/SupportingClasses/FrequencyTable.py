@@ -119,8 +119,9 @@ class FrequencyTable(object):
             # If pair is not specified continue to the next position
             if self.position_size != 2:
                 continue
-            # If pair is specified iterate over all positions up to the current one (filling in upper triangle)
-            for j in range(i + 1, self.sequence_length):
+            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
+            # including the diagonal)
+            for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
                 self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
         self.__depth += 1

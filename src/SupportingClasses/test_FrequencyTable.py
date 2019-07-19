@@ -202,7 +202,8 @@ class TestFrequencyTable(TestBase):
         table = freq_table.get_table()
         expected_size = 0
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            # for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 self.assertTrue((i, j) in table)
                 self.assertEqual(len(table[(i, j)]), 1)
                 expected_char = self.query_aln_fa_small.query_sequence[i] + self.query_aln_fa_small.query_sequence[j]
@@ -238,7 +239,8 @@ class TestFrequencyTable(TestBase):
         positions = freq_table.get_positions()
         count = 0
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            # for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 expected_position = (i, j)
                 self.assertEqual(positions[count], expected_position)
                 count += 1
@@ -311,10 +313,11 @@ class TestFrequencyTable(TestBase):
         alpha_size, gap_chars, mapping = build_mapping(alphabet=alpha)
         freq_table = FrequencyTable(alphabet=alpha, seq_len=self.query_aln_fa_small.seq_length, pos_size=2)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
-        expected_mat = np.zeros((np.sum(range(self.query_aln_fa_small.seq_length)), alpha_size))
+        expected_mat = np.zeros((np.sum(range(self.query_aln_fa_small.seq_length + 1)), alpha_size))
         count = 0
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            # for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 expected_char = self.query_aln_fa_small.query_sequence[i] + self.query_aln_fa_small.query_sequence[j]
                 expected_mat[count, mapping[expected_char]] += 1
                 count += 1
@@ -346,7 +349,8 @@ class TestFrequencyTable(TestBase):
         table = freq_table.get_table()
         expected_size = 0
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            # for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 self.assertTrue((i, j) in table)
                 self.assertEqual(len(table[(i, j)]), 1)
                 expected_char = self.query_aln_fa_small.query_sequence[i] + self.query_aln_fa_small.query_sequence[j]
@@ -418,10 +422,11 @@ class TestFrequencyTable(TestBase):
         freq_table = FrequencyTable(alphabet=alpha, seq_len=self.query_aln_fa_small.seq_length, pos_size=2)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
         freq_table.compute_frequencies()
-        expected_mat = np.zeros((np.sum(range(self.query_aln_fa_small.seq_length)), alpha_size))
+        expected_mat = np.zeros((np.sum(range(self.query_aln_fa_small.seq_length + 1)), alpha_size))
         count = 0
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            # for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 expected_char = self.query_aln_fa_small.query_sequence[i] + self.query_aln_fa_small.query_sequence[j]
                 expected_mat[count, mapping[expected_char]] += 1.0
                 count += 1
