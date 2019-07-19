@@ -6,11 +6,17 @@ Created on July 12, 2019
 import numpy as np
 from scipy.stats import entropy
 
+integer_metrics = {'identity'}
+
+real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
+                       'average_product_corrected_mutual_information'}
+
 ambiguous_metrics = {'identity', 'plain_entropy'}
 
 single_only_metrics = set()
 
-pair_only_metrics = set()
+pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
+                     'average_product_corrected_mutual_information'}
 
 
 class PositionalScorer(object):
@@ -50,6 +56,12 @@ class PositionalScorer(object):
             raise ValueError('Provided metric: {} not available for pos_size: {}, please select from:\n{}'.format(
                 metric, self.position_size, ', '.join(list(ambiguous_metrics | pair_only_metrics))))
         self.metric = metric
+        if metric in integer_metrics:
+            self.metric_type = 'integer'
+        elif metric in real_valued_metrics:
+            self.metric_type = 'real_valued'
+        else:
+            raise ValueError('Provided metric is neither integer valued nor real valued!')
 
     def score_group(self, freq_table):
         """
@@ -65,14 +77,22 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score}
+        scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score,
+                             'mutual_information': group_mutual_information_score,
+                             'normalized_mutual_information': group_normalized_mutual_information_score,
+                             'average_product_corrected_mutual_information_score': group_mutual_information_score}
         scores = np.zeros(self.dimensions)
         for pos in freq_table.get_positions():
             score = scoring_functions[self.metric](freq_table, pos)
             if self.position_size == 1:
                 scores[pos] = score
             else:
+                # Enforce that only the upper triangle of the matrix gets filled in.
+                if pos[0] == pos[1]:
+                    continue
                 scores[pos[0], pos[1]] = score
+        if self.metric == 'average_product_corrected_mutual_information_score':
+            scores = average_product_correction(scores)
         return scores
 
     def score_rank(self, score_tensor):
@@ -92,9 +112,51 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'identity': rank_identity_score, 'plain_entropy': rank_plain_entropy_score}
-        scores = scoring_functions[self.metric](score_tensor)
+        scoring_functions = {'integer': rank_integer_score, 'real_valued': rank_real_value_score}
+        scores = scoring_functions[self.metric_type](score_tensor)
         return scores
+
+
+def rank_integer_score(score_matrix):
+    """
+    Rank Integer Score
+
+    This computes the final rank score for all positions in a characterized alignment if the group score was produced by
+    an integer, not a real valued, scoring metric. A position is identical/conserved only if it was scored 0 in all
+    groups. In any other case the position is not considered conserved (receives a score of 1).
+
+    Args:
+        score_matrix (np.array): A matrix/tensor of scores which each score vector/matrix for a given group stacked
+        along axis 0. Scores should be binary integer values such as those produced by group_identity_score.
+    Returns:
+        np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
+        is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
+    """
+    cumulative_scores = np.sum(score_matrix, axis=0)
+    rank_scores = 1 * (cumulative_scores != 0)
+    return rank_scores
+
+
+def rank_real_value_score(score_matrix):
+    """
+    Rank Real Value Score
+
+    This computes the final rank score for all positions in a characterized alignment if the group score was produced by
+    a real valued, not an integer, scoring metric. The rank score is the sum of the real valued scores across all groups
+    for a given position.
+
+    Args:
+        score_matrix (np.array): A matrix/tensor of scores which each score vector/matrix for a given group stacked
+        along axis 0. Scores should be real valued, such as those produced by group_plain_entropy_score.
+    Returns:
+        np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
+        is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
+    """
+    rank = score_matrix.shape[0]
+    weight = 1.0 / rank
+    cumulative_scores = np.sum(score_matrix, axis=0)
+    rank_scores = weight * cumulative_scores
+    return rank_scores
 
 
 def group_identity_score(freq_table, pos):
@@ -119,25 +181,6 @@ def group_identity_score(freq_table, pos):
         return 1
 
 
-def rank_identity_score(score_matrix):
-    """
-    Rank Identity Score
-
-    This computes the final rank specific identity score for all positions in a characterized alignment. A position is
-    identical/conserved only if it was conserved, score 0, in all groups. In any other case the position is not
-    considered conserved.
-
-    Args:
-        score_matrix (np.array):
-    Returns:
-        np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
-        is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
-    """
-    cumulative_scores = np.sum(score_matrix, axis=0)
-    rank_scores = 1 * (cumulative_scores != 0)
-    return rank_scores
-
-
 def group_plain_entropy_score(freq_table, pos):
     """
     Group Plain Entropy Score
@@ -158,21 +201,129 @@ def group_plain_entropy_score(freq_table, pos):
     return positional_entropy
 
 
-def rank_plain_entropy_score(score_matrix):
+def mutual_information_computation(freq_table, pos):
     """
-    Rank Identity Score
+    Mutual Information Computation
 
-    This computes the final rank specific plain entropy score for all positions in a characterized alignment. The plain
-    identity is normalized by rank.
+    This function compute the mutual information score for a position. The formula used for mutual information in this
+    case is: MI = Hi + Hj -Hij where Hi and Hj are the position specific entropies of the two positions and Hij is the
+    joint entropy of the pair of positions. This is kept separate from the group scoring methods because several group
+    scores are dependent on this as their base function, this way all relevant terms can be computed and returned to
+    those functions from one common function.
 
     Args:
-        score_matrix (np.array):
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the mutual information
+        score.
+        pos (int/tuple): The position in the sequence/list of pairs for which to compute the plain entropy score.
     Returns:
-        np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
-        is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
+        int: The first position in the pair for which mutual information was computed
+        int: The second position in the pair for which mutual information was computed
+        float: The position specific entropy for the first position.
+        float: The position specific entropy for the second position.
+        float: The joint entropy for the pair of positions.
+        float: The mutual information score for the specified position in the FrequencyTable.
     """
-    rank = score_matrix.shape[0]
-    weight = 1.0 / rank
-    cumulative_scores = np.sum(score_matrix, axis=0)
-    rank_scores = weight * cumulative_scores
-    return rank_scores
+    i, j = pos
+    entropy_i = group_plain_entropy_score(freq_table=freq_table, pos=(i, i))
+    entropy_j = group_plain_entropy_score(freq_table=freq_table, pos=(j, j))
+    joint_entropy_ij = group_plain_entropy_score(freq_table=freq_table, pos=pos)
+    mutual_information = (entropy_i + entropy_j) - joint_entropy_ij
+    return i, j, entropy_i, entropy_j, joint_entropy_ij, mutual_information
+
+
+def group_mutual_information_score(freq_table, pos):
+    """
+    Group Mutual Information Score
+
+    This function compute the mutual information score for a given group. The formula used for mutual information in
+    this case is: MI = Hi + Hj -Hij where Hi and Hj are the position specific entropies of the two positions and Hij is
+    the joint entropy of the pair of positions.
+
+    Args:
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the mutual information
+        score.
+        pos (int/tuple): The position in the sequence/list of pairs for which to compute the plain entropy score.
+    Returns:
+        float: The mutual information score for the specified position in the FrequencyTable.
+    """
+    _, _, _, _, _, mutual_information = mutual_information_computation(freq_table, pos)
+    return mutual_information
+
+
+def group_normalized_mutual_information_score(freq_table, pos):
+    """
+    Group Normalized Mutual Information Score
+
+    This function compute the mutual information score for a given group. The formula used for mutual information in
+    this case is: MI = Hi + Hj -Hij where Hi and Hj are the position specific entropies of the two positions and Hij is
+    the joint entropy of the pair of positions.
+
+    Args:
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the mutual information
+        score.
+        pos (int/tuple): The position in the sequence/list of pairs for which to compute the plain entropy score.
+    Returns:
+        float: The mutual information score for the specified position in the FrequencyTable.
+    """
+    _, _, entropy_i, entropy_j, _, mutual_information = mutual_information_computation( freq_table=freq_table, pos=pos)
+    normalization = entropy_i + entropy_j
+    if normalization == 0.0:
+        normalized_mutual_information = 0.0
+        if mutual_information != 0.0:
+            raise ValueError('normalization == 0.0 but mutual information == {}'.format(mutual_information))
+    else:
+        normalized_mutual_information = mutual_information / normalization
+    return normalized_mutual_information
+
+
+def average_product_correction(mutual_information_matrix):
+    """
+    Average Product Correction
+
+    This function uses a mutual information matrix to calculate average product corrected mutual information. Average
+    product correction includes division by the average mutual information of the unique off diagonal terms in the
+    matrix (e.g. the upper triangle). If this average is 0, a matrix of all zeros will be returned, but first a check
+    will be performed to ensure that the mutual information matrix was also all zeros (this should be the case because
+    mutual information scores should fall in the range between 0 and 1 and thus there should be no negatives which could
+    cause a zero average while other positions are non-zero). If this check fails a ValueError will be raised. If the
+    average is not zero then the rest of the average product correction is computed and applied to the mutual
+    information matrix in order to generate final scores.
+
+    Args:
+        mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
+        mutual information with average product correction.
+    Returns:
+        np.array: An upper triangle matrix with mutual information with average product correction scores. If the
+        average over the
+    """
+    if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
+        raise ValueError('Mutual information matrix is expected to be square!')
+    # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
+    dim = mutual_information_matrix.shape[0]
+    # Compute the position specific mutual information averages (excludes the position itself)
+    diagonal_values = mutual_information_matrix[range(dim), range(dim)]
+    # Compute the average over the entire mutual information matrix (excludes the diagonal)
+    diagonal_sum = np.sum(diagonal_values)
+    matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
+    if matrix_sum == 0.0:
+        apc_corrected = np.zeros((dim, dim))
+        if np.abs(mutual_information_matrix).any():
+            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
+    else:
+        matrix_average = matrix_sum / np.sum(range(dim))
+        # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
+        # needed to get the cumulative sum for a given position.
+        position_specific_sums = (np.sum(mutual_information_matrix, axis=0) + np.sum(mutual_information_matrix, axis=1)
+                                  - diagonal_values)
+        position_specific_averages = position_specific_sums / float(dim - 1)
+        # Calculate the matrix of products for the position specific average mutual information
+        apc_numerator = np.outer(position_specific_averages, position_specific_averages)
+        apc_factor = apc_numerator / matrix_average
+        # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
+        # triangle).
+        upper_triangle_mask = np.zeros((dim, dim))
+        upper_triangle_mask[np.triu(dim, k=1)] = 1
+        apc_factor = apc_factor * upper_triangle_mask
+        # Compute the final corrected values.
+        apc_corrected = mutual_information_matrix - apc_factor
+    return apc_corrected
