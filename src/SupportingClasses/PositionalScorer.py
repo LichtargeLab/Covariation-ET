@@ -6,7 +6,7 @@ Created on July 12, 2019
 import numpy as np
 from scipy.stats import entropy
 
-integer_metrics = {'identity'}
+integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information'}
@@ -32,6 +32,8 @@ class PositionalScorer(object):
         metric (str): Which metric to use when computing group and rank level scores. Currently available metrics:
             identity: Whether a position is fully conserved within a group and across all groups (resulting in a score
             of 0), or not (resulting in a score of 1).
+        metric_type (str): Whether the metric provided is an integer or real valued metric. This is used to determine
+        rank scoring.
     """
 
     def __init__(self, seq_length, pos_size, metric):
@@ -56,10 +58,10 @@ class PositionalScorer(object):
             raise ValueError('Provided metric: {} not available for pos_size: {}, please select from:\n{}'.format(
                 metric, self.position_size, ', '.join(list(ambiguous_metrics | pair_only_metrics))))
         self.metric = metric
-        if metric in integer_metrics:
+        if metric in integer_valued_metrics:
             self.metric_type = 'integer'
         elif metric in real_valued_metrics:
-            self.metric_type = 'real_valued'
+            self.metric_type = 'real'
         else:
             raise ValueError('Provided metric is neither integer valued nor real valued!')
 
@@ -112,14 +114,14 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'integer': rank_integer_score, 'real_valued': rank_real_value_score}
+        scoring_functions = {'integer': rank_integer_value_score, 'real': rank_real_value_score}
         scores = scoring_functions[self.metric_type](score_tensor)
         return scores
 
 
-def rank_integer_score(score_matrix):
+def rank_integer_value_score(score_matrix):
     """
-    Rank Integer Score
+    Rank Integer Value Score
 
     This computes the final rank score for all positions in a characterized alignment if the group score was produced by
     an integer, not a real valued, scoring metric. A position is identical/conserved only if it was scored 0 in all
