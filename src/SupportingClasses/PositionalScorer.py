@@ -82,7 +82,7 @@ class PositionalScorer(object):
         scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score,
                              'mutual_information': group_mutual_information_score,
                              'normalized_mutual_information': group_normalized_mutual_information_score,
-                             'average_product_corrected_mutual_information_score': group_mutual_information_score}
+                             'average_product_corrected_mutual_information': group_mutual_information_score}
         scores = np.zeros(self.dimensions)
         for pos in freq_table.get_positions():
             score = scoring_functions[self.metric](freq_table, pos)
@@ -93,7 +93,7 @@ class PositionalScorer(object):
                 if pos[0] == pos[1]:
                     continue
                 scores[pos[0], pos[1]] = score
-        if self.metric == 'average_product_corrected_mutual_information_score':
+        if self.metric == 'average_product_corrected_mutual_information':
             scores = average_product_correction(scores)
         return scores
 
