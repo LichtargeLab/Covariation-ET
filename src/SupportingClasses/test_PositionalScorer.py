@@ -4,13 +4,9 @@ Created on July 12, 2019
 @author: Daniel Konecki
 """
 import numpy as np
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
 from test_Base import TestBase
 from SeqAlignment import SeqAlignment
 from PhylogeneticTree import PhylogeneticTree
-from EvolutionaryTraceAlphabet import FullIUPACProtein
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from PositionalScorer import (PositionalScorer, rank_integer_value_score, rank_real_value_score, group_identity_score,
                               group_plain_entropy_score, mutual_information_computation, group_mutual_information_score,
@@ -22,13 +18,13 @@ class TestTrace(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestTrace, cls).setUpClass()
-        # cls.query_aln_fa_small = SeqAlignment(
-        #     file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
-        #     query_id=cls.small_structure_id)
-        # cls.query_aln_fa_small.import_alignment()
-        # cls.phylo_tree_small = PhylogeneticTree()
-        # calc = AlignmentDistanceCalculator()
-        # cls.phylo_tree_small.construct_tree(dm=calc.get_distance(cls.query_aln_fa_small.alignment))
+        cls.query_aln_fa_small = SeqAlignment(
+            file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
+            query_id=cls.small_structure_id)
+        cls.query_aln_fa_small.import_alignment()
+        cls.phylo_tree_small = PhylogeneticTree()
+        calc = AlignmentDistanceCalculator()
+        cls.phylo_tree_small.construct_tree(dm=calc.get_distance(cls.query_aln_fa_small.alignment))
         # cls.terminals_small = {x.name: {'aln': cls.query_aln_fa_small.generate_sub_alignment(sequence_ids=[x.name]),
         #                                 'node': x}
         #                        for x in cls.phylo_tree_small.tree.get_terminals()}
@@ -36,111 +32,48 @@ class TestTrace(TestBase):
         #     single, pair = cls.terminals_small[x]['aln'].characterize_positions()
         #     cls.terminals_small[x]['single'] = single
         #     cls.terminals_small[x]['pair'] = pair
-        # cls.first_parents_small = {x.name: {'aln': cls.query_aln_fa_small.generate_sub_alignment(sequence_ids=[y.name for y in x.clades]),
-        #                                     'node': x} for x in
-        #                            set([cls.phylo_tree_small.tree.get_path(x)[-2] for x in cls.terminals_small])}
-        # for x in cls.first_parents_small:
-        #     cls.first_parents_small[x]['single'] = (cls.terminals_small[cls.first_parents_small[x]['node'].clades[0]]['single'] +
-        #                                             cls.terminals_small[cls.first_parents_small[x]['node'].clades[1]]['single'])
-        #     cls.first_parents_small[x]['pair'] = (cls.terminals_small[cls.first_parents_small[x]['node'].clades[0]]['pair'] +
-        #                                           cls.terminals_small[cls.first_parents_small[x]['node'].clades[1]]['pair'])
+        # potential_parents = set()
+        # for t in cls.terminals_small:
+        #     path = cls.phylo_tree_small.tree.get_path(t)
+        #     if len(path) >= 2:
+        #         potential_parents.add(path[-2])
+        # cls.first_parents_small = {}
+        # for parent in potential_parents:
+        #     if parent.clades[0].is_terminal() and parent.clades[1].is_terminal():
+        #         cls.first_parents_small[parent.name] = {'node': parent,
+        #                                                 'aln': cls.query_aln_fa_small.generate_sub_alignment(sequence_ids=[y.name for y in parent.clades])}
+        #         cls.first_parents_small[parent.name]['single'] = (cls.terminals_small[parent.clades[0].name]['single'] +
+        #                                                           cls.terminals_small[parent.clades[1].name]['single'])
+        #         cls.first_parents_small[parent.name]['pair'] = (cls.terminals_small[parent.clades[0].name]['pair'] +
+        #                                                         cls.terminals_small[parent.clades[1].name]['pair'])
         #
-        cls.seq_len = 3
-        alpha = FullIUPACProtein()
-        # seq1 = SeqRecord(Seq('MV', alphabet=alpha), id='Seq1')
-        seq1 = SeqRecord(Seq('MIV', alphabet=alpha), id='Seq1')
-        aln1 = MultipleSeqAlignment([seq1], alphabet=alpha)
-        seq_aln1 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln1.seq_length = 2
-        seq_aln1.seq_length = cls.seq_len
-        seq_aln1.size = 1
-        seq_aln1.seq_order = ['Seq1']
-        seq_aln1.alignment = aln1
-        seq_aln1.alphabet = alpha
-        seq_aln1.query_sequence = seq1.seq
-        seq_aln1.marked = [False]
-        single1, pair1 = seq_aln1.characterize_positions()
-        single1.compute_frequencies()
-        pair1.compute_frequencies()
-        # seq2 = SeqRecord(Seq('MG', alphabet=alpha), id='Seq2')
-        seq2 = SeqRecord(Seq('MIG', alphabet=alpha), id='Seq2')
-        aln2 = MultipleSeqAlignment([seq2], alphabet=alpha)
-        seq_aln2 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln2.seq_length = 2
-        seq_aln2.seq_length = cls.seq_len
-        seq_aln2.size = 1
-        seq_aln2.seq_order = ['Seq2']
-        seq_aln2.alignment = aln2
-        seq_aln2.alphabet = alpha
-        seq_aln2.query_sequence = seq1.seq
-        seq_aln2.marked = [False]
-        single2, pair2 = seq_aln2.characterize_positions()
-        single2.compute_frequencies()
-        pair2.compute_frequencies()
-        # seq3 = SeqRecord(Seq('MY', alphabet=alpha), id='Seq3')
-        seq3 = SeqRecord(Seq('MLY', alphabet=alpha), id='Seq3')
-        aln3 = MultipleSeqAlignment([seq3], alphabet=alpha)
-        seq_aln3 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln3.seq_length = 2
-        seq_aln3.seq_length = cls.seq_len
-        seq_aln3.size = 1
-        seq_aln3.seq_order = ['Seq3']
-        seq_aln3.alignment = aln3
-        seq_aln3.alphabet = alpha
-        seq_aln3.query_sequence = seq1.seq
-        seq_aln3.marked = [False]
-        single3, pair3 = seq_aln3.characterize_positions()
-        single3.compute_frequencies()
-        pair3.compute_frequencies()
-        # seq4 = SeqRecord(Seq('MT', alphabet=alpha), id='Seq4')
-        seq4 = SeqRecord(Seq('MLT', alphabet=alpha), id='Seq4')
-        aln4 = MultipleSeqAlignment([seq4], alphabet=alpha)
-        seq_aln4 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln4.seq_length = 2
-        seq_aln4.seq_length = cls.seq_len
-        seq_aln4.size = 1
-        seq_aln4.seq_order = ['Seq4']
-        seq_aln4.alignment = aln4
-        seq_aln4.alphabet = alpha
-        seq_aln4.query_sequence = seq1.seq
-        seq_aln4.marked = [False]
-        single4, pair4 = seq_aln4.characterize_positions()
-        single4.compute_frequencies()
-        pair4.compute_frequencies()
-        cls.terminals = {'Seq1': {'aln': seq_aln1, 'single': single1, 'pair': pair1},
-                         'Seq2': {'aln': seq_aln2, 'single': single2, 'pair': pair2},
-                         'Seq3': {'aln': seq_aln3, 'single': single3, 'pair': pair3},
-                         'Seq4': {'aln': seq_aln4, 'single': single4, 'pair': pair4}}
-        aln5 = MultipleSeqAlignment([seq1, seq2], alphabet=alpha)
-        seq_aln5 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln5.seq_length = 2
-        seq_aln5.seq_length = cls.seq_len
-        seq_aln5.size = 2
-        seq_aln5.seq_order = ['Seq1', 'Seq2']
-        seq_aln5.alignment = aln5
-        seq_aln5.alphabet = alpha
-        seq_aln5.query_sequence = seq1.seq
-        seq_aln5.marked = [False, False]
-        single5 = single1 + single2
-        single5.compute_frequencies()
-        pair5 = pair1 + pair2
-        pair5.compute_frequencies()
-        aln6 = MultipleSeqAlignment([seq3, seq4], alphabet=alpha)
-        seq_aln6 = SeqAlignment(file_name='test', query_id='Seq1')
-        # seq_aln6.seq_length = 2
-        seq_aln6.seq_length = cls.seq_len
-        seq_aln6.size = 2
-        seq_aln6.seq_order = ['Seq3', 'Seq4']
-        seq_aln6.alignment = aln6
-        seq_aln6.alphabet = alpha
-        seq_aln6.query_sequence = seq1.seq
-        seq_aln6.marked = [False, False]
-        single6 = single3 + single4
-        single6.compute_frequencies()
-        pair6 = pair3 + pair4
-        pair6.compute_frequencies()
-        cls.first_parents = {'Inner1': {'aln': seq_aln5, 'single': single5, 'pair': pair5},
-                             'Inner2': {'aln': seq_aln6, 'single': single6, 'pair': pair6}}
+        cls.terminals = {x.name: {'aln': cls.query_aln_fa_small.generate_sub_alignment(sequence_ids=[x.name]),
+                                  'node': x}
+                               for x in cls.phylo_tree_small.tree.get_terminals()}
+        for x in cls.terminals:
+            single, pair = cls.terminals[x]['aln'].characterize_positions()
+            single.compute_frequencies()
+            pair.compute_frequencies()
+            cls.terminals[x]['single'] = single
+            cls.terminals[x]['pair'] = pair
+        potential_parents = set()
+        for t in cls.terminals:
+            path = cls.phylo_tree_small.tree.get_path(t)
+            if len(path) >= 2:
+                potential_parents.add(path[-2])
+        cls.first_parents = {}
+        for parent in potential_parents:
+            if parent.clades[0].is_terminal() and parent.clades[1].is_terminal():
+                cls.first_parents[parent.name] = {'node': parent, 'aln': cls.query_aln_fa_small.generate_sub_alignment(
+                    sequence_ids=[y.name for y in parent.clades])}
+                cls.first_parents[parent.name]['single'] = (cls.terminals[parent.clades[0].name]['single'] +
+                                                            cls.terminals[parent.clades[1].name]['single'])
+                cls.first_parents[parent.name]['single'].compute_frequencies()
+                cls.first_parents[parent.name]['pair'] = (cls.terminals[parent.clades[0].name]['pair'] +
+                                                          cls.terminals[parent.clades[1].name]['pair'])
+                cls.first_parents[parent.name]['pair'].compute_frequencies()
+        #
+        cls.seq_len = cls.query_aln_fa_small.seq_length
 
     def test1a_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='identity')
@@ -265,7 +198,8 @@ class TestTrace(TestBase):
             for k in range(rank):
                 expected_rank_single_scores[i] += (1.0 / rank) * group_single_scores[k, i]
         diff_single = rank_single_scores - expected_rank_single_scores
-        self.assertTrue(not diff_single.any())
+        not_passing_single = diff_single > 1E-16
+        self.assertTrue(not not_passing_single.any())
         group_pair_scores = np.stack(group_pair_scores, axis=0)
         rank_pair_scores = rank_real_value_score(score_matrix=group_pair_scores)
         expected_rank_pair_scores = np.zeros((self.seq_len, self.seq_len))
@@ -275,7 +209,8 @@ class TestTrace(TestBase):
                 for k in range(rank):
                     expected_rank_pair_scores[i, j] += (1.0 / rank) * group_pair_scores[k, i, j]
         diff_pair = rank_pair_scores - expected_rank_pair_scores
-        self.assertTrue(not diff_pair.any())
+        not_passing_pair = diff_pair > 1E-16
+        self.assertTrue(not not_passing_pair.any())
 
     def test3a_rank_real_value_score(self):
         self.evaluate_rank_real_value_score(node_dict=self.terminals)
@@ -444,7 +379,8 @@ class TestTrace(TestBase):
                             expected_apc_matrix[i, j] = mi_matrix[i, j] - correction_factor
             apc_matrix = average_product_correction(mutual_information_matrix=mi_matrix)
             diff = apc_matrix - expected_apc_matrix
-            self.assertTrue(not diff.any())
+            not_passing = diff > 1E-14
+            self.assertTrue(not not_passing.any())
 
     def test9a_average_product_correction(self):
         self.evaluate_average_product_correction(node_dict=self.terminals)
@@ -559,12 +495,15 @@ class TestTrace(TestBase):
                 for key in column_sums:
                     column_averages[key] = column_sums[key] / column_counts[key]
                 for pos in freq_table.get_positions():
-                    apc_numerator = column_averages[pos[0]] + column_averages[pos[1]]
+                    if pos[0] == pos[1]:
+                        continue
+                    apc_numerator = column_averages[pos[0]] * column_averages[pos[1]]
                     apc_correction = apc_numerator / matrix_average
-                    expected_apc = mi_matrix[pos[0], pos[1]] - apc_correction
+                    expected_apc[pos[0]][pos[1]] = mi_matrix[pos[0]][pos[1]] - apc_correction
             apc = pos_scorer.score_group(freq_table=freq_table)
             diff = apc - expected_apc
-            self.assertTrue(not diff.any())
+            not_passing = diff > 1E-14
+            self.assertTrue(not not_passing.any())
 
     def test10i_score_group(self):
         # Score group using average product correction mutual information metric terminals

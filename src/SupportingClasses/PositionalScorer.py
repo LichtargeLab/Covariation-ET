@@ -324,7 +324,7 @@ def average_product_correction(mutual_information_matrix):
         # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
         # triangle).
         upper_triangle_mask = np.zeros((dim, dim))
-        upper_triangle_mask[np.triu(dim, k=1)] = 1
+        upper_triangle_mask[np.triu_indices(dim, k=1)] = 1
         apc_factor = apc_factor * upper_triangle_mask
         # Compute the final corrected values.
         apc_corrected = mutual_information_matrix - apc_factor
