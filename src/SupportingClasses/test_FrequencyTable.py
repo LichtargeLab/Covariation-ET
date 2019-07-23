@@ -3,7 +3,9 @@ Created on July 10, 2019
 
 @author: Daniel Konecki
 """
+import os
 import numpy as np
+import pandas as pd
 from test_Base import TestBase
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -434,7 +436,41 @@ class TestFrequencyTable(TestBase):
         diff = mat - expected_mat
         self.assertTrue(not diff.any())
 
-    def test17a_add(self):
+    def test17a_to_csv(self):
+        alpha = Gapped(FullIUPACProtein())
+        freq_table = FrequencyTable(alphabet=alpha, seq_len=self.query_aln_fa_small.seq_length)
+        freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
+        freq_table.compute_frequencies()
+        fn = os.path.join(self.testing_dir, 'small_query_seq_freq_table.tsv')
+        freq_table.to_csv(file_path=fn)
+        loaded_freq_table = pd.read_csv(fn, sep='\t', header=0, index_col=None)
+        loaded_freq_table.set_index('Position', inplace=True)
+        for i in range(self.query_aln_fa_small.seq_length):
+            expected_char = self.query_aln_fa_small.query_sequence[i]
+            self.assertEqual(loaded_freq_table.loc[i, 'Variability'], 1)
+            self.assertEqual(loaded_freq_table.loc[i, 'Characters'], expected_char)
+            self.assertEqual(loaded_freq_table.loc[i, 'Counts'], 1)
+            self.assertEqual(loaded_freq_table.loc[i, 'Frequencies'], 1.0)
+        os.remove(fn)
+
+    def test17b_to_csv(self):
+        alpha = Gapped(FullIUPACProtein())
+        freq_table = FrequencyTable(alphabet=alpha, seq_len=self.query_aln_fa_large.seq_length)
+        freq_table.characterize_sequence(seq=self.query_aln_fa_large.query_sequence)
+        freq_table.compute_frequencies()
+        fn = os.path.join(self.testing_dir, 'large_query_seq_freq_table.tsv')
+        freq_table.to_csv(file_path=fn)
+        loaded_freq_table = pd.read_csv(fn, sep='\t', header=0, index_col=None)
+        loaded_freq_table.set_index('Position', inplace=True)
+        for i in range(self.query_aln_fa_large.seq_length):
+            expected_char = self.query_aln_fa_large.query_sequence[i]
+            self.assertEqual(loaded_freq_table.loc[i, 'Variability'], 1)
+            self.assertEqual(loaded_freq_table.loc[i, 'Characters'], expected_char)
+            self.assertEqual(loaded_freq_table.loc[i, 'Counts'], 1)
+            self.assertEqual(loaded_freq_table.loc[i, 'Frequencies'], 1.0)
+        os.remove(fn)
+
+    def test18a_add(self):
         alpha = Gapped(FullIUPACProtein())
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_small.size - 1
@@ -458,7 +494,7 @@ class TestFrequencyTable(TestBase):
             for c in freq_table.get_chars(pos=i):
                 self.assertEqual(freq_table.get_count(pos=i, char=c), freq_table_sum1.get_count(pos=i, char=c))
 
-    def test17b_add(self):
+    def test18b_add(self):
         alpha = MultiPositionAlphabet(alphabet=Gapped(FullIUPACProtein()), size=2)
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_small.size - 1
@@ -482,7 +518,7 @@ class TestFrequencyTable(TestBase):
             for c in freq_table.get_chars(pos=i):
                 self.assertEqual(freq_table.get_count(pos=i, char=c), freq_table_sum1.get_count(pos=i, char=c))
 
-    def test17c_add(self):
+    def test18c_add(self):
         # Ensure that if frequencies have been computed for the first table, the merged table has no frequencies.
         alpha = Gapped(FullIUPACProtein())
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -500,7 +536,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17d_add(self):
+    def test18d_add(self):
         # Ensure that if frequencies have been computed for the first table, the merged table has no frequencies.
         alpha = MultiPositionAlphabet(alphabet=Gapped(FullIUPACProtein()), size=2)
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -518,7 +554,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17e_add(self):
+    def test18e_add(self):
         # Ensure that if frequencies have been computed for the second table, the merged table has no frequencies.
         alpha = Gapped(FullIUPACProtein())
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -536,7 +572,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17f_add(self):
+    def test18f_add(self):
         # Ensure that if frequencies have been computed for the first table, the merged table has no frequencies.
         alpha = MultiPositionAlphabet(alphabet=Gapped(FullIUPACProtein()), size=2)
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -554,7 +590,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17g_add(self):
+    def test18g_add(self):
         # Ensure that if frequencies have been computed for both tables, the merged table has no frequencies.
         alpha = Gapped(FullIUPACProtein())
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -573,7 +609,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17h_add(self):
+    def test18h_add(self):
         # Ensure that if frequencies have been computed for both tables, the merged table has no frequencies.
         alpha = MultiPositionAlphabet(alphabet=Gapped(FullIUPACProtein()), size=2)
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -592,7 +628,7 @@ class TestFrequencyTable(TestBase):
         # are equal tests what we are hoping to test.
         self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
 
-    def test17i_add(self):
+    def test18i_add(self):
         # Test for correct depth after combining two frequency tables.
         alpha = Gapped(FullIUPACProtein())
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
@@ -607,7 +643,7 @@ class TestFrequencyTable(TestBase):
         freq_table_sum1 = freq_table1 + freq_table2
         self.assertEqual(freq_table_sum1.get_depth(), 2)
 
-    def test17j_add(self):
+    def test18j_add(self):
         # Test for correct depth after combining two frequency tables.
         alpha = MultiPositionAlphabet(alphabet=Gapped(FullIUPACProtein()), size=2)
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)

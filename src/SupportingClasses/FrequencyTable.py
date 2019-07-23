@@ -346,6 +346,27 @@ class FrequencyTable(object):
         # self.__lock.release()
         return mat
 
+    def to_csv(self, file_path):
+        import os
+        import pandas as pd
+        if not os.path.isfile(file_path):
+            columns = ['Position', 'Variability', 'Characters', 'Counts', 'Frequencies']
+            out_dict = {c: [] for c in columns}
+            for position in self.get_positions():
+                out_dict['Position'].append(position)
+                chars = self.get_chars(pos=position)
+                out_dict['Variability'].append(len(chars))
+                out_dict['Characters'].append(', '.join(chars))
+                counts = self.get_count_array(pos=position)
+                out_dict['Counts'].append(', '.join([str(x) for x in counts]))
+                try:
+                    freqs = self.get_frequency_array(pos=position)
+                except RuntimeError:
+                    freqs = counts / float(self.__depth)
+                out_dict['Frequencies'].append(', '.join([str(x) for x in freqs]))
+            df = pd.DataFrame(out_dict)
+            df.to_csv(file_path, sep='\t', columns=columns, header=True, index=False)
+
     def __add__(self, other):
         """
         Overloads the + operator, combining the information from two FrequencyTables. The intention of this behavior is
