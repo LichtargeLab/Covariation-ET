@@ -3,10 +3,12 @@ Created on May 23, 2019
 
 @author: Daniel Konecki
 """
+import os
 import numpy as np
+import pandas as pd
+from time import time
 from copy import deepcopy
 from Bio import Alphabet
-from multiprocessing import RLock
 from utils import build_mapping
 
 
@@ -45,7 +47,6 @@ class FrequencyTable(object):
         self.__position_table = {}
         self.__depth = 0
         self.__frequencies = False
-        # self.__lock = RLock()
 
     def _add_position(self, pos):
         """
@@ -347,8 +348,16 @@ class FrequencyTable(object):
         return mat
 
     def to_csv(self, file_path):
-        import os
-        import pandas as pd
+        """
+        To CSV
+
+        This method writes the current FrequencyTable instance to a tab delimited file capturing the variability,
+        characters, counts, and frequencies for every position.
+
+        Args:
+            file_path (str): The full path to where the data should be written.
+        """
+        start = time()
         if not os.path.isfile(file_path):
             columns = ['Position', 'Variability', 'Characters', 'Counts', 'Frequencies']
             out_dict = {c: [] for c in columns}
@@ -356,16 +365,69 @@ class FrequencyTable(object):
                 out_dict['Position'].append(position)
                 chars = self.get_chars(pos=position)
                 out_dict['Variability'].append(len(chars))
-                out_dict['Characters'].append(', '.join(chars))
+                out_dict['Characters'].append(','.join(chars))
                 counts = self.get_count_array(pos=position)
-                out_dict['Counts'].append(', '.join([str(x) for x in counts]))
+                out_dict['Counts'].append(','.join([str(x) for x in counts]))
                 try:
                     freqs = self.get_frequency_array(pos=position)
                 except RuntimeError:
                     freqs = counts / float(self.__depth)
-                out_dict['Frequencies'].append(', '.join([str(x) for x in freqs]))
+                out_dict['Frequencies'].append(','.join([str(x) for x in freqs]))
             df = pd.DataFrame(out_dict)
             df.to_csv(file_path, sep='\t', columns=columns, header=True, index=False)
+        end = time()
+        print('Writing FrequencyTable to file took {} min'.format((end - start) / 60.0))
+
+    def load_csv(self, file_path):
+        """
+        Load CSV
+
+        This method uses a csv written by the to_csv method to populate the __position_table and __depth attributes of a
+        FrequencyTable instance.
+
+        Args:
+            file_path (str): The path to the file written by to_csv from which the FrequencyTable data should be loaded.
+        """
+        start = time()
+        if not os.path.isfile(file_path):
+            raise ValueError('The provided path does not exist.')
+        header = None
+        indices = None
+        max_depth = None
+        with open(file_path, 'rb') as file_handle:
+            for line in file_handle:
+                elements = line.strip().split('\t')
+                if header is None:
+                    header = elements
+                    indices = {col: i for i, col in enumerate(header)}
+                    continue
+                pos_str = elements[indices['Position']]
+                try:
+                    pos = int(pos_str)
+                    if pos > (self.sequence_length - 1):
+                        raise RuntimeError('Imported file does not match sequence position {} exceeds sequence length'.format(self.sequence_length))
+                except ValueError:
+                    pos = tuple([int(x) for x in pos_str.lstrip('(').rstrip(')').split(',')])
+                    if pos[0] > (self.sequence_length - 1) or pos[1] > (self.sequence_length - 1):
+                        raise RuntimeError('Imported file does not match sequence position {} exceeds sequence length'.format(self.sequence_length))
+                self.__position_table[pos] = {}
+                chars = elements[indices['Characters']].split(',')
+                counts = [int(x) for x in elements[indices['Counts']].split(',')]
+                frequencies = [float(x) for x in elements[indices['Frequencies']].split(',')]
+                if len(chars) != len(counts) or len(counts) != len(frequencies):
+                    raise ValueError('Frequency Table written to file incorrectly the length of Characters, Counts, and Frequencies does not match for position: {}'.format(pos))
+                for i in range(len(chars)):
+                    self.__position_table[pos][chars[i]] = {'count': counts[i], 'frequency': frequencies[i]}
+                    curr_depth = np.sum(counts)
+                    if max_depth is None:
+                        max_depth = curr_depth
+                    else:
+                        if curr_depth != max_depth:
+                            raise RuntimeError('Depth at position {} does not match the depth from previous positions {} vs {}'.format(pos, max_depth, curr_depth))
+        self.__depth = max_depth
+        self.__frequencies = True
+        end = time()
+        print('Loading FrequencyTable from file took {} min'.format((end - start) / 60.0))
 
     def __add__(self, other):
         """
