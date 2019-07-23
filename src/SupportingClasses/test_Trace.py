@@ -58,7 +58,7 @@ class TestTrace(TestBase):
     def test1a_init(self):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                             group_assignments=self.assignments_small, position_specific=True, pair_specific=True,
-                            output_dir=self.out_small_dir)
+                            output_dir=self.out_small_dir, low_mem=False)
         self.assertEqual(trace_small.aln.file_name, self.query_aln_fa_small.file_name)
         self.assertEqual(trace_small.aln.query_id, self.query_aln_fa_small.query_id)
         for s in range(trace_small.aln.size):
@@ -79,11 +79,12 @@ class TestTrace(TestBase):
         self.assertEqual(trace_small.pos_specific, True)
         self.assertEqual(trace_small.pair_specific, True)
         self.assertEqual(trace_small.out_dir, self.out_small_dir)
+        self.assertFalse(trace_small.low_memory)
 
     def test1b_init(self):
         trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                             group_assignments=self.assignments_large, position_specific=True, pair_specific=True,
-                            output_dir=self.out_large_dir)
+                            output_dir=self.out_large_dir, low_mem=True)
         self.assertEqual(trace_large.aln.file_name, self.query_aln_fa_large.file_name)
         self.assertEqual(trace_large.aln.query_id, self.query_aln_fa_large.query_id)
         for s in range(trace_large.aln.size):
@@ -104,6 +105,7 @@ class TestTrace(TestBase):
         self.assertEqual(trace_large.pos_specific, True)
         self.assertEqual(trace_large.pair_specific, True)
         self.assertEqual(trace_large.out_dir, self.out_large_dir)
+        self.assertTrue(trace_large.low_memory)
 
     ####################################################################################################################
 

@@ -6,6 +6,7 @@ Created on May 23, 2019
 import os
 import numpy as np
 from Queue import Empty
+import cPickle as pickle
 from time import sleep, time
 from multiprocessing import Manager, Pool, Queue
 from utils import gap_characters
@@ -30,7 +31,7 @@ class Trace(object):
     """
 
     def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True,
-                 output_dir=None, low_memory=False):
+                 output_dir=None, low_mem=False):
         """
         Initializer for Trace object.
 
@@ -41,7 +42,7 @@ class Trace(object):
             position_specific (bool): Whether or not to perform the trace for specific positions.
             pair_specific (bool): Whether or not to perform the trace for pairs of positions.
             output_dir (str/path): Where results from a trace should be stored.
-            low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+            low_mem (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
             resources.
         """
         self.aln = alignment
@@ -56,7 +57,7 @@ class Trace(object):
             if not os.path.isdir(output_dir):
                 os.makedirs(output_dir)
             self.out_dir = output_dir
-        self.low_mem = low_memory
+        self.low_memory = low_mem
 
     def characterize_rank_groups(self, processes=1):
         """
@@ -84,7 +85,7 @@ class Trace(object):
         frequency_tables = pool_manager.dict()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
                     initargs=(self.aln, self.pos_specific, self.pair_specific, queue, frequency_tables, unique_dir,
-                              self.low_mem))
+                              self.low_memory))
         pool.map_async(func=characterization, iterable=list(range(processes)))
         pool.close()
         pool.join()
@@ -93,7 +94,7 @@ class Trace(object):
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
-    def trace(self, scorer, gap_correction=0.6, processes=1, low_memory=False, del_intermediate=False):
+    def trace(self, scorer, gap_correction=0.6, processes=1, del_intermediate=False):
         """
         Trace
 
@@ -110,8 +111,6 @@ class Trace(object):
             alignment where the gap / alignment size ratio is greater than the gap_correction will have their final
             scores set to the highest (least important) value computed up to that point. If you do not want to perform
             this correction please set gap_correction to None.
-            low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
-            resources.
             del_intermediate (bool): If low_memory is set this determines whether the serialized data will be deleted
             after the computation is complete.
         Returns:
@@ -193,7 +192,7 @@ class Trace(object):
         return final_scores
 
 
-def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict, unique_dir, low_mem):
+def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict, unique_dir, low_memory):
     """
     Init Characterization Pool
 
@@ -211,7 +210,7 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
         unique_dir (str/path): The directory where sub-alignment files can be written.
-        low_mem (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
     """
     global aln
@@ -226,8 +225,60 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
     freq_tables = sharable_dict
     global u_dir
     u_dir = unique_dir
-    global low_memory
-    low_memory = low_mem
+    global low_mem
+    low_mem = low_memory
+
+
+def save_freq_table(freq_table, low_memory, node_name, out_dir):
+    """
+    Save Frequency Table
+
+    This function returns either the FrequencyTable that was provided to it or the path where that frequency table has
+    been stored if the low memory option has been set. The FrequencyTable will be saved to a file in the out_dir with
+    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
+
+    Args:
+        freq_table (FrequencyTable): The FrequencyTable instance to either serialize or pass through.
+        low_memory (bool): Whether or not to save the FrequencyTable or just pass it through.
+        node_name (str): A string which will be used in naming the safe file.
+        out_dir (str): The path to a directory where the FrequencyTable should be saved.
+    Returns:
+        FrequencyTable/str: Either the provided FrequencyTable (if low_memory is False) or a string providing the path
+        to a file where the FrequencyTable has been saved.
+    """
+    if low_memory:
+        fn = os.path.join(out_dir, '{}_freq_table.pkl'.format(node_name))
+        with open(fn, 'wb') as handle:
+            pickle.dump(freq_table, handle, pickle.HIGHEST_PROTOCOL)
+        freq_table = fn
+    return freq_table
+
+
+def load_freq_table(freq_table, low_memory):
+    """
+    Load Frequency Table
+
+    This function returns a FrequencyTable. If a FrequencyTable was provided to it and low_memory is False the instance
+    returned is the same as the one passed in. If a string was passed in and low_memory is True a FrequencyTable is
+    returned after loading it from the file specified by the string.
+
+    Args:
+        freq_table (FrequencyTable/str): A FrequencyTable or the path to one which should be loaded from file.
+        low_memory (bool): Whether or not to load the FrequencyTable from file.
+    Returns:
+        FrequencyTable: Either the FrequencyTable passed in or the one loaded from the file specified by a passed in
+        string.
+    """
+    if low_memory and not isinstance(freq_table, str):
+        raise ValueError('Low memory setting active but frequency table provided is not a path.')
+    elif low_memory:
+        if not os.path.isfile(freq_table):
+            raise ValueError('File path is not valid: {}'.format(freq_table))
+        with open(freq_table, 'rb') as handle:
+            freq_table = pickle.load(handle)
+    else:
+        pass
+    return freq_table
 
 
 def characterization(processor):
@@ -285,20 +336,24 @@ def characterization(processor):
                         print('Process {} stuck on {}, {} tries so far'.format(processor, node.name, tries))
             print('Process {} took {} tries to get {} components'.format(processor, tries, node.name))
             if single:
-                pos_table = component1['single'] + component2['single']
+                pos_table = (load_freq_table(component1['single'], low_memory=low_mem) +
+                             load_freq_table(component2['single'], low_memory=low_mem))
             else:
                 pos_table = None
             if pair:
-                pair_table = component1['pair'] + component2['pair']
+                pair_table = (load_freq_table(component1['pair'], low_memory=low_mem) +
+                              load_freq_table(component2['pair'], low_memory=low_mem))
             else:
                 pair_table = None
         # Compute frequencies for the FrequencyTables generated for the current node
         if single:
             pos_table.compute_frequencies()
             pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node.name)))
+            pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem, node_name=node.name, out_dir=u_dir)
         if pair:
             pair_table.compute_frequencies()
             pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node.name)))
+            pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem, node_name=node.name, out_dir=u_dir)
         # Store the current nodes characterization in the shared dictionary.
         tables = {'single': pos_table, 'pair': pair_table}
         freq_tables[node.name] = tables
@@ -306,7 +361,7 @@ def characterization(processor):
     print('Processor {} Completed {} node characterizations'.format(processor, count))
 
 
-def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specific, u_dict):
+def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specific, u_dict, low_memory):
     """
     Init Trace Pool
 
@@ -321,6 +376,8 @@ def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specif
         pos_specific (bool): Whether or not to characterize single positions.
         pair_specific (bool): Whether or not to characterize pairs of positions.
         u_dict (dict): A dictionary containing the node characterizations.
+        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        resources.
     """
     global g_queue
     g_queue = group_queue
@@ -334,6 +391,8 @@ def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specif
     pair = pair_specific
     global unique_nodes
     unique_nodes = u_dict
+    global low_mem
+    low_mem = low_memory
 
 
 def trace_groups(processor):
@@ -357,11 +416,13 @@ def trace_groups(processor):
             # Using the provided scorer and the characterization for the node found in unique nodes, compute the group
             # score
             if single:
-                single_group_score = pos_scorer.score_group(unique_nodes[node_name]['single'])
+                single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
+                single_group_score = pos_scorer.score_group(single_freq_table)
             else:
                 single_group_score = None
             if pair:
-                pair_group_score = pos_scorer.score_group(unique_nodes[node_name]['pair'])
+                pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
+                pair_group_score = pos_scorer.score_group(pair_freq_table)
             else:
                 pair_group_score = None
             # Store the group scores so they can be retrieved when the pool completes processing
