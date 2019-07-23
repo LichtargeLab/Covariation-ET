@@ -132,11 +132,8 @@ class SeqAlignment(object):
             raise TypeError('Alignment must be Bio.Align.MultipleSequenceALignment not None.')
         if os.path.exists(file_name):
             return
-        start = time()
         with open(file_name, 'wb') as file_handle:
             AlignIO.write(self.alignment, handle=file_handle, format="fasta")
-        end = time()
-        print('Writing out alignment took {} min'.format((end - start) / 60.0))
 
     def generate_sub_alignment(self, sequence_ids):
         """
