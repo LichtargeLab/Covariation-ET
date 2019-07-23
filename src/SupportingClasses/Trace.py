@@ -3,6 +3,7 @@ Created on May 23, 2019
 
 @author: Daniel Konecki
 """
+import os
 import numpy as np
 from Queue import Empty
 from time import sleep, time
@@ -23,9 +24,13 @@ class Trace(object):
         characterization and tracing to reduce the required computations.
         position_specific (bool): Whether this trace will perform position specific analyses or not.
         pair_specific (bool): Whether this trace will perform pair specific analyses or not.
+        out_dir (str/path): Where results from a trace should be stored.
+        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        resources.
     """
 
-    def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True):
+    def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True,
+                 output_dir=None, low_memory=False):
         """
         Initializer for Trace object.
 
@@ -35,6 +40,9 @@ class Trace(object):
             group_assignments (dict): The group assignments for nodes in the tree.
             position_specific (bool): Whether or not to perform the trace for specific positions.
             pair_specific (bool): Whether or not to perform the trace for pairs of positions.
+            output_dir (str/path): Where results from a trace should be stored.
+            low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+            resources.
         """
         self.aln = alignment
         self.phylo_tree = phylo_tree
@@ -42,6 +50,13 @@ class Trace(object):
         self.unique_nodes = None
         self.pos_specific = position_specific
         self.pair_specific = pair_specific
+        if output_dir is None:
+            self.out_dir = os.getcwd()
+        else:
+            if not os.path.isdir(output_dir):
+                os.makedirs(output_dir)
+            self.out_dir = output_dir
+        self.low_mem = low_memory
 
     def characterize_rank_groups(self, processes=1):
         """
@@ -56,6 +71,9 @@ class Trace(object):
             processes (int): The maximum number of sequences to use when performing this characterization.
         """
         start = time()
+        unique_dir = os.path.join(self.out_dir, 'unique_node_data')
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
         queue = Queue(maxsize=(self.aln.size * 2) - 1)
         for t in self.phylo_tree.tree.get_terminals():
             queue.put_nowait(t)
@@ -65,7 +83,8 @@ class Trace(object):
         pool_manager = Manager()
         frequency_tables = pool_manager.dict()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue, frequency_tables))
+                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue, frequency_tables, unique_dir,
+                              self.low_mem))
         pool.map_async(func=characterization, iterable=list(range(processes)))
         pool.close()
         pool.join()
@@ -74,7 +93,7 @@ class Trace(object):
         end = time()
         print('Characterization took: {} min'.format((end - start) / 60.0))
 
-    def trace(self, scorer, gap_correction=0.6, processes=1):
+    def trace(self, scorer, gap_correction=0.6, processes=1, low_memory=False, del_intermediate=False):
         """
         Trace
 
@@ -91,6 +110,10 @@ class Trace(object):
             alignment where the gap / alignment size ratio is greater than the gap_correction will have their final
             scores set to the highest (least important) value computed up to that point. If you do not want to perform
             this correction please set gap_correction to None.
+            low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+            resources.
+            del_intermediate (bool): If low_memory is set this determines whether the serialized data will be deleted
+            after the computation is complete.
         Returns:
             np.array: A properly dimensioned vector/matrix/tensor of importance scores for each position in the
             alignment being traced.
@@ -170,7 +193,7 @@ class Trace(object):
         return final_scores
 
 
-def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict):
+def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict, unique_dir, low_mem):
     """
     Init Characterization Pool
 
@@ -187,6 +210,9 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
         of nodes (i.e. leaves to root).
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
+        unique_dir (str/path): The directory where sub-alignment files can be written.
+        low_mem (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        resources.
     """
     global aln
     aln = alignment
@@ -198,6 +224,10 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
     node_queue = queue
     global freq_tables
     freq_tables = sharable_dict
+    global u_dir
+    u_dir = unique_dir
+    global low_memory
+    low_memory = low_mem
 
 
 def characterization(processor):
@@ -226,9 +256,11 @@ def characterization(processor):
         except Empty:
             # If no node is available the queue is likely empty, repeat the loop checking the queue status.
             continue
+        sub_aln = aln.generate_sub_alignment(sequence_ids=[x.name for x in node.get_terminals()])
+        sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node.name)))
         if node.is_terminal():
             # If the node is terminal (a leaf) retrieve its sub_alignment and characterize it.
-            sub_aln = aln.generate_sub_alignment(sequence_ids=[node.name])
+            # sub_aln = aln.generate_sub_alignment(sequence_ids=[node.name])
             pos_table, pair_table = sub_aln.characterize_positions(single=single, pair=pair)
         else:
             # If a node is non-terminal retrieve its childrens' characterizations and merge them to get the parent
@@ -238,6 +270,7 @@ def characterization(processor):
             success = False
             component1 = None
             component2 = None
+            tries = 0
             while not success:
                 # Attempt to retrieve the current node's childrens' data, sleep and try again if it is not already in
                 # the dictionary, until success.
@@ -247,6 +280,10 @@ def characterization(processor):
                     success = True
                 except KeyError:
                     sleep(0.5)
+                    tries += 1
+                    if tries > 10:
+                        print('Process {} stuck on {}, {} tries so far'.format(processor, node.name, tries))
+            print('Process {} took {} tries to get {} components'.format(processor, tries, node.name))
             if single:
                 pos_table = component1['single'] + component2['single']
             else:
@@ -258,8 +295,10 @@ def characterization(processor):
         # Compute frequencies for the FrequencyTables generated for the current node
         if single:
             pos_table.compute_frequencies()
+            pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node.name)))
         if pair:
             pair_table.compute_frequencies()
+            pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node.name)))
         # Store the current nodes characterization in the shared dictionary.
         tables = {'single': pos_table, 'pair': pair_table}
         freq_tables[node.name] = tables
