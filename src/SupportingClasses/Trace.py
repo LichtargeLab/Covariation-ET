@@ -128,6 +128,7 @@ class Trace(object):
             final_scores += 1
         """
         start = time()
+        unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         manager = Manager()
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_queue = Queue(maxsize=(self.aln.size * 2) - 1)
@@ -136,7 +137,7 @@ class Trace(object):
         group_dict = manager.dict()
         pool1 = Pool(processes=processes, initializer=init_trace_groups,
                      initargs=(group_queue, scorer, group_dict, self.pos_specific, self.pair_specific,
-                               self.unique_nodes))
+                               self.unique_nodes, unique_dir))
         pool1.map_async(trace_groups, range(processes))
         pool1.close()
         pool1.join()
@@ -162,11 +163,13 @@ class Trace(object):
         final_scores = np.zeros(scorer.dimensions)
         for rank in rank_dict:
             if self.pair_specific:
-                final_scores += rank_dict[rank]['pair_ranks']
+                rank_scores = rank_dict[rank]['pair_ranks']
             elif self.pos_specific:
-                final_scores += rank_dict[rank]['single_ranks']
+                rank_scores = rank_dict[rank]['single_ranks']
             else:
                 pass
+            rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
+            final_scores += rank_scores
         final_scores += 1
         rank_time = time()
         print('Rank processing completed in {} min'.format((rank_time - group_time) / 60.0))
@@ -209,7 +212,7 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
         of nodes (i.e. leaves to root).
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
-        unique_dir (str/path): The directory where sub-alignment files can be written.
+        unique_dir (str/path): The directory where sub-alignment and frequency table files can be written.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
     """
@@ -233,14 +236,14 @@ def save_freq_table(freq_table, low_memory, node_name, out_dir):
     """
     Save Frequency Table
 
-    This function returns either the FrequencyTable that was provided to it or the path where that frequency table has
+    This function returns either the FrequencyTable that was provided to it or the path where that FrequencyTable has
     been stored if the low memory option has been set. The FrequencyTable will be saved to a file in the out_dir with
     name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
 
     Args:
         freq_table (FrequencyTable): The FrequencyTable instance to either serialize or pass through.
         low_memory (bool): Whether or not to save the FrequencyTable or just pass it through.
-        node_name (str): A string which will be used in naming the safe file.
+        node_name (str): A string which will be used in naming the save file.
         out_dir (str): The path to a directory where the FrequencyTable should be saved.
     Returns:
         FrequencyTable/str: Either the provided FrequencyTable (if low_memory is False) or a string providing the path
@@ -364,7 +367,58 @@ def characterization(processor):
     print('Processor {} Completed {} node characterizations'.format(processor, count))
 
 
-def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specific, u_dict, low_memory):
+def save_numpy_array(mat, out_dir, name, low_memory):
+    """
+    Save Numpy Array
+
+    This function returns either the np.array that was provided to it or the path where that np.array has been stored if
+    the low memory option was set. The FrequencyTable will be saved to a file in the out_dir with
+    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
+
+    Args:
+        mat (np.array): The np.array instance to either serialize or pass through.
+        low_memory (bool): Whether or not to save the FrequencyTable or just pass it through.
+        name (str): A string which will be used in naming the save file.
+        out_dir (str): The path to a directory where the np.array should be saved.
+    Returns:
+        np.array/str: Either the provided np.array (if low_memory is False) or a string providing the path to a file
+        where the np.array has been saved.
+    """
+    if low_memory:
+        fn = os.path.join(out_dir, '{}.npz'.format(name))
+        if not os.path.isfile(fn):
+            np.savez(fn, mat=mat)
+        mat = fn
+    return mat
+
+
+def load_numpy_array(mat, low_memory):
+    """
+    Load Numpy Array
+
+    This function returns a np.array. If a np.array was provided to it and low_memory is False the instance
+    returned is the same as the one passed in. If a string was passed in and low_memory is True a np.array is
+    returned after loading it from the file specified by the string.
+
+    Args:
+        mat (np.array/str): A np.array or the path to one which should be loaded from file.
+        low_memory (bool): Whether or not to load the np.array from file.
+    Returns:
+        np.array: Either the np.array passed in or the one loaded from the file specified by a passed in string.
+    """
+    if low_memory and not isinstance(mat, str):
+        raise ValueError('Low memory setting active but matrix provided is not a path.')
+    elif low_memory:
+        if not os.path.isfile(mat):
+            raise ValueError('File path is not valid: {}'.format(mat))
+        load = np.load(mat)
+        mat = load['mat']
+    else:
+        pass
+    return mat
+
+
+def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specific, u_dict, low_memory, unique_dir):
     """
     Init Trace Pool
 
@@ -381,6 +435,7 @@ def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specif
         u_dict (dict): A dictionary containing the node characterizations.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
+        unique_dir (str/path): The directory where group score vectors/matrices can be written.
     """
     global g_queue
     g_queue = group_queue
@@ -396,6 +451,8 @@ def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specif
     unique_nodes = u_dict
     global low_mem
     low_mem = low_memory
+    global u_dir
+    u_dir = unique_dir
 
 
 def trace_groups(processor):
@@ -421,11 +478,15 @@ def trace_groups(processor):
             if single:
                 single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
                 single_group_score = pos_scorer.score_group(single_freq_table)
+                single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
+                                                      name='{}_single_group_score'.format(node_name))
             else:
                 single_group_score = None
             if pair:
                 pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
                 pair_group_score = pos_scorer.score_group(pair_freq_table)
+                pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
+                                                    name='{}_pair_group_score'.format(node_name))
             else:
                 pair_group_score = None
             # Store the group scores so they can be retrieved when the pool completes processing
@@ -438,7 +499,8 @@ def trace_groups(processor):
     print('Processor {} completed {} groups in {} min'.format(processor, group_count, (end - start) / 60.0))
 
 
-def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific, a_dict, u_dict):
+def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific, a_dict, u_dict, low_memory,
+                     unique_dir):
     """
     Init Trace Ranks
 
@@ -453,6 +515,10 @@ def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific,
         pair_specific (bool): Whether or not to characterize pairs of positions.
         a_dict (dict): The rank and group assignments for nodes in the tree.
         u_dict (dict): A dictionary containing the node characterizations and group level scores for those nodes.
+        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        resources.
+        unique_dir (str/path): The directory where group score vectors/matrices can be loaded from and where rank
+        scores can be written.
     """
     global r_queue
     r_queue = rank_queue
@@ -468,6 +534,10 @@ def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific,
     assignments = a_dict
     global unique_nodes
     unique_nodes = u_dict
+    global low_mem
+    low_mem = low_memory
+    global u_dir
+    u_dir = unique_dir
 
 
 def trace_ranks(processor):
@@ -496,18 +566,26 @@ def trace_ranks(processor):
             for g in assignments[rank]:
                 node_name = assignments[rank][g]['node'].name
                 if single:
-                    single_group_scores.append(unique_nodes[node_name]['single_scores'])
+                    single_group_score = unique_nodes[node_name]['single_scores']
+                    single_group_score = load_numpy_array(mat=single_group_score, low_memory=low_mem)
+                    single_group_scores.append(single_group_score)
                 if pair:
-                    pair_group_scores.append(unique_nodes[node_name]['pair_scores'])
+                    pair_group_score = unique_nodes[node_name]['pair_scores']
+                    pair_group_score = load_numpy_array(mat=pair_group_score, low_memory=low_mem)
+                    pair_group_scores.append(pair_group_score)
             # Combine all group scores into a matrix/tensor and compute the rank score
             if single:
                 single_group_scores = np.stack(single_group_scores, axis=0)
                 single_rank_scores = pos_scorer.score_rank(single_group_scores)
+                single_rank_scores = save_numpy_array(mat=single_rank_scores, out_dir=u_dir, low_memory=low_mem,
+                                                      name='{}_single_rank_score'.format(rank))
             else:
                 single_rank_scores = None
             if pair:
                 pair_group_scores = np.stack(pair_group_scores, axis=0)
                 pair_rank_scores = pos_scorer.score_rank(pair_group_scores)
+                pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
+                                                    name='{}_pair_rank_score'.format(rank))
             else:
                 pair_rank_scores = None
             # Store the rank score so that it can be retrieved once the pool completes
