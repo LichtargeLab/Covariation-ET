@@ -15,7 +15,7 @@ from PositionalScorer import PositionalScorer
 from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from Trace import (Trace, init_characterization_pool, characterization, init_trace_groups, trace_groups,
-                   init_trace_ranks, trace_ranks)
+                   init_trace_ranks, trace_ranks, save_freq_table, load_freq_table)
 
 
 class TestTrace(TestBase):
@@ -109,7 +109,7 @@ class TestTrace(TestBase):
 
     ####################################################################################################################
 
-    def evaluate_characterize_rank_groups_pooling_functions(self, p_id, aln, phylo_tree, out_dir):
+    def evaluate_characterize_rank_groups_pooling_functions(self, p_id, aln, phylo_tree, out_dir, low_mem):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
         if not os.path.isdir(unique_dir):
             os.makedirs(unique_dir)
@@ -125,7 +125,7 @@ class TestTrace(TestBase):
         test_manager = Manager()
         test_dict = test_manager.dict()
         init_characterization_pool(alignment=aln, pos_specific=True, pair_specific=True, queue=test_queue,
-                                   sharable_dict=test_dict, unique_dir=unique_dir)
+                                   sharable_dict=test_dict, unique_dir=unique_dir, low_memory=low_mem)
         characterization(processor=1)
         test_dict = dict(test_dict)
         self.assertEqual(len(test_dict), 3)
@@ -136,8 +136,14 @@ class TestTrace(TestBase):
         self.assertTrue(parent_node.name in test_dict)
         self.assertTrue('single' in test_dict[parent_node.name])
         self.assertTrue('pair' in test_dict[parent_node.name])
-        self.assertEqual(test_dict[parent_node.name]['single'].get_table(), single_table1.get_table())
-        self.assertEqual(test_dict[parent_node.name]['pair'].get_table(), pair_table1.get_table())
+        single_freq_table1 = test_dict[parent_node.name]['single']
+        if low_mem:
+            single_freq_table1 = load_freq_table(freq_table=single_freq_table1, low_memory=low_mem)
+        self.assertEqual(single_freq_table1.get_table(), single_table1.get_table())
+        pair_freq_table1 = test_dict[parent_node.name]['pair']
+        if low_mem:
+            pair_freq_table1 = load_freq_table(freq_table=pair_freq_table1, low_memory=low_mem)
+        self.assertEqual(pair_freq_table1.get_table(), pair_table1.get_table())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(parent_node.name))))
         sub_aln2 = aln.generate_sub_alignment(sequence_ids=[x.name for x in query_node.get_terminals()])
         single_table2, pair_table2 = sub_aln2.characterize_positions()
@@ -145,9 +151,15 @@ class TestTrace(TestBase):
         pair_table2.compute_frequencies()
         self.assertTrue(query_node.name in test_dict)
         self.assertTrue('single' in test_dict[query_node.name])
+        single_freq_table2 = test_dict[query_node.name]['single']
+        if low_mem:
+            single_freq_table2 = load_freq_table(freq_table=single_freq_table2, low_memory=low_mem)
+        self.assertEqual(single_freq_table2.get_table(), single_table2.get_table())
         self.assertTrue('pair' in test_dict[query_node.name])
-        self.assertEqual(test_dict[query_node.name]['single'].get_table(), single_table2.get_table())
-        self.assertEqual(test_dict[query_node.name]['pair'].get_table(), pair_table2.get_table())
+        pair_freq_table2 = test_dict[query_node.name]['pair']
+        if low_mem:
+            pair_freq_table2 = load_freq_table(freq_table=pair_freq_table2, low_memory=low_mem)
+        self.assertEqual(pair_freq_table2.get_table(), pair_table2.get_table())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_node.name))))
         sub_aln3 = aln.generate_sub_alignment(sequence_ids=[query_neighbor_node.name])
         single_table3, pair_table3 = sub_aln3.characterize_positions()
@@ -155,23 +167,32 @@ class TestTrace(TestBase):
         pair_table3.compute_frequencies()
         self.assertTrue(query_neighbor_node.name in test_dict)
         self.assertTrue('single' in test_dict[query_neighbor_node.name])
+        single_freq_table3 = test_dict[query_neighbor_node.name]['single']
+        if low_mem:
+            single_freq_table3 = load_freq_table(freq_table=single_freq_table3, low_memory=low_mem)
+        self.assertEqual(single_freq_table3.get_table(), single_table3.get_table())
         self.assertTrue('pair' in test_dict[query_neighbor_node.name])
-        self.assertEqual(test_dict[query_neighbor_node.name]['single'].get_table(), single_table3.get_table())
-        self.assertEqual(test_dict[query_neighbor_node.name]['pair'].get_table(), pair_table3.get_table())
+        pair_freq_table3 = test_dict[query_neighbor_node.name]['pair']
+        if low_mem:
+            pair_freq_table3 = load_freq_table(freq_table=pair_freq_table3, low_memory=low_mem)
+        self.assertEqual(pair_freq_table3.get_table(), pair_table3.get_table())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_neighbor_node.name))))
 
     def test2a_characterize_rank_groups_initialize_characterization_pool(self):
-        # Test pool initialization function and mappable function (minimal example)
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             p_id=self.small_structure_id, aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-            out_dir=self.out_small_dir)
+            out_dir=self.out_small_dir, low_mem=False)
+
+    def test2b_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             p_id=self.large_structure_id, aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-            out_dir=self.out_large_dir)
+            out_dir=self.out_large_dir, low_mem=True)
 
-    def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors):
+    def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem):
         trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assign, position_specific=single,
-                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id))
+                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id), low_mem=low_mem)
         trace.characterize_rank_groups(processes=processors)
         visited = set()
         unique_dir = os.path.join(trace.out_dir, 'unique_node_data')
@@ -187,49 +208,58 @@ class TestTrace(TestBase):
                     sub_aln = aln.generate_sub_alignment(
                         sequence_ids=trace.assignments[rank][group]['terminals'])
                     self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
-                    single_table, pair_table = sub_aln.characterize_positions(single=single, pair=pair)
+                    expected_single_table, expected_pair_table = sub_aln.characterize_positions(single=single,
+                                                                                                pair=pair)
                     if single:
-                        single_table.compute_frequencies()
-                        self.assertEqual(trace.unique_nodes[node_name]['single'].get_table(),
-                                         single_table.get_table())
+                        expected_single_table.compute_frequencies()
+                        single_table = trace.unique_nodes[node_name]['single']
+                        if low_mem:
+                            single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
+                        self.assertEqual(single_table.get_table(),
+                                         expected_single_table.get_table())
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['single'])
                     if pair:
-                        pair_table.compute_frequencies()
-                        self.assertEqual(trace.unique_nodes[node_name]['pair'].get_table(),
-                                         pair_table.get_table())
+                        expected_pair_table.compute_frequencies()
+                        pair_table = trace.unique_nodes[node_name]['pair']
+                        if low_mem:
+                            pair_table = load_freq_table(freq_table=pair_table, low_memory=low_mem)
+                        self.assertEqual(pair_table.get_table(),
+                                         expected_pair_table.get_table())
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['pair'])
                     visited.add(node_name)
 
-    def test2b_characterize_rank_groups(self):
+    def test2c_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, small alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=True, pair=True, processors=1)
-
-    def test2c_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, large alignment, single processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_large, single=True, pair=True, processors=1)
+                                               assign=self.assignments_small, single=True, pair=True, processors=1,
+                                               low_mem=False)
 
     def test2d_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_large, single=True, pair=True, processors=1,
+                                               low_mem=True)
+
+    def test2e_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, small alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=True, pair=True,
                                                processors=self.max_threads)
 
-    def test2e_characterize_rank_groups(self):
+    def test2f_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                                                assign=self.assignments_large, single=True, pair=True,
                                                processors=self.max_threads)
 
-    def test2f_characterize_rank_groups(self):
+    def test2g_characterize_rank_groups(self):
         # Test characterizing single (single processed)
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=True, pair=False, processors=1)
 
-    def test2g_characterize_rank_groups(self):
+    def test2h_characterize_rank_groups(self):
         # Test characterizing pair positions (single processed)
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=False, pair=True, processors=1)
