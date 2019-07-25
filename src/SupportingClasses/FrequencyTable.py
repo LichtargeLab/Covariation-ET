@@ -123,6 +123,10 @@ class FrequencyTable(object):
     #         self.__position_table[pos][char] = {'count': 0}
 
     def __convert_pos(self, pos):
+        if self.position_size == 1 and not isinstance(pos, int):
+            raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
+        if (self.position_size > 1) and not isinstance(pos, tuple) and (len(pos) != self.position_size):
+            raise TypeError('Positions for FrequencyTable with position_size>1 must have length == position_size')
         if self.position_size == 1:
             final = pos
         elif self.position_size == 2:

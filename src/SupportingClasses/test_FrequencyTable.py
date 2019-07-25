@@ -31,6 +31,8 @@ class TestFrequencyTable(TestBase):
             file_name=cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln'],
             query_id=cls.large_structure_id)
         cls.query_aln_fa_large.import_alignment()
+        cls.query_aln_fa_small = cls.query_aln_fa_small.remove_gaps()
+        cls.query_aln_fa_large = cls.query_aln_fa_large.remove_gaps()
 
     # def test1a_init(self):
     #     freq_table = FrequencyTable(alphabet=Gapped(FullIUPACProtein()), seq_len=self.query_aln_fa_small.seq_length)
@@ -223,8 +225,10 @@ class TestFrequencyTable(TestBase):
         freq_table = FrequencyTable(alphabet_size=a_size, mapping=mapping, seq_len=self.query_aln_fa_small.seq_length)
         expected_table = lil_matrix((self.query_aln_fa_small.seq_length, a_size))
         # Testing inserting wrong type of position and character
-        with self.assertRaises(KeyError):
+        with self.assertRaises(TypeError):
             freq_table._increment_count(pos=(1, 2), char='AA')
+        with self.assertRaises(KeyError):
+            freq_table._increment_count(pos=1, char='AA')
         # Test inserting single correct position and character
         freq_table._increment_count(pos=1, char='A')
         expected_table[1, mapping['A']] += 1
@@ -280,19 +284,19 @@ class TestFrequencyTable(TestBase):
             freq_table._increment_count(pos=(1, 2, 3), char='AAA')
         # Test inserting single correct position and character
         freq_table._increment_count(pos=(1, 2), char='AA')
-        expected_table[self.query_aln_fa_small.seq_length + 2, mapping['AA']] += 1
+        expected_table[self.query_aln_fa_small.seq_length + 1, mapping['AA']] += 1
         diff1 = freq_table.get_table() - expected_table
         self.assertFalse(diff1.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test re-inserting single correct position and character
         freq_table._increment_count(pos=(1, 2), char='AA')
-        expected_table[self.query_aln_fa_small.seq_length + 2, mapping['AA']] += 1
+        expected_table[self.query_aln_fa_small.seq_length + 1, mapping['AA']] += 1
         diff2 = freq_table.get_table() - expected_table
         self.assertFalse(diff2.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test inserting another correct position and character
         freq_table._increment_count(pos=(2, 3), char='GG')
-        expected_table[self.query_aln_fa_small.seq_length + (self.query_aln_fa_small.seq_length - 1) + 3,
+        expected_table[self.query_aln_fa_small.seq_length + (self.query_aln_fa_small.seq_length - 1) + 1,
                        mapping['GG']] += 1
         diff3 = freq_table.get_table() - expected_table
         self.assertFalse(diff3.toarray().any())
