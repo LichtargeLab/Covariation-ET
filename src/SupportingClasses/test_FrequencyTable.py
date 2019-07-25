@@ -53,7 +53,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), 0)
         expected_table = lil_matrix((self.query_aln_fa_small.seq_length, a_size))
         diff = freq_table.get_table() - expected_table
-        self.assertFalse(diff.todense().any())
+        self.assertFalse(diff.toarray().any())
 
     # def test1b_init(self):
     #     freq_table = FrequencyTable(alphabet=FullIUPACProtein(), seq_len=self.query_aln_fa_small.seq_length)
@@ -77,7 +77,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), 0)
         expected_table = lil_matrix((self.query_aln_fa_large.seq_length, a_size))
         diff = freq_table.get_table() - expected_table
-        self.assertFalse(diff.todense().any())
+        self.assertFalse(diff.toarray().any())
 
     # def test1c_init(self):
     #     freq_table = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=FullIUPACProtein(), size=2),
@@ -105,7 +105,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), 0)
         expected_table = lil_matrix((expected_num_pos, a_size))
         diff = freq_table.get_table() - expected_table
-        self.assertFalse(diff.todense().any())
+        self.assertFalse(diff.toarray().any())
 
     # def test1d_init(self):
     #     with self.assertRaises(ValueError):
@@ -229,19 +229,19 @@ class TestFrequencyTable(TestBase):
         freq_table._increment_count(pos=1, char='A')
         expected_table[1, mapping['A']] += 1
         diff1 = freq_table.get_table() - expected_table
-        self.assertFalse(diff1.todense().any())
+        self.assertFalse(diff1.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test re-inserting single correct position and character
         freq_table._increment_count(pos=1, char='A')
         expected_table[1, mapping['A']] += 1
         diff2 = freq_table.get_table() - expected_table
-        self.assertFalse(diff2.todense().any())
+        self.assertFalse(diff2.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test inserting another correct position and character
         freq_table._increment_count(pos=2, char='G')
         expected_table[2, mapping['G']] += 1
         diff3 = freq_table.get_table() - expected_table
-        self.assertFalse(diff3.todense().any())
+        self.assertFalse(diff3.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
 
     # def test4b__increment_count(self):
@@ -282,20 +282,20 @@ class TestFrequencyTable(TestBase):
         freq_table._increment_count(pos=(1, 2), char='AA')
         expected_table[self.query_aln_fa_small.seq_length + 2, mapping['AA']] += 1
         diff1 = freq_table.get_table() - expected_table
-        self.assertFalse(diff1.todense().any())
+        self.assertFalse(diff1.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test re-inserting single correct position and character
         freq_table._increment_count(pos=(1, 2), char='AA')
         expected_table[self.query_aln_fa_small.seq_length + 2, mapping['AA']] += 1
         diff2 = freq_table.get_table() - expected_table
-        self.assertFalse(diff2.todense().any())
+        self.assertFalse(diff2.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
         # Test inserting another correct position and character
         freq_table._increment_count(pos=(2, 3), char='GG')
         expected_table[self.query_aln_fa_small.seq_length + (self.query_aln_fa_small.seq_length - 1) + 3,
                        mapping['GG']] += 1
         diff3 = freq_table.get_table() - expected_table
-        self.assertFalse(diff3.todense().any())
+        self.assertFalse(diff3.toarray().any())
         self.assertEqual(freq_table.get_depth(), 0)
 
     # def test5a_charatcerize_sequence(self):
@@ -376,10 +376,10 @@ class TestFrequencyTable(TestBase):
         expected_table = lil_matrix((freq_table.num_pos, a_size))
         table1 = freq_table.get_table()
         diff1 = table1 - expected_table
-        self.assertFalse(diff1.todense().any())
+        self.assertFalse(diff1.toarray().any())
         table2 = freq_table.get_table()
         diff2 = table1 - table2
-        self.assertFalse(diff2.todense().any())
+        self.assertFalse(diff2.toarray().any())
         self.assertIsNot(table1, table2)
 
     # def test7_get_depth(self):
@@ -956,7 +956,8 @@ class TestFrequencyTable(TestBase):
         loaded_freq_table = FrequencyTable(alphabet_size=a_size, mapping=mapping,
                                            seq_len=self.query_aln_fa_small.seq_length)
         loaded_freq_table.load_csv(fn)
-        self.assertEqual(freq_table.get_table(), loaded_freq_table.get_table())
+        diff = freq_table.get_table() - loaded_freq_table.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
@@ -983,7 +984,8 @@ class TestFrequencyTable(TestBase):
         loaded_freq_table = FrequencyTable(alphabet_size=a_size, mapping=mapping,
                                            seq_len=self.query_aln_fa_large.seq_length)
         loaded_freq_table.load_csv(file_path=fn)
-        self.assertEqual(freq_table.get_table(), loaded_freq_table.get_table())
+        diff = freq_table.get_table() - loaded_freq_table.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
@@ -1011,7 +1013,8 @@ class TestFrequencyTable(TestBase):
         loaded_freq_table = FrequencyTable(alphabet_size=a_size, mapping=mapping,
                                            seq_len=self.query_aln_fa_small.seq_length, pos_size=2)
         loaded_freq_table.load_csv(file_path=fn)
-        self.assertEqual(freq_table.get_table(), loaded_freq_table.get_table())
+        diff = freq_table.get_table() - loaded_freq_table.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
@@ -1039,7 +1042,8 @@ class TestFrequencyTable(TestBase):
         loaded_freq_table = FrequencyTable(alphabet_size=a_size, mapping=mapping,
                                            seq_len=self.query_aln_fa_large.seq_length, pos_size=2)
         loaded_freq_table.load_csv(file_path=fn)
-        self.assertEqual(freq_table.get_table(), loaded_freq_table.get_table())
+        diff = freq_table.get_table() - loaded_freq_table.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
@@ -1084,7 +1088,8 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.reverse_mapping, freq_table_sum1.reverse_mapping)
         self.assertEqual(freq_table.num_pos, freq_table_sum1.num_pos)
         self.assertEqual(freq_table.position_size, freq_table_sum1.position_size)
-        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        diff = freq_table.get_table() - freq_table_sum1.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
@@ -1132,7 +1137,8 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.reverse_mapping, freq_table_sum1.reverse_mapping)
         self.assertEqual(freq_table.num_pos, freq_table_sum1.num_pos)
         self.assertEqual(freq_table.position_size, freq_table_sum1.position_size)
-        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        diff = freq_table.get_table() - freq_table_sum1.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
@@ -1293,7 +1299,8 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.reverse_mapping, freq_table_sum1.reverse_mapping)
         self.assertEqual(freq_table.num_pos, freq_table_sum1.num_pos)
         self.assertEqual(freq_table.position_size, freq_table_sum1.position_size)
-        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        diff = freq_table.get_table() - freq_table_sum1.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
@@ -1317,6 +1324,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.reverse_mapping, freq_table_sum1.reverse_mapping)
         self.assertEqual(freq_table.num_pos, freq_table_sum1.num_pos)
         self.assertEqual(freq_table.position_size, freq_table_sum1.position_size)
-        self.assertEqual(freq_table.get_table(), freq_table_sum1.get_table())
+        diff = freq_table.get_table() - freq_table_sum1.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())

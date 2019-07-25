@@ -20,11 +20,15 @@ class FrequencyTable(object):
     Attributes:
         alphabet (Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The un/gapped alphabet for which this frequency table is
         valid.
+        mapping (dict): A dictionary mapping the alphabet of the alignment being characterized to numerical positions.
+        reverse_mapping (dict): A dictionary mapping positions back to alphabet characterized.
         position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
         be 1, if it measures pairs of positions this should be 2, etc.
-        __position_table (dict): A structure storing the position specific counts for amino acids found in the
-        alignment.
+        num_pos (int): The number of positions being characterized.
+        __position_table (scipy.sparse.lil_matrix): A structure storing the position specific counts for amino acids
+        found in the alignment.
         __frequencies (bool): Whether or not the frequencies for this table have been computed yet or not.
+        __depth (int):
     """
 
     # def __init__(self, alphabet, mapping, seq_len, pos_size=1):
@@ -552,7 +556,7 @@ class FrequencyTable(object):
                 out_dict['Variability'].append(len(chars))
                 out_dict['Characters'].append(','.join(chars))
                 counts = self.get_count_array(pos=position)
-                out_dict['Counts'].append(','.join([str(x) for x in counts]))
+                out_dict['Counts'].append(','.join([str(int(x)) for x in counts]))
                 freqs = self.get_frequency_array(pos=position)
                 out_dict['Frequencies'].append(','.join([str(x) for x in freqs]))
             df = pd.DataFrame(out_dict)
@@ -649,7 +653,7 @@ class FrequencyTable(object):
                 if len(chars) != len(counts):
                     raise ValueError('Frequency Table written to file incorrectly the length of Characters, Counts, and Frequencies does not match for position: {}'.format(pos))
                 for i in range(len(chars)):
-                    char_pos = self.reverse_mapping[chars[i]]
+                    char_pos = self.mapping[chars[i]]
                     self.__position_table[position, char_pos] = counts[i]
                     curr_depth = np.sum(counts)
                     if max_depth is None:
@@ -731,7 +735,7 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if self.reverse_mapping != other.reverse_mapping:
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
-        new_table = FrequencyTable(alphabet_size=len(self.mapping), mapping=self.mapping, seq_len=self.sequence_length,
+        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
         new_table.__position_table = self.__position_table + other.__position_table
         new_table.__depth = self.__depth + other.__depth
