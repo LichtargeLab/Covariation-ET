@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from subprocess import Popen, PIPE
-from Bio.Align.Applications import MuscleCommandline
+from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
 from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import convert_array_to_distance_matrix
@@ -70,7 +70,7 @@ class ETMIPWrapper(object):
         self.entropy = None
         self.time = None
 
-    def check_alignment(self):
+    def check_alignment(self, target_dir=None):
         """
         Check Alignment
 
@@ -81,12 +81,16 @@ class ETMIPWrapper(object):
         'MUSCLE_PATH' variable describing the path to the muscle binary.
         """
         if not self.alignment.file_name.endswith('.msf'):
-            muscle_path = os.environ.get('MUSCLE_PATH')
-            target_dir = os.path.dirname(self.alignment.file_name)
+            # muscle_path = os.environ.get('MUSCLE_PATH')
+            clustalw_path = os.environ.get('CLUSTALW_PATH')
+            if target_dir is None:
+                target_dir = os.path.dirname(self.alignment.file_name)
             old_file_name = os.path.basename(self.alignment.file_name)
             new_file_name = os.path.join(target_dir, '{}.msf'.format(old_file_name.split('.')[0]))
             if not os.path.isfile(new_file_name):
-                c_line = MuscleCommandline(muscle_path, input=self.alignment.file_name, out=new_file_name, msf=True)
+                # c_line = MuscleCommandline(muscle_path, input=self.alignment.file_name, out=new_file_name, msf=True)
+                c_line = ClustalwCommandline(clustalw_path, infile=self.alignment.file_name, convert=True,
+                                             outfile=new_file_name, output='GCG')
                 c_line()
             self.msf_path = new_file_name
         else:
@@ -294,7 +298,7 @@ class ETMIPWrapper(object):
             self.coverage = loaded_data['coverage']
             self.time = loaded_data['time']
         else:
-            self.check_alignment()
+            self.check_alignment(target_dir=out_dir)
             binary_path = os.environ.get('WETC_PATH')
             start = time()
             current_dir = os.getcwd()
