@@ -445,7 +445,10 @@ class SeqAlignment(object):
         gap_check = num_aln == gap_num
         gap_count = np.sum(gap_check, axis=1)
         gap_z_scores = zscore(gap_count)
-        passing_z_scores = gap_z_scores < z_score_cutoff
+        if np.isnan(gap_z_scores).any():
+            passing_z_scores = np.array([True] * self.size)
+        else:
+            passing_z_scores = gap_z_scores < z_score_cutoff
         return passing_z_scores
 
     def _gap_percentile_check(self, percentile_cutoff, num_aln, gap_num, mapping):
@@ -500,7 +503,7 @@ class SeqAlignment(object):
         """
         alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
         numeric_aln = self._alignment_to_num(mapping)
-        gap_number = self.alphabet.size
+        gap_number = mapping[list(gap_chars)[0]]
         if self.size > size_cutoff:
             passing_seqs = self._gap_z_score_check(z_score_cutoff=z_score_cutoff, num_aln=numeric_aln,
                                                    gap_num=gap_number)

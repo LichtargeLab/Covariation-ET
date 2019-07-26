@@ -1012,7 +1012,7 @@ class TestSeqAlignment(TestBase):
             self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
         positions = []
         for i in range(self.query_aln_fa_small.seq_length):
-            for j in range(i + 1, self.query_aln_fa_small.seq_length):
+            for j in range(i, self.query_aln_fa_small.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
                                                                       self.query_aln_fa_small.query_sequence[j]])
@@ -1031,7 +1031,7 @@ class TestSeqAlignment(TestBase):
             self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
         positions = []
         for i in range(self.query_aln_fa_large.seq_length):
-            for j in range(i + 1, self.query_aln_fa_large.seq_length):
+            for j in range(i, self.query_aln_fa_large.seq_length):
                 position = (i, j)
                 self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
                                                                       self.query_aln_fa_large.query_sequence[j]])
@@ -1050,24 +1050,24 @@ class TestSeqAlignment(TestBase):
         aln_small_sub3 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=seq_order[:2])
         single_table3, pair_table3 = aln_small_sub3.characterize_positions(single=True, pair=True)
         single_combined = single_table1 + single_table2
-        self.assertTrue(isinstance(single_table3.alphabet, type(single_combined.alphabet)))
-        self.assertEqual(len(single_table3.alphabet.letters), len(single_combined.alphabet.letters))
-        for char in single_table3.alphabet.letters:
-            self.assertTrue(char in single_combined.alphabet.letters)
+        self.assertEqual(single_table3.mapping, single_combined.mapping)
+        self.assertTrue(single_table3.reverse_mapping, single_combined.reverse_mapping)
+        self.assertEqual(single_table3.num_pos, single_combined.num_pos)
         self.assertEqual(single_table3.position_size, single_combined.position_size)
-        self.assertEqual(single_table3.get_table(), single_combined.get_table())
+        diff = single_table3.get_table() - single_combined.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
         for i in single_table3.get_positions():
             self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
             for c in single_table3.get_chars(pos=i):
                 self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
         pair_combined = pair_table1 + pair_table2
-        self.assertTrue(isinstance(pair_table3.alphabet, type(pair_combined.alphabet)))
-        self.assertEqual(len(pair_table3.alphabet.letters), len(pair_combined.alphabet.letters))
-        for char in pair_table3.alphabet.letters:
-            self.assertTrue(char in pair_combined.alphabet.letters)
+        self.assertEqual(pair_table3.mapping, pair_combined.mapping)
+        self.assertEqual(pair_table3.reverse_mapping, pair_combined.reverse_mapping)
+        self.assertEqual(pair_table3.num_pos, pair_combined.num_pos)
         self.assertEqual(pair_table3.position_size, pair_combined.position_size)
-        self.assertEqual(pair_table3.get_table(), pair_combined.get_table())
+        diff2 = pair_table3.get_table() - pair_combined.get_table()
+        self.assertFalse(diff2.toarray().any())
         self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
         for i in pair_table3.get_positions():
             self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
@@ -1084,24 +1084,24 @@ class TestSeqAlignment(TestBase):
         aln_large_sub3 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=seq_order[:2])
         single_table3, pair_table3 = aln_large_sub3.characterize_positions(single=True, pair=True)
         single_combined = single_table1 + single_table2
-        self.assertTrue(isinstance(single_table3.alphabet, type(single_combined.alphabet)))
-        self.assertEqual(len(single_table3.alphabet.letters), len(single_combined.alphabet.letters))
-        for char in single_table3.alphabet.letters:
-            self.assertTrue(char in single_combined.alphabet.letters)
+        self.assertEqual(single_table3.mapping, single_combined.mapping)
+        self.assertEqual(single_table3.reverse_mapping, single_combined.reverse_mapping)
+        self.assertEqual(single_table3.num_pos, single_combined.num_pos)
         self.assertEqual(single_table3.position_size, single_combined.position_size)
-        self.assertEqual(single_table3.get_table(), single_combined.get_table())
+        diff = single_table3.get_table() - single_combined.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
         for i in single_table3.get_positions():
             self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
             for c in single_table3.get_chars(pos=i):
                 self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
         pair_combined = pair_table1 + pair_table2
-        self.assertTrue(isinstance(pair_table3.alphabet, type(pair_combined.alphabet)))
-        self.assertEqual(len(pair_table3.alphabet.letters), len(pair_combined.alphabet.letters))
-        for char in pair_table3.alphabet.letters:
-            self.assertTrue(char in pair_combined.alphabet.letters)
+        self.assertEqual(pair_table3.mapping, pair_combined.mapping)
+        self.assertEqual(pair_table3.reverse_mapping, pair_combined.reverse_mapping)
+        self.assertEqual(pair_table3.num_pos, pair_combined.num_pos)
         self.assertEqual(pair_table3.position_size, pair_combined.position_size)
-        self.assertEqual(pair_table3.get_table(), pair_combined.get_table())
+        diff2 = pair_table3.get_table() - pair_combined.get_table()
+        self.assertFalse(diff2.toarray().any())
         self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
         for i in pair_table3.get_positions():
             self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
