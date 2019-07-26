@@ -597,6 +597,10 @@ class SeqAlignment(object):
                 pos_specific.characterize_sequence(seq=self.alignment[s].seq)
             if pair:
                 pair_specific.characterize_sequence(seq=self.alignment[s].seq)
+        if single:
+            pos_specific.finalize_table()
+        if pair:
+            pair_specific.finalize_table()
         return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):

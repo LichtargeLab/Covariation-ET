@@ -25,8 +25,8 @@ class FrequencyTable(object):
         position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
         be 1, if it measures pairs of positions this should be 2, etc.
         num_pos (int): The number of positions being characterized.
-        __position_table (scipy.sparse.lil_matrix): A structure storing the position specific counts for amino acids
-        found in the alignment.
+        __position_table (scipy.sparse.lil_matrix/csc_matrix): A structure storing the position specific counts for
+        amino acids found in the alignment.
         __frequencies (bool): Whether or not the frequencies for this table have been computed yet or not.
         __depth (int):
     """
@@ -172,6 +172,9 @@ class FrequencyTable(object):
                 # Track the pair of amino acids for the positions i,j
                 self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
         self.__depth += 1
+
+    def finalize_table(self):
+        self.__position_table = self.__position_table.tocsc()
 
     def get_table(self):
         """
@@ -332,7 +335,7 @@ class FrequencyTable(object):
         position = self.__convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
         indices = np.nonzero(full_column)
-        arr = full_column[indices].toarray().reshape(-1)
+        arr = full_column.toarray()[indices].reshape(-1)
         return arr
 
     # def get_count_matrix(self):

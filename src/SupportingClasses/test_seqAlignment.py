@@ -1076,12 +1076,13 @@ class TestSeqAlignment(TestBase):
 
     def test18h_characterize_positions(self):
         # Test combination of two alignments frequency tables
-        seq_order = self.query_aln_fa_large.seq_order
-        aln_large_sub1 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[seq_order[0]])
+        large_aln = self.query_aln_fa_large.remove_gaps()
+        seq_order = large_aln.seq_order
+        aln_large_sub1 = large_aln.generate_sub_alignment(sequence_ids=[seq_order[0]])
         single_table1, pair_table1 = aln_large_sub1.characterize_positions(single=True, pair=True)
-        aln_large_sub2 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[seq_order[1]])
+        aln_large_sub2 = large_aln.generate_sub_alignment(sequence_ids=[seq_order[1]])
         single_table2, pair_table2 = aln_large_sub2.characterize_positions(single=True, pair=True)
-        aln_large_sub3 = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=seq_order[:2])
+        aln_large_sub3 = large_aln.generate_sub_alignment(sequence_ids=seq_order[:2])
         single_table3, pair_table3 = aln_large_sub3.characterize_positions(single=True, pair=True)
         single_combined = single_table1 + single_table2
         self.assertEqual(single_table3.mapping, single_combined.mapping)
@@ -1090,11 +1091,8 @@ class TestSeqAlignment(TestBase):
         self.assertEqual(single_table3.position_size, single_combined.position_size)
         diff = single_table3.get_table() - single_combined.get_table()
         self.assertFalse(diff.toarray().any())
+        self.assertEqual(single_table3.get_depth(), single_combined.get_depth())
         self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
-        for i in single_table3.get_positions():
-            self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
-            for c in single_table3.get_chars(pos=i):
-                self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
         pair_combined = pair_table1 + pair_table2
         self.assertEqual(pair_table3.mapping, pair_combined.mapping)
         self.assertEqual(pair_table3.reverse_mapping, pair_combined.reverse_mapping)
@@ -1102,11 +1100,8 @@ class TestSeqAlignment(TestBase):
         self.assertEqual(pair_table3.position_size, pair_combined.position_size)
         diff2 = pair_table3.get_table() - pair_combined.get_table()
         self.assertFalse(diff2.toarray().any())
+        self.assertEqual(pair_table3.get_depth(), pair_combined.get_depth())
         self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
-        for i in pair_table3.get_positions():
-            self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
-            for c in pair_table3.get_chars(pos=i):
-                self.assertEqual(pair_table3.get_count(pos=i, char=c), pair_combined.get_count(pos=i, char=c))
 
     # def test_visualize_tree(self):
     #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
