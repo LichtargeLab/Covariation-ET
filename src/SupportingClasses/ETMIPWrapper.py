@@ -31,36 +31,41 @@ class ETMIPWrapper(object):
     This wrapper makes it possible to convert alignments (in fa format) to msf format, perform covariance analysis using
     the ET-MIp method on an msf formatted alignment, and to import the covariance raw and coverage scores from the
     analysis.
+
+    Attributes:
+        alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the path
+        the to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
+        advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed
+        to ETMIPWrapper.
+        msf_path (str): The file path to the location at which the msf formatted alignment to be analyzed is located. If
+        the SeqAlignment object was created using an msf formatted alignments its filename variable will be the same as
+        msf_path, other wise a different path will be found here.
+        scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
+        This matrix contains the raw covariance scores computed by the ET-MIp method.
+        coverage (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
+        This matrix contains the processed coverage covariance scores computed by the ET-MIp method.
+        distance_matrix
+        tree
+        rank_group_assignments
+        rank_scores
+        rho
+        entropy
+        time (float): The number of seconds it took for the ET-MIp code to load the msf formatted file and calculate
+        covariance scores.
     """
 
     def __init__(self, alignment):
         """
-        This method instantiates an instance of the ETMIPWrapper class. It takes in an alignment and instantiates the
-        following variables:
-            alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the
-            path the to the alignment used, but is also used to determine the length of the query sequence. Because of
-            this it is advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment
-            instance is passed to ETMIPWrapper.
-            msf_path (str): The file path to the location at which the msf formatted alignment to be analyzed is
-            located. If the SeqAlignment object was created using an msf formatted alignments its filename variable will
-            be the same as msf_path, other wise a different path will be found here.
-            raw_scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without
-            gaps). This matrix contains the raw covariance scores computed by the ET-MIp method.
-            coverage_scores (numpy.array): A square matrix whose length on either axis is the query sequence length
-            (without gaps). This matrix contains the processed coverage covariance scores computed by the ET-MIp method.
-            time (float): The number of seconds it took for the ET-MIp code to load the msf formatted file and calculate
-            covariance scores.
+        This method instantiates an instance of the ETMIPWrapper class.
 
         Args:
-            alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the
-            path the to the alignment used, but is also used to determine the length of the query sequence. Because of
-            this it is advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment
-            instance is passed to ETMIPWrapper.
+            alignment (SeqAlignment): This is mainly used to provide the path the to the alignment used, but is also
+            used to determine the length of the query sequence. Because of this it is advised that the
+            import_alignment() method be run before the SeqAlignment instance is passed to ETMIPWrapper.
         """
         self.alignment = alignment
         self.msf_path = None
         self.scores = None
-        # self.raw_scores = None
         self.coverage = None
         self.distance_matrix = None
         self.tree = None
@@ -75,20 +80,22 @@ class ETMIPWrapper(object):
         Check Alignment
 
         This method checks whether the alignment currently associated with the ETMIPWrapper object ends with '.msf'. If
-        it does not the muscle tool is used to convert the initial alignment (assumed to be in .fa format) to an .msf
+        it does not the clustalw tool is used to convert the initial alignment (assumed to be in .fa format) to an .msf
         formatted alignment at the same location as the .fa alignment. The file path to this .msf alignment is stored in
         the msf_path variable. This function is dependent on the .env file at the project level containing the
-        'MUSCLE_PATH' variable describing the path to the muscle binary.
+        'CLUSTALW_PATH' variable describing the path to the muscle binary.
+
+        Args:
+            target_dir (str): The path to a directory where the msf alignment should be written if the passed in
+            alignment is not an msf alignment.
         """
         if not self.alignment.file_name.endswith('.msf'):
-            # muscle_path = os.environ.get('MUSCLE_PATH')
             clustalw_path = os.environ.get('CLUSTALW_PATH')
             if target_dir is None:
                 target_dir = os.path.dirname(self.alignment.file_name)
             old_file_name = os.path.basename(self.alignment.file_name)
             new_file_name = os.path.join(target_dir, '{}.msf'.format(old_file_name.split('.')[0]))
             if not os.path.isfile(new_file_name):
-                # c_line = MuscleCommandline(muscle_path, input=self.alignment.file_name, out=new_file_name, msf=True)
                 c_line = ClustalwCommandline(clustalw_path, infile=self.alignment.file_name, convert=True,
                                              outfile=new_file_name, output='GCG')
                 c_line()
@@ -143,7 +150,7 @@ class ETMIPWrapper(object):
 
     def import_covariance_scores(self, out_dir):
         """
-        Import Covaraince Scores
+        Import Covariance Scores
 
         This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
         and written to file. This file is then imported using Pandas and is then used to fill in the scores and
@@ -202,6 +209,15 @@ class ETMIPWrapper(object):
         return aln_dist_df, id_dist_df, intermediate_df
 
     def import_phylogenetic_tree(self, out_dir, file_name='etc_out.nhx'):
+        """
+        Import Phylogenetic Tree
+
+        This function imports the nhx tree produced by ETC as well as its distance matrix.
+
+        Args:
+            out_dir (str): The path to the directory where the ETC tree has been written.
+            file_name (str): The name of the nhx tree to import.
+        """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
         file_path1 = os.path.join(out_dir, file_name)
@@ -214,6 +230,11 @@ class ETMIPWrapper(object):
         self.tree = tree
 
     def import_assignments(self, out_dir):
+        """
+        Import Assignments
+        Args:
+            out_dir (str): The path to the directory where the ETC group and rank assignments have been written.
+        """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
         file_path1 = os.path.join(out_dir, 'etc_out.group.tsv')
