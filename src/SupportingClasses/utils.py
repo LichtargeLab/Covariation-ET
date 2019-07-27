@@ -24,7 +24,8 @@ def build_mapping(alphabet, skip_letters=None):
         skip_letters (list): Which characters to skip when scoring sequences in the alignment.
     Returns:
         int: The size of the alphabet (not including gaps or skip letters) represented by this map.
-        set: The gap characters in this map.
+        set: The gap characters in this map (if there are gap characters in the provided alphabet then these will not be
+        present in the returned set).
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
     """
