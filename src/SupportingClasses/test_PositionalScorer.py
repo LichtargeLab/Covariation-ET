@@ -25,6 +25,7 @@ class TestTrace(TestBase):
         cls.phylo_tree_small = PhylogeneticTree()
         calc = AlignmentDistanceCalculator()
         cls.phylo_tree_small.construct_tree(dm=calc.get_distance(cls.query_aln_fa_small.alignment))
+        cls.query_aln_fa_small = cls.query_aln_fa_small.remove_gaps()
         # cls.terminals_small = {x.name: {'aln': cls.query_aln_fa_small.generate_sub_alignment(sequence_ids=[x.name]),
         #                                 'node': x}
         #                        for x in cls.phylo_tree_small.tree.get_terminals()}
@@ -52,8 +53,8 @@ class TestTrace(TestBase):
                                for x in cls.phylo_tree_small.tree.get_terminals()}
         for x in cls.terminals:
             single, pair = cls.terminals[x]['aln'].characterize_positions()
-            single.compute_frequencies()
-            pair.compute_frequencies()
+            # single.compute_frequencies()
+            # pair.compute_frequencies()
             cls.terminals[x]['single'] = single
             cls.terminals[x]['pair'] = pair
         potential_parents = set()
@@ -68,10 +69,10 @@ class TestTrace(TestBase):
                     sequence_ids=[y.name for y in parent.clades])}
                 cls.first_parents[parent.name]['single'] = (cls.terminals[parent.clades[0].name]['single'] +
                                                             cls.terminals[parent.clades[1].name]['single'])
-                cls.first_parents[parent.name]['single'].compute_frequencies()
+                # cls.first_parents[parent.name]['single'].compute_frequencies()
                 cls.first_parents[parent.name]['pair'] = (cls.terminals[parent.clades[0].name]['pair'] +
                                                           cls.terminals[parent.clades[1].name]['pair'])
-                cls.first_parents[parent.name]['pair'].compute_frequencies()
+                # cls.first_parents[parent.name]['pair'].compute_frequencies()
         #
         cls.seq_len = cls.query_aln_fa_small.seq_length
 
