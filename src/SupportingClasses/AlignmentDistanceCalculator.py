@@ -21,6 +21,9 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         aln_type (str): Whether this is a protein or DNA alignment.
         alphabet (list): The corresponding amino or nucleic acid alphabet.
         model (str): The distance/substitution model to use when calculating sequence distance.
+        alphabet_size (int): The number of characters in the alphabet used by this calculator.
+        gap_characters (set): The gap characters not included in the alphabet which are mapped to alphabet_size in
+        mapping (below).
         mapping (dict): A mapping from the character alphabet to their indices (used when computing identity distance or
         referencing substitution scores).
         scoring_matrix (np.ndarray): The corresponding scoring/substitution matrix for the chosen model.
@@ -276,6 +279,20 @@ class AlignmentDistanceCalculator(DistanceCalculator):
 
 
 def convert_array_to_distance_matrix(array, names):
+    """
+    Convert Array To Distance Matrix
+
+    This function converts a numpy.array of distances to a Bio.Phylo.TreeConstruction.DistanceMatrix object. This means
+    turning the lower triangle of the array into a list of lists and initializing the DistanceMatrix object with that
+    data and the identifiers of the sequences.
+
+    Args:
+        array (numpy.array): An array of distances, the lower triangle of which will be used to create a DistanceMatrix
+        object.
+        names (list): A list of sequence ids.
+    Return:
+        Bio.Phylo.TreeConstruction.DistanceMatrix: A DistanceMatrix object with the distances from the array.
+    """
     indices = np.tril_indices(array.shape[0], 0, array.shape[1])
     list_of_lists = []
     for i in range(array.shape[0]):
