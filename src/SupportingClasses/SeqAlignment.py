@@ -583,13 +583,10 @@ class SeqAlignment(object):
         pos_specific = None
         if single:
             a_size, _, mapping = build_mapping(alphabet=Gapped(self.alphabet))
-            # pos_specific = FrequencyTable(alphabet=Gapped(self.alphabet), seq_len=self.seq_length, pos_size=1)
             pos_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, seq_len=self.seq_length, pos_size=1)
         pair_specific = None
         if pair:
             a_size, _, mapping = build_mapping(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
-            # pair_specific = FrequencyTable(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2),
-            #                                seq_len=self.seq_length, pos_size=2)
             pair_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, seq_len=self.seq_length, pos_size=2)
         # Iterate over all sequences
         for s in range(self.size):
