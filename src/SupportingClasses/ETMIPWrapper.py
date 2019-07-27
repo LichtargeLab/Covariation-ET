@@ -292,6 +292,10 @@ class ETMIPWrapper(object):
                                                                                                          node_index))
                 node = node_mapping[node_index]
                 rank_group_assignments[rank][group]['node'] = node
+                if node.is_terminal():
+                    rank_group_assignments[rank][group]['descendants'] = None
+                else:
+                    rank_group_assignments[rank][group]['descendants'] = node.clades
         end = time()
         print('Importing table 2 took {} min'.format((end - inter3) / 60.0))
         self.rank_group_assignments = rank_group_assignments

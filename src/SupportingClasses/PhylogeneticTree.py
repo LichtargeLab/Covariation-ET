@@ -277,23 +277,40 @@ class PhylogeneticTree(object):
                 node_pos = int(node.name.strip('Inner'))
                 node.name = node_pattern.format(self.size - node_pos)
 
-    def assign_group_rank(self):
+    def assign_group_rank(self, ranks=None):
         """
         Assign Group Rank
 
         This function traverses the tree from top to bottom assigning each node to a rank and group and tracking which
         leaf/terminal nodes are related to that node.
 
+        Args:
+            ranks (set/list): If this is set to None all ranks will be evaluated (default behavior for EvolutionaryTrace
+            variants). If a set or list is passed only the ranks specified there will be have ranks and groups assigned.
+            The lowest possible rank is 1 and the highest possible rank is the size of the alignment used to generate
+            this tree (i.e. the number of leaf nodes/sequences). A rank and group will always be assigned for rank 1,
+            even if it is not specified.
         Return:
             dict: First level of the dictionary maps a rank to another dictionary. The second level of the dictionary
             maps a group value to another dictionary. This third level of the dictionary maps the key 'node' to the node
-            which is the root of the group at the given rank and 'terminals' to a list of node names for the leaf/
-            terminal nodes which are ancestors of the root node.
+            which is the root of the group at the given rank, 'terminals' to a list of node names for the leaf/
+            terminal nodes which are ancestors of the root node, and 'descendants' to a list of nodes which are
+            descendants of 'node' from the closest assigned rank (at the lowest rank this will be None).
         """
+        # Create a set of the ranks for which to create assignments.
+        if ranks is None:
+            ranks = set(range(1, 1 + self.size))
+        else:
+            ranks = set(ranks)
+            if 1 not in ranks:
+                ranks.add(1)
+        # Assign nodes and terminals to rank and group labels
         rank_group_mapping = {}
         iterator = self.traverse_by_rank()
         for rank_nodes in iterator:
             rank = len(rank_nodes)
+            if rank not in ranks:
+                continue
             rank_group_mapping[rank] = {}
             for group in range(1, rank + 1):
                 current_node = rank_nodes[group - 1]
@@ -302,6 +319,25 @@ class PhylogeneticTree(object):
                     rank_group_mapping[rank][group]['terminals'] += [t.name for t in current_node.get_terminals()]
                 else:
                     rank_group_mapping[rank][group]['terminals'].append(current_node.name)
+        # For each node assigned in the rank_group_mapping determine the descendants in the next closest rank.
+        prev_rank = None
+        unique_descendants = {}
+        for rank in sorted(ranks, reverse=True):
+            curr_rank = set([])
+            for group in rank_group_mapping[rank]:
+                node = rank_group_mapping[rank][group]['node']
+                curr_rank.add(node)
+                descendants = None
+                if node.name not in unique_descendants:
+                    if prev_rank is not None:
+                        descendants = []
+                        for prev_node in prev_rank:
+                            if (node == prev_node) or node.is_parent_of(target=prev_node):
+                                descendants.append(prev_node)
+                        prev_rank -= set(descendants)
+                    unique_descendants[node.name] = descendants
+                rank_group_mapping[rank][group]['descendants'] = unique_descendants[node.name]
+            prev_rank = curr_rank
         return rank_group_mapping
 
 

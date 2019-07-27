@@ -633,6 +633,13 @@ class TestPhylogeneticTree(TestBase):
                 # Make sure that each rank/group assignment has a list of associated terminal nodes
                 self.assertTrue('terminals' in assignment[rank][group])
                 all_terminals += assignment[rank][group]['terminals']
+                # Make sure that each rank/group assignment has a list of descendants associated
+                self.assertTrue('descendants' in assignment[rank][group])
+                if assignment[rank][group]['node'].is_terminal():
+                    self.assertIsNone(assignment[rank][group]['descendants'])
+                else:
+                    self.assertEqual(set([node.name for node in assignment[rank][group]['node'].clades]),
+                                     set([node.name for node in assignment[rank][group]['descendants']]))
             # Make sure that all root nodes at a given rank or unique and have a count equal to the rank
             self.assertEqual(len(all_roots), rank)
             # Make sure the correct number of nodes branch at each rank
@@ -651,6 +658,7 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(len(all_terminals), len(all_terminals_set))
             # Explicitly check that all sequences in the alignment are in the set of terminal nodes
             self.assertTrue(expected_terminals == all_terminals_set)
+            # Explicitly check that all descendants from from the previous rank are represented in the root nodes
             previous_nodes = all_roots
 
     def test10a_assign_rank_group_small(self):
@@ -666,7 +674,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_msf_small)
 
-    def test10b_assign_rank_group_small(self):
+    def test10b_assign_rank_group_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -687,7 +695,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_small)
 
-    def test10d_assign_rank_group_small(self):
+    def test10d_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
@@ -705,7 +713,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_small)
 
-    def test10f_assign_rank_group_small(self):
+    def test10f_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -727,7 +735,7 @@ class TestPhylogeneticTree(TestBase):
         self.evaulate_rank_group_assignments(assignment=et_mip_obj.rank_group_assignments,
                                              alignment=self.query_aln_msf_small)
 
-    def test10h_assign_rank_group_small(self):
+    def test10h_assign_rank_group_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -738,6 +746,100 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.import_assignments(out_dir=wetc_test_dir)
         self.evaulate_rank_group_assignments(assignment=et_mip_obj.rank_group_assignments,
                                              alignment=self.query_aln_msf_large)
+
+    def evaluate_rank_group_assignments_custom_ranks(self, assignments):
+        visited_nodes = set([])
+        ranks = sorted(assignments.keys(), reverse=True)
+        node_ranks = {}
+        for i in range(len(ranks)):
+            rank = ranks[i]
+            node_ranks[rank] = set([])
+            descendants = set([])
+            for group in assignments[rank]:
+                node = assignments[rank][group]['node']
+                self.assertEqual(set(assignments[rank][group]['terminals']),
+                                 set([t.name for t in node.get_terminals()]))
+                node_ranks[rank].add(node.name)
+                if i > 0 and not node.is_terminal() and node.name not in visited_nodes:
+                    curr_d = set([d.name for d in assignments[rank][group]['descendants']])
+                    descendants |= set([d.name for d in assignments[rank][group]['descendants']])
+            visited_nodes |= node_ranks[rank]
+            prev_rank = ranks[i - 1]
+            if i > 0:
+                self.assertTrue(descendants.issubset(node_ranks[prev_rank]))
+                rank_diff = prev_rank - rank
+                max_size_diff = rank_diff * 2
+                unique_prev = node_ranks[prev_rank] - node_ranks[rank]
+                self.assertLessEqual(len(unique_prev), max_size_diff)
+                self.assertGreaterEqual(len(unique_prev), 2)
+                unique_curr = node_ranks[rank] - node_ranks[prev_rank]
+                self.assertLessEqual(len(unique_curr), rank_diff)
+                self.assertGreaterEqual(len(unique_curr), 1)
+            else:
+                self.assertEqual(descendants, set([]))
+                self.assertEqual(len(node_ranks[rank]), rank)
+
+    def test10i_assign_rank_group_small(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
+        assignments = phylo_tree.assign_group_rank(ranks=[1, 2, 3, 5, 7, 10, 25])
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test10j_assign_rank_group_large(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
+        nhx_path = os.path.join(wetc_test_dir, 'etc_out.nhx')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
+        phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test10k_assign_rank_group_small(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test10l_assign_rank_group_large(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test10m_assign_rank_group_small(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
+                                                          'cache_dir': self.testing_dir})
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test10n_assign_rank_group_large(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
+                                                          'cache_dir': self.testing_dir})
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
     def validate_upgma_tree(self, tree, dm, verbose=False):
         reverse_rank_traversal = list(tree.traverse_by_rank())[::-1]
