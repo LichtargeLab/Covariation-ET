@@ -16,9 +16,7 @@ from Bio.Blast import NCBIXML
 from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
-from Bio.PDB.PDBParser import PDBParser
 from Bio.Application import ApplicationError
-from Bio.PDB.Polypeptide import three_to_one, is_aa
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
@@ -843,7 +841,8 @@ def filter_uniref_fasta(in_path, out_path):
                 sequences = []
 
 
-def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_identity=98, abs_min_identity=40, interval=5):
+def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_identity=98, abs_min_identity=40,
+                           interval=5):
     """
     Characterize Alignment
 
