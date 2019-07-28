@@ -78,14 +78,26 @@ class Trace(object):
         queue = Queue(maxsize=(self.aln.size * 2) - 1)
         for t in self.phylo_tree.tree.get_terminals():
             queue.put_nowait(t)
-        for n in self.phylo_tree.traverse_bottom_up():
-            if not n.is_terminal():
-                queue.put_nowait(n)
+        # new
+        visited = {}
+        for r in sorted(self.assignments.keys(), reverse=True):
+            for g in self.assignments[r]:
+                node = self.assignments[r][g]['node']
+                if not node.is_terminal() and node.name not in visited:
+                    queue.put_nowait(node)
+                    visited[node.name] = {'terminals': self.assignments[r][g]['terminals'],
+                                          'descendants': self.assignments[r][g]['descendants']}
+        # new
+        # old
+        # for n in self.phylo_tree.traverse_bottom_up():
+        #     if not n.is_terminal():
+        #         queue.put_nowait(n)
+        # old
         pool_manager = Manager()
         frequency_tables = pool_manager.dict()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue, frequency_tables, unique_dir,
-                              self.low_memory))
+                    initargs=(self.aln, self.pos_specific, self.pair_specific, queue, visited,
+                              frequency_tables, unique_dir, self.low_memory))
         pool.map_async(func=characterization, iterable=list(range(processes)))
         pool.close()
         pool.join()
@@ -132,8 +144,19 @@ class Trace(object):
         manager = Manager()
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_queue = Queue(maxsize=(self.aln.size * 2) - 1)
-        for node_name in self.unique_nodes:
-            group_queue.put_nowait(node_name)
+        # new
+        visited = set([])
+        for r in sorted(self.assignments.keys(), reverse=True):
+            for g in self.assignments[r]:
+                node = self.assignments[r][g]['node']
+                if node.name not in visited:
+                    group_queue.put_nowait(node.name)
+                    visited.add(node.name)
+        # new
+        #old
+        # for node_name in self.unique_nodes:
+        #     group_queue.put_nowait(node_name)
+        #old
         group_dict = manager.dict()
         pool1 = Pool(processes=processes, initializer=init_trace_groups,
                      initargs=(group_queue, scorer, group_dict, self.pos_specific, self.pair_specific,
@@ -167,7 +190,7 @@ class Trace(object):
             elif self.pos_specific:
                 rank_scores = rank_dict[rank]['single_ranks']
             else:
-                pass
+                raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
             rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
             final_scores += rank_scores
         final_scores += 1
@@ -195,7 +218,8 @@ class Trace(object):
         return final_scores
 
 
-def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sharable_dict, unique_dir, low_memory):
+def init_characterization_pool(alignment, pos_specific, pair_specific, queue, components, sharable_dict, unique_dir,
+                               low_memory):
     """
     Init Characterization Pool
 
@@ -210,6 +234,7 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
         queue (multiprocessing.Queue): A queue which contains all nodes in the phylogenetic tree over which the trace is
         being performed. The nodes should be inserted in an order which makes sense for the efficient characterization
         of nodes (i.e. leaves to root).
+        components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
         unique_dir (str/path): The directory where sub-alignment and frequency table files can be written.
@@ -224,6 +249,8 @@ def init_characterization_pool(alignment, pos_specific, pair_specific, queue, sh
     pair = pair_specific
     global node_queue
     node_queue = queue
+    global comps
+    comps = components
     global freq_tables
     freq_tables = sharable_dict
     global u_dir
@@ -318,37 +345,72 @@ def characterization(processor):
             # sub_aln = aln.generate_sub_alignment(sequence_ids=[node.name])
             pos_table, pair_table = sub_aln.characterize_positions(single=single, pair=pair)
         else:
-            # If a node is non-terminal retrieve its childrens' characterizations and merge them to get the parent
+            # If a node is non-terminal retrieve its desendants' characterizations and merge them to get the parent
             # characterization.
-            child1 = node.clades[0].name
-            child2 = node.clades[1].name
-            success = False
-            component1 = None
-            component2 = None
+            descendants = set([d.name for d in comps[node.name]['descendants']])
             tries = 0
-            while not success:
+            components = []
+            while len(descendants) > 0:
+                descendant = descendants.pop()
                 # Attempt to retrieve the current node's childrens' data, sleep and try again if it is not already in
                 # the dictionary, until success.
                 try:
-                    component1 = freq_tables[child1]
-                    component2 = freq_tables[child2]
-                    success = True
+                    component = freq_tables[descendant]
+                    components.append(component)
                 except KeyError:
-                    sleep(0.5)
+                    descendants.add(descendant)
                     tries += 1
-                    if tries > 10:
+                    if tries % 10:
                         print('Process {} stuck on {}, {} tries so far'.format(processor, node.name, tries))
             print('Process {} took {} tries to get {} components'.format(processor, tries, node.name))
-            if single:
-                pos_table = (load_freq_table(component1['single'], low_memory=low_mem) +
-                             load_freq_table(component2['single'], low_memory=low_mem))
-            else:
-                pos_table = None
-            if pair:
-                pair_table = (load_freq_table(component1['pair'], low_memory=low_mem) +
-                              load_freq_table(component2['pair'], low_memory=low_mem))
-            else:
-                pair_table = None
+            pos_table = None
+            pair_table = None
+            for i in range(len(components)):
+                if single:
+                    curr_pos_table = load_freq_table(components[i]['single'], low_memory=low_mem)
+                    if pos_table is None:
+                        pos_table = curr_pos_table
+                    else:
+                        pos_table += curr_pos_table
+                if pair:
+                    curr_pair_table = load_freq_table(components[i]['pair'], low_memory=low_mem)
+                    if pair_table is None:
+                        pair_table = curr_pair_table
+                    else:
+                        pair_table += curr_pair_table
+            #Old
+            # # If a node is non-terminal retrieve its childrens' characterizations and merge them to get the parent
+            # # characterization.
+            # child1 = node.clades[0].name
+            # child2 = node.clades[1].name
+            # success = False
+            # component1 = None
+            # component2 = None
+            # tries = 0
+            # while not success:
+            #     # Attempt to retrieve the current node's childrens' data, sleep and try again if it is not already in
+            #     # the dictionary, until success.
+            #     try:
+            #         component1 = freq_tables[child1]
+            #         component2 = freq_tables[child2]
+            #         success = True
+            #     except KeyError:
+            #         sleep(0.5)
+            #         tries += 1
+            #         if tries > 10:
+            #             print('Process {} stuck on {}, {} tries so far'.format(processor, node.name, tries))
+            # print('Process {} took {} tries to get {} components'.format(processor, tries, node.name))
+            # if single:
+            #     pos_table = (load_freq_table(component1['single'], low_memory=low_mem) +
+            #                  load_freq_table(component2['single'], low_memory=low_mem))
+            # else:
+            #     pos_table = None
+            # if pair:
+            #     pair_table = (load_freq_table(component1['pair'], low_memory=low_mem) +
+            #                   load_freq_table(component2['pair'], low_memory=low_mem))
+            # else:
+            #     pair_table = None
+            #Old
         # Compute frequencies for the FrequencyTables generated for the current node
         if single:
             pos_table.compute_frequencies()
