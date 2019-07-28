@@ -413,12 +413,10 @@ def characterization(processor):
             #Old
         # Compute frequencies for the FrequencyTables generated for the current node
         if single:
-            pos_table.compute_frequencies()
             pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node.name)))
             pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
                                         node_name='{}_single'.format(node.name), out_dir=u_dir)
         if pair:
-            pair_table.compute_frequencies()
             pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node.name)))
             pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
                                          node_name='{}_pair'.format(node.name), out_dir=u_dir)
