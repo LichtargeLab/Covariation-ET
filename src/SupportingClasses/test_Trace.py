@@ -49,6 +49,8 @@ class TestTrace(TestBase):
         cls.out_large_dir = os.path.join(cls.testing_dir, cls.large_structure_id)
         if not os.path.isdir(cls.out_large_dir):
             os.makedirs(cls.out_large_dir)
+        cls.query_aln_fa_small = cls.query_aln_fa_small.remove_gaps()
+        cls.query_aln_fa_large = cls.query_aln_fa_large.remove_gaps()
 
     # @classmethod
     # def tearDownClass(cls):
@@ -131,51 +133,51 @@ class TestTrace(TestBase):
         self.assertEqual(len(test_dict), 3)
         sub_aln1 = aln.generate_sub_alignment(sequence_ids=[x.name for x in parent_node.get_terminals()])
         single_table1, pair_table1 = sub_aln1.characterize_positions()
-        single_table1.compute_frequencies()
-        pair_table1.compute_frequencies()
         self.assertTrue(parent_node.name in test_dict)
         self.assertTrue('single' in test_dict[parent_node.name])
         self.assertTrue('pair' in test_dict[parent_node.name])
         single_freq_table1 = test_dict[parent_node.name]['single']
         if low_mem:
             single_freq_table1 = load_freq_table(freq_table=single_freq_table1, low_memory=low_mem)
-        self.assertEqual(single_freq_table1.get_table(), single_table1.get_table())
+        diff = single_freq_table1.get_table() - single_table1.get_table()
+        self.assertFalse(diff.toarray().any())
         pair_freq_table1 = test_dict[parent_node.name]['pair']
         if low_mem:
             pair_freq_table1 = load_freq_table(freq_table=pair_freq_table1, low_memory=low_mem)
-        self.assertEqual(pair_freq_table1.get_table(), pair_table1.get_table())
+        diff = pair_freq_table1.get_table() - pair_table1.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(parent_node.name))))
         sub_aln2 = aln.generate_sub_alignment(sequence_ids=[x.name for x in query_node.get_terminals()])
         single_table2, pair_table2 = sub_aln2.characterize_positions()
-        single_table2.compute_frequencies()
-        pair_table2.compute_frequencies()
         self.assertTrue(query_node.name in test_dict)
         self.assertTrue('single' in test_dict[query_node.name])
         single_freq_table2 = test_dict[query_node.name]['single']
         if low_mem:
             single_freq_table2 = load_freq_table(freq_table=single_freq_table2, low_memory=low_mem)
-        self.assertEqual(single_freq_table2.get_table(), single_table2.get_table())
+        diff = single_freq_table2.get_table() - single_table2.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertTrue('pair' in test_dict[query_node.name])
         pair_freq_table2 = test_dict[query_node.name]['pair']
         if low_mem:
             pair_freq_table2 = load_freq_table(freq_table=pair_freq_table2, low_memory=low_mem)
-        self.assertEqual(pair_freq_table2.get_table(), pair_table2.get_table())
+        diff = pair_freq_table2.get_table() - pair_table2.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_node.name))))
         sub_aln3 = aln.generate_sub_alignment(sequence_ids=[query_neighbor_node.name])
         single_table3, pair_table3 = sub_aln3.characterize_positions()
-        single_table3.compute_frequencies()
-        pair_table3.compute_frequencies()
         self.assertTrue(query_neighbor_node.name in test_dict)
         self.assertTrue('single' in test_dict[query_neighbor_node.name])
         single_freq_table3 = test_dict[query_neighbor_node.name]['single']
         if low_mem:
             single_freq_table3 = load_freq_table(freq_table=single_freq_table3, low_memory=low_mem)
-        self.assertEqual(single_freq_table3.get_table(), single_table3.get_table())
+        diff = single_freq_table3.get_table() - single_table3.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertTrue('pair' in test_dict[query_neighbor_node.name])
         pair_freq_table3 = test_dict[query_neighbor_node.name]['pair']
         if low_mem:
             pair_freq_table3 = load_freq_table(freq_table=pair_freq_table3, low_memory=low_mem)
-        self.assertEqual(pair_freq_table3.get_table(), pair_table3.get_table())
+        diff = pair_freq_table3.get_table() - pair_table3.get_table()
+        self.assertFalse(diff.toarray().any())
         self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_neighbor_node.name))))
 
     def test2a_characterize_rank_groups_initialize_characterization_pool(self):
@@ -211,21 +213,19 @@ class TestTrace(TestBase):
                     expected_single_table, expected_pair_table = sub_aln.characterize_positions(single=single,
                                                                                                 pair=pair)
                     if single:
-                        expected_single_table.compute_frequencies()
                         single_table = trace.unique_nodes[node_name]['single']
                         if low_mem:
                             single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
-                        self.assertEqual(single_table.get_table(),
-                                         expected_single_table.get_table())
+                        diff = single_table.get_table() - expected_single_table.get_table()
+                        self.assertFalse(diff.toarray().any())
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['single'])
                     if pair:
-                        expected_pair_table.compute_frequencies()
                         pair_table = trace.unique_nodes[node_name]['pair']
                         if low_mem:
                             pair_table = load_freq_table(freq_table=pair_table, low_memory=low_mem)
-                        self.assertEqual(pair_table.get_table(),
-                                         expected_pair_table.get_table())
+                        diff = pair_table.get_table() - expected_pair_table.get_table()
+                        self.assertFalse(diff.toarray().any())
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['pair'])
                     visited.add(node_name)
@@ -246,23 +246,13 @@ class TestTrace(TestBase):
         # Test characterizing both single and pair positions, small alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=True, pair=True,
-                                               processors=self.max_threads)
+                                               processors=self.max_threads, low_mem=False)
 
     def test2f_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                                                assign=self.assignments_large, single=True, pair=True,
-                                               processors=self.max_threads)
-
-    def test2g_characterize_rank_groups(self):
-        # Test characterizing single (single processed)
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=True, pair=False, processors=1)
-
-    def test2h_characterize_rank_groups(self):
-        # Test characterizing pair positions (single processed)
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=False, pair=True, processors=1)
+                                               processors=self.max_threads, low_mem=True)
 
     ####################################################################################################################
 
@@ -292,14 +282,14 @@ class TestTrace(TestBase):
             if single:
                 expected_scores = scorer.score_group(trace.unique_nodes[node_name]['single'])
                 diff = group_dict[node_name]['single_scores'] - expected_scores
-                self.assertTrue(not diff.any())
+                self.assertTrue(not diff.toarray().any())
             else:
                 self.assertIsNone(group_dict[node_name]['single_scores'])
             self.assertTrue('pair_scores' in group_dict[node_name])
             if pair:
                 expected_scores = scorer.score_group(trace.unique_nodes[node_name]['pair'])
                 diff = group_dict[node_name]['pair_scores'] - expected_scores
-                self.assertTrue(not diff.any())
+                self.assertTrue(not diff.toarray().any())
             else:
                 self.assertIsNone(group_dict[node_name]['pair_scores'])
             trace.unique_nodes[node_name].update(group_dict[node_name])
@@ -540,10 +530,7 @@ class TestTrace(TestBase):
         trace_large.characterize_rank_groups(processes=self.max_threads)
         scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
         rank_ids = trace_large.trace(scorer=scorer)
-        # print(rank_ids)
-        # print(et_mip_obj.rank_scores)
         diff_ranks = rank_ids - et_mip_obj.rank_scores
-        # print(diff_ranks)
         self.assertTrue(not diff_ranks.any())
 
      ###################################################################################################################
@@ -806,7 +793,7 @@ class TestTrace(TestBase):
             self.assertTrue('pair_scores' in group_dict[node_name])
             expected_scores = scorer.score_group(trace.unique_nodes[node_name]['pair'])
             diff = group_dict[node_name]['pair_scores'] - expected_scores
-            self.assertTrue(not diff.any())
+            self.assertTrue(not diff.toarray().any())
             trace.unique_nodes[node_name].update(group_dict[node_name])
         #
         rank_queue = Queue(maxsize=aln.size)
