@@ -39,12 +39,11 @@ def build_mapping(alphabet, skip_letters=None):
         raise ValueError("'alphabet' expects values of type Bio.Alphabet or list.")
     alphabet_size = len(letters)
     alpha_map = {char: i for i, char in enumerate(letters)}
+    curr_gaps = {g * alphabet.size for g in gap_characters}
     if skip_letters:
         skip_map = {char: alphabet_size + 1 for char in skip_letters}
         alpha_map.update(skip_map)
-        curr_gaps = gap_characters - set(skip_letters)
-    else:
-        curr_gaps = gap_characters
+        curr_gaps = curr_gaps - set(skip_letters)
     curr_gaps = curr_gaps - set(letters)
     gap_map = {char: alphabet_size for char in curr_gaps}
     alpha_map.update(gap_map)
