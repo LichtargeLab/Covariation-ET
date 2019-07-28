@@ -31,15 +31,18 @@ def build_mapping(alphabet, skip_letters=None):
     """
     if isinstance(alphabet, Alphabet) or isinstance(alphabet, Gapped):
         letters = alphabet.letters
+        character_size = alphabet.size
     elif type(alphabet) == list:
         letters = ''.join(alphabet)
+        character_size = len(alphabet[0])
     elif type(alphabet) == str:
         letters = alphabet
+        character_size = 1
     else:
         raise ValueError("'alphabet' expects values of type Bio.Alphabet or list.")
     alphabet_size = len(letters)
     alpha_map = {char: i for i, char in enumerate(letters)}
-    curr_gaps = {g * alphabet.size for g in gap_characters}
+    curr_gaps = {g * character_size for g in gap_characters}
     if skip_letters:
         skip_map = {char: alphabet_size + 1 for char in skip_letters}
         alpha_map.update(skip_map)
