@@ -561,7 +561,8 @@ class SeqAlignment(object):
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
 
-    def characterize_positions(self, single=True, pair=True, single_mapping=None, single_reverse=None, pair_mapping=None, pair_reverse=None):
+    def characterize_positions(self, single=True, pair=True, single_size=None, single_mapping=None, single_reverse=None,
+                               pair_size=None, pair_mapping=None, pair_reverse=None):
         """
         Characterize Positions
 
@@ -574,6 +575,12 @@ class SeqAlignment(object):
             single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
             pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
             alignment.
+            single_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
+            single_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
+            single_reverse (dict): Dictionary mapping numerical positions back to the single letter alphabet.
+            pair_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
+            pair_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
+            pair_reverse (dict): Dictionary mapping numerical positions back to the pairs of letters alphabet.
         Returns:
             FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
@@ -582,13 +589,16 @@ class SeqAlignment(object):
         start = time()
         pos_specific = None
         if single:
-            a_size, _, mapping, reverse = build_mapping(alphabet=Gapped(self.alphabet))
-            pos_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, reverse_mapping=reverse,
-                                          seq_len=self.seq_length, pos_size=1)
+            if (single_size is None) or (single_mapping is None) or (single_reverse is None):
+                single_size_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
+            pos_specific = FrequencyTable(alphabet_size=single_size, mapping=single_mapping,
+                                          reverse_mapping=single_reverse, seq_len=self.seq_length, pos_size=1)
         pair_specific = None
         if pair:
-            a_size, _, mapping, reverse = build_mapping(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
-            pair_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, reverse_mapping=reverse,
+            if (pair_size is None) or (pair_mapping is None) or (pair_reverse is None):
+                pair_size, _, pair_mapping, pair_reverse = build_mapping(
+                    alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
+            pair_specific = FrequencyTable(alphabet_size=pair_size, mapping=pair_mapping, reverse_mapping=pair_reverse,
                                            seq_len=self.seq_length, pos_size=2)
         # Iterate over all sequences
         for s in range(self.size):
@@ -614,11 +624,24 @@ class SeqAlignment(object):
         sequences in the current alignment. This can be used by other methods to determine with a position is conserved
         in a given alignment, or compute more complex characterizations like positional entropy etc. This method can
         characterize single positions as well as pairs of positions and this can be done at the same time or separately.
+        This method is slower in all cases when analyzing an alignment of size 1 than characterize_positions, however it
+        may be faster if there are many sequences and the sequence length is large.
 
         Args:
             single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
             pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
             alignment.
+            single_letter_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
+            single_letter_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
+            single_letter_reverse (dict): Dictionary mapping numerical positions back to the single letter alphabet.
+            pair_letter_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
+            pair_letter_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
+            pair_letter_reverse (dict): Dictionary mapping numerical positions back to the pairs of letters alphabet.
+            single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
+            consist of the position of the first character in a pair of letters to its numerical position and the
+            position of the second character in a pair of letters to its numerical position (single_letter_mapping).
+            The value that this tuple maps to should be the integer value that a pair of letters maps to
+            (pair_letter_mapping).
         Returns:
             FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if

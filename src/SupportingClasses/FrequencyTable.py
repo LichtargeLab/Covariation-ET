@@ -100,26 +100,31 @@ class FrequencyTable(object):
         self.__position_table[position, char_pos] += amount
 
     def characterize_alignment(self, num_aln, single_to_pair):
+        """
+        Characterize Alignment
+
+        Characterize an entire alignment. This iterates over all positions (single positions in the the
+        alignment if position_size==1 and pairs of positions in the alignment if position_size==2) and updates the
+        character count found at that position in the sequence in __positional_table. At the end of this call __depth is
+        update to the size of the alignment.
+
+        Args:
+            num_aln (np.array): Array representing an alignment with dimensions sequence_length by alignemnt size where
+            the values are integers representing nucleic/amino acids and gaps from the desired alignment.
+            single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
+            consist of the position of the first character in a pair of letters to its numerical position and the
+            position of the second character in a pair of letters to its numerical position. The value that this tuple
+            maps to should be the integer value that a pair of letters maps to.
+        """
         if self.position_size == 2 and single_to_pair is None:
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
-        #     mapping = single_letter_mapping
-        # elif self.position_size == 2:
-        #     mapping = {}
-        #     for char in self.mapping:
-        #         # print('Char: {}, Value: {}'.format(char, self.mapping[char]))
-        #         # print('Single Letters: Char1: {}, Val1: {}; Char2: {}, Val2: {}'.format(
-        #         #     char[0], single_letter_mapping[char[0]], char[1], single_letter_mapping[char[1]]))
-        #         # print('Mapping: ({}, {}): {}'.format(single_letter_mapping[char[0]], single_letter_mapping[char[1]],
-        #         #                                      self.mapping[char]))
-        #         mapping[(single_letter_mapping[char[0]], single_letter_mapping[char[1]])] = self.mapping[char]
-        # else:
-        #     raise NotImplementedError('characterize_alignment is not implemented for self.position_size == {}'.format(
-        #         self.position_size))
         # Iterate over all positions
         for i in range(self.sequence_length):
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
+                # Find each unique character in the column and its count in that column
                 char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
+                # Update the observed characters with their counts
                 self.__position_table[i, char_pos.reshape(-1)] = counts
             # If pair is not specified continue to the next position
             if self.position_size != 2:
@@ -129,15 +134,15 @@ class FrequencyTable(object):
             for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
                 position = self.__convert_pos(pos=(i, j))
-                # print('I: {}, J: {}, Position: {}'.format(i, j, position))
+                # Find each unique pair of characters in two columns and their count
                 char_pos, counts = np.unique(num_aln[:, [i, j]], axis=0, return_counts=True)
-                # print(char_pos)
-                # print(counts)
+                # Map the individual character alphabet observations to the pair alphabet positions
                 char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
-                # print(char_pos)
+                # Update the observed pairs of characters for the pair of columns using the counts.
                 self.__position_table[position, char_pos] = counts
+        # Update the depth to the number of sequences in the characterized alignment
         self.__depth = num_aln.shape[0]
-        self.__position_table = self.__position_table.tocsc()
+        self.finalize_table()
 
     def characterize_sequence(self, seq):
         """
@@ -443,7 +448,8 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if self.reverse_mapping != other.reverse_mapping:
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
-        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping, seq_len=self.sequence_length,
+        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
+                                   reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
         new_table.__position_table = self.__position_table + other.__position_table
         new_table.__depth = self.__depth + other.__depth
