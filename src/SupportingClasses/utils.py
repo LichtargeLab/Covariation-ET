@@ -28,6 +28,8 @@ def build_mapping(alphabet, skip_letters=None):
         present in the returned set).
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
+        dict: Dictionary mapping a number to character such that the character can be decoded from a position in an
+        array or table built based on the alphabet.
     """
     if isinstance(alphabet, Alphabet) or isinstance(alphabet, Gapped):
         letters = alphabet.letters
@@ -50,7 +52,8 @@ def build_mapping(alphabet, skip_letters=None):
     curr_gaps = curr_gaps - set(letters)
     gap_map = {char: alphabet_size for char in curr_gaps}
     alpha_map.update(gap_map)
-    return alphabet_size, curr_gaps, alpha_map
+    reverse_map = {value: char for char, value in alpha_map.items() if value < alphabet_size}
+    return alphabet_size, curr_gaps, alpha_map, reverse_map
 
 
 def convert_seq_to_numeric(seq, mapping):

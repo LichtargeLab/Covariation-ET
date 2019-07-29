@@ -20,45 +20,61 @@ class TestUtils(TestCase):
         cls.alphabet_list = [char for char in cls.alphabet_str]
 
     def test1a_build_mapping_from_str(self):
-        size, gap_chars, mapping = build_mapping(alphabet=self.alphabet_str)
+        size, gap_chars, mapping, reverse = build_mapping(alphabet=self.alphabet_str)
         self.assertEqual(size, len(self.alphabet_str))
         self.assertEqual(len(gap_chars), 3)
         self.assertEqual(gap_chars, self.expected_gap_chars)
         for char in gap_chars:
             self.assertEqual(mapping[char], size)
         self.assertEqual(len(mapping), size + len(gap_chars))
+        self.assertEqual(len(reverse), size)
+        for i in range(size):
+            self.assertEqual(mapping[self.alphabet_str[i]], i)
+            self.assertEqual(reverse[i], self.alphabet_str[i])
 
     def test1b_build_mapping_from_list(self):
-        size, gap_chars, mapping = build_mapping(alphabet=self.alphabet_list)
+        size, gap_chars, mapping, reverse = build_mapping(alphabet=self.alphabet_list)
         self.assertEqual(size, len(self.alphabet_list))
         self.assertEqual(len(gap_chars), 3)
         self.assertEqual(gap_chars, self.expected_gap_chars)
         for char in gap_chars:
             self.assertEqual(mapping[char], size)
         self.assertEqual(len(mapping), size + len(gap_chars))
+        self.assertEqual(len(reverse), size)
+        for i in range(size):
+            self.assertEqual(mapping[self.alphabet_list[i]], i)
+            self.assertEqual(reverse[i], self.alphabet_list[i])
 
     def test1c_build_mapping_from_alphabet(self):
         alphabet = ExtendedIUPACProtein()
-        size, gap_chars, mapping = build_mapping(alphabet=alphabet)
+        size, gap_chars, mapping, reverse = build_mapping(alphabet=alphabet)
         self.assertEqual(size, len(alphabet.letters))
         self.assertEqual(len(gap_chars), 3)
         self.assertEqual(gap_chars, self.expected_gap_chars)
         for char in gap_chars:
             self.assertEqual(mapping[char], size)
         self.assertEqual(len(mapping), size + len(gap_chars))
+        self.assertEqual(len(reverse), size)
+        for i in range(size):
+            self.assertEqual(mapping[alphabet.letters[i]], i)
+            self.assertEqual(reverse[i], alphabet.letters[i])
 
     def test1d_build_mapping_from_gapped_alphabet(self):
         alphabet = Gapped(ExtendedIUPACProtein())
-        size, gap_chars, mapping = build_mapping(alphabet=alphabet)
+        size, gap_chars, mapping, reverse = build_mapping(alphabet=alphabet)
         self.assertEqual(size, len(alphabet.letters))
         self.assertEqual(len(gap_chars), 2)
         self.assertEqual(gap_chars, {'.', '*'})
         for char in gap_chars:
             self.assertEqual(mapping[char], size)
         self.assertEqual(len(mapping), size + len(gap_chars))
+        self.assertEqual(len(reverse), size)
+        for i in range(size):
+            self.assertEqual(mapping[alphabet.letters[i]], i)
+            self.assertEqual(reverse[i], alphabet.letters[i])
 
     def test2_convert_seq_to_numeric(self):
-        size, gap_chars, mapping = build_mapping(alphabet=self.alphabet_str)
+        size, gap_chars, mapping, reverse = build_mapping(alphabet=self.alphabet_str)
         query_seq_7hvp = 'PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLE--EMNL--PGKWK----PKMIGGIGGFIKVRQYDQIPVEI-GHKAIGTV---LVGPTP'\
                          'VNIIGRNLLTQIG-TLNF'
         expected_array = np.array([12, 13, 7, 16, 9, 18, 13, 14, 12, 9, 17, 16, 7, 14, 7, 5, 5, 13, 9, 8, 3, 0, 9, 9, 2,
