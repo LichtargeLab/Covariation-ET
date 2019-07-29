@@ -28,7 +28,7 @@ class FrequencyTable(object):
         __depth (int):
     """
 
-    def __init__(self, alphabet_size, mapping, seq_len, pos_size=1):
+    def __init__(self, alphabet_size, mapping, reverse_mapping, seq_len, pos_size=1):
         """
         Initialization for a FrequencyTable object.
 
@@ -44,7 +44,7 @@ class FrequencyTable(object):
             raise ValueError('Alphabet size must be equal to pos_size!')
         self.mapping = mapping
         # Issues with gap characters addressed by keeping only character mappings within alphabet_size.
-        self.reverse_mapping = {value: key for key, value in mapping.items() if value < alphabet_size}
+        self.reverse_mapping = reverse_mapping
         self.position_size = pos_size
         self.sequence_length = seq_len
         if pos_size == 1:
@@ -98,6 +98,46 @@ class FrequencyTable(object):
         position = self.__convert_pos(pos=pos)
         char_pos = self.mapping[char]
         self.__position_table[position, char_pos] += amount
+
+    def characterize_alignment(self, num_aln, single_to_pair):
+        if self.position_size == 2 and single_to_pair is None:
+            raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
+        #     mapping = single_letter_mapping
+        # elif self.position_size == 2:
+        #     mapping = {}
+        #     for char in self.mapping:
+        #         # print('Char: {}, Value: {}'.format(char, self.mapping[char]))
+        #         # print('Single Letters: Char1: {}, Val1: {}; Char2: {}, Val2: {}'.format(
+        #         #     char[0], single_letter_mapping[char[0]], char[1], single_letter_mapping[char[1]]))
+        #         # print('Mapping: ({}, {}): {}'.format(single_letter_mapping[char[0]], single_letter_mapping[char[1]],
+        #         #                                      self.mapping[char]))
+        #         mapping[(single_letter_mapping[char[0]], single_letter_mapping[char[1]])] = self.mapping[char]
+        # else:
+        #     raise NotImplementedError('characterize_alignment is not implemented for self.position_size == {}'.format(
+        #         self.position_size))
+        # Iterate over all positions
+        for i in range(self.sequence_length):
+            # If single is specified, track the amino acid for this sequence and position
+            if self.position_size == 1:
+                char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
+                self.__position_table[i, char_pos.reshape(-1)] = counts
+            # If pair is not specified continue to the next position
+            if self.position_size != 2:
+                continue
+            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
+            # including the diagonal)
+            for j in range(i, self.sequence_length):
+                # Track the pair of amino acids for the positions i,j
+                position = self.__convert_pos(pos=(i, j))
+                # print('I: {}, J: {}, Position: {}'.format(i, j, position))
+                char_pos, counts = np.unique(num_aln[:, [i, j]], axis=0, return_counts=True)
+                # print(char_pos)
+                # print(counts)
+                char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
+                # print(char_pos)
+                self.__position_table[position, char_pos] = counts
+        self.__depth = num_aln.shape[0]
+        self.__position_table = self.__position_table.tocsc()
 
     def characterize_sequence(self, seq):
         """

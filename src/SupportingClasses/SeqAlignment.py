@@ -385,8 +385,7 @@ class SeqAlignment(object):
         """
         if method != 'majority':
             raise ValueError("consensus_sequence has not been implemented for method '{}'!".format(method))
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
-        reverse_mapping = {i: k for k, i in mapping.items() if i < alpha_size}
+        alpha_size, gap_chars, mapping, reverse_mapping = build_mapping(alphabet=self.alphabet)
         if '-' in gap_chars:
             gap_char = '-'
         elif '.' in gap_chars:
@@ -501,7 +500,7 @@ class SeqAlignment(object):
             list: A list of the sequence IDs which pass the gap cut off used for this alignment.
             list: A list of sequences which do not pass the gap cut off used for this alignment.
         """
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=self.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=self.alphabet)
         numeric_aln = self._alignment_to_num(mapping)
         gap_number = mapping[list(gap_chars)[0]]
         if self.size > size_cutoff:
@@ -546,7 +545,7 @@ class SeqAlignment(object):
         else:
             file_name = None
         start = time()
-        _, _, mapping = build_mapping(alphabet=self.alphabet)
+        _, _, mapping, _ = build_mapping(alphabet=self.alphabet)
         df = pd.DataFrame(self._alignment_to_num(mapping=mapping), index=self.seq_order,
                           columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
         cmap = matplotlib.cm.get_cmap('jet', len(mapping))
@@ -562,7 +561,7 @@ class SeqAlignment(object):
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
 
-    def characterize_positions(self, single=True, pair=True):
+    def characterize_positions(self, single=True, pair=True, single_mapping=None, single_reverse=None, pair_mapping=None, pair_reverse=None):
         """
         Characterize Positions
 
@@ -580,14 +579,17 @@ class SeqAlignment(object):
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
             requested.
         """
+        start = time()
         pos_specific = None
         if single:
-            a_size, _, mapping = build_mapping(alphabet=Gapped(self.alphabet))
-            pos_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, seq_len=self.seq_length, pos_size=1)
+            a_size, _, mapping, reverse = build_mapping(alphabet=Gapped(self.alphabet))
+            pos_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, reverse_mapping=reverse,
+                                          seq_len=self.seq_length, pos_size=1)
         pair_specific = None
         if pair:
-            a_size, _, mapping = build_mapping(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
-            pair_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, seq_len=self.seq_length, pos_size=2)
+            a_size, _, mapping, reverse = build_mapping(alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
+            pair_specific = FrequencyTable(alphabet_size=a_size, mapping=mapping, reverse_mapping=reverse,
+                                           seq_len=self.seq_length, pos_size=2)
         # Iterate over all sequences
         for s in range(self.size):
             if single:
@@ -598,6 +600,55 @@ class SeqAlignment(object):
             pos_specific.finalize_table()
         if pair:
             pair_specific.finalize_table()
+        end = time()
+        print('Characterize positions 1 took: {} min'.format((end - start) / 60.0))
+        return pos_specific, pair_specific
+
+    def characterize_positions2(self, single=True, pair=True, single_letter_size=None, single_letter_mapping=None,
+                                single_letter_reverse=None, pair_letter_size=None, pair_letter_mapping=None,
+                                pair_letter_reverse=None, single_to_pair=None):
+        """
+        Characterize Positions
+
+        This method is meant to characterize the nucleic/amino acids at all positions in the aligned sequence across all
+        sequences in the current alignment. This can be used by other methods to determine with a position is conserved
+        in a given alignment, or compute more complex characterizations like positional entropy etc. This method can
+        characterize single positions as well as pairs of positions and this can be done at the same time or separately.
+
+        Args:
+            single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
+            pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
+            alignment.
+        Returns:
+            FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
+            FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
+            requested.
+        """
+        start = time()
+        if (single_letter_mapping is None) or (single_letter_size is None) or (single_letter_reverse is None):
+            single_letter_size, _, single_letter_mapping, single_letter_reverse = build_mapping(
+                alphabet=Gapped(self.alphabet))
+        num_aln = self._alignment_to_num(mapping=single_letter_mapping)
+        pos_specific = None
+        if single:
+            pos_specific = FrequencyTable(alphabet_size=single_letter_size, mapping=single_letter_mapping,
+                                          reverse_mapping=single_letter_reverse, seq_len=self.seq_length, pos_size=1)
+            pos_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
+        pair_specific = None
+        if pair:
+            if (pair_letter_mapping is None) or (pair_letter_size is None) or (pair_letter_reverse is None):
+                pair_letter_size, _, pair_letter_mapping, pair_letter_reverse = build_mapping(
+                    alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
+            pair_specific = FrequencyTable(alphabet_size=pair_letter_size, mapping=pair_letter_mapping,
+                                           reverse_mapping=pair_letter_reverse, seq_len=self.seq_length, pos_size=2)
+            if single_to_pair is None:
+                single_to_pair = {}
+                for char in pair_letter_mapping:
+                    key = (single_letter_mapping[char[0]], single_letter_mapping[char[1]])
+                    single_to_pair[key] = pair_letter_mapping[char]
+            pair_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
+        end = time()
+        print('Characterize positions 2 took: {} min'.format((end - start) / 60.0))
         return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):
