@@ -755,7 +755,7 @@ class TestSeqAlignment(TestBase):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
-        _, _, mapping = build_mapping(alphabet=aln_small.alphabet)
+        _, _, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
         aln_obj1_num = aln_small._alignment_to_num(mapping=mapping)
         for i in range(aln_small.size):
             for j in range(aln_small.seq_length):
@@ -765,7 +765,7 @@ class TestSeqAlignment(TestBase):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         aln_large.import_alignment()
-        _, _, mapping = build_mapping(alphabet=aln_large.alphabet)
+        _, _, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
         aln_obj2_num = aln_large._alignment_to_num(mapping=mapping)
         for i in range(aln_large.size):
             for j in range(aln_large.seq_length):
@@ -775,7 +775,7 @@ class TestSeqAlignment(TestBase):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_small.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
         numeric_aln = aln_small._alignment_to_num(mapping=mapping)
         passing_sequences = aln_small._gap_z_score_check(z_score_cutoff=0.0, num_aln=numeric_aln, gap_num=alpha_size)
         self.assertEqual(len(passing_sequences), aln_small.size)
@@ -794,7 +794,7 @@ class TestSeqAlignment(TestBase):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
         aln_large.import_alignment()
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_large.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
         numeric_aln = aln_large._alignment_to_num(mapping=mapping)
         passing_sequences = aln_large._gap_z_score_check(z_score_cutoff=0.0, num_aln=numeric_aln, gap_num=alpha_size)
         self.assertEqual(len(passing_sequences), aln_large.size)
@@ -814,7 +814,7 @@ class TestSeqAlignment(TestBase):
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
         consensus = aln_small.consensus_sequence()
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_small.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
         numeric_aln = aln_small._alignment_to_num(mapping=mapping)
         passing_sequences = aln_small._gap_percentile_check(percentile_cutoff=0.15, num_aln=numeric_aln,
                                                             gap_num=alpha_size, mapping=mapping)
@@ -832,7 +832,7 @@ class TestSeqAlignment(TestBase):
                                  query_id=self.large_structure_id)
         aln_large.import_alignment()
         consensus = aln_large.consensus_sequence()
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_large.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
         numeric_aln = aln_large._alignment_to_num(mapping=mapping)
         passing_sequences = aln_large._gap_percentile_check(percentile_cutoff=0.15, num_aln=numeric_aln,
                                                             gap_num=alpha_size, mapping=mapping)
@@ -850,7 +850,7 @@ class TestSeqAlignment(TestBase):
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
         kept, removed = aln_small.gap_evaluation(size_cutoff=15, z_score_cutoff=0.0, percentile_cutoff=0.15)
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_small.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
         self.assertEqual(len(kept) + len(removed), aln_small.size)
         gap_counts = []
         for i in range(aln_small.size):
@@ -873,7 +873,7 @@ class TestSeqAlignment(TestBase):
         aln_small_sub = aln_small.generate_sub_alignment(aln_small.seq_order[:10])
         consensus = aln_small_sub.consensus_sequence()
         kept, removed = aln_small_sub.gap_evaluation(size_cutoff=15, z_score_cutoff=0.0, percentile_cutoff=0.15)
-        alpha_size, gap_chars, _ = build_mapping(alphabet=aln_small.alphabet)
+        alpha_size, gap_chars, _, _ = build_mapping(alphabet=aln_small.alphabet)
         max_differences = np.floor(aln_small_sub.size * 0.15)
         for i in range(aln_small_sub.size):
             diff_count = 0
@@ -891,7 +891,7 @@ class TestSeqAlignment(TestBase):
                                  query_id=self.small_structure_id)
         aln_large.import_alignment()
         kept, removed = aln_large.gap_evaluation(size_cutoff=15, z_score_cutoff=0.0, percentile_cutoff=0.15)
-        alpha_size, gap_chars, mapping = build_mapping(alphabet=aln_large.alphabet)
+        alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
         self.assertEqual(len(kept) + len(removed), aln_large.size)
         gap_counts = []
         for i in range(aln_large.size):
@@ -914,7 +914,7 @@ class TestSeqAlignment(TestBase):
         aln_large_sub = aln_large.generate_sub_alignment(aln_large.seq_order[:10])
         consensus = aln_large_sub.consensus_sequence()
         kept, removed = aln_large_sub.gap_evaluation(size_cutoff=15, z_score_cutoff=0.0, percentile_cutoff=0.15)
-        alpha_size, gap_chars, _ = build_mapping(alphabet=aln_large.alphabet)
+        alpha_size, gap_chars, _, _ = build_mapping(alphabet=aln_large.alphabet)
         max_differences = np.floor(aln_large_sub.size * 0.15)
         for i in range(aln_large_sub.size):
             diff_count = 0
@@ -933,7 +933,7 @@ class TestSeqAlignment(TestBase):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         aln_small.import_alignment()
-        _, _, mapping = build_mapping(alphabet=aln_small.alphabet)
+        _, _, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
         name = '{} Alignment Visualization'.format(self.small_structure_id)
         df1a, _hm1a = aln_small.heatmap_plot(name=name, out_dir=self.save_dir_small, save=True)
         for i in range(aln_small.size):
@@ -949,7 +949,7 @@ class TestSeqAlignment(TestBase):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
         aln_large.import_alignment()
-        _, _, mapping = build_mapping(alphabet=aln_large.alphabet)
+        _, _, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
         name = '{} Alignment Visualization'.format(self.large_structure_id)
         df1a, _hm1a = aln_large.heatmap_plot(name=name, out_dir=self.save_dir_large, save=True)
         for i in range(aln_large.size):
@@ -962,10 +962,11 @@ class TestSeqAlignment(TestBase):
     def test18a_characterize_positions(self):
         # Test single position only for the small sequence
         aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        single_pos = self.query_aln_fa_small.seq_length
         single_table, pair_table = aln_small_sub.characterize_positions(
-            single=True, pair=False, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=False, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_small_sub.characterize_positions2(
             single=True, pair=False, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -973,21 +974,31 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
         self.assertEqual(single_table2.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
-        for i in range(self.query_aln_fa_small.seq_length):
-            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
-            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
-            self.assertEqual(single_table2.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
-            self.assertEqual(single_table2.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
+        table1 = single_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), single_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > self.query_aln_fa_small.seq_length).any())
+        self.assertEqual(np.sum(character_sums), single_pos)
+        table2 = single_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), single_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > single_pos).any())
+        self.assertEqual(np.sum(character_sums2), single_pos)
         self.assertIsNone(pair_table)
         self.assertIsNone(pair_table2)
 
     def test18b_characterize_positions(self):
         # Test single position only for the large sequence
         aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        single_pos = aln_large_sub.seq_length
         single_table, pair_table = aln_large_sub.characterize_positions(
-            single=True, pair=False, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=False, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_large_sub.characterize_positions2(
             single=True, pair=False, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -995,21 +1006,31 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
         self.assertEqual(single_table2.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
-        for i in range(self.query_aln_fa_large.seq_length):
-            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
-            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
-            self.assertEqual(single_table2.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
-            self.assertEqual(single_table2.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
+        table1 = single_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), single_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > single_pos).any())
+        self.assertEqual(np.sum(character_sums), single_pos)
+        table2 = single_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), single_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > single_pos).any())
+        self.assertEqual(np.sum(character_sums2), single_pos)
         self.assertIsNone(pair_table)
         self.assertIsNone(pair_table2)
 
     def test18c_characterize_positions(self):
         # Test pair position only for the small sequence
         aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        pair_pos = np.sum(range(self.query_aln_fa_small.seq_length + 1))
         single_table, pair_table = aln_small_sub.characterize_positions(
-            single=False, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=False, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_small_sub.characterize_positions2(
             single=False, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1021,25 +1042,32 @@ class TestSeqAlignment(TestBase):
         for i in range(self.query_aln_fa_small.seq_length):
             for j in range(i, self.query_aln_fa_small.seq_length):
                 position = (i, j)
-                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
-                                                                      self.query_aln_fa_small.query_sequence[j]])
-                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
-                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
-                self.assertEqual(pair_table2.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
-                                                                      self.query_aln_fa_small.query_sequence[j]])
-                self.assertEqual(pair_table2.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
-                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
                 positions.append(position)
         self.assertEqual(pair_table.get_positions(), positions)
         self.assertEqual(pair_table2.get_positions(), positions)
+        table1 = pair_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), pair_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > pair_pos).any())
+        self.assertEqual(np.sum(character_sums), pair_pos)
+        table2 = pair_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), pair_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > pair_pos).any())
+        self.assertEqual(np.sum(character_sums2), pair_pos)
 
     def test18d_characterize_positions(self):
         # Test pair position only for the large sequence
         aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        pair_pos = np.sum(range(aln_large_sub.seq_length + 1))
         single_table, pair_table = aln_large_sub.characterize_positions(
-            single=False, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=False, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_large_sub.characterize_positions2(
             single=False, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1051,25 +1079,33 @@ class TestSeqAlignment(TestBase):
         for i in range(self.query_aln_fa_large.seq_length):
             for j in range(i, self.query_aln_fa_large.seq_length):
                 position = (i, j)
-                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
-                                                                      self.query_aln_fa_large.query_sequence[j]])
-                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
-                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
-                self.assertEqual(pair_table2.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
-                                                                      self.query_aln_fa_large.query_sequence[j]])
-                self.assertEqual(pair_table2.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
-                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
                 positions.append(position)
         self.assertEqual(pair_table.get_positions(), positions)
         self.assertEqual(pair_table2.get_positions(), positions)
+        table1 = pair_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), pair_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > pair_pos).any())
+        self.assertEqual(np.sum(character_sums), pair_pos)
+        table2 = pair_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), pair_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > pair_pos).any())
+        self.assertEqual(np.sum(character_sums2), pair_pos)
 
     def test18e_characterize_positions(self):
         # Test single position and pairs only for the small sequence
         aln_small_sub = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[self.small_structure_id])
+        single_pos = aln_small_sub.seq_length
+        pair_pos = np.sum(range(aln_small_sub.seq_length + 1))
         single_table, pair_table = aln_small_sub.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_small_sub.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1077,34 +1113,51 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
         self.assertEqual(single_table2.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
-        for i in range(self.query_aln_fa_small.seq_length):
-            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
-            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
-            self.assertEqual(single_table2.get_chars(pos=i), [self.query_aln_fa_small.query_sequence[i]])
-            self.assertEqual(single_table2.get_count(pos=i, char=self.query_aln_fa_small.query_sequence[i]), 1)
+        table1 = single_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), single_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > single_pos).any())
+        self.assertEqual(np.sum(character_sums), aln_small_sub.size * single_pos)
+        table2 = single_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), single_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > single_pos).any())
+        self.assertEqual(np.sum(character_sums2), aln_small_sub.size * single_pos)
         positions = []
         for i in range(self.query_aln_fa_small.seq_length):
             for j in range(i, self.query_aln_fa_small.seq_length):
                 position = (i, j)
-                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
-                                                                      self.query_aln_fa_small.query_sequence[j]])
-                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
-                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
-                self.assertEqual(pair_table2.get_chars(pos=position), [self.query_aln_fa_small.query_sequence[i] +
-                                                                      self.query_aln_fa_small.query_sequence[j]])
-                self.assertEqual(pair_table2.get_count(pos=position, char=self.query_aln_fa_small.query_sequence[i] +
-                                                                         self.query_aln_fa_small.query_sequence[j]), 1)
                 positions.append(position)
         self.assertEqual(pair_table.get_positions(), positions)
         self.assertEqual(pair_table2.get_positions(), positions)
+        table1 = pair_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), pair_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > pair_pos).any())
+        self.assertEqual(np.sum(character_sums), aln_small_sub.size * pair_pos)
+        table2 = pair_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), pair_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > pair_pos).any())
+        self.assertEqual(np.sum(character_sums2), aln_small_sub.size * pair_pos)
 
     def test18f_characterize_positions(self):
         # Test single position and pairs only for the large sequence
         aln_large_sub = self.query_aln_fa_large.generate_sub_alignment(sequence_ids=[self.large_structure_id])
+        single_pos = aln_large_sub.seq_length
+        pair_pos = np.sum(range(aln_large_sub.seq_length + 1))
         single_table, pair_table = aln_large_sub.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2, pair_table2 = aln_large_sub.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1112,35 +1165,50 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         self.assertEqual(single_table.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
         self.assertEqual(single_table2.get_positions(), list(range(self.query_aln_fa_large.seq_length)))
-        for i in range(self.query_aln_fa_large.seq_length):
-            self.assertEqual(single_table.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
-            self.assertEqual(single_table.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
-            self.assertEqual(single_table2.get_chars(pos=i), [self.query_aln_fa_large.query_sequence[i]])
-            self.assertEqual(single_table2.get_count(pos=i, char=self.query_aln_fa_large.query_sequence[i]), 1)
+        table1 = single_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), single_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > single_pos).any())
+        self.assertEqual(np.sum(character_sums), aln_large_sub.size * single_pos)
+        table2 = single_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), single_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > single_pos).any())
+        self.assertEqual(np.sum(character_sums2), aln_large_sub.size * single_pos)
         positions = []
         for i in range(self.query_aln_fa_large.seq_length):
             for j in range(i, self.query_aln_fa_large.seq_length):
                 position = (i, j)
-                self.assertEqual(pair_table.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
-                                                                      self.query_aln_fa_large.query_sequence[j]])
-                self.assertEqual(pair_table.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
-                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
-                self.assertEqual(pair_table2.get_chars(pos=position), [self.query_aln_fa_large.query_sequence[i] +
-                                                                      self.query_aln_fa_large.query_sequence[j]])
-                self.assertEqual(pair_table2.get_count(pos=position, char=self.query_aln_fa_large.query_sequence[i] +
-                                                                         self.query_aln_fa_large.query_sequence[j]), 1)
                 positions.append(position)
         self.assertEqual(pair_table.get_positions(), positions)
         self.assertEqual(pair_table2.get_positions(), positions)
+        table1 = pair_table.get_table()
+        position_sums = np.sum(table1, axis=1)
+        self.assertFalse((position_sums > 1).any())
+        self.assertEqual(np.sum(position_sums), pair_pos)
+        character_sums = np.sum(table1, axis=0)
+        self.assertFalse((character_sums > pair_pos).any())
+        self.assertEqual(np.sum(character_sums), aln_large_sub.size * pair_pos)
+        table2 = pair_table2.get_table()
+        position_sums2 = np.sum(table2, axis=1)
+        self.assertFalse((position_sums2 > 1).any())
+        self.assertEqual(np.sum(position_sums2), pair_pos)
+        character_sums2 = np.sum(table2, axis=0)
+        self.assertFalse((character_sums2 > pair_pos).any())
+        self.assertEqual(np.sum(character_sums2), aln_large_sub.size * pair_pos)
 
     def test18g_characterize_positions(self):
         # Test combination of two alignments frequency tables
         seq_order = self.query_aln_fa_small.seq_order
         aln_small_sub1 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[seq_order[0]])
         single_table1, pair_table1 = aln_small_sub1.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table1b, pair_table1b = aln_small_sub1.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1148,9 +1216,9 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         aln_small_sub2 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=[seq_order[1]])
         single_table2, pair_table2 = aln_small_sub2.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2b, pair_table2b = aln_small_sub2.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1158,9 +1226,9 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         aln_small_sub3 = self.query_aln_fa_small.generate_sub_alignment(sequence_ids=seq_order[:2])
         single_table3, pair_table3 = aln_small_sub3.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table3b, pair_table3b = aln_small_sub3.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1182,12 +1250,6 @@ class TestSeqAlignment(TestBase):
         diff = single_table3b.get_table() - single_combinedb.get_table()
         self.assertFalse(diff.toarray().any())
         self.assertEqual(single_table3b.get_positions(), single_combinedb.get_positions())
-        for i in single_table3.get_positions():
-            self.assertEqual(single_table3.get_chars(pos=i), single_combined.get_chars(pos=i))
-            self.assertEqual(single_table3b.get_chars(pos=i), single_combinedb.get_chars(pos=i))
-            for c in single_table3.get_chars(pos=i):
-                self.assertEqual(single_table3.get_count(pos=i, char=c), single_combined.get_count(pos=i, char=c))
-                self.assertEqual(single_table3b.get_count(pos=i, char=c), single_combinedb.get_count(pos=i, char=c))
         pair_combined = pair_table1 + pair_table2
         pair_combinedb = pair_table1 + pair_table2
         self.assertEqual(pair_table3.mapping, pair_combined.mapping)
@@ -1204,12 +1266,6 @@ class TestSeqAlignment(TestBase):
         diff2 = pair_table3b.get_table() - pair_combinedb.get_table()
         self.assertFalse(diff2.toarray().any())
         self.assertEqual(pair_table3b.get_positions(), pair_combinedb.get_positions())
-        for i in pair_table3.get_positions():
-            self.assertEqual(pair_table3.get_chars(pos=i), pair_combined.get_chars(pos=i))
-            self.assertEqual(pair_table3b.get_chars(pos=i), pair_combinedb.get_chars(pos=i))
-            for c in pair_table3.get_chars(pos=i):
-                self.assertEqual(pair_table3.get_count(pos=i, char=c), pair_combined.get_count(pos=i, char=c))
-                self.assertEqual(pair_table3b.get_count(pos=i, char=c), pair_combinedb.get_count(pos=i, char=c))
 
     def test18h_characterize_positions(self):
         # Test combination of two alignments frequency tables
@@ -1217,9 +1273,9 @@ class TestSeqAlignment(TestBase):
         seq_order = large_aln.seq_order
         aln_large_sub1 = large_aln.generate_sub_alignment(sequence_ids=[seq_order[0]])
         single_table1, pair_table1 = aln_large_sub1.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table1b, pair_table1b = aln_large_sub1.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1227,9 +1283,9 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         aln_large_sub2 = large_aln.generate_sub_alignment(sequence_ids=[seq_order[1]])
         single_table2, pair_table2 = aln_large_sub2.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table2b, pair_table2b = aln_large_sub2.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
@@ -1237,9 +1293,9 @@ class TestSeqAlignment(TestBase):
             pair_letter_reverse=self.pair_letter_reverse, single_to_pair=self.single_to_pair)
         aln_large_sub3 = large_aln.generate_sub_alignment(sequence_ids=seq_order[:2])
         single_table3, pair_table3 = aln_large_sub3.characterize_positions(
-            single=True, pair=True, single_mapping=self.single_letter_mapping,
-            single_reverse=self.single_letter_reverse, pair_mapping=self.pair_letter_mapping,
-            pair_reverse=self.pair_letter_reverse)
+            single=True, pair=True, single_size=self.single_letter_size, single_mapping=self.single_letter_mapping,
+            single_reverse=self.single_letter_reverse, pair_size=self.pair_letter_size,
+            pair_mapping=self.pair_letter_mapping, pair_reverse=self.pair_letter_reverse)
         single_table3b, pair_table3b = aln_large_sub3.characterize_positions2(
             single=True, pair=True, single_letter_size=self.single_letter_size,
             single_letter_mapping=self.single_letter_mapping, single_letter_reverse=self.single_letter_reverse,
