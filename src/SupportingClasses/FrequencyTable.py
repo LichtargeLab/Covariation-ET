@@ -188,9 +188,9 @@ class FrequencyTable(object):
         Returns the dictionary storing the position specific counts for the characters present in the alignment.
 
         Returns:
-            dict: A nested dictionary where the first level describes positions in the MSA and maps to a second set of
-            dictionaries where the key is the character from the alphabet of interest mapping to the count of that
-            character at that position.
+            scipy.sparse.lil_matrix/csc_matrix: A nested dictionary where the first level describes positions in the MSA
+            and maps to a second set of dictionaries where the key is the character from the alphabet of interest
+            mapping to the count of that character at that position.
         """
         table = deepcopy(self.__position_table)
         return table
