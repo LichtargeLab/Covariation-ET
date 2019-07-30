@@ -50,27 +50,9 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         else:
             self.model = model
         super(AlignmentDistanceCalculator, self).__init__(model=model, skip_letters=skip_letters)
-        self.alphabet_size, self.gap_characters, self.mapping = build_mapping(alphabet=self.alphabet,
-                                                                              skip_letters=skip_letters)
+        self.alphabet_size, self.gap_characters, self.mapping, _ = build_mapping(alphabet=self.alphabet,
+                                                                                 skip_letters=skip_letters)
         self.scoring_matrix = self._update_scoring_matrix()
-
-    def _update_scoring_matrix(self):
-        """
-        Update Scoring Matrix
-
-        This function acts as a switch statement to generate the correct scoring/substitution matrix based on whether
-        the calculator will be used for proteins or DNA and the model specified.
-
-        Return:
-             numpy.array: The substitution/scoring matrix.
-        """
-        if self.model == 'identity':
-            substitution_matrix = self._build_identity_scoring_matrix()
-        elif self.aln_type == 'dna' or self.aln_type == 'protein':
-            substitution_matrix = self._rebuild_scoring_matrix()
-        else:
-            raise ValueError('Unexpected combination of variables found when building substitution matrix')
-        return substitution_matrix
 
     def _build_identity_scoring_matrix(self):
         """
@@ -103,6 +85,24 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
         return substitution_matrix
 
+    def _update_scoring_matrix(self):
+        """
+        Update Scoring Matrix
+
+        This function acts as a switch statement to generate the correct scoring/substitution matrix based on whether
+        the calculator will be used for proteins or DNA and the model specified.
+
+        Return:
+             numpy.array: The substitution/scoring matrix.
+        """
+        if self.model == 'identity':
+            substitution_matrix = self._build_identity_scoring_matrix()
+        elif self.aln_type == 'dna' or self.aln_type == 'protein':
+            substitution_matrix = self._rebuild_scoring_matrix()
+        else:
+            raise ValueError('Unexpected combination of variables found when building substitution matrix')
+        return substitution_matrix
+
     def _pairwise(self, seq1, seq2):
         """
         Pairwise
@@ -120,8 +120,11 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         num_seq1 = convert_seq_to_numeric(seq1, mapping=self.mapping)
         # Convert seq2 to its indices in the scoring_matrix
         num_seq2 = convert_seq_to_numeric(seq2, mapping=self.mapping)
-        non_gap_pos1 = num_seq1 < self.alphabet_size  # Find all positions which are not skip_letters in seq1
-        non_gap_pos2 = num_seq2 < self.alphabet_size  # Find all positions which are not skip_letters in seq2
+        threshold = self.alphabet_size
+        if self.model == 'identity':
+            threshold += 1
+        non_gap_pos1 = num_seq1 < threshold  # Find all positions which are not skip_letters in seq1
+        non_gap_pos2 = num_seq2 < threshold  # Find all positions which are not skip_letters in seq2
         combined_non_gap_pos = non_gap_pos1 & non_gap_pos2  # Determine positions that are not skip_letters in either
         # Retrieve scores from scoring_matrix for all positions in the two sequences
         ij_scores = self.scoring_matrix[num_seq1[combined_non_gap_pos], num_seq2[combined_non_gap_pos]]
