@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from copy import deepcopy
-from Bio import Alphabet
-from scipy.sparse import lil_matrix, save_npz
-from utils import build_mapping
+from scipy.sparse import lil_matrix
 
 
 class FrequencyTable(object):
@@ -389,7 +387,7 @@ class FrequencyTable(object):
         header = None
         indices = None
         max_depth = None
-        with open(file_path, 'rb') as file_handle:
+        with open(file_path, 'r') as file_handle:
             for line in file_handle:
                 elements = line.strip().split('\t')
                 if header is None:

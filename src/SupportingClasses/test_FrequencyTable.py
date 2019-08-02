@@ -4,18 +4,16 @@ Created on July 10, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 import numpy as np
 import pandas as pd
 from scipy.sparse import lil_matrix, csc_matrix
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import Alphabet, Gapped
-from Bio.Align import MultipleSeqAlignment
-from test_Base import TestBase
-from utils import build_mapping
-from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
-from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
+from Bio.Alphabet import Gapped
+from src.SupportingClasses.test_Base import TestBase
+from src.SupportingClasses.utils import build_mapping
+from src.SupportingClasses.SeqAlignment import SeqAlignment
+from src.SupportingClasses.FrequencyTable import FrequencyTable
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestFrequencyTable(TestBase):
@@ -647,3 +645,7 @@ class TestFrequencyTable(TestBase):
         self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
+
+
+if __name__ == '__main__':
+    unittest.main()
