@@ -4,6 +4,7 @@ Created on May 28, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 from time import time
 from shutil import rmtree
 from unittest import TestCase
@@ -532,3 +533,7 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(p_data['Final_FA_Aln'], self.expected_final_fa_fn_large)
         outer_time = (end - start) / 60.0
         self.assertLessEqual(p_time, outer_time)
+
+
+if __name__ == '__main__':
+    unittest.main()

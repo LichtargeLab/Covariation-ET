@@ -3,7 +3,7 @@ Created on June 19, 2019
 
 @author: Daniel Konecki
 """
-from math import factorial
+import unittest
 from unittest import TestCase
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
@@ -55,3 +55,7 @@ class TestEvolutionaryTraceAlphabet(TestCase):
                 for k in range(4):
                     char = '{}{}{}'.format(dna_alphabet.letters[i], dna_alphabet.letters[j], dna_alphabet.letters[k])
                     self.assertTrue(char in multi_position_alphabet.letters)
+
+
+if __name__ == '__main__':
+    unittest.main()

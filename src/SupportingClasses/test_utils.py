@@ -3,6 +3,7 @@ Created on June 17, 2019
 
 @author: daniel
 """
+import unittest
 import numpy as np
 from unittest import TestCase
 from Bio.Alphabet import  Gapped
@@ -86,3 +87,7 @@ class TestUtils(TestCase):
         diff_in_conversion = expected_array - numeric_seq_7hvp
         self.assertEqual(numeric_seq_7hvp.shape, expected_array.shape)
         self.assertFalse(np.any(diff_in_conversion))
+
+
+if __name__ == '__main__':
+    unittest.main()
