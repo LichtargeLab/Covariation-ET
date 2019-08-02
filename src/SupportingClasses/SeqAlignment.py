@@ -3,22 +3,22 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
+import os
+import pickle
+import numpy as np
+import pandas as pd
+from time import time
 from copy import deepcopy
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from seaborn import heatmap, clustermap
+from scipy.stats import zscore
 from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from scipy.stats import zscore
-import pickle
-from time import time
-import pandas as pd
-import numpy as np
-import os
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from seaborn import heatmap
 from src.SupportingClasses.FrequencyTable import FrequencyTable
 from src.SupportingClasses.utils import build_mapping, convert_seq_to_numeric
 from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
@@ -108,8 +108,8 @@ class SeqAlignment(object):
             if query_sequence is None:
                 raise ValueError('Query sequence was not found upon alignment import, check query_id or alignment file')
             if save_file is not None:
-                pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'w'),
-                            protocol=pickle.HIGHEST_PROTOCOL)
+                with open(save_file, 'wb') as save_handle:
+                    pickle.dump((alignment, seq_order, query_sequence), save_handle, protocol=pickle.HIGHEST_PROTOCOL)
         if verbose:
             end = time()
             print('Importing alignment took {} min'.format((end - start) / 60.0))

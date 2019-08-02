@@ -4,6 +4,7 @@ Created on Nov 9, 2018
 @author: daniel
 """
 import os
+import unittest
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
@@ -11,11 +12,11 @@ from Bio.Seq import Seq
 from Bio.Alphabet import  Gapped
 from Bio.SeqRecord import  SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from utils import build_mapping
-from test_Base import TestBase
-from SeqAlignment import SeqAlignment
-from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from src.SupportingClasses.utils import build_mapping
+from src.SupportingClasses.test_Base import TestBase
+from src.SupportingClasses.SeqAlignment import SeqAlignment
+from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestSeqAlignment(TestBase):
@@ -328,15 +329,16 @@ class TestSeqAlignment(TestBase):
             aln_small._subset_columns([0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
         aln_small.import_alignment()
         # Mixed Range and Single Position - Start and Middle
-        eta_pos = [0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5)
+        eta_pos = [0] + list(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
         aln_small_eta = aln_small._subset_columns(eta_pos)
         self.assertEqual(len(aln_small_eta), aln_small.size)
         # Mixed Range and Single Position - Middle and End
-        theta_pos = range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5) + [aln_small.seq_length - 1]
+        theta_pos = list(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5)) + [aln_small.seq_length - 1]
         aln_small_theta = aln_small._subset_columns(theta_pos)
         self.assertEqual(len(aln_small_theta), aln_small.size)
         # Mixed Range and Single Position - Start, Middle, and End
-        iota_pos = range(5) + [aln_small.seq_length // 2] + range(aln_small.seq_length - 5, aln_small.seq_length)
+        iota_pos = (list(range(5)) + [aln_small.seq_length // 2] +
+                    list(range(aln_small.seq_length - 5, aln_small.seq_length)))
         aln_small_iota = aln_small._subset_columns(iota_pos)
         self.assertEqual(len(aln_small_iota), aln_small.size)
         for i in range(aln_small.size):
@@ -419,15 +421,16 @@ class TestSeqAlignment(TestBase):
             aln_large._subset_columns([0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
         aln_large.import_alignment()
         # Mixed Range and Single Position - Start and Middle
-        eta_pos = [0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5)
+        eta_pos = [0] + list(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
         aln_large_eta = aln_large._subset_columns(eta_pos)
         self.assertEqual(len(aln_large_eta), aln_large.size)
         # Mixed Range and Single Position - Middle and End
-        theta_pos = range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5) + [aln_large.seq_length - 1]
+        theta_pos = list(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5)) + [aln_large.seq_length - 1]
         aln_large_theta = aln_large._subset_columns(theta_pos)
         self.assertEqual(len(aln_large_theta), aln_large.size)
         # Mixed Range and Single Position - Start, Middle, and End
-        iota_pos = range(5) + [aln_large.seq_length // 2] + range(aln_large.seq_length - 5, aln_large.seq_length)
+        iota_pos = (list(range(5)) + [aln_large.seq_length // 2] +
+                    list(range(aln_large.seq_length - 5, aln_large.seq_length)))
         aln_large_iota = aln_large._subset_columns(iota_pos)
         self.assertEqual(len(aln_large_iota), aln_large.size)
         for i in range(aln_large.size):
@@ -1454,3 +1457,7 @@ def subset_string(in_str, positions):
     for i in positions:
         new_str += in_str[i]
     return new_str
+
+
+if __name__ == '__main__':
+    unittest.main()
