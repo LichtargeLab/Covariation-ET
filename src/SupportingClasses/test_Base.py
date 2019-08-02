@@ -6,13 +6,7 @@ Created onJune 19, 2019
 import os
 from unittest import TestCase
 from multiprocessing import cpu_count
-from dotenv import find_dotenv, load_dotenv
-from DataSetGenerator import DataSetGenerator
-try:
-    dotenv_path = find_dotenv(raise_error_if_not_found=True)
-except IOError:
-    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
-load_dotenv(dotenv_path)
+from src.SupportingClasses.DataSetGenerator import DataSetGenerator
 
 
 class TestBase(TestCase):
@@ -30,7 +24,7 @@ class TestBase(TestCase):
         cls.large_structure_id = '2zxe'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
-        with open(cls.protein_list_fn, 'wb') as test_list_handle:
+        with open(cls.protein_list_fn, 'w') as test_list_handle:
             for structure_id in structure_ids:
                 test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
         cls.data_set = DataSetGenerator(input_path=cls.input_path)

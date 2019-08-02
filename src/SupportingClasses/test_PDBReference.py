@@ -1,6 +1,7 @@
+import unittest
 from Bio.PDB.Structure import Structure
-from test_Base import TestBase
-from PDBReference import PDBReference
+from src.SupportingClasses.test_Base import TestBase
+from src.SupportingClasses.PDBReference import PDBReference
 
 
 class TestPDBReference(TestBase):
@@ -51,3 +52,6 @@ class TestPDBReference(TestBase):
         self.assertEqual(pdb2.residue_pos['A'], expected_dict)
         self.assertEqual(pdb2.size['A'], self.data_set.protein_data[self.large_structure_id]['Length'])
 
+
+if __name__ == '__main__':
+    unittest.main()

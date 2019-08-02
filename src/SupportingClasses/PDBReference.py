@@ -3,10 +3,9 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
-import pickle
 import os
+import pickle
 from time import time
-
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Polypeptide import three_to_one
 from Bio.PDB.Polypeptide import is_aa
@@ -64,7 +63,7 @@ class PDBReference(object):
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
-            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'rb'))
+            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'r'))
         else:
             # parser = PDBParser(PERMISSIVE=0)  # strict
             parser = PDBParser(PERMISSIVE=1)  # corrective
@@ -87,7 +86,7 @@ class PDBReference(object):
                             residue_pos[chain.id][res_num] = res_name
                             pdb_residue_list[chain.id].append(res_num)
             if save_file is not None:
-                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'wb'),
+                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'w'),
                             protocol=pickle.HIGHEST_PROTOCOL)
         self.structure = structure
         self.chains = chains
