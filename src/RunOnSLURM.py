@@ -139,7 +139,7 @@ if __name__ == '__main__':
     input_files.sort(key=lambda f: os.path.splitext(f)[1])
     input_dict = {}
     for f in input_files:
-        print f
+        print(f)
         check = re.search(r'(\d[\d|A-Za-z]{3}[A-Z]?)', f.split('/')[-1])
         if not check:
             continue
@@ -170,7 +170,7 @@ if __name__ == '__main__':
             if not os.path.exists(args['output']):
                 os.mkdir(args['output'])
             curr_fn = write_out_sbatch_script(output_dir, args)
-            print curr_fn
+            print(curr_fn)
             status = call(['sbatch', curr_fn])
             print('{} return status: {}'.format(query, status))
     print('{} analyses submitted'.format(counter))

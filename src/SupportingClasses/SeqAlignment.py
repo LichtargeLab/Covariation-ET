@@ -14,15 +14,15 @@ from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from scipy.stats import zscore
-import cPickle as pickle
+import pickle
 from time import time
 import pandas as pd
 import numpy as np
 import os
-from FrequencyTable import FrequencyTable
-from utils import build_mapping, convert_seq_to_numeric
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+from src.SupportingClasses.FrequencyTable import FrequencyTable
+from src.SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
 
 
 class SeqAlignment(object):
@@ -95,9 +95,9 @@ class SeqAlignment(object):
         if verbose:
             start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
-            alignment, seq_order, query_sequence = pickle.load(open(save_file, 'rb'))
+            alignment, seq_order, query_sequence = pickle.load(open(save_file, 'r'))
         else:
-            with open(self.file_name, 'rb') as file_handle:
+            with open(self.file_name, 'r') as file_handle:
                 alignment = AlignIO.read(file_handle, format='fasta', alphabet=self.alphabet)
             seq_order = []
             query_sequence = None
@@ -108,7 +108,7 @@ class SeqAlignment(object):
             if query_sequence is None:
                 raise ValueError('Query sequence was not found upon alignment import, check query_id or alignment file')
             if save_file is not None:
-                pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'wb'),
+                pickle.dump((alignment, seq_order, query_sequence), open(save_file, 'w'),
                             protocol=pickle.HIGHEST_PROTOCOL)
         if verbose:
             end = time()
@@ -132,7 +132,7 @@ class SeqAlignment(object):
             raise TypeError('Alignment must be Bio.Align.MultipleSequenceALignment not None.')
         if os.path.exists(file_name):
             return
-        with open(file_name, 'wb') as file_handle:
+        with open(file_name, 'w') as file_handle:
             AlignIO.write(self.alignment, handle=file_handle, format="fasta")
 
     def generate_sub_alignment(self, sequence_ids):
@@ -225,7 +225,7 @@ class SeqAlignment(object):
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
-            new_aln = pickle.load(open(save_file, 'rb'))
+            new_aln = pickle.load(open(save_file, 'r'))
         else:
             query_arr = np.array(list(self.query_sequence))
             query_ungapped_ind = np.where(query_arr != '-')[0]
@@ -234,7 +234,7 @@ class SeqAlignment(object):
             else:
                 new_aln = self.alignment
             if save_file is not None:
-                pickle.dump(new_aln, open(save_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump(new_aln, open(save_file, 'w'), protocol=pickle.HIGHEST_PROTOCOL)
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
         new_alignment.alignment = new_aln

@@ -20,9 +20,10 @@ from Bio.Application import ApplicationError
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
-from SeqAlignment import SeqAlignment
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein
+from src.SupportingClasses.PDBReference import PDBReference
+from src.SupportingClasses.SeqAlignment import SeqAlignment
+from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -139,7 +140,7 @@ class DataSetGenerator(object):
         # Write out a fasta file containing all the query sequences for BLASTing
         all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
         if not os.path.isfile(all_seqs_fn):
-            with open(all_seqs_fn, 'wb') as all_seqs_handle:
+            with open(all_seqs_fn, 'w') as all_seqs_handle:
                 write(seqs_to_write, all_seqs_handle, 'fasta')
         # BLAST all query sequences at once
         print('BLASTing query sequences')
@@ -196,16 +197,16 @@ def import_protein_list(protein_list_fn, verbose=False):
         data set is constructed.
     """
     if verbose:
-        print('Importing portein list from: {}'.format(protein_list_fn))
+        print('Importing protein list from: {}'.format(protein_list_fn))
     protein_list_fn = os.path.join(protein_list_fn)
     protein_list = {}
     pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3})([A-Z])$')
-    with open(protein_list_fn, mode='rb') as protein_list_handle:
+    with open(protein_list_fn, mode='r') as protein_list_handle:
         for line in protein_list_handle:
             pdb_id_match = pdb_id_pattern.match(line.strip())
             protein_list[pdb_id_match.group(1)] = {'Chain': pdb_id_match.group(2)}
     if verbose:
-        print('Imported {} portein IDs'.format(len(protein_list)))
+        print('Imported {} protein IDs'.format(len(protein_list)))
     return protein_list
 
 
@@ -276,15 +277,13 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
     if os.path.isfile(protein_fasta_fn):
         if verbose:
             print('Loading query sequence from file: {}'.format(protein_fasta_fn))
-        with open(protein_fasta_fn, 'rb') as protein_fasta_handle:
+        with open(protein_fasta_fn, 'r') as protein_fasta_handle:
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
-            sequence = seq_iter.next()
+            sequence = next(seq_iter)
             sequence.alphabet = FullIUPACProtein()
     else:
         if verbose:
             print('Parsing query sequence from file: {}'.format(pdb_fn))
-
-        from PDBReference import PDBReference
         pdb_struct = PDBReference(pdb_file=pdb_fn)
         pdb_struct.import_pdb(structure_id=protein_id)
         try:
@@ -294,7 +293,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             seq = pdb_struct.seq[chain_id]
         sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description='Target Query')
         seq_records = [sequence]
-        with open(protein_fasta_fn, 'wb') as protein_fasta_handle:
+        with open(protein_fasta_fn, 'w') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     if verbose:
         print('Parsed query sequence for: {}'.format(protein_id))
@@ -404,6 +403,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
                                                  db=os.path.join(os.environ.get('BLAST_DB_PATH'), database))
         if verbose:
             print(blastp_cline)
+        print(blastp_cline)
         stdout, stderr = blastp_cline()
         if verbose:
             print(stdout)
@@ -414,7 +414,7 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, num_t
         if verbose:
             print('BLAST previously completed for: {}'.format(protein_id))
     hit_counts = {}
-    with open(blast_fn, 'rb') as blast_handle:
+    with open(blast_fn, 'r') as blast_handle:
         pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3}).*$')
         blast_iter = NCBIXML.parse(blast_handle)
         for blast_record in blast_iter:
@@ -460,7 +460,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
     sequences = []
     if os.path.isfile(pileup_fn):
         hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+)\sFraction_length=([0-9]+[.][0-9]+).*$')
-        with open(pileup_fn, 'rb') as pileup_handle:
+        with open(pileup_fn, 'r') as pileup_handle:
             fasta_iter = parse(handle=pileup_handle, format='fasta')
             for seq_record in fasta_iter:
                 if seq_record.description.endswith('Target Query'):  # Add the target sequence without checking.
@@ -481,7 +481,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 sequences.append(seq_record)
     else:
         description_pattern = '{} HSP_identity={} HSP_alignment_length={} Fraction_length={}'
-        with open(blast_fn, 'rb') as blast_handle:
+        with open(blast_fn, 'r') as blast_handle:
             blast_iter = NCBIXML.parse(blast_handle)
             for blast_record in blast_iter:
                 if not blast_record.query.startswith(protein_id):
@@ -498,7 +498,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                             if min_fraction <= subject_fraction:
                                 identity = hsp.identities / float(hsp.align_length)
                                 if min_identity <= identity and identity <= max_identity:
-                                    if identity > aln_identity:
+                                    if (aln_identity is None) or (identity > aln_identity):
                                         new_description = description_pattern.format(alignment.hit_def, hsp.identities,
                                                                                      hsp.align_length, subject_fraction)
                                         aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
@@ -509,7 +509,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                         sequences.append(aln_seq_record)
         # Add query sequence so that this file can be fed directly to the alignment method.
         sequences = [query_seq] + sequences
-        with open(pileup_fn, 'wb') as pileup_handle:
+        with open(pileup_fn, 'w') as pileup_handle:
             write(sequences=sequences, handle=pileup_handle, format='fasta')
     count = len(sequences)
     return count, pileup_fn
@@ -836,7 +836,7 @@ def filter_uniref_fasta(in_path, out_path):
                 continue
             sequences.append(seq_record)
             if len(sequences) == 1000:
-                with open(out_path, 'ab') as out_handle:
+                with open(out_path, 'a') as out_handle:
                     write(sequences=sequences, handle=out_handle, format='fasta')
                 sequences = []
 

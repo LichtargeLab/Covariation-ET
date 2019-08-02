@@ -3,7 +3,7 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
-import cPickle as pickle
+import pickle
 import os
 from time import time
 

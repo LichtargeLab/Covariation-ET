@@ -11,11 +11,12 @@ from Bio.Seq import Seq
 from Bio.SeqIO import write
 from Bio.SeqRecord import SeqRecord
 from multiprocessing import cpu_count, Lock
-from EvolutionaryTraceAlphabet import FullIUPACProtein
-from DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence,
-                              init_pdb_processing_pool, pdb_processing, blast_query_sequence, filter_blast_sequences,
-                              align_sequences, identity_filter, init_filtering_and_alignment_pool,
-                              filtering_and_alignment)
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+from src.SupportingClasses.DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb,
+                                                    parse_query_sequence, init_pdb_processing_pool, pdb_processing,
+                                                    blast_query_sequence, filter_blast_sequences, align_sequences,
+                                                    identity_filter, init_filtering_and_alignment_pool,
+                                                    filtering_and_alignment)
 
 
 class TestDataSetGenerator(TestCase):
@@ -88,7 +89,7 @@ class TestDataSetGenerator(TestCase):
         cls.expected_final_fa_fn_large = os.path.join(cls.final_alignment_path,
                                                       '{}.fasta'.format(cls.large_structure_id))
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
-        with open(cls.protein_list_fn, 'wb') as test_list_handle:
+        with open(cls.protein_list_fn, 'w') as test_list_handle:
             for structure_id in structure_ids:
                 test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
 
@@ -275,7 +276,7 @@ class TestDataSetGenerator(TestCase):
         if not os.path.isdir(self.sequence_path):
             self.test4b_pdb_processing_parse_query_sequence()
         if not os.path.isfile(self.expected_seq_fn):
-            with open(self.expected_seq_fn, 'wb') as seq_handle:
+            with open(self.expected_seq_fn, 'w') as seq_handle:
                 write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
         if os.path.isfile(self.expected_blast_fn):
             os.remove(self.expected_blast_fn)
@@ -295,7 +296,7 @@ class TestDataSetGenerator(TestCase):
         if not os.path.isdir(self.sequence_path):
             self.test4b_pdb_processing_parse_query_sequence()
         if not os.path.isfile(self.expected_seq_fn):
-            with open(self.expected_seq_fn, 'wb') as seq_handle:
+            with open(self.expected_seq_fn, 'w') as seq_handle:
                 write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
         if os.path.isfile(self.expected_blast_fn):
             os.remove(self.expected_blast_fn)
@@ -315,7 +316,7 @@ class TestDataSetGenerator(TestCase):
         if not os.path.isdir(self.sequence_path):
             self.test4b_pdb_processing_parse_query_sequence()
         if not os.path.isfile(self.expected_seq_fn):
-            with open(self.expected_seq_fn, 'wb') as seq_handle:
+            with open(self.expected_seq_fn, 'w') as seq_handle:
                 write([self.small_query_seq, self.large_query_seq], seq_handle, 'fasta')
         if os.path.isfile(self.expected_blast_fn):
             os.remove(self.expected_blast_fn)

@@ -7,7 +7,7 @@ import numpy as np
 from unittest import TestCase
 from Bio.Alphabet import  Gapped
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
-from utils import build_mapping, convert_seq_to_numeric
+from src.SupportingClasses.utils import build_mapping, convert_seq_to_numeric
 
 
 class TestUtils(TestCase):

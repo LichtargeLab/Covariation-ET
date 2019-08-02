@@ -6,7 +6,7 @@ Created on June 19, 2019
 from math import factorial
 from unittest import TestCase
 from Bio.Phylo.TreeConstruction import DistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestEvolutionaryTraceAlphabet(TestCase):
