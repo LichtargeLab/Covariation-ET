@@ -4,15 +4,17 @@ Created on May 16, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 import numpy as np
 from time import time
 from copy import deepcopy
 from Bio.Phylo.TreeConstruction import DistanceCalculator
-from test_Base import TestBase
-from ETMIPWrapper import ETMIPWrapper
-from SeqAlignment import SeqAlignment
-from EvolutionaryTraceAlphabet import FullIUPACProtein
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator, convert_array_to_distance_matrix
+from src.SupportingClasses.test_Base import TestBase
+from src.SupportingClasses.ETMIPWrapper import ETMIPWrapper
+from src.SupportingClasses.SeqAlignment import SeqAlignment
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+from src.SupportingClasses.AlignmentDistanceCalculator import (AlignmentDistanceCalculator,
+                                                               convert_array_to_distance_matrix)
 
 
 class TestAlignmentDistanceCalculator(TestBase):
@@ -294,3 +296,7 @@ class TestAlignmentDistanceCalculator(TestBase):
         self.assertTrue(not diff_id_threshold.any())
         self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
         self.assertTrue(not diff_aln_dist_threshold.any())
+
+
+if __name__ == '__main__':
+    unittest.main()

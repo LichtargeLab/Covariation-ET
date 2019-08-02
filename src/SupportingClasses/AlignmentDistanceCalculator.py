@@ -3,13 +3,13 @@ Created on May 15, 2019
 
 @author: Daniel Konecki
 """
-from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
-from Bio.Align import MultipleSeqAlignment
-from itertools import combinations
-import pandas as pd
 import numpy as np
-from utils import build_mapping, convert_seq_to_numeric
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
+import pandas as pd
+from itertools import combinations
+from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
+from src.SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
 
 
 class AlignmentDistanceCalculator(DistanceCalculator):
