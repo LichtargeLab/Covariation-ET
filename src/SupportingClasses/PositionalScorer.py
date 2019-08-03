@@ -65,6 +65,43 @@ class PositionalScorer(object):
         else:
             raise ValueError('Provided metric is neither integer valued nor real valued!')
 
+    # def score_group(self, freq_table):
+    #     """
+    #     Score Group
+    #
+    #     This function is intended to generate a score vector/matrix/tensor for a single group. It does so by scoring
+    #     each position characterized in a FrequencyTable and using those scores to fill in a properly dimensioned
+    #     vector/matrix/tensor.
+    #
+    #     Args:
+    #         freq_table (FrequencyTable): The table characterizing the character counts at each position in an alignment.
+    #     Returns:
+    #         np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
+    #         as determined by the specified metric.
+    #     """
+    #     from time import time
+    #     scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score,
+    #                          'mutual_information': group_mutual_information_score,
+    #                          'normalized_mutual_information': group_normalized_mutual_information_score,
+    #                          'average_product_corrected_mutual_information': group_mutual_information_score}
+    #
+    #     scores = np.zeros(self.dimensions)
+    #     for pos in freq_table.get_positions():
+    #         # inner_start = time()
+    #         score = scoring_functions[self.metric](freq_table, pos)
+    #         # inner_end = time()
+    #         # print('Scoring function took: {} min'.format((inner_end - inner_start) / 60.0))
+    #         if self.position_size == 1:
+    #             scores[pos] = score
+    #         else:
+    #             # Enforce that only the upper triangle of the matrix gets filled in.
+    #             if pos[0] == pos[1]:
+    #                 continue
+    #             scores[pos[0], pos[1]] = score
+    #     if self.metric == 'average_product_corrected_mutual_information':
+    #         scores = average_product_correction(scores)
+    #     return scores
+
     def score_group(self, freq_table):
         """
         Score Group
@@ -79,20 +116,25 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
-        scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score,
+        from time import time
+        scoring_functions = {'identity': group_identity_score2, 'plain_entropy': group_plain_entropy_score2,
                              'mutual_information': group_mutual_information_score,
                              'normalized_mutual_information': group_normalized_mutual_information_score,
                              'average_product_corrected_mutual_information': group_mutual_information_score}
-        scores = np.zeros(self.dimensions)
-        for pos in freq_table.get_positions():
-            score = scoring_functions[self.metric](freq_table, pos)
-            if self.position_size == 1:
-                scores[pos] = score
-            else:
-                # Enforce that only the upper triangle of the matrix gets filled in.
-                if pos[0] == pos[1]:
-                    continue
-                scores[pos[0], pos[1]] = score
+        scores = scoring_functions[self.metric](freq_table, self.dimensions)
+        # scores = np.zeros(self.dimensions)
+        # for pos in freq_table.get_positions():
+        #     # inner_start = time()
+        #     score = scoring_functions[self.metric](freq_table, pos)
+        #     # inner_end = time()
+        #     # print('Scoring function took: {} min'.format((inner_end - inner_start) / 60.0))
+        #     if self.position_size == 1:
+        #         scores[pos] = score
+        #     else:
+        #         # Enforce that only the upper triangle of the matrix gets filled in.
+        #         if pos[0] == pos[1]:
+        #             continue
+        #         scores[pos[0], pos[1]] = score
         if self.metric == 'average_product_corrected_mutual_information':
             scores = average_product_correction(scores)
         return scores
@@ -134,8 +176,9 @@ def rank_integer_value_score(score_matrix):
         np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
         is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
     """
-    cumulative_scores = np.sum(score_matrix, axis=0)
-    rank_scores = 1 * (cumulative_scores != 0)
+    # cumulative_scores = np.sum(score_matrix, axis=0)
+    # rank_scores = 1 * (cumulative_scores != 0)
+    rank_scores = 1 * (score_matrix != 0)
     return rank_scores
 
 
@@ -156,8 +199,9 @@ def rank_real_value_score(score_matrix):
     """
     rank = score_matrix.shape[0]
     weight = 1.0 / rank
-    cumulative_scores = np.sum(score_matrix, axis=0)
-    rank_scores = weight * cumulative_scores
+    # cumulative_scores = np.sum(score_matrix, axis=0)
+    # rank_scores = weight * cumulative_scores
+    rank_scores = weight * score_matrix
     return rank_scores
 
 
@@ -182,6 +226,20 @@ def group_identity_score(freq_table, pos):
     else:
         return 1
 
+def group_identity_score2(freq_table, dimensions):
+    table = freq_table.get_count_matrix()
+    positional_sums = np.sum(table > 0, axis=1)
+    identical = (positional_sums > 1) * 1
+    identical = identical.reshape(-1)
+    if len(dimensions) == 1:
+        final = identical
+    elif len(dimensions) == 2:
+        final = np.zeros(dimensions)
+        final[np.triu_indices(n=dimensions[0])] = identical
+    else:
+        raise ValueError('group_identity_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+    return final
+
 
 def group_plain_entropy_score(freq_table, pos):
     """
@@ -201,6 +259,20 @@ def group_plain_entropy_score(freq_table, pos):
     positional_frequencies = freq_table.get_frequency_array(pos=pos)
     positional_entropy = entropy(positional_frequencies)
     return positional_entropy
+
+
+def group_plain_entropy_score2(freq_table, dimensions):
+    table = freq_table.get_frequency_matrix()
+    entropies = entropy(table.T)
+    if len(dimensions) == 1:
+        final = entropies
+    elif len(dimensions) == 2:
+        final = np.zeros(dimensions)
+        final[np.triu_indices(n=dimensions[0])] = entropies
+    else:
+        raise ValueError('group_plain_entropy_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+    return final
+
 
 
 def mutual_information_computation(freq_table, pos):
@@ -231,6 +303,16 @@ def mutual_information_computation(freq_table, pos):
     joint_entropy_ij = group_plain_entropy_score(freq_table=freq_table, pos=pos)
     mutual_information = (entropy_i + entropy_j) - joint_entropy_ij
     return i, j, entropy_i, entropy_j, joint_entropy_ij, mutual_information
+
+def mutual_information_computation2(freq_table, dimensions):
+    joint_entropies_ij = group_plain_entropy_score2(freq_table=freq_table, dimensions=dimensions)
+    diagonal_indices = (list(range(dimensions[0])), list(range(dimensions[1])))
+    entropies_i = np.zeros(dimensions)
+    entropies_i[list(range(dimensions[0])), :] = joint_entropies_ij[diagonal_indices]
+    entropies_j = np.zeros(dimensions)
+    entropies_j[:, list(range(dimensions[1]))] = joint_entropies_ij[diagonal_indices]
+    mutual_information_matrix = (entropies_i + entropies_j) - joint_entropies_ij
+    return entropies_i, entropies_j, joint_entropies_ij, mutual_information_matrix
 
 
 def group_mutual_information_score(freq_table, pos):

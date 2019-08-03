@@ -480,21 +480,38 @@ class TestPositionalScorer(TestBase):
     def test7b_group_plain_entropy_score(self):
         self.evaluate_group_plain_entropy_score(node_dict=self.first_parents)
 
+    # def evalaute_mutual_information_computation(self, node_dict):
+    #     for x in node_dict:
+    #         for i in range(node_dict[x]['aln'].seq_length):
+    #             for j in range(i + 1, node_dict[x]['aln'].seq_length):
+    #                 hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
+    #                 hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
+    #                 hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+    #                 mi = (hi + hj) - hij
+    #                 mi_values = mutual_information_computation(freq_table=node_dict[x]['pair'], pos=(i, j))
+    #                 self.assertEqual(mi_values[0], i)
+    #                 self.assertEqual(mi_values[1], j)
+    #                 self.assertEqual(mi_values[2], hi)
+    #                 self.assertEqual(mi_values[3], hj)
+    #                 self.assertEqual(mi_values[4], hij)
+    #                 self.assertEqual(mi_values[5], mi)
+
     def evalaute_mutual_information_computation(self, node_dict):
+        from src.SupportingClasses.PositionalScorer import mutual_information_computation2
         for x in node_dict:
+            mi_values = mutual_information_computation2(freq_table=node_dict[x]['pair'],
+                                                        dimensions=(node_dict[x]['aln'].seq_length,
+                                                                    node_dict[x]['aln'].seq_length))
             for i in range(node_dict[x]['aln'].seq_length):
                 for j in range(i + 1, node_dict[x]['aln'].seq_length):
                     hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
                     hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
                     hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
                     mi = (hi + hj) - hij
-                    mi_values = mutual_information_computation(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    self.assertEqual(mi_values[0], i)
-                    self.assertEqual(mi_values[1], j)
-                    self.assertEqual(mi_values[2], hi)
-                    self.assertEqual(mi_values[3], hj)
-                    self.assertEqual(mi_values[4], hij)
-                    self.assertEqual(mi_values[5], mi)
+                    self.assertEqual(mi_values[0][i, j], hi)
+                    self.assertEqual(mi_values[1][i, j], hj)
+                    self.assertEqual(mi_values[2][i, j], hij)
+                    self.assertEqual(mi_values[3][i, j], mi)
 
     def test8a_mutual_information_computation(self):
         self.evalaute_mutual_information_computation(node_dict=self.terminals)
