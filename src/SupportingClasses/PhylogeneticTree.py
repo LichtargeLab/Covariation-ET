@@ -9,9 +9,9 @@ import numpy as np
 from copy import deepcopy
 from itertools import product
 from Bio.Phylo import BaseTree
+from sklearn.cluster import AgglomerativeClustering
 from Bio.Phylo import read, write
 from Bio.Phylo.TreeConstruction import DistanceMatrix
-from sklearn.cluster import AgglomerativeClustering
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 
 
@@ -222,7 +222,7 @@ class PhylogeneticTree(object):
         newick_tree_string = convert_agglomerative_clustering_to_newick_tree(
             clusterer=ml_model, labels=self.distance_matrix.names, distance_matrix=np.array(self.distance_matrix))
         newick_fn = os.path.join(cache_dir, 'joblib', 'agg_clustering_{}_{}.newick'.format(affinity, linkage))
-        with open(newick_fn, 'wb') as newick_handle:
+        with open(newick_fn, 'w') as newick_handle:
             newick_handle.write(newick_tree_string)
         agg_clustering_tree = read(file=newick_fn, format='newick')
         return agg_clustering_tree
@@ -258,7 +258,7 @@ class PhylogeneticTree(object):
         """
         if self.tree is None:
             raise ValueError('Attempting to write tree before construction!')
-        with open(filename, 'wb') as tree_handle:
+        with open(filename, 'w') as tree_handle:
             write(self.tree, file=tree_handle, format='newick')
 
     def traverse_top_down(self):
@@ -272,12 +272,12 @@ class PhylogeneticTree(object):
             generator: A generator which will yield a new node ordered from least to greatest path length from the root.
         """
         nodes_to_process = []
-        heapq.heappush(nodes_to_process, (0, self.tree.root))
+        heapq.heappush(nodes_to_process, (0, self.tree.root.name, self.tree.root))
         while len(nodes_to_process) > 0:
-            curr_branch_len, curr_node = heapq.heappop(nodes_to_process)
+            curr_branch_len, curr_name, curr_node = heapq.heappop(nodes_to_process)
             yield curr_node
             for node in curr_node.clades:
-                heapq.heappush(nodes_to_process, (curr_branch_len + node.branch_length, node))
+                heapq.heappush(nodes_to_process, (curr_branch_len + node.branch_length, node.name, node))
 
     def traverse_bottom_up(self):
         """
@@ -295,9 +295,9 @@ class PhylogeneticTree(object):
             path = self.tree.get_path(leaf)
             dist = get_path_length(path)
             nodes_visited.add(leaf.name)
-            heapq.heappush(nodes_to_process, (-1 * dist, path, leaf))
+            heapq.heappush(nodes_to_process, (-1 * dist, leaf.name, path, leaf))
         while len(nodes_to_process) > 0:
-            curr_dist, curr_path, curr_node = heapq.heappop(nodes_to_process)
+            curr_dist, curr_node_name, curr_path, curr_node = heapq.heappop(nodes_to_process)
             yield curr_node
             if len(curr_path) > 1:
                 parent_node = curr_path[-2]
@@ -305,11 +305,11 @@ class PhylogeneticTree(object):
                 parent_dist = curr_dist + curr_node.branch_length
                 if parent_node.name not in nodes_visited:
                     nodes_visited.add(parent_node.name)
-                    heapq.heappush(nodes_to_process, (parent_dist, parent_path, parent_node))
+                    heapq.heappush(nodes_to_process, (parent_dist, parent_node.name, parent_path, parent_node))
             else:
                 if self.tree.root.name not in nodes_visited:
                     nodes_visited.add(self.tree.root.name)
-                    heapq.heappush(nodes_to_process, (0.0, [], self.tree.root))
+                    heapq.heappush(nodes_to_process, (0.0, self.tree.root.name, [], self.tree.root))
 
     def traverse_by_rank(self):
         """
@@ -466,6 +466,7 @@ def get_cluster_spanner(agg_clusterer):
     spanner = None
     if agg_clusterer.linkage == 'ward':
         if agg_clusterer.affinity == 'euclidean':
+            print(agg_clusterer)
             spanner = lambda x: np.sum((x - agg_clusterer.pooling_func(x, axis=0)) ** 2)
     elif agg_clusterer.linkage == 'complete':
         if agg_clusterer.affinity == 'euclidean':

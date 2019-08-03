@@ -1,14 +1,15 @@
 import os
+import unittest
 import numpy as np
 from time import time
 from re import compile
 from shutil import rmtree
 from copy import deepcopy
-from test_Base import TestBase
-from ETMIPWrapper import ETMIPWrapper
-from SeqAlignment import SeqAlignment
-from PhylogeneticTree import PhylogeneticTree, get_path_length
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from src.SupportingClasses.test_Base import TestBase
+from src.SupportingClasses.ETMIPWrapper import ETMIPWrapper
+from src.SupportingClasses.SeqAlignment import SeqAlignment
+from src.SupportingClasses.PhylogeneticTree import PhylogeneticTree, get_path_length
+from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
 class TestPhylogeneticTree(TestBase):
@@ -271,9 +272,10 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(list1), len(list2))
         for i in range(len(list1)):
             group1 = list1[i]
-            group1 = sorted(group1, cmp=compare_nodes)
+            print(dir(group1[0]))
+            group1 = sorted(group1, key=compare_nodes_key(compare_nodes))
             group2 = list2[i]
-            group2 = sorted(group2, cmp=compare_nodes)
+            group2 = sorted(group2, key=compare_nodes_key(compare_nodes))
             self.assertEqual(len(group1), len(group2))
             for j in range(len(group1)):
                 node1 = group1[j]
@@ -1001,8 +1003,8 @@ class TestPhylogeneticTree(TestBase):
                 print(min_score)
                 print(positions)
             for i in range(len(positions[0])):
-                pos_i = positions[0][i]
-                pos_j = positions[1][i]
+                pos_i = int(positions[0][i])
+                pos_j = int(positions[1][i])
                 name_i = position_node[pos_i]
                 name_j = position_node[pos_j]
                 if verbose:
@@ -1207,6 +1209,32 @@ class TestPhylogeneticTree(TestBase):
                                         msf_aln=self.query_aln_msf_large)
 
 
+def compare_nodes_key(compare_nodes):
+    """Taken from: https://docs.python.org/3/howto/sorting.html"""
+    class K:
+        def __init__(self, obj, *args):
+            self.obj = obj
+
+        def __lt__(self, other):
+            return compare_nodes(self.obj, other.obj) < 0
+
+        def __gt__(self, other):
+            return compare_nodes(self.obj, other.obj) > 0
+
+        def __eq__(self, other):
+            return compare_nodes(self.obj, other.obj) == 0
+
+        def __le__(self, other):
+            return compare_nodes(self.obj, other.obj) <= 0
+
+        def __ge__(self, other):
+            return compare_nodes(self.obj, other.obj) >= 0
+
+        def __ne__(self, other):
+            return compare_nodes(self.obj, other.obj) != 0
+    return K
+
+
 def compare_nodes(node1, node2):
     if node1.is_terminal and not node2.is_terminal():
         return -1
@@ -1219,3 +1247,7 @@ def compare_nodes(node1, node2):
             return -1
         else:
             return 0
+
+
+if __name__ == '__main__':
+    unittest.main()
