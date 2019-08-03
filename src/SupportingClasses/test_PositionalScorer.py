@@ -130,26 +130,28 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_score_group_ambiguous(self, node_dict, metric):
         pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
+        dim_single = (self.seq_len,)
         pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
+        dim_pair = (self.seq_len, self.seq_len)
         for x in node_dict:
             group_single_scores = pos_scorer_single.score_group(freq_table=node_dict[x]['single'])
             group_pair_scores = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
+            if metric == 'identity':
+                single_scores = group_identity_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            elif metric == 'plain_entropy':
+                single_scores = group_plain_entropy_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            else:
+                raise ValueError('Cannot test metric: {} in evaluate_score_group_ambiguous'.format(metric))
+            if metric == 'identity':
+                pair_scores = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
+            elif metric == 'plain_entropy':
+                pair_scores = group_plain_entropy_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
+            else:
+                raise ValueError('Cannot test metric: {} in evaluate_score_group_ambiguous'.format(metric))
             for i in range(node_dict[x]['aln'].seq_length):
-                if metric == 'identity':
-                    single_score = group_identity_score(freq_table=node_dict[x]['single'], pos=i)
-                elif metric == 'plain_entropy':
-                    single_score = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                else:
-                    raise ValueError('Cannot test metric: {} in evaluate_score_group_ambiguous'.format(metric))
-                self.assertEqual(group_single_scores[i], single_score)
-                for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    if metric == 'identity':
-                        pair_score = group_identity_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    elif metric == 'plain_entropy':
-                        pair_score = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    else:
-                        raise ValueError('Cannot test metric: {} in evaluate_score_group_ambiguous'.format(metric))
-                    self.assertEqual(group_pair_scores[i, j], pair_score)
+                self.assertEqual(group_single_scores[i], single_scores[i])
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
 
     def test2a_score_group(self):
         # Score group using identity metric terminals
@@ -169,18 +171,20 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_score_group_mi(self, node_dict, metric):
         pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
+        dim_pair = (self.seq_len, self.seq_len)
         for x in node_dict:
             group_pair_scores = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
+            if metric == 'mutual_information':
+                pair_scores = group_mutual_information_score(freq_table=node_dict[x]['pair'],
+                                                             dimensions=dim_pair)
+            elif metric == 'normalized_mutual_information':
+                pair_scores = group_normalized_mutual_information_score(freq_table=node_dict[x]['pair'],
+                                                                        dimensions=dim_pair)
+            else:
+                raise ValueError('Cannot test metric: {} in evaluate_score_group_mi'.format(metric))
             for i in range(node_dict[x]['aln'].seq_length):
-                for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    if metric == 'mutual_information':
-                        pair_score = group_mutual_information_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    elif metric == 'normalized_mutual_information':
-                        pair_score = group_normalized_mutual_information_score(freq_table=node_dict[x]['pair'],
-                                                                               pos=(i, j))
-                    else:
-                        raise ValueError('Cannot test metric: {} in evaluate_score_group_mi'.format(metric))
-                    self.assertEqual(group_pair_scores[i, j], pair_score)
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
 
     def test2e_score_group(self):
         # Score group using mutual information metric terminals
@@ -202,12 +206,13 @@ class TestPositionalScorer(TestBase):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
                                       metric='average_product_corrected_mutual_information')
         for x in node_dict:
-            mi_matrix = np.zeros((self.seq_len, self.seq_len))
+            freq_table = node_dict[x]['pair']
+            pair_dims = (self.seq_len, self.seq_len)
+            mi_matrix = group_mutual_information_score(freq_table=freq_table, dimensions=pair_dims)
             column_sums = {}
             column_counts = {}
             matrix_sums = 0.0
             total_count = 0.0
-            freq_table = node_dict[x]['pair']
             for pos in freq_table.get_positions():
                 if pos[0] == pos[1]:
                     continue
@@ -217,8 +222,7 @@ class TestPositionalScorer(TestBase):
                 if pos[1] not in column_sums:
                     column_sums[pos[1]] = 0.0
                     column_counts[pos[1]] = 0.0
-                mi = group_mutual_information_score(freq_table=freq_table, pos=pos)
-                mi_matrix[pos[0]][pos[1]] = mi
+                mi = mi_matrix[pos[0]][pos[1]]
                 column_sums[pos[0]] += mi
                 column_sums[pos[1]] += mi
                 column_counts[pos[0]] += 1
@@ -243,6 +247,14 @@ class TestPositionalScorer(TestBase):
             apc = pos_scorer.score_group(freq_table=freq_table)
             diff = apc - expected_apc
             not_passing = diff > 1E-14
+            if not_passing.any():
+                print(apc)
+                print(expected_apc)
+                print(diff)
+                indices = np.nonzero(not_passing)
+                print(apc[indices])
+                print(expected_apc[indices])
+                print(diff[indices])
             self.assertTrue(not not_passing.any())
 
     def test2i_score_group(self):
@@ -258,8 +270,8 @@ class TestPositionalScorer(TestBase):
             pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
             group_scores_single = []
         if pair:
-           pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
-           group_scores_pair = []
+            pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
+            group_scores_pair = []
         for x in node_dict:
             if single:
                 group_score_single = pos_scorer_single.score_group(freq_table=node_dict[x]['single'])
@@ -268,7 +280,7 @@ class TestPositionalScorer(TestBase):
                 group_score_pair = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
                 group_scores_pair.append(group_score_pair)
         if single:
-            group_scores_single = np.stack(group_scores_single, axis=0)
+            group_scores_single = np.sum(np.stack(group_scores_single, axis=0), axis=0)
             if metric == 'identity':
                 expected_rank_score_single = rank_integer_value_score(score_matrix=group_scores_single)
             else:
@@ -277,7 +289,7 @@ class TestPositionalScorer(TestBase):
             diff_single = rank_score_single - expected_rank_score_single
             self.assertTrue(not diff_single.any())
         if pair:
-            group_scores_pair = np.stack(group_scores_pair, axis=0)
+            group_scores_pair = np.sum(np.stack(group_scores_pair, axis=0), axis=0)
             if metric == 'identity':
                 expected_rank_score_pair = rank_integer_value_score(score_matrix=group_scores_pair)
             else:
@@ -334,33 +346,29 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_rank_integer_value_score(self, node_dict):
         group_single_scores = []
+        dim_single = (self.seq_len,)
         group_pair_scores = []
+        dim_pair = (self.seq_len, self.seq_len)
         for x in node_dict:
-            group_single_score = np.zeros(node_dict[x]['aln'].seq_length)
-            group_pair_score = np.zeros((node_dict[x]['aln'].seq_length, node_dict[x]['aln'].seq_length))
-            for i in range(node_dict[x]['aln'].seq_length):
-                group_single_score[i] = group_identity_score(freq_table=node_dict[x]['single'], pos=i)
-                for j in range(i + 1, self.seq_len):
-                    group_pair_score[i, j] = group_identity_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+            group_single_score = group_identity_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            group_pair_score = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             group_single_scores.append(group_single_score)
             group_pair_scores.append(group_pair_score)
-        group_single_scores = np.stack(group_single_scores, axis=0)
+        group_single_scores = np.sum(np.stack(group_single_scores, axis=0), axis=0)
         rank_single_scores = rank_integer_value_score(score_matrix=group_single_scores)
-        expected_rank_single_scores = np.zeros(self.seq_len)
+        expected_rank_single_scores = np.zeros(dim_single)
         for i in range(node_dict[x]['aln'].seq_length):
-            for k in range(group_single_scores.shape[0]):
-                if group_single_scores[k, i] != 0:
-                    expected_rank_single_scores[i] = 1
+            if group_single_scores[i] != 0:
+                expected_rank_single_scores[i] = 1
         diff_single = rank_single_scores - expected_rank_single_scores
         self.assertTrue(not diff_single.any())
-        group_pair_scores = np.stack(group_pair_scores, axis=0)
+        group_pair_scores = np.sum(np.stack(group_pair_scores, axis=0), axis=0)
         rank_pair_scores = rank_integer_value_score(score_matrix=group_pair_scores)
         expected_rank_pair_scores = np.zeros((self.seq_len, self.seq_len))
         for i in range(node_dict[x]['aln'].seq_length):
-            for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                for k in range(group_pair_scores.shape[0]):
-                    if group_pair_scores[k, i, j] != 0:
-                        expected_rank_pair_scores[i, j] = 1
+            for j in range(i, node_dict[x]['aln'].seq_length):
+                if group_pair_scores[i, j] != 0:
+                    expected_rank_pair_scores[i, j] = 1
         diff_pair = rank_pair_scores - expected_rank_pair_scores
         self.assertTrue(not diff_pair.any())
 
@@ -374,34 +382,30 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_rank_real_value_score(self, node_dict):
         group_single_scores = []
+        dim_single = (self.seq_len,)
         group_pair_scores = []
+        dim_pair = (self.seq_len, self.seq_len)
         for x in node_dict:
-            group_single_score = np.zeros(self.seq_len)
-            group_pair_score = np.zeros((self.seq_len, self.seq_len))
-            for i in range(self.seq_len):
-                group_single_score[i] = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                for j in range(i + 1, self.seq_len):
-                    group_pair_score[i, j] = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+            group_single_score = group_identity_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            group_pair_score = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             group_single_scores.append(group_single_score)
             group_pair_scores.append(group_pair_score)
-        group_single_scores = np.stack(group_single_scores, axis=0)
+        group_single_scores = np.sum(np.stack(group_single_scores, axis=0), axis=0)
         rank_single_scores = rank_real_value_score(score_matrix=group_single_scores)
         expected_rank_single_scores = np.zeros(self.seq_len)
         rank = group_single_scores.shape[0]
         for i in range(node_dict[x]['aln'].seq_length):
-            for k in range(rank):
-                expected_rank_single_scores[i] += (1.0 / rank) * group_single_scores[k, i]
+            expected_rank_single_scores[i] += (1.0 / rank) * group_single_scores[i]
         diff_single = rank_single_scores - expected_rank_single_scores
         not_passing_single = diff_single > 1E-16
         self.assertTrue(not not_passing_single.any())
-        group_pair_scores = np.stack(group_pair_scores, axis=0)
+        group_pair_scores = np.sum(np.stack(group_pair_scores, axis=0), axis=0)
         rank_pair_scores = rank_real_value_score(score_matrix=group_pair_scores)
         expected_rank_pair_scores = np.zeros((self.seq_len, self.seq_len))
         rank = group_pair_scores.shape[0]
         for i in range(node_dict[x]['aln'].seq_length):
-            for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                for k in range(rank):
-                    expected_rank_pair_scores[i, j] += (1.0 / rank) * group_pair_scores[k, i, j]
+            for j in range(i, node_dict[x]['aln'].seq_length):
+                expected_rank_pair_scores[i, j] += (1.0 / rank) * group_pair_scores[i, j]
         diff_pair = rank_pair_scores - expected_rank_pair_scores
         not_passing_pair = diff_pair > 1E-16
         self.assertTrue(not not_passing_pair.any())
@@ -414,6 +418,10 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_group_identity_score(self, node_dict):
         for x in node_dict:
+            dim_single = (self.seq_len,)
+            single_scores = group_identity_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            dim_pair = (self.seq_len, self.seq_len)
+            pair_scores = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             for i in range(node_dict[x]['aln'].seq_length):
                 expected_single_score = 0
                 single_char = None
@@ -424,9 +432,11 @@ class TestPositionalScorer(TestBase):
                     else:
                         if single_char != curr_single_char:
                             expected_single_score = 1
-                single_score = group_identity_score(freq_table=node_dict[x]['single'], pos=i)
-                self.assertEqual(single_score, expected_single_score)
-                for j in range(i + 1, node_dict[x]['aln'].seq_length):
+                self.assertEqual(single_scores[i], expected_single_score)
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    if i == j:
+                        self.assertEqual(single_scores[i], pair_scores[i, j])
+                        continue
                     expected_pair_score = 0
                     pair_char = None
                     for k in range(node_dict[x]['aln'].size):
@@ -436,8 +446,7 @@ class TestPositionalScorer(TestBase):
                         else:
                             if pair_char != curr_pair_char:
                                 expected_pair_score = 1
-                    pair_score = group_identity_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    self.assertEqual(pair_score, expected_pair_score)
+                    self.assertEqual(pair_scores[i, j], expected_pair_score)
 
     def test6a_group_identity_score(self):
         self.evaluate_group_identity_score(node_dict=self.terminals)
@@ -447,6 +456,10 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_group_plain_entropy_score(self, node_dict):
         for x in node_dict:
+            dim_single = (self.seq_len,)
+            single_scores = group_plain_entropy_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            dim_pair = (self.seq_len, self.seq_len)
+            pair_scores = group_plain_entropy_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             for i in range(node_dict[x]['aln'].seq_length):
                 single_chars = {}
                 for k in range(node_dict[x]['aln'].size):
@@ -458,9 +471,11 @@ class TestPositionalScorer(TestBase):
                 for c in single_chars:
                     frequency = single_chars[c] / node_dict[x]['aln'].size
                     expected_single_score -= frequency * np.log(frequency)
-                single_score = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                self.assertEqual(single_score, expected_single_score)
-                for j in range(i + 1, node_dict[x]['aln'].seq_length):
+                self.assertEqual(single_scores[i], expected_single_score)
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    if i == j:
+                        self.assertEqual(single_scores[i], pair_scores[i, j])
+                        continue
                     pair_chars = {}
                     for k in range(node_dict[x]['aln'].size):
                         curr_pair_char = node_dict[x]['aln'].alignment[k, i] + node_dict[x]['aln'].alignment[k, j]
@@ -471,8 +486,7 @@ class TestPositionalScorer(TestBase):
                     for c in pair_chars:
                         frequency = pair_chars[c] / node_dict[x]['aln'].size
                         expected_pair_score -= frequency * np.log(frequency)
-                    pair_score = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    self.assertEqual(pair_score, expected_pair_score)
+                    self.assertEqual(pair_scores[i, j], expected_pair_score)
 
     def test7a_group_plain_entropy_score(self):
         self.evaluate_group_plain_entropy_score(node_dict=self.terminals)
@@ -480,33 +494,18 @@ class TestPositionalScorer(TestBase):
     def test7b_group_plain_entropy_score(self):
         self.evaluate_group_plain_entropy_score(node_dict=self.first_parents)
 
-    # def evalaute_mutual_information_computation(self, node_dict):
-    #     for x in node_dict:
-    #         for i in range(node_dict[x]['aln'].seq_length):
-    #             for j in range(i + 1, node_dict[x]['aln'].seq_length):
-    #                 hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-    #                 hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
-    #                 hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-    #                 mi = (hi + hj) - hij
-    #                 mi_values = mutual_information_computation(freq_table=node_dict[x]['pair'], pos=(i, j))
-    #                 self.assertEqual(mi_values[0], i)
-    #                 self.assertEqual(mi_values[1], j)
-    #                 self.assertEqual(mi_values[2], hi)
-    #                 self.assertEqual(mi_values[3], hj)
-    #                 self.assertEqual(mi_values[4], hij)
-    #                 self.assertEqual(mi_values[5], mi)
-
-    def evalaute_mutual_information_computation(self, node_dict):
-        from src.SupportingClasses.PositionalScorer import mutual_information_computation2
+    def evaluate_mutual_information_computation(self, node_dict):
         for x in node_dict:
-            mi_values = mutual_information_computation2(freq_table=node_dict[x]['pair'],
-                                                        dimensions=(node_dict[x]['aln'].seq_length,
-                                                                    node_dict[x]['aln'].seq_length))
+            dim_single = (self.seq_len,)
+            dim_pair = (self.seq_len, self.seq_len)
+            mi_values = mutual_information_computation(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
+            single_entropies = group_plain_entropy_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            pair_joint_entropies = group_plain_entropy_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             for i in range(node_dict[x]['aln'].seq_length):
                 for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                    hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
-                    hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+                    hi = single_entropies[i]
+                    hj = single_entropies[j]
+                    hij = pair_joint_entropies[i, j]
                     mi = (hi + hj) - hij
                     self.assertEqual(mi_values[0][i, j], hi)
                     self.assertEqual(mi_values[1][i, j], hj)
@@ -514,21 +513,25 @@ class TestPositionalScorer(TestBase):
                     self.assertEqual(mi_values[3][i, j], mi)
 
     def test8a_mutual_information_computation(self):
-        self.evalaute_mutual_information_computation(node_dict=self.terminals)
+        self.evaluate_mutual_information_computation(node_dict=self.terminals)
 
     def test8b_mutual_information_computation(self):
-        self.evalaute_mutual_information_computation(node_dict=self.first_parents)
+        self.evaluate_mutual_information_computation(node_dict=self.first_parents)
 
     def evaluate_group_mutual_information_score(self, node_dict):
         for x in node_dict:
+            dim_single = (self.seq_len,)
+            dim_pair = (self.seq_len, self.seq_len)
+            mi_values = group_mutual_information_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
+            single_entropies = group_plain_entropy_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            pair_joint_entropies = group_plain_entropy_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             for i in range(node_dict[x]['aln'].seq_length):
                 for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                    hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
-                    hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+                    hi = single_entropies[i]
+                    hj = single_entropies[j]
+                    hij = pair_joint_entropies[i, j]
                     expected_mi = (hi + hj) - hij
-                    mi = group_mutual_information_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    self.assertEqual(mi, expected_mi)
+                    self.assertEqual(mi_values[i, j], expected_mi)
 
     def test9a_group_mutual_information_score(self):
         self.evaluate_group_mutual_information_score(node_dict=self.terminals)
@@ -538,19 +541,24 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_group_normalized_mutual_information_score(self, node_dict):
         for x in node_dict:
+            dim_single = (self.seq_len,)
+            dim_pair = (self.seq_len, self.seq_len)
+            nmi_values = group_normalized_mutual_information_score(freq_table=node_dict[x]['pair'],
+                                                                   dimensions=dim_pair)
+            single_entropies = group_plain_entropy_score(freq_table=node_dict[x]['single'], dimensions=dim_single)
+            pair_joint_entropies = group_plain_entropy_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             for i in range(node_dict[x]['aln'].seq_length):
                 for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                    hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
-                    hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
+                    hi = single_entropies[i]
+                    hj = single_entropies[j]
+                    hij = pair_joint_entropies[i, j]
                     mi = (hi + hj) - hij
                     normalization = hi + hij
                     if normalization == 0.0:
                         expected_nmi = 0.0
                     else:
                         expected_nmi = mi / normalization
-                    nmi = group_normalized_mutual_information_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    self.assertEqual(nmi, expected_nmi)
+                    self.assertEqual(nmi_values[i, j], expected_nmi)
 
     def test10a_group_normalized_mutual_information_score(self):
         self.evaluate_group_normalized_mutual_information_score(node_dict=self.terminals)
@@ -560,18 +568,15 @@ class TestPositionalScorer(TestBase):
 
     def evaluate_average_product_correction(self, node_dict):
         for x in node_dict:
-            mi_matrix = np.zeros((node_dict[x]['aln'].seq_length, node_dict[x]['aln'].seq_length))
+            pair_dim = (self.seq_len, self.seq_len)
+            mi_matrix = group_mutual_information_score(freq_table=node_dict[x]['pair'], dimensions=pair_dim)
             total_sum = 0.0
             total_count = 0.0
             column_sums = np.zeros(node_dict[x]['aln'].seq_length)
             column_counts = np.zeros(node_dict[x]['aln'].seq_length)
             for i in range(node_dict[x]['aln'].seq_length):
                 for j in range(i + 1, node_dict[x]['aln'].seq_length):
-                    hi = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=i)
-                    hj = group_plain_entropy_score(freq_table=node_dict[x]['single'], pos=j)
-                    hij = group_plain_entropy_score(freq_table=node_dict[x]['pair'], pos=(i, j))
-                    mi = (hi + hj) - hij
-                    mi_matrix[i, j] = mi
+                    mi = mi_matrix[i, j]
                     total_sum += mi
                     total_count += 1
                     column_sums[i] += mi
