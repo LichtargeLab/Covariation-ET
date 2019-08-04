@@ -464,10 +464,17 @@ def get_cluster_spanner(agg_clusterer):
         https://stackoverflow.com/questions/29127013/plot-dendrogram-using-sklearn-agglomerativeclustering
     """
     spanner = None
+    # agg_clusterer.pooling_func was deprecated in recent versions of sklearn (this code was successfully used with
+    # version 0.19.0 previously. In that version agg_clusterer.pooling_func was set to np.mean by default. The new
+    # behavior is less tractable to this method of conversion. To try to preserve the behavior assuming the actual tree
+    # construction is still similar/the same if the deprecation is encountered, the old default function is called.
+    if isinstance(agg_clusterer.pooling_func, str) and (agg_clusterer.pooling_func == 'deprecated'):
+        pooling_func = np.mean
+    else:
+        pooling_func = agg_clusterer.pooling_func
     if agg_clusterer.linkage == 'ward':
         if agg_clusterer.affinity == 'euclidean':
-            print(agg_clusterer)
-            spanner = lambda x: np.sum((x - agg_clusterer.pooling_func(x, axis=0)) ** 2)
+            spanner = lambda x: np.sum((x - pooling_func(x, axis=0)) ** 2)
     elif agg_clusterer.linkage == 'complete':
         if agg_clusterer.affinity == 'euclidean':
             spanner = lambda x: np.max(np.sum((x[:, None, :] - x[None, :, :]) ** 2, axis=2))
