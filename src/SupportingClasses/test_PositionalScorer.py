@@ -266,12 +266,12 @@ class TestPositionalScorer(TestBase):
         self.evaluate_score_group_average_product_corrected_mi(node_dict=self.first_parents)
 
     def evaluate_score_rank_ambiguous(self, node_dict, metric, single=True, pair=True):
+        group_scores_single = []
+        group_scores_pair = []
         if single:
             pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
-            group_scores_single = []
         if pair:
             pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
-            group_scores_pair = []
         for x in node_dict:
             if single:
                 group_score_single = pos_scorer_single.score_group(freq_table=node_dict[x]['single'])
@@ -279,22 +279,23 @@ class TestPositionalScorer(TestBase):
             if pair:
                 group_score_pair = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
                 group_scores_pair.append(group_score_pair)
+        rank = max(len(group_scores_single), len(group_scores_pair))
         if single:
             group_scores_single = np.sum(np.stack(group_scores_single, axis=0), axis=0)
             if metric == 'identity':
-                expected_rank_score_single = rank_integer_value_score(score_matrix=group_scores_single)
+                expected_rank_score_single = rank_integer_value_score(score_matrix=group_scores_single, rank=rank)
             else:
-                expected_rank_score_single = rank_real_value_score(score_matrix=group_scores_single)
-            rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single)
+                expected_rank_score_single = rank_real_value_score(score_matrix=group_scores_single, rank=rank)
+            rank_score_single = pos_scorer_single.score_rank(score_tensor=group_scores_single, rank=rank)
             diff_single = rank_score_single - expected_rank_score_single
             self.assertTrue(not diff_single.any())
         if pair:
             group_scores_pair = np.sum(np.stack(group_scores_pair, axis=0), axis=0)
             if metric == 'identity':
-                expected_rank_score_pair = rank_integer_value_score(score_matrix=group_scores_pair)
+                expected_rank_score_pair = rank_integer_value_score(score_matrix=group_scores_pair, rank=rank)
             else:
-                expected_rank_score_pair = rank_real_value_score(score_matrix=group_scores_pair)
-            rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair)
+                expected_rank_score_pair = rank_real_value_score(score_matrix=group_scores_pair, rank=rank)
+            rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair, rank=rank)
             diff_pair = rank_score_pair - expected_rank_score_pair
             self.assertTrue(not diff_pair.any())
 
@@ -354,8 +355,9 @@ class TestPositionalScorer(TestBase):
             group_pair_score = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             group_single_scores.append(group_single_score)
             group_pair_scores.append(group_pair_score)
+        rank = max(len(group_single_scores), len(group_pair_scores))
         group_single_scores = np.sum(np.stack(group_single_scores, axis=0), axis=0)
-        rank_single_scores = rank_integer_value_score(score_matrix=group_single_scores)
+        rank_single_scores = rank_integer_value_score(score_matrix=group_single_scores, rank=rank)
         expected_rank_single_scores = np.zeros(dim_single)
         for i in range(node_dict[x]['aln'].seq_length):
             if group_single_scores[i] != 0:
@@ -363,7 +365,7 @@ class TestPositionalScorer(TestBase):
         diff_single = rank_single_scores - expected_rank_single_scores
         self.assertTrue(not diff_single.any())
         group_pair_scores = np.sum(np.stack(group_pair_scores, axis=0), axis=0)
-        rank_pair_scores = rank_integer_value_score(score_matrix=group_pair_scores)
+        rank_pair_scores = rank_integer_value_score(score_matrix=group_pair_scores, rank=rank)
         expected_rank_pair_scores = np.zeros((self.seq_len, self.seq_len))
         for i in range(node_dict[x]['aln'].seq_length):
             for j in range(i, node_dict[x]['aln'].seq_length):
@@ -390,19 +392,18 @@ class TestPositionalScorer(TestBase):
             group_pair_score = group_identity_score(freq_table=node_dict[x]['pair'], dimensions=dim_pair)
             group_single_scores.append(group_single_score)
             group_pair_scores.append(group_pair_score)
+        rank = max(len(group_single_scores), len(group_pair_scores))
         group_single_scores = np.sum(np.stack(group_single_scores, axis=0), axis=0)
-        rank_single_scores = rank_real_value_score(score_matrix=group_single_scores)
+        rank_single_scores = rank_real_value_score(score_matrix=group_single_scores, rank=rank)
         expected_rank_single_scores = np.zeros(self.seq_len)
-        rank = group_single_scores.shape[0]
         for i in range(node_dict[x]['aln'].seq_length):
             expected_rank_single_scores[i] += (1.0 / rank) * group_single_scores[i]
         diff_single = rank_single_scores - expected_rank_single_scores
         not_passing_single = diff_single > 1E-16
         self.assertTrue(not not_passing_single.any())
         group_pair_scores = np.sum(np.stack(group_pair_scores, axis=0), axis=0)
-        rank_pair_scores = rank_real_value_score(score_matrix=group_pair_scores)
+        rank_pair_scores = rank_real_value_score(score_matrix=group_pair_scores, rank=rank)
         expected_rank_pair_scores = np.zeros((self.seq_len, self.seq_len))
-        rank = group_pair_scores.shape[0]
         for i in range(node_dict[x]['aln'].seq_length):
             for j in range(i, node_dict[x]['aln'].seq_length):
                 expected_rank_pair_scores[i, j] += (1.0 / rank) * group_pair_scores[i, j]
@@ -553,8 +554,10 @@ class TestPositionalScorer(TestBase):
                     hj = single_entropies[j]
                     hij = pair_joint_entropies[i, j]
                     mi = (hi + hj) - hij
-                    normalization = hi + hij
-                    if normalization == 0.0:
+                    normalization = np.mean([hi, hj])
+                    if hi == hj == 0.0:
+                        expected_nmi = 1.0
+                    elif normalization == 0.0:
                         expected_nmi = 0.0
                     else:
                         expected_nmi = mi / normalization

@@ -89,7 +89,7 @@ class PositionalScorer(object):
             scores = average_product_correction(scores)
         return scores
 
-    def score_rank(self, score_tensor):
+    def score_rank(self, score_tensor, rank):
         """
         Score Rank
 
@@ -102,16 +102,18 @@ class PositionalScorer(object):
             position_size specified at initialization. For example a score_tensor for rank 3 and an alignment with
             sequence length 20, scoring pairs of positions will have shape (3, 20, 20). This can be achieved by stacking
             all group scores at the desired rank along axis 0.
+            rank (int): The rank for which the score is being computed, needed for normalizing the final scores for real
+            valued metrics.
         Returns:
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
         scoring_functions = {'integer': rank_integer_value_score, 'real': rank_real_value_score}
-        scores = scoring_functions[self.metric_type](score_tensor)
+        scores = scoring_functions[self.metric_type](score_tensor, rank)
         return scores
 
 
-def rank_integer_value_score(score_matrix):
+def rank_integer_value_score(score_matrix, rank):
     """
     Rank Integer Value Score
 
@@ -120,8 +122,9 @@ def rank_integer_value_score(score_matrix):
     groups. In any other case the position is not considered conserved (receives a score of 1).
 
     Args:
-        score_matrix (np.array): A matrix/tensor of scores which each score vector/matrix for a given group stacked
-        along axis 0. Scores should be binary integer values such as those produced by group_identity_score.
+        score_matrix (np.array): A 1 or 2 d matrix of scores summed over all groups at the specified rank. Scores should
+        be binary integer values such as those produced by group_identity_score.
+        rank (int): The rank for which the score is being computed.
     Returns:
         np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
         is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
@@ -130,22 +133,22 @@ def rank_integer_value_score(score_matrix):
     return rank_scores
 
 
-def rank_real_value_score(score_matrix):
+def rank_real_value_score(score_matrix, rank):
     """
     Rank Real Value Score
 
     This computes the final rank score for all positions in a characterized alignment if the group score was produced by
-    a real valued, not an integer, scoring metric. The rank score is the sum of the real valued scores across all groups
-    for a given position.
+    a real valued, not an integer, scoring metric. The rank score is the weighted sum of the real valued scores across
+    all groups for a given position.
 
     Args:
-        score_matrix (np.array): A matrix/tensor of scores which each score vector/matrix for a given group stacked
-        along axis 0. Scores should be real valued, such as those produced by group_plain_entropy_score.
+        score_matrix (np.array): A 1 or 2 dimensional matrix of scores summed over all groups at the specified rank.
+        Scores should be real valued, such as those produced by group_plain_entropy_score.
+        rank (int): The rank for which the score is being computed, needed to normalize the final score.
     Returns:
         np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
         is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
     """
-    rank = score_matrix.shape[0]
     weight = 1.0 / rank
     rank_scores = weight * score_matrix
     return rank_scores
@@ -249,7 +252,7 @@ def group_mutual_information_score(freq_table, dimensions):
     """
     Group Mutual Information Score
 
-    This function compute the mutual information score for a given group. The formula used for mutual information in
+    This function computes the mutual information score for a given group. The formula used for mutual information in
     this case is: MI = Hi + Hj -Hij where Hi and Hj are the position specific entropies of the two positions and Hij is
     the joint entropy of the pair of positions.
 
@@ -269,13 +272,17 @@ def group_normalized_mutual_information_score(freq_table, dimensions):
     """
     Group Normalized Mutual Information Score
 
-    This function compute the mutual information score for a given group. The formula used for mutual information in
-    this case is: MI = Hi + Hj -Hij where Hi and Hj are the position specific entropies of the two positions and Hij is
-    the joint entropy of the pair of positions.
+    This function computes the normalized mutual information score for a given group. The formula used in this case
+    employs the arithmetic mean to determine the normalization constant: NMI = (Hi + Hj -Hij) / mean(Hi, Hj) where Hi
+    and Hj are the position specific entropies of the two positions and Hij is the joint entropy of the pair of
+    positions. There are two special cases for this computation. First, if both Hi and Hj are 0.0 then the pair of
+    positions is fully conserved and will received the highest possible score 1.0, mirroring the implementation in other
+    popular packages (see sklearn.metrics.cluster.supervised.normalized_mutual_info). Second, if the normalization
+    for a pair of positions is determined to be 0.0, then its value is set to 0.0.
 
     Args:
-        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the mutual information
-        score.
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the normalized mutual
+        information score.
         dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
         then an array is returned, if two are given an array is returned.
     Returns:
@@ -284,10 +291,19 @@ def group_normalized_mutual_information_score(freq_table, dimensions):
     entropies_i, entropies_j, _, mutual_information = mutual_information_computation(freq_table=freq_table,
                                                                                      dimensions=dimensions)
     final = np.zeros(dimensions)
-    normalization = entropies_i + entropies_j
+    # Define normalization constant (using the arithmetic mean here)
+    normalization = np.mean([entropies_i, entropies_j], axis=0)
+    # Identify positions which can be normalized without error
     indices = np.nonzero(normalization)
+    # Normalize positions which have a non-zero normalization constant
     final[indices] += mutual_information[indices]
     final[indices] /= normalization[indices]
+    # If the entropy is 0 for both positions then we have a special case where the normalized mutual information is 1.
+    upper_triangle_mask = np.triu(np.ones(dimensions), k=1) == 1
+    hi_0 = entropies_i == 0
+    hj_0 = entropies_j == 0
+    bool_indices = upper_triangle_mask & (hi_0 & hj_0)
+    final[bool_indices] = 1.0
     return final
 
 
