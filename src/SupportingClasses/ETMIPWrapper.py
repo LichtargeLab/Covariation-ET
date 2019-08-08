@@ -4,10 +4,12 @@ Created on Sep 17, 2018
 @author: dmkonecki
 """
 import os
+import pickle
 import numpy as np
 import pandas as pd
 from time import time
 from subprocess import Popen, PIPE
+from Bio.Phylo.TreeConstruction import DistanceMatrix
 from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
 from PhylogeneticTree import PhylogeneticTree
@@ -148,35 +150,6 @@ class ETMIPWrapper(object):
         for i in range(1, self.alignment.size):
             self.entropy[i] = rank_df['Rank {} Entropy'.format(i)].values
 
-    def import_covariance_scores(self, out_dir):
-        """
-        Import Covariance Scores
-
-        This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
-        and written to file. This file is then imported using Pandas and is then used to fill in the scores and
-        coverage matrices.
-
-        Args:
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
-        Raises:
-            ValueError: If the directory does not exist, or the expected file is not found in that directory.
-        """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path = os.path.join(out_dir, 'etc_out.tree_mip_sorted')
-        if not os.path.isfile(file_path):
-            raise ValueError('Provided directory does not contain expected covariance file!')
-        data = pd.read_csv(file_path, comment='%', sep='\s+', names=['Sort', 'Res_i', 'i(AA)', 'Res_j', 'j(AA)',
-                                                                     'Raw_Scores', 'Coverage_Scores', 'Interface',
-                                                                     'Contact', 'Number', 'Average_Contact'])
-        self.scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        self.coverage = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        for ind in data.index:
-            i = data.loc[ind, 'Res_i'] - 1
-            j = data.loc[ind, 'Res_j'] - 1
-            self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
-            self.coverage[i, j] = self.coverage[j, i] = data.loc[ind, 'Coverage_Scores']
-
     def import_distance_matrices(self, out_dir):
         """
         Import Distance Matrices
@@ -225,7 +198,10 @@ class ETMIPWrapper(object):
             raise ValueError('Provided directory does not contain expected distance files!')
         tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': file_path1})
         if self.distance_matrix is None:
-            self.import_distance_matrices(out_dir=out_dir)
+            try:
+                self.import_distance_matrices(out_dir=out_dir)
+            except ValueError:
+                self.distance_matrix = DistanceMatrix(names=self.alignment.seq_order)
         tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
 
@@ -300,7 +276,219 @@ class ETMIPWrapper(object):
         print('Importing table 2 took {} min'.format((end - inter3) / 60.0))
         self.rank_group_assignments = rank_group_assignments
 
-    def calculate_scores(self, out_dir, delete_files=True):
+    def import_intermediate_covariance_scores(self, prefix, out_dir):
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(out_dir, '{}.all_rank_and_group_mip.tsv'.format(prefix))
+        if not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected intermediate file!')
+        loaded = True
+        #
+        from src.SupportingClasses.Trace import save_numpy_array, check_numpy_array
+        intermediate_mi_arrays = {}
+        intermediate_amii_arrays = {}
+        intermediate_amij_arrays = {}
+        intermediate_ami_arrays = {}
+        intermediate_mip_arrays = {}
+        for rank in self.rank_group_assignments:
+            intermediate_mi_arrays[rank] = {}
+            intermediate_amii_arrays[rank] = {}
+            intermediate_amij_arrays[rank] = {}
+            intermediate_ami_arrays[rank] = {}
+            intermediate_mip_arrays[rank] = {}
+            for group in self.rank_group_assignments[rank]:
+                check1, intermediate_mi_arrays[rank][group] = check_numpy_array(
+                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    metric='WETC_MI', low_memory=True)
+                check2, intermediate_amii_arrays[rank][group] = check_numpy_array(
+                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    metric='WETC_AMIi', low_memory=True)
+                check3, intermediate_amij_arrays[rank][group] = check_numpy_array(
+                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    metric='WETC_AMIj', low_memory=True)
+                check4, intermediate_ami_arrays[rank][group] = check_numpy_array(
+                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    metric='WETC_AMI', low_memory=True)
+                check5, intermediate_mip_arrays[rank][group] = check_numpy_array(
+                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    metric='WETC_MIp', low_memory=True)
+                final_check = check1 and check2 and check3 and check4 and check5
+                loaded &= final_check
+        #
+        if not loaded:
+            intermediate_mip_rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=None)
+            if self.tree is None:
+                self.import_phylogenetic_tree(out_dir=out_dir, file_name='{}.nhx'.format(prefix))
+            if self.rank_group_assignments is None:
+                self.rank_group_assignments = self.tree.assign_group_rank()
+            size = len(str(self.alignment.query_sequence).replace('-', ''))
+            pos_mapping = {}
+            pos_counter = 0
+            for i in range(self.alignment.seq_length):
+                if self.alignment.query_sequence[i] != '-':
+                    pos_mapping[i] = pos_counter
+                    pos_counter += 1
+            print('NON GAP SEQUENCE LENGTH: {}'.format(size))
+            print('NON GAP POSITION MAPPING SIZE: {}'.format(len(pos_mapping)))
+            print(pos_mapping)
+            for rank in self.rank_group_assignments:
+                for group in self.rank_group_assignments[rank]:
+                    intermediate_mi_arrays[rank][group] = np.zeros((size, size))
+                    intermediate_amii_arrays[rank][group] = np.zeros((size, size))
+                    intermediate_amij_arrays[rank][group] = np.zeros((size, size))
+                    intermediate_ami_arrays[rank][group] = np.zeros((size, size))
+                    intermediate_mip_arrays[rank][group] = np.zeros((size, size))
+            for ind in intermediate_mip_rank_df.index:
+                row = intermediate_mip_rank_df.loc[ind, :]
+                i = row['i'] - 1
+                j = row['j'] - 1
+                rank = row['rank']
+                group = row['group']
+                # Import MI values
+                try:
+                    group_mi = float(row['group_MI'])
+                    if (i in pos_mapping) and (j in pos_mapping):
+                        intermediate_mi_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mi
+                    else:
+                        print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                            group_mi, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                except ValueError:
+                    pass
+                # Import APC Values
+                # Import E[MIi] values
+                try:
+                    group_amii = float(row['E[MIi]'])
+                    if (i in pos_mapping) and (j in pos_mapping):
+                        intermediate_amii_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amii
+                    else:
+                        print('Skipped AMIi position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                            group_amii, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                except ValueError:
+                    pass
+                # Import E[MIj] values
+                try:
+                    group_amij = float(row['E[MIj]'])
+                    if (i in pos_mapping) and (j in pos_mapping):
+                        intermediate_amij_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amij
+                    else:
+                        print('Skipped AMIj position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                            group_amij, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                except ValueError:
+                    pass
+                # Import E[MI] values
+                try:
+                    group_ami = float(row['E[MI]'])
+                    if (i in pos_mapping) and (j in pos_mapping):
+                        intermediate_ami_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_ami
+                    else:
+                        print('Skipped AMI position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                            group_ami, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                except ValueError:
+                    pass
+                # Import MIp values
+                try:
+                    group_mip = float(row['group_MIp'])
+                    if (i in pos_mapping) and (j in pos_mapping):
+                        intermediate_mip_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mip
+                    else:
+                        print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                            group_mip, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                except ValueError:
+                    pass
+            for rank in self.rank_group_assignments:
+                for group in self.rank_group_assignments[rank]:
+                    intermediate_mi_arrays[rank][group] = save_numpy_array(
+                        mat=intermediate_mi_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
+                        pos_type='pair', score_type='group', metric='WETC_MI', low_memory=True)
+                    intermediate_amii_arrays[rank][group] = save_numpy_array(
+                        mat=intermediate_amii_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
+                        pos_type='pair', score_type='group', metric='WETC_AMIi', low_memory=True)
+                    intermediate_amij_arrays[rank][group] = save_numpy_array(
+                        mat=intermediate_amij_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
+                        pos_type='pair', score_type='group', metric='WETC_AMIj', low_memory=True)
+                    intermediate_ami_arrays[rank][group] = save_numpy_array(
+                        mat=intermediate_ami_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
+                        pos_type='pair', score_type='group', metric='WETC_AMI', low_memory=True)
+                    intermediate_mip_arrays[rank][group] = save_numpy_array(
+                        mat=intermediate_mip_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
+                        pos_type='pair', score_type='group', metric='WETC_MIp', low_memory=True)
+        return (intermediate_mi_arrays, intermediate_amii_arrays, intermediate_amij_arrays, intermediate_ami_arrays,
+                intermediate_mip_arrays)
+
+    def import_covariance_scores(self, prefix, out_dir):
+        """
+        Import Covariance Scores
+
+        This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
+        and written to file. This file is then imported using Pandas and is then used to fill in the scores and
+        coverage matrices.
+
+        Args:
+            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+        Raises:
+            ValueError: If the directory does not exist, or the expected file is not found in that directory.
+        """
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path = os.path.join(out_dir, '{}.tree_mip_sorted'.format(prefix))
+        if not os.path.isfile(file_path):
+            raise ValueError('Provided directory does not contain expected covariance file!')
+        data = pd.read_csv(file_path, comment='%', sep='\s+', names=['Sort', 'Res_i', 'i(AA)', 'Res_j', 'j(AA)',
+                                                                     'Raw_Scores', 'Coverage_Scores', 'Interface',
+                                                                     'Contact', 'Number', 'Average_Contact'])
+        size = len(str(self.alignment.query_sequence).replace('-', ''))
+        self.scores = np.zeros((size, size))
+        self.coverage = np.zeros((size, size))
+        for ind in data.index:
+            i = data.loc[ind, 'Res_i'] - 1
+            j = data.loc[ind, 'Res_j'] - 1
+            if i > j:
+                str1 = 'Switching i: {} and j: {}'.format(i, j)
+                j, i = i, j
+                print(str1 + ' to i: {} and j:{}'.format(i, j))
+            # self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
+            self.scores[i, j] = data.loc[ind, 'Raw_Scores']
+            # self.coverage[i, j] = self.coverage[j, i] = data.loc[ind, 'Coverage_Scores']
+            self.coverage[i, j] = data.loc[ind, 'Coverage_Scores']
+
+    def import_et_ranks(self, method, prefix, out_dir):
+        """
+        Import ET ranks
+
+        This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
+        and written to file. This file is then imported using Pandas and is then used to fill in the scores and
+        coverage matrices.
+
+        Args:
+            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+        Raises:
+            ValueError: If the directory does not exist, or the expected file is not found in that directory.
+        """
+        if not os.path.isdir(out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path = os.path.join(out_dir, '{}.ranks'.format(prefix))
+        if not os.path.isfile(file_path):
+            raise ValueError('Provided directory does not contain expected covariance file!')
+        columns = ["alignment#", "residue#", "type", "rank", "variability", "characters"]
+        if method == 'rvET':
+            columns.append('rho')
+        columns.append('coverage')
+        data = pd.read_csv(file_path, comment='%', sep='\s+', index_col=None, names=columns)
+        size = len(str(self.alignment.query_sequence).replace('-', ''))
+        self.scores = np.zeros(size)
+        for ind in data.index:
+            i = data.loc[ind, 'residue#'] - 1
+            self.scores[i] = data.loc[ind, 'rank']
+
+    def import_scores(self, method, prefix, out_dir):
+        if method == 'ET-MIp':
+            self.import_covariance_scores(prefix=prefix, out_dir=out_dir)
+        elif method == 'intET' or method == 'rvET':
+            self.import_et_ranks(method=method, prefix=prefix, out_dir=out_dir)
+        else:
+            raise ValueError('import_scores does not support method: {}'.format(method))
+
+    def calculate_scores(self, out_dir, method='ET-MIp', delete_files=True):
         """
         Calculated ET-MIp Scores
 
@@ -316,12 +504,16 @@ class ETMIPWrapper(object):
             ValueError: If the directory does not exist, or if the file expected to be created by this method is not
             found in that directory.
         """
-        serialized_path = os.path.join(out_dir, 'ET-MIp.npz')
-        if os.path.isfile(serialized_path):
-            loaded_data = np.load(serialized_path)
+        prefix = '{}_{}'.format('etc_out', method)
+        serialized_path1 = os.path.join(out_dir, '{}.npz'.format(method))
+        serialized_path2 = os.path.join(out_dir, '{}.pkl'.format(method))
+        if os.path.isfile(serialized_path1) and os.path.isfile(serialized_path2):
+            loaded_data = np.load(serialized_path1)
             self.scores = loaded_data['scores']
             self.coverage = loaded_data['coverage']
             self.time = loaded_data['time']
+            with open(serialized_path2, 'rb') as handle:
+                self.tree, self.rank_group_assignments = pickle.load(handle)
         else:
             self.check_alignment(target_dir=out_dir)
             binary_path = os.environ.get('WETC_PATH')
@@ -329,8 +521,16 @@ class ETMIPWrapper(object):
             current_dir = os.getcwd()
             os.chdir(out_dir)
             # Call binary
-            p = Popen([binary_path, '-p', self.msf_path, '-x', self.alignment.query_id, '-allpairs'], stdout=PIPE,
-                      stderr=PIPE)
+            options = [binary_path, '-p', self.msf_path, '-x', self.alignment.query_id, '-o', prefix]
+            if method == 'ET-MIp':
+                options.append('-allpairs')
+            elif method == 'intET':
+                options.append('-int')
+            elif method == 'rvET':
+                options.append('-realval')
+            else:
+                raise ValueError('ETMIPWrapper not implemented to calculate {} score type.'.format(method))
+            p = Popen(options, stdout=PIPE, stderr=PIPE)
             # Retrieve communications from binary call
             out, error = p.communicate()
             end = time()
@@ -340,10 +540,14 @@ class ETMIPWrapper(object):
             print('Error:')
             print(error)
             os.chdir(current_dir)
-            self.import_covariance_scores(out_dir=out_dir)
+            self.import_phylogenetic_tree(file_name='{}.nhx'.format(prefix), out_dir=out_dir)
+            self.rank_group_assignments = self.tree.assign_group_rank()
+            self.import_scores(prefix=prefix, out_dir=out_dir, method=method)
             if delete_files:
                 self.remove_ouptut(out_dir=out_dir)
-            np.savez(serialized_path, time=self.time, scores=self.scores, coverage=self.coverage)
+            np.savez(serialized_path1, time=self.time, scores=self.scores, coverage=self.coverage)
+            with open(serialized_path2, 'wb') as handle:
+                pickle.dump((self.tree, self.rank_group_assignments), handle, pickle.HIGHEST_PROTOCOL)
         print(self.time)
         return self.time
 
