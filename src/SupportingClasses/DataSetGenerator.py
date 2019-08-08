@@ -63,7 +63,7 @@ class DataSetGenerator(object):
             denotes a separate PDB id (four letter code only).
         """
         if input_path is None:
-            self.input_path = os.path.join(os.environ.get('PROJECT_PATH'), 'Input')
+            self.input_path = os.environ.get('INPUT_PATH')
         else:
             self.input_path = input_path
         self.protein_list_path = os.path.join(self.input_path, 'ProteinLists')
