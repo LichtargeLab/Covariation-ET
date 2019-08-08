@@ -6,7 +6,13 @@ Created onJune 19, 2019
 import os
 from unittest import TestCase
 from multiprocessing import cpu_count
+from dotenv import find_dotenv, load_dotenv
 from DataSetGenerator import DataSetGenerator
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
 
 
 class TestBase(TestCase):
@@ -15,7 +21,7 @@ class TestBase(TestCase):
     def setUpClass(cls):
         cls.max_threads = cpu_count() - 2
         cls.max_target_seqs = 150
-        cls.testing_dir = os.path.abspath('../Test/')
+        cls.testing_dir = os.environ.get('TESTING_PATH')
         cls.input_path = os.path.join(cls.testing_dir, 'Input')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
