@@ -21,7 +21,7 @@ class TestBase(TestCase):
     def setUpClass(cls):
         cls.max_threads = cpu_count() - 2
         cls.max_target_seqs = 150
-        cls.testing_dir = os.environ.get('TESTING_PATH')
+        cls.testing_dir = os.environ.get('TEST_PATH')
         cls.input_path = os.path.join(cls.testing_dir, 'Input')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
