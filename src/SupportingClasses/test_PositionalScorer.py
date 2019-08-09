@@ -13,7 +13,8 @@ from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 from PositionalScorer import (PositionalScorer, rank_integer_value_score, rank_real_value_score, group_identity_score,
                               group_plain_entropy_score, mutual_information_computation, group_mutual_information_score,
-                              group_normalized_mutual_information_score, average_product_correction)
+                              group_normalized_mutual_information_score, average_product_correction,
+                              filtered_average_product_correction)
 
 
 class TestPositionalScorer(TestBase):
@@ -606,3 +607,42 @@ class TestPositionalScorer(TestBase):
 
     def test11b_average_product_correction(self):
         self.evaluate_average_product_correction(node_dict=self.first_parents)
+
+    def evaluate_filtered_average_product_correction(self, node_dict):
+        for x in node_dict:
+            pair_dim = (self.seq_len, self.seq_len)
+            mi_matrix = group_mutual_information_score(freq_table=node_dict[x]['pair'], dimensions=pair_dim)
+            total_sum = 0.0
+            total_count = 0.0
+            column_sums = np.zeros(node_dict[x]['aln'].seq_length)
+            column_counts = np.zeros(node_dict[x]['aln'].seq_length)
+            for i in range(node_dict[x]['aln'].seq_length):
+                for j in range(i + 1, node_dict[x]['aln'].seq_length):
+                    mi = mi_matrix[i, j]
+                    total_sum += mi
+                    total_count += 1
+                    column_sums[i] += mi
+                    column_counts[i] += 1
+                    column_sums[j] += mi
+                    column_counts[j] += 1
+            expected_apc_matrix = np.zeros((node_dict[x]['aln'].seq_length, node_dict[x]['aln'].seq_length))
+            if total_count > 0:
+                total_average = total_sum / total_count
+                column_average = column_sums / column_counts
+                if total_average > 0:
+                    for i in range(node_dict[x]['aln'].seq_length):
+                        for j in range(i + 1, node_dict[x]['aln'].seq_length):
+                            numerator = column_average[i] * column_average[j]
+                            correction_factor = numerator / total_average
+                            if mi_matrix[i, j] > 0.0001:
+                                expected_apc_matrix[i, j] = mi_matrix[i, j] - correction_factor
+            apc_matrix = filtered_average_product_correction(mutual_information_matrix=mi_matrix)
+            diff = apc_matrix - expected_apc_matrix
+            not_passing = diff > 1E-14
+            self.assertTrue(not not_passing.any())
+
+    def test11c_heuristic_average_product_correction(self):
+        self.evaluate_filtered_average_product_correction(node_dict=self.terminals)
+
+    def test11d_heuristic_average_product_correction(self):
+        self.evaluate_filtered_average_product_correction(node_dict=self.first_parents)

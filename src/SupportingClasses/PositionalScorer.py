@@ -4,20 +4,21 @@ Created on July 12, 2019
 @author: Daniel Konecki
 """
 import numpy as np
-from time import time
-from scipy.stats import entropy
+from scipy.sparse import csc_matrix
 
 integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
-                       'average_product_corrected_mutual_information'}
+                       'average_product_corrected_mutual_information',
+                       'filtered_average_product_corrected_mutual_information'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
 
 single_only_metrics = set()
 
 pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
-                     'average_product_corrected_mutual_information'}
+                     'average_product_corrected_mutual_information',
+                     'filtered_average_product_corrected_mutual_information'}
 
 
 class PositionalScorer(object):
@@ -83,10 +84,13 @@ class PositionalScorer(object):
         scoring_functions = {'identity': group_identity_score, 'plain_entropy': group_plain_entropy_score,
                              'mutual_information': group_mutual_information_score,
                              'normalized_mutual_information': group_normalized_mutual_information_score,
-                             'average_product_corrected_mutual_information': group_mutual_information_score}
+                             'average_product_corrected_mutual_information': group_mutual_information_score,
+                             'filtered_average_product_corrected_mutual_information': group_mutual_information_score}
         scores = scoring_functions[self.metric](freq_table, self.dimensions)
         if self.metric == 'average_product_corrected_mutual_information':
             scores = average_product_correction(scores)
+        elif self.metric == 'filtered_average_product_corrected_mutual_information':
+            scores = filtered_average_product_correction(scores)
         return scores
 
     def score_rank(self, score_tensor, rank):
@@ -201,8 +205,13 @@ def group_plain_entropy_score(freq_table, dimensions):
     Returns:
         np.array: The plain entropies for all positions in the FrequencyTable.
     """
-    table = freq_table.get_frequency_matrix()
-    entropies = entropy(table.T)
+    counts = freq_table.get_table()
+    depth = float(freq_table.get_depth())
+    freq = counts / depth
+    freq_log = csc_matrix((np.log(freq.data), freq.indices, freq.indptr), shape=freq.shape)
+    inter_prod = freq.multiply(freq_log)
+    inter_sum = np.array(inter_prod.sum(axis=1)).reshape(-1)
+    entropies = -1.0 * inter_sum
     if len(dimensions) == 1:
         final = entropies
     elif len(dimensions) == 2:
@@ -242,8 +251,7 @@ def mutual_information_computation(freq_table, dimensions):
     mask = np.triu(np.ones(dimensions), k=1)
     entropies_j = entropies_j * mask
     entropies_i = entropies_i * mask
-    # Clear the joint entropy diagonal
-    joint_entropies_ij[list(range(dimensions[0])), list(range(dimensions[1]))] = 0.0
+    joint_entropies_ij[diagonal_indices] = 0.0
     mutual_information_matrix = (entropies_i + entropies_j) - joint_entropies_ij
     return entropies_i, entropies_j, joint_entropies_ij, mutual_information_matrix
 
@@ -336,10 +344,6 @@ def average_product_correction(mutual_information_matrix):
     # Compute the average over the entire mutual information matrix (excludes the diagonal)
     diagonal_sum = np.sum(diagonal_values)
     matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
-    upper_with_diag = np.triu(mutual_information_matrix)
-    upper_no_diag = np.triu(mutual_information_matrix, k=1)
-    lower_with_diag = np.tril(mutual_information_matrix)
-    lower_no_diag = np.tril(mutual_information_matrix, k=-1)
     if matrix_sum == 0.0:
         apc_corrected = np.zeros((dim, dim))
         if np.abs(mutual_information_matrix).any():
@@ -361,4 +365,60 @@ def average_product_correction(mutual_information_matrix):
         apc_factor = apc_factor * upper_triangle_mask
         # Compute the final corrected values.
         apc_corrected = mutual_information_matrix - apc_factor
+    return apc_corrected
+
+
+def filtered_average_product_correction(mutual_information_matrix):
+    """
+    Average Product Correction
+
+    This function uses a mutual information matrix to calculate average product corrected mutual information. Average
+    product correction includes division by the average mutual information of the unique off diagonal terms in the
+    matrix (e.g. the upper triangle). If this average is 0, a matrix of all zeros will be returned, but first a check
+    will be performed to ensure that the mutual information matrix was also all zeros (this should be the case because
+    mutual information scores should fall in the range between 0 and 1 and thus there should be no negatives which could
+    cause a zero average while other positions are non-zero). If this check fails a ValueError will be raised. If the
+    average is not zero then the rest of the average product correction is computed and applied to the mutual
+    information matrix in order to generate final scores.
+
+    Args:
+        mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
+        mutual information with average product correction.
+    Returns:
+        np.array: An upper triangle matrix with mutual information with average product correction scores. If the
+        average over the
+    """
+    if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
+        raise ValueError('Mutual information matrix is expected to be square!')
+    # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
+    dim = mutual_information_matrix.shape[0]
+    # Compute the position specific mutual information averages (excludes the position itself)
+    diagonal_values = mutual_information_matrix[list(range(dim)), list(range(dim))]
+    # Compute the average over the entire mutual information matrix (excludes the diagonal)
+    diagonal_sum = np.sum(diagonal_values)
+    matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
+    if matrix_sum == 0.0:
+        apc_corrected = np.zeros((dim, dim))
+        if np.abs(mutual_information_matrix).any():
+            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
+    else:
+        matrix_average = matrix_sum / np.sum(range(dim))
+        # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
+        # needed to get the cumulative sum for a given position.
+        position_specific_sums = (np.sum(mutual_information_matrix, axis=0) + np.sum(mutual_information_matrix, axis=1)
+                                  - diagonal_values)
+        position_specific_averages = position_specific_sums / float(dim - 1)
+        # Calculate the matrix of products for the position specific average mutual information
+        apc_numerator = np.outer(position_specific_averages, position_specific_averages)
+        apc_factor = apc_numerator / matrix_average
+        # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
+        # triangle).
+        upper_triangle_mask = np.zeros((dim, dim))
+        upper_triangle_mask[np.triu_indices(dim, k=1)] = 1
+        apc_factor = apc_factor * upper_triangle_mask
+        # Compute the final corrected values.
+        apc_corrected = mutual_information_matrix - apc_factor
+        # Performing filtering that Angela performs
+        positions = mutual_information_matrix <= 0.0001
+        apc_corrected[positions] = 0.0
     return apc_corrected
