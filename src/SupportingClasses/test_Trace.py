@@ -7,15 +7,19 @@ import os
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
+from Bio.Alphabet import Gapped
 from multiprocessing import Lock, Manager, Queue
+from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import TestBase
+from utils import build_mapping
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
-from PositionalScorer import PositionalScorer
 from PhylogeneticTree import PhylogeneticTree
+from PositionalScorer import PositionalScorer
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 from Trace import (Trace, init_characterization_pool, characterization, init_trace_groups, trace_groups,
-                   init_trace_ranks, trace_ranks, save_freq_table, load_freq_table)
+                   init_trace_ranks, trace_ranks, load_freq_table, load_numpy_array)
 
 
 class TestTrace(TestBase):
@@ -31,6 +35,7 @@ class TestTrace(TestBase):
         calc = AlignmentDistanceCalculator()
         cls.phylo_tree_small.construct_tree(dm=calc.get_distance(cls.query_aln_fa_small.alignment))
         cls.assignments_small = cls.phylo_tree_small.assign_group_rank()
+        cls.assignments_custom_small = cls.phylo_tree_small.assign_group_rank(ranks=[1, 2, 3, 5, 7, 10, 25])
         cls.query_aln_fa_large = SeqAlignment(
             file_name=cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln'],
             query_id=cls.large_structure_id)
@@ -39,6 +44,7 @@ class TestTrace(TestBase):
         calc = AlignmentDistanceCalculator()
         cls.phylo_tree_large.construct_tree(dm=calc.get_distance(cls.query_aln_fa_large.alignment))
         cls.assignments_large = cls.phylo_tree_large.assign_group_rank()
+        cls.assignments_custom_large = cls.phylo_tree_large.assign_group_rank(ranks=[1, 2, 3, 5, 7, 10, 25])
         cls.query_aln_msf_small = deepcopy(cls.query_aln_fa_small)
         cls.query_aln_msf_small.file_name = cls.data_set.protein_data[cls.small_structure_id]['Final_MSF_Aln']
         cls.out_small_dir = os.path.join(cls.testing_dir, cls.small_structure_id)
@@ -51,6 +57,14 @@ class TestTrace(TestBase):
             os.makedirs(cls.out_large_dir)
         cls.query_aln_fa_small = cls.query_aln_fa_small.remove_gaps()
         cls.query_aln_fa_large = cls.query_aln_fa_large.remove_gaps()
+        cls.single_alphabet = Gapped(FullIUPACProtein())
+        cls.single_size, _, cls.single_mapping, cls.single_reverse = build_mapping(alphabet=cls.single_alphabet)
+        cls.pair_alphabet = MultiPositionAlphabet(alphabet=cls.single_alphabet, size=2)
+        cls.pair_size, _, cls.pair_mapping, cls.pair_reverse = build_mapping(alphabet=cls.pair_alphabet)
+        cls.single_to_pair = {}
+        for char in cls.pair_mapping:
+            key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
+            cls.single_to_pair[key] = cls.pair_mapping[char]
 
     # @classmethod
     # def tearDownClass(cls):
@@ -60,7 +74,7 @@ class TestTrace(TestBase):
     def test1a_init(self):
         trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                             group_assignments=self.assignments_small, position_specific=True, pair_specific=True,
-                            output_dir=self.out_small_dir, low_mem=False)
+                            output_dir=self.out_small_dir, low_memory=False)
         self.assertEqual(trace_small.aln.file_name, self.query_aln_fa_small.file_name)
         self.assertEqual(trace_small.aln.query_id, self.query_aln_fa_small.query_id)
         for s in range(trace_small.aln.size):
@@ -78,6 +92,7 @@ class TestTrace(TestBase):
         self.assertEqual(trace_small.phylo_tree, self.phylo_tree_small)
         self.assertEqual(trace_small.assignments, self.assignments_small)
         self.assertIsNone(trace_small.unique_nodes)
+        self.assertIsNone(trace_small.rank_scores)
         self.assertEqual(trace_small.pos_specific, True)
         self.assertEqual(trace_small.pair_specific, True)
         self.assertEqual(trace_small.out_dir, self.out_small_dir)
@@ -86,7 +101,7 @@ class TestTrace(TestBase):
     def test1b_init(self):
         trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                             group_assignments=self.assignments_large, position_specific=True, pair_specific=True,
-                            output_dir=self.out_large_dir, low_mem=True)
+                            output_dir=self.out_large_dir, low_memory=True)
         self.assertEqual(trace_large.aln.file_name, self.query_aln_fa_large.file_name)
         self.assertEqual(trace_large.aln.query_id, self.query_aln_fa_large.query_id)
         for s in range(trace_large.aln.size):
@@ -104,98 +119,18 @@ class TestTrace(TestBase):
         self.assertEqual(trace_large.phylo_tree, self.phylo_tree_large)
         self.assertEqual(trace_large.assignments, self.assignments_large)
         self.assertIsNone(trace_large.unique_nodes)
+        self.assertIsNone(trace_large.rank_scores)
         self.assertEqual(trace_large.pos_specific, True)
         self.assertEqual(trace_large.pair_specific, True)
         self.assertEqual(trace_large.out_dir, self.out_large_dir)
         self.assertTrue(trace_large.low_memory)
 
-    ####################################################################################################################
-
-    def evaluate_characterize_rank_groups_pooling_functions(self, p_id, aln, phylo_tree, out_dir, low_mem):
-        unique_dir = os.path.join(out_dir, 'unique_node_data')
-        if not os.path.isdir(unique_dir):
-            os.makedirs(unique_dir)
-        test_queue = Queue(maxsize=3)
-        # Retrieve 3 node tree consisting of query node, its sibling, and its parent.
-        query_node = [x for x in phylo_tree.tree.get_terminals() if x.name == p_id][0]
-        parent_node = phylo_tree.tree.get_path(query_node)[-2]
-        query_neighbor_node = parent_node.clades[0] if parent_node.clades[1] == query_node else parent_node.clades[1]
-        test_queue.put_nowait(query_node)
-        test_queue.put_nowait(query_neighbor_node)
-        test_queue.put_nowait(parent_node)
-        # Test the functions
-        test_manager = Manager()
-        test_dict = test_manager.dict()
-        init_characterization_pool(alignment=aln, pos_specific=True, pair_specific=True, queue=test_queue,
-                                   sharable_dict=test_dict, unique_dir=unique_dir, low_memory=low_mem)
-        characterization(processor=1)
-        test_dict = dict(test_dict)
-        self.assertEqual(len(test_dict), 3)
-        sub_aln1 = aln.generate_sub_alignment(sequence_ids=[x.name for x in parent_node.get_terminals()])
-        single_table1, pair_table1 = sub_aln1.characterize_positions()
-        self.assertTrue(parent_node.name in test_dict)
-        self.assertTrue('single' in test_dict[parent_node.name])
-        self.assertTrue('pair' in test_dict[parent_node.name])
-        single_freq_table1 = test_dict[parent_node.name]['single']
-        if low_mem:
-            single_freq_table1 = load_freq_table(freq_table=single_freq_table1, low_memory=low_mem)
-        diff = single_freq_table1.get_table() - single_table1.get_table()
-        self.assertFalse(diff.toarray().any())
-        pair_freq_table1 = test_dict[parent_node.name]['pair']
-        if low_mem:
-            pair_freq_table1 = load_freq_table(freq_table=pair_freq_table1, low_memory=low_mem)
-        diff = pair_freq_table1.get_table() - pair_table1.get_table()
-        self.assertFalse(diff.toarray().any())
-        self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(parent_node.name))))
-        sub_aln2 = aln.generate_sub_alignment(sequence_ids=[x.name for x in query_node.get_terminals()])
-        single_table2, pair_table2 = sub_aln2.characterize_positions()
-        self.assertTrue(query_node.name in test_dict)
-        self.assertTrue('single' in test_dict[query_node.name])
-        single_freq_table2 = test_dict[query_node.name]['single']
-        if low_mem:
-            single_freq_table2 = load_freq_table(freq_table=single_freq_table2, low_memory=low_mem)
-        diff = single_freq_table2.get_table() - single_table2.get_table()
-        self.assertFalse(diff.toarray().any())
-        self.assertTrue('pair' in test_dict[query_node.name])
-        pair_freq_table2 = test_dict[query_node.name]['pair']
-        if low_mem:
-            pair_freq_table2 = load_freq_table(freq_table=pair_freq_table2, low_memory=low_mem)
-        diff = pair_freq_table2.get_table() - pair_table2.get_table()
-        self.assertFalse(diff.toarray().any())
-        self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_node.name))))
-        sub_aln3 = aln.generate_sub_alignment(sequence_ids=[query_neighbor_node.name])
-        single_table3, pair_table3 = sub_aln3.characterize_positions()
-        self.assertTrue(query_neighbor_node.name in test_dict)
-        self.assertTrue('single' in test_dict[query_neighbor_node.name])
-        single_freq_table3 = test_dict[query_neighbor_node.name]['single']
-        if low_mem:
-            single_freq_table3 = load_freq_table(freq_table=single_freq_table3, low_memory=low_mem)
-        diff = single_freq_table3.get_table() - single_table3.get_table()
-        self.assertFalse(diff.toarray().any())
-        self.assertTrue('pair' in test_dict[query_neighbor_node.name])
-        pair_freq_table3 = test_dict[query_neighbor_node.name]['pair']
-        if low_mem:
-            pair_freq_table3 = load_freq_table(freq_table=pair_freq_table3, low_memory=low_mem)
-        diff = pair_freq_table3.get_table() - pair_table3.get_table()
-        self.assertFalse(diff.toarray().any())
-        self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(query_neighbor_node.name))))
-
-    def test2a_characterize_rank_groups_initialize_characterization_pool(self):
-        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
-        self.evaluate_characterize_rank_groups_pooling_functions(
-            p_id=self.small_structure_id, aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-            out_dir=self.out_small_dir, low_mem=False)
-
-    def test2b_characterize_rank_groups_initialize_characterization_pool(self):
-        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
-        self.evaluate_characterize_rank_groups_pooling_functions(
-            p_id=self.large_structure_id, aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-            out_dir=self.out_large_dir, low_mem=True)
-
-    def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem):
+    def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem, write_aln,
+                                          write_freq_table):
         trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assign, position_specific=single,
-                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id), low_mem=low_mem)
-        trace.characterize_rank_groups(processes=processors)
+                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id), low_memory=low_mem)
+        trace.characterize_rank_groups(processes=processors, write_out_sub_aln=write_aln,
+                                       write_out_freq_table=write_freq_table)
         visited = set()
         unique_dir = os.path.join(trace.out_dir, 'unique_node_data')
         if not os.path.isdir(unique_dir):
@@ -207,17 +142,31 @@ class TestTrace(TestBase):
                 self.assertTrue('single' in trace.unique_nodes[node_name])
                 self.assertTrue('pair' in trace.unique_nodes[node_name])
                 if node_name not in visited:
+                    print(node_name)
                     sub_aln = aln.generate_sub_alignment(
                         sequence_ids=trace.assignments[rank][group]['terminals'])
-                    self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
-                    expected_single_table, expected_pair_table = sub_aln.characterize_positions(single=single,
-                                                                                                pair=pair)
+                    if write_aln:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
+                    if sub_aln.size < 5:
+                        expected_single_table, expected_pair_table = sub_aln.characterize_positions(
+                            single=single, pair=pair, single_size=self.single_size, single_mapping=self.single_mapping,
+                            single_reverse=self.single_reverse, pair_size=self.pair_size, pair_mapping=self.pair_mapping,
+                            pair_reverse=self.pair_reverse)
+                    else:
+                        expected_single_table, expected_pair_table = sub_aln.characterize_positions2(
+                            single=single, pair=pair, single_letter_size=self.single_size,
+                            single_letter_mapping=self.single_mapping, single_letter_reverse=self.single_reverse,
+                            pair_letter_size=self.pair_size, pair_letter_mapping=self.pair_mapping,
+                            pair_letter_reverse=self.pair_reverse, single_to_pair=self.single_to_pair)
                     if single:
                         single_table = trace.unique_nodes[node_name]['single']
                         if low_mem:
                             single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
                         diff = single_table.get_table() - expected_single_table.get_table()
                         self.assertFalse(diff.toarray().any())
+                        if write_freq_table:
+                            self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}_position_freq_table.tsv'.format(
+                                node_name))))
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['single'])
                     if pair:
@@ -226,40 +175,620 @@ class TestTrace(TestBase):
                             pair_table = load_freq_table(freq_table=pair_table, low_memory=low_mem)
                         diff = pair_table.get_table() - expected_pair_table.get_table()
                         self.assertFalse(diff.toarray().any())
+                        if write_freq_table:
+                            self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}_pair_freq_table.tsv'.format(
+                                node_name))))
                     else:
                         self.assertIsNone(trace.unique_nodes[node_name]['pair'])
                     visited.add(node_name)
+        rmtree(unique_dir)
+
+    def test2a_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_small, single=True, pair=True, processors=1,
+                                               low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2b_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_large, single=True, pair=True, processors=1,
+                                               low_mem=True, write_aln=False, write_freq_table=False)
 
     def test2c_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, small alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=True, pair=True, processors=1,
-                                               low_mem=False)
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=1, low_mem=False, write_aln=True, write_freq_table=True)
 
     def test2d_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_large, single=True, pair=True, processors=1,
-                                               low_mem=True)
+                                               assign=self.assignments_custom_large, single=True, pair=True, processors=1,
+                                               low_mem=True, write_aln=False, write_freq_table=False)
 
     def test2e_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, small alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=False)
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
 
     def test2f_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                                                assign=self.assignments_large, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=True)
+                                               processors=self.max_threads, low_mem=True, write_aln=False,
+                                               write_freq_table=False)
+
+    def test2g_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
+
+    def test2h_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_custom_large, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=True, write_aln=False,
+                                               write_freq_table=False)
+
+    def evaluate_trace(self, aln, phylo_tree, assignments, single, pair, metric, num_proc, out_dir, gap_correction=None,
+                       low_mem=True):
+        if single:
+            pos_size = 1
+            expected_ranks = np.ones(aln.seq_length)
+        elif pair:
+            pos_size = 2
+            expected_ranks = np.ones((aln.seq_length, aln.seq_length))
+        else:
+            pos_size = None
+            expected_ranks = None
+        trace_obj = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assignments,
+                          position_specific=single, pair_specific=pair, low_memory=low_mem, output_dir=out_dir)
+        trace_obj.characterize_rank_groups(processes=num_proc)
+        scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
+        rank_array = trace_obj.trace(scorer=scorer, processes=num_proc, gap_correction=gap_correction)
+        unique_scores = {}
+        for rank in sorted(assignments.keys(), reverse=True):
+            group_scores = []
+            for group in assignments[rank].keys():
+                node_name = assignments[rank][group]['node'].name
+                if node_name not in unique_scores:
+                    if pair:
+                        group_score = scorer.score_group(load_freq_table(trace_obj.unique_nodes[node_name]['pair'],
+                                                                         low_memory=low_mem))
+                    elif single:
+                        group_score = scorer.score_group(load_freq_table(trace_obj.unique_nodes[node_name]['single'],
+                                                                         low_memory=low_mem))
+                    else:
+                            raise ValueError('Either pair or single must be true for this test.')
+                    unique_scores[node_name] = group_score
+                else:
+                    group_score = unique_scores[node_name]
+                group_scores.append(group_score)
+            group_scores = np.stack(group_scores, axis=0)
+            if metric == 'identity':
+                weight = 1.0
+            else:
+                weight = 1.0 / rank
+            rank_scores = weight * np.sum(group_scores, axis=0)
+            if metric == 'identity':
+                rank_scores = rank_scores > 0 * 1
+            diff_rank = load_numpy_array(trace_obj.rank_scores[rank], low_memory=low_mem) - rank_scores
+            not_passing_rank = diff_rank > 1E-12
+            if not_passing_rank.any():
+                print(trace_obj.rank_scores[rank])
+                print(rank_scores)
+                print(diff_rank)
+                indices_rank = np.nonzero(not_passing_rank)
+                print(trace_obj.rank_scores[rank][indices_rank])
+                print(rank_scores[indices_rank])
+                print(diff_rank[indices_rank])
+            self.assertFalse(not_passing_rank.any())
+            expected_ranks += rank_scores
+        diff_ranks = rank_array - expected_ranks
+        not_passing = diff_ranks > 1E-12
+        if not_passing.any():
+            print(rank_array)
+            print(expected_ranks)
+            print(diff_ranks)
+            indices = np.nonzero(not_passing)
+            print(rank_array[indices])
+            print(expected_ranks[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(not_passing.any())
+
+    def test3a_trace(self):
+        # Perform identity trace on single positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3b_trace(self):
+        # Perform identity trace on single positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3c_trace(self):
+        # Perform identity trace on single positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test3d_trace(self):
+        # Perform identity trace on single positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='intET', delete_files=False)
+        trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
+        trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
+                                             write_out_freq_table=False)
+        scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='identity')
+        rank_ids = trace_small.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
+        diff_ranks = rank_ids - et_mip_obj.scores
+        if diff_ranks.any():
+            print(rank_ids)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(diff_ranks)
+            print(rank_ids[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(diff_ranks.any())
+
+    def test3e_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                            fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test3f_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                            fa_aln=self.query_aln_fa_large, low_mem=True)
+
+    def test3g_trace(self):
+        # Perform identity trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3h_trace(self):
+        # Perform identity trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3i_trace(self):
+        # Perform identity trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test3j_trace(self):
+        # Perform identity trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test4a_trace(self):
+        # Perform plain entropy trace on single positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4b_trace(self):
+        # Perform plain entropy trace on single positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4c_trace(self):
+        # Perform plain entropy trace on single positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test4d_trace(self):
+        # Perform plain entropy trace on single positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='rvET', delete_files=False)
+        trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
+                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
+                            pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
+        trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
+                                             write_out_freq_table=False)
+        scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='plain_entropy')
+        rank_entropies = trace_small.trace(scorer=scorer, gap_correction=0.6, processes=self.max_threads)
+        diff_ranks = rank_entropies - et_mip_obj.scores
+        not_passing = np.abs(diff_ranks) > 1e-2
+        if not_passing.any():
+            print(rank_entropies)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(diff_ranks)
+            print(rank_entropies[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(not_passing.any())
+        rounded_entropies = np.round(rank_entropies, decimals=2)
+        diff_ranks2 = rounded_entropies - et_mip_obj.scores
+        if diff_ranks2.any():
+            print(rounded_entropies)
+            print(et_mip_obj.scores)
+            print(diff_ranks2)
+            indices = np.nonzero(diff_ranks2)
+            print(rounded_entropies[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(diff_ranks2.any())
+
+    def test4e_trace(self):
+        # Compare the results of plain entropy trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                               fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test4f_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                               fa_aln=self.query_aln_fa_large, low_mem=True)
+
+    def test4g_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4h_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4i_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test4j_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test5a_trace(self):
+        # Perform mutual information trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test5b_trace(self):
+        # Perform mutual information trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test5c_trace(self):
+        # Perform mutual information trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test5d_trace(self):
+        # Perform mutual information trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test6a_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test6b_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test6c_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test6d_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test7a_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test7b_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test7c_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test7d_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        filtered_fa_fn = os.path.join(wetc_test_dir, '{}_filtered_aln.fa'.format(p_id))
+        if os.path.isfile(filtered_fa_fn):
+            char_filtered_fa_aln = SeqAlignment(file_name=filtered_fa_fn, query_id=p_id)
+            char_filtered_fa_aln.import_alignment()
+        else:
+            curr_fa_aln = SeqAlignment(file_name=fa_aln.file_name, query_id=p_id)
+            curr_fa_aln.import_alignment()
+            curr_fa_aln.alphabet = Gapped(IUPACProtein())
+            char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
+            char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
+            char_filtered_fa_aln.file_name = filtered_fa_fn
+        et_mip_obj = ETMIPWrapper(alignment=char_filtered_fa_aln)
+        et_mip_obj.check_alignment(target_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='ET-MIp', delete_files=False)
+        gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
+        trace_mip = Trace(alignment=gap_filtered_fa_aln, phylo_tree=et_mip_obj.tree,
+                          group_assignments=et_mip_obj.rank_group_assignments, position_specific=False,
+                          pair_specific=True, output_dir=wetc_test_dir, low_memory=low_mem)
+        trace_mip.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
+                                           write_out_freq_table=False)
+        scorer_mip = PositionalScorer(seq_length=gap_filtered_fa_aln.seq_length, pos_size=2,
+                                      metric='filtered_average_product_corrected_mutual_information')
+        rank_mips = trace_mip.trace(scorer=scorer_mip, gap_correction=None, processes=self.max_threads)
+        diff_ranks = rank_mips - et_mip_obj.scores
+        not_passing = np.abs(diff_ranks) > 1e-3
+        if not_passing.any():
+            print(rank_mips)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(not_passing)
+            print(rank_mips[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+            print(rank_mips[indices][0])
+            print(et_mip_obj.scores[indices][0])
+            print(diff_ranks[indices][0])
+        self.assertFalse(not_passing.any())
+        rounded_covs = np.round(rank_mips, decimals=3)
+        diff_ranks2 = rounded_covs - et_mip_obj.scores
+        not_passing_rounded = np.abs(diff_ranks2) > 1e-15
+        if not_passing_rounded.any():
+            print(rounded_covs)
+            print(et_mip_obj.scores)
+            print(diff_ranks2)
+            indices = np.nonzero(not_passing_rounded)
+            print(rounded_covs[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks2[indices])
+        self.assertFalse(not_passing_rounded.any())
+
+    def test7e_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the small alignment.
+        self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test7f_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the large alignment.
+        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
     ####################################################################################################################
 
-    def evaluate_trace_pool_functions_identity_metric(self, aln, phylo_tree, assign, single, pair, metric, processors):
+    def evaluate_characterize_rank_groups_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
+                                                            write_sub_aln, write_freq_table):
+        unique_dir = os.path.join(out_dir, 'unique_node_data')
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
+        # new
+        single_alphabet = Gapped(aln.alphabet)
+        single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
+        pair_size = None
+        pair_mapping = None
+        pair_reverse = None
+        single_to_pair = None
+        if pair:
+            pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(aln.alphabet), size=2)
+            pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
+            single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
+                              for char in pair_mapping if pair_mapping[char] < pair_size}
+        visited = {}
+        queue1 = Queue(maxsize=aln.size + 1)
+        queue2 = Queue(maxsize=aln.size)
+        components = False
+        for r in sorted(assign.keys(), reverse=True):
+            for g in assign[r]:
+                node = assign[r][g]['node']
+                if not components:
+                    queue1.put_nowait(node.name)
+                elif node.name not in visited:
+                    queue2.put_nowait(node.name)
+                else:
+                    continue
+                visited[node.name] = {'terminals': assign[r][g]['terminals'],
+                                      'descendants': assign[r][g]['descendants']}
+            if not components:
+                components = True
+        queue1.put_nowait('STOP')
+        queue2.put_nowait('STOP')
+        pool_manager = Manager()
+        lock = Lock()
+        frequency_tables = pool_manager.dict()
+        init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
+                                   single_to_pair, aln, single, pair, queue1, queue2, visited, frequency_tables,
+                                   lock, unique_dir, low_mem, write_sub_aln, write_freq_table, 1)
+        characterization(processor=0)
+        frequency_tables = dict(frequency_tables)
+        for node_name in visited:
+            sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
+            if sub_aln.size >= 5:
+                expected_single, expected_pair = sub_aln.characterize_positions2(
+                    single=single, pair=pair, single_letter_size=self.single_size,
+                    single_letter_mapping=self.single_mapping,
+                    single_letter_reverse=self.single_reverse, pair_letter_size=self.pair_size,
+                    pair_letter_mapping=self.pair_mapping, pair_letter_reverse=self.pair_reverse,
+                    single_to_pair=self.single_to_pair)
+            else:
+                expected_single, expected_pair = sub_aln.characterize_positions(
+                    single=single, pair=pair, single_size=self.single_size, single_mapping=self.single_mapping,
+                    single_reverse=self.single_reverse, pair_size=self.pair_size, pair_mapping=self.pair_mapping,
+                    pair_reverse=self.pair_reverse)
+            if write_sub_aln:
+                self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
+            self.assertTrue(node_name in frequency_tables)
+            self.assertTrue('single' in frequency_tables[node_name])
+            if single:
+                expected_single_array = expected_single.get_table().toarray()
+                single_table = frequency_tables[node_name]['single']
+                if low_mem:
+                    single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
+                single_array = single_table.get_table().toarray()
+                single_diff = single_array - expected_single_array
+                # print(single_array)
+                # print(expected_single_array)
+                # print(single_diff)
+                self.assertFalse(single_diff.any())
+                if write_freq_table:
+                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                '{}_position_freq_table.tsv'.format(node_name))))
+            else:
+                self.assertIsNone(frequency_tables[node_name]['single'])
+            self.assertTrue('pair' in frequency_tables[node_name])
+            if pair:
+                expected_pair_array = expected_pair.get_table().toarray()
+                pair_table = frequency_tables[node_name]['pair']
+                if low_mem:
+                    pair_table = load_freq_table(freq_table=pair_table, low_memory=low_mem)
+                pair_array = pair_table.get_table().toarray()
+                pair_diff = pair_array - expected_pair_array
+                self.assertFalse(pair_diff.any())
+                if write_freq_table:
+                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                '{}_pair_freq_table.tsv'.format(node_name))))
+            else:
+                self.assertIsNone(frequency_tables[node_name]['pair'])
+        rmtree(unique_dir)
+
+    def test8a_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test8b_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test8c_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test8d_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    ####################################################################################################################
+
+    def evaluate_trace_pool_functions_identity_metric(self, aln, phylo_tree, assign, single, pair, metric, low_memory,
+                                                      out_dir, write_out_aln, write_out_freq_table):
+        unique_dir = os.path.join(out_dir, 'unique_node_data')
         trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assign, position_specific=single,
-                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id))
-        trace.characterize_rank_groups(processes=processors)
+                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id),
+                      low_memory=low_memory)
+        trace.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=write_out_aln,
+                                       write_out_freq_table=write_out_freq_table)
         if single:
             pos_size = 1
         elif pair:
@@ -268,38 +797,64 @@ class TestTrace(TestBase):
             raise ValueError('Cannot evaluate if both single and pair are False.')
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
         manager = Manager()
-        group_queue = Queue(maxsize=(aln.size * 2) - 1)
+        group_queue = Queue(maxsize=(aln.size * 2) - 1 + 1)
         for node_name in trace.unique_nodes:
             group_queue.put_nowait(node_name)
+        group_queue.put_nowait('STOP')
         group_dict = manager.dict()
         init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=single,
-                          pair_specific=pair, u_dict=trace.unique_nodes)
+                          pair_specific=pair, u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
         trace_groups(processor=0)
         self.assertEqual(len(group_dict.keys()), len(trace.unique_nodes.keys()))
         group_dict = dict(group_dict)
         for node_name in group_dict:
             self.assertTrue('single_scores' in group_dict[node_name])
             if single:
-                expected_scores = scorer.score_group(trace.unique_nodes[node_name]['single'])
-                diff = group_dict[node_name]['single_scores'] - expected_scores
-                self.assertTrue(not diff.toarray().any())
+                single_freq_table = load_freq_table(freq_table=trace.unique_nodes[node_name]['single'],
+                                                    low_memory=low_memory)
+                expected_scores = scorer.score_group(freq_table=single_freq_table)
+                single_scores = load_numpy_array(mat=group_dict[node_name]['single_scores'], low_memory=low_memory)
+                diff = single_scores - expected_scores
+                if diff.any():
+                    print(node_name)
+                    print(single_freq_table.get_frequency_matrix())
+                    print(single_scores)
+                    print(expected_scores)
+                    print(diff)
+                    indices = np.nonzero(diff)
+                    print(single_scores[indices])
+                    print(expected_scores[indices])
+                    print(diff[indices])
+                self.assertTrue(not diff.any())
             else:
                 self.assertIsNone(group_dict[node_name]['single_scores'])
             self.assertTrue('pair_scores' in group_dict[node_name])
             if pair:
-                expected_scores = scorer.score_group(trace.unique_nodes[node_name]['pair'])
-                diff = group_dict[node_name]['pair_scores'] - expected_scores
-                self.assertTrue(not diff.toarray().any())
+                pair_freq_table = load_freq_table(freq_table=trace.unique_nodes[node_name]['pair'],
+                                                  low_memory=low_memory)
+                expected_scores = scorer.score_group(freq_table=pair_freq_table)
+                pair_scores = load_numpy_array(mat=group_dict[node_name]['pair_scores'], low_memory=low_memory)
+                diff = pair_scores - expected_scores
+                if diff.any():
+                    print(pair_scores)
+                    print(expected_scores)
+                    print(diff)
+                    indices = np.nonzero(diff)
+                    print(pair_scores[indices])
+                    print(expected_scores[indices])
+                    print(diff[indices])
+                self.assertTrue(not diff.any())
             else:
                 self.assertIsNone(group_dict[node_name]['pair_scores'])
             trace.unique_nodes[node_name].update(group_dict[node_name])
-        #
-        rank_queue = Queue(maxsize=aln.size)
+        rank_queue = Queue(maxsize=aln.size + 1)
         for rank in assign:
             rank_queue.put_nowait(rank)
+        rank_queue.put_nowait('STOP')
         rank_dict = manager.dict()
         init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=single,
-                         pair_specific=pair, a_dict=assign, u_dict=trace.unique_nodes)
+                         pair_specific=pair, a_dict=assign, u_dict=trace.unique_nodes, low_memory=low_memory,
+                         unique_dir=unique_dir)
         trace_ranks(processor=0)
         rank_dict = dict(rank_dict)
         for rank in assign.keys():
@@ -307,9 +862,13 @@ class TestTrace(TestBase):
             for group in sorted(assign[rank].keys(), reverse=True):
                 node_name = assign[rank][group]['node'].name
                 if single:
-                    group_scores.append(trace.unique_nodes[node_name]['single_scores'])
+                    single_scores = load_numpy_array(mat=trace.unique_nodes[node_name]['single_scores'],
+                                                     low_memory=low_memory)
+                    group_scores.append(single_scores)
                 elif pair:
-                    group_scores.append(trace.unique_nodes[node_name]['pair_scores'])
+                    pair_scores = load_numpy_array(mat=trace.unique_nodes[node_name]['pair_scores'],
+                                                   low_memory=low_memory)
+                    group_scores.append(pair_scores)
                 else:
                     raise ValueError('Cannot evaluate if both single and pair are False.')
             group_scores = np.stack(group_scores, axis=0)
@@ -321,14 +880,16 @@ class TestTrace(TestBase):
             self.assertTrue(rank in rank_dict)
             self.assertTrue('single_ranks' in rank_dict[rank])
             if single:
-                diff = np.abs(rank_dict[rank]['single_ranks'] - expected_rank_scores)
+                rank_scores = load_numpy_array(mat=rank_dict[rank]['single_ranks'], low_memory=low_memory)
+                diff = np.abs(rank_scores - expected_rank_scores)
                 not_passing = diff > 1E-15
                 if not_passing.any():
-                    print(rank_dict[rank]['single_ranks'])
+                    print(rank)
+                    print(rank_scores)
                     print(expected_rank_scores)
                     print(diff)
                     indices = np.nonzero(not_passing)
-                    print(rank_dict[rank]['single_ranks'][indices])
+                    print(rank_scores[indices])
                     print(expected_rank_scores[indices])
                     print(diff[indices])
                 self.assertTrue(not not_passing.any())
@@ -337,532 +898,274 @@ class TestTrace(TestBase):
             self.assertTrue(rank in rank_dict)
             self.assertTrue('pair_ranks' in rank_dict[rank])
             if pair:
-                diff = np.abs(rank_dict[rank]['pair_ranks'] - expected_rank_scores)
+                rank_scores = load_numpy_array(mat=rank_dict[rank]['pair_ranks'], low_memory=low_memory)
+                diff = np.abs(rank_scores - expected_rank_scores)
                 not_passing = diff > 1E-15
                 if not_passing.any():
                     print(rank_dict[rank]['pair_ranks'])
                     print(expected_rank_scores)
                     print(diff)
                     indices = np.nonzero(not_passing)
-                    print(rank_dict[rank]['pairle_ranks'][indices])
+                    print(rank_scores)
                     print(expected_rank_scores[indices])
                     print(diff[indices])
                 self.assertTrue(not not_passing.any())
             else:
                 self.assertIsNone(rank_dict[rank]['pair_ranks'])
+        # rmtree(unique_dir)
 
-    def test3a_trace_pool_functions(self):
+    def test9a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-        # and the identity metric
+        # and the identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
-            pair=False, metric='identity', processors=self.max_threads)
+            pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3b_trace_pool_functions(self):
+    def test9b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test9c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-        # and identity metric
+        # and identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
-            pair=False, metric='identity', processors=self.max_threads)
+            pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3c_trace_pool_functions(self):
+    def test9d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test9e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test9f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test9g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test9h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-        # and plain entropy metric
+        # and the plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
-            pair=False, metric='plain_entropy', processors=self.max_threads)
+            pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3d_trace_pool_functions(self):
+    def test10b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-        # and plain entropy metric
+        # and plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
-            pair=False, metric='plain_entropy', processors=self.max_threads)
+            pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3e_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the small alignment, pair positions,
-        # and the identity metric
+    def test10d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-            pair=True, metric='identity', processors=self.max_threads)
+            pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
+    def test10f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
 
-    def test3f_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the large alignment, pair positions,
-        # and identity metric
+    def test10g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-            pair=True, metric='identity', processors=self.max_threads)
+            pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3g_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the small alignment, pair positions,
-        # and plain entropy metric
+    def test10h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-            pair=True, metric='plain_entropy', processors=self.max_threads)
+            pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
-    def test3h_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the large alignment, pair positions,
-        # and plain entropy metric
+    def test11b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-            pair=True, metric='plain_entropy', processors=self.max_threads)
+            pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
 
+    def test11d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
 
-
-    def test5a_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the small alignment and mutual
-        # information metric
+    def test12a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the normalized mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-            pair=True, metric='mutual_information', processors=self.max_threads)
+            pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
 
-    def test5b_trace_pool_functions(self):
-        # Test the pool functions outside of a multiprocessing environment for the large alignment and mutual
-        # information metric
-        self.evaluate_trace_pair_position_pooling_function(aln=self.query_aln_fa_large, metric='mutual_information')
+    def test12b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the normalized mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    ####################################################################################################################
+    def test12c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and normalized mutual information metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
 
-    def test3c_trace(self):
-        # Perform identity trace on single positions only for the small alignment
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
-                            position_specific=True, pair_specific=False)
-        trace_small.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
-        rank_id = trace_small.trace(scorer=scorer, processes=self.max_threads)
-        ranks = np.ones(self.query_aln_fa_small.seq_length)
-        unique_scores = {}
-        for rank in sorted(assignments.keys(), reverse=True):
-            group_scores = []
-            for group in sorted(assignments[rank].keys(), reverse=True):
-                node_name = assignments[rank][group]['node'].name
-                if node_name not in unique_scores:
-                    group_score = scorer.score_group(trace_small.unique_nodes[node_name]['single'])
-                    unique_scores[node_name] = group_score
-                else:
-                    group_score = unique_scores[node_name]
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
-            for i in range(self.query_aln_fa_small.seq_length):
-                if rank_scores[i] != 0:
-                    ranks[i] += 1
-        diff_ranks = rank_id - ranks
-        self.assertTrue(not diff_ranks.any())
+    def test12d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and normalized mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test3d_trace(self):
-        # Perform identity trace on single positions only for the large alignment
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
-                            position_specific=True, pair_specific=False)
-        trace_large.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
-        rank_id = trace_large.trace(scorer=scorer, processes=self.max_threads)
-        ranks = np.ones(self.query_aln_fa_large.seq_length)
-        unique_scores = {}
-        for rank in sorted(assignments.keys(), reverse=True):
-            group_scores = []
-            for group in sorted(assignments[rank].keys(), reverse=True):
-                node_name = assignments[rank][group]['node'].name
-                if node_name not in unique_scores:
-                    group_score = scorer.score_group(trace_large.unique_nodes[node_name]['single'])
-                    unique_scores[node_name] = group_score
-                else:
-                    group_score = unique_scores[node_name]
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            rank_scores = np.sum(group_scores, axis=0)
-            for i in range(self.query_aln_fa_large.seq_length):
-                if rank_scores[i] != 0:
-                    ranks[i] += 1
-        diff_ranks = rank_id - ranks
-        self.assertTrue(not diff_ranks.any())
+    def test13a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test3e_trace(self):
-        # Test trace, metric identity, against ETC small alignment
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
-        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
-        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
-        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=et_mip_obj.tree,
-                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False)
-        trace_small.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='identity')
-        rank_ids = trace_small.trace(scorer=scorer)
-        # print(rank_ids)
-        # print(et_mip_obj.rank_scores)
-        diff_ranks = rank_ids - et_mip_obj.rank_scores
-        # print(diff_ranks)
-        self.assertTrue(not diff_ranks.any())
+    def test13b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test3f_trace(self):
-        # Test trace, metric identity, against ETC large alignment
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
-        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir)
-        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
-        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
-                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False)
-        trace_large.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='identity')
-        rank_ids = trace_large.trace(scorer=scorer)
-        diff_ranks = rank_ids - et_mip_obj.rank_scores
-        self.assertTrue(not diff_ranks.any())
+    def test13c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-     ###################################################################################################################
+    def test13d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test4c_trace(self):
-        # Perform plain entropy trace on single positions only for the small alignment
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(msa=self.query_aln_fa_small.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=phylo_tree, group_assignments=assignments,
-                            position_specific=True, pair_specific=False)
-        trace_small.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_small.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
-        ranks = np.ones(self.query_aln_fa_small.seq_length)
-        unique_scores = {}
-        for rank in sorted(assignments.keys(), reverse=True):
-            group_scores = []
-            for group in sorted(assignments[rank].keys(), reverse=True):
-                node_name = assignments[rank][group]['node'].name
-                if node_name not in unique_scores:
-                    group_score = scorer.score_group(trace_small.unique_nodes[node_name]['single'])
-                    unique_scores[node_name] = group_score
-                else:
-                    group_score = unique_scores[node_name]
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            weight = 1.0 / rank
-            rank_scores = weight * np.sum(group_scores, axis=0)
-            ranks += rank_scores
-        diff_ranks = rank_plain_entropy - ranks
-        not_passing = diff_ranks > 1E-14
-        # if not_passing.any():
-        #     print(rank_plain_entropy)
-        #     print(ranks)
-        #     indices = np.nonzero(not_passing)
-        #     print(diff_ranks[indices])
-        #     print(rank_plain_entropy[indices])
-        #     print(ranks[indices])
-        self.assertTrue(not diff_ranks.any())
+    def test13e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test4d_trace(self):
-        # Perform plain entropy trace on single positions only for the large alignment
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(msa=self.query_aln_fa_large.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=phylo_tree, group_assignments=assignments,
-                            position_specific=True, pair_specific=False)
-        trace_large.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_large.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
-        ranks = np.ones(self.query_aln_fa_large.seq_length)
-        unique_scores = {}
-        for rank in sorted(assignments.keys(), reverse=True):
-            group_scores = []
-            for group in sorted(assignments[rank].keys(), reverse=True):
-                node_name = assignments[rank][group]['node'].name
-                if node_name not in unique_scores:
-                    group_score = scorer.score_group(trace_large.unique_nodes[node_name]['single'])
-                    unique_scores[node_name] = group_score
-                else:
-                    group_score = unique_scores[node_name]
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            weight = 1.0 / rank
-            rank_scores = weight * np.sum(group_scores, axis=0)
-            ranks += rank_scores
-        diff_ranks = rank_plain_entropy - ranks
-        not_passing = diff_ranks > 1E-13
-        # if not_passing.any():
-        #     print(rank_plain_entropy)
-        #     print(ranks)
-        #     indices = np.nonzero(not_passing)
-        #     print(diff_ranks[indices])
-        #     print(rank_plain_entropy[indices])
-        #     print(ranks[indices])
-        self.assertTrue(not not_passing.any())
+    def test13f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test4e_trace(self):
-        # Test trace, metric plain entropy, against ETC small alignment
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        # Perform the wetc traces
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        # Import the values needed to run a comparable trace with the python implementation
-        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
-        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
-        # Import the scores to compare to
-        et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
-        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir, rank_type='rvET')
-        # Perform the trace with the python implementation
-        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=et_mip_obj.tree,
-                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False)
-        trace_small.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_small.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_small.trace(scorer=scorer)
-        # Compare the rank scores computed by both methods
-        rank_scores = []
-        for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
-            group_scores = []
-            for group in et_mip_obj.rank_group_assignments[rank]:
-                node_name = et_mip_obj.rank_group_assignments[rank][group]['node'].name
-                group_score = trace_small.unique_nodes[node_name]['single_scores']
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            weight = 1.0 / rank
-            rank_score = weight * np.sum(group_scores, axis=0)
-            diff_rank = et_mip_obj.entropy[rank] - rank_score
-            not_passing_rank = diff_rank > 1E-6
-            # if not_passing_rank.any():
-            #     print('RANK {} COMPARISON FAILED'.format(rank))
-            #     print(rank_scores)
-            #     print(et_mip_obj.entropy[rank])
-            #     print(diff_rank)
-            #     indices = np.nonzero(not_passing_rank)
-            #     print(rank_scores[indices])
-            #     print(et_mip_obj.entropy[rank][indices])
-            #     print(diff_rank[indices])
-            self.assertTrue(not not_passing_rank.any())
-            rank_scores.append(rank_score)
-        # Compare the final ranks computed by both methods
-        final_ranks = 1 + np.sum(np.stack(rank_scores, axis=0), axis=0)
-        # diff_final = rank_plain_entropy - et_mip_obj.rho
-        diff_final = final_ranks - et_mip_obj.rho
-        not_passing_final = diff_final > 1E-6
-        # if not_passing_final.any():
-        #     print('FINAL COMPARISON FAILED')
-        #     print(final_ranks)
-        #     print(et_mip_obj.rho)
-        #     print(diff_final)
-        #     indices = np.nonzero(not_passing_final)
-        #     print(final_ranks[indices])
-        #     print(et_mip_obj.rho[indices])
-        #     print(diff_final[indices])
-        self.assertTrue(not not_passing_final.any())
-        # Compare the rank scores after gap correction
-        diff_plain_entropy = rank_plain_entropy - et_mip_obj.rank_scores
-        not_passing_plain_entropy = diff_plain_entropy > 1E-13
-        # if not_passing_plain_entropy.any():
-        #     print('GAP CORRECTION FAILED')
-        #     print(rank_plain_entropy)
-        #     print(et_mip_obj.rank_scores)
-        #     print(diff_plain_entropy)
-        #     indices = np.nonzero(not_passing_plain_entropy)
-        #     print(rank_plain_entropy[indices])
-        #     print(et_mip_obj.rank_scores[indices])
-        #     print(diff_plain_entropy[indices])
-        self.assertTrue(not not_passing_plain_entropy.any())
+    def test13g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test4f_trace(self):
-        # Test trace, metric plain entropy, against ETC large alignment
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        # Perform the wetc traces
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        # Import the values needed to run a comparable trace with the python implementation
-        et_mip_obj.import_distance_matrices(out_dir=wetc_test_dir)
-        et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
-        et_mip_obj.import_assignments(out_dir=wetc_test_dir)
-        # Import the scores to compare to
-        et_mip_obj.import_entropy_rank_sores(out_dir=wetc_test_dir)
-        et_mip_obj.import_rank_sores(out_dir=wetc_test_dir, rank_type='rvET')
-        # Perform the trace with the python implementation
-        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=et_mip_obj.tree,
-                            group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False)
-        trace_large.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=self.query_aln_fa_large.seq_length, pos_size=1, metric='plain_entropy')
-        rank_plain_entropy = trace_large.trace(scorer=scorer)
-        # Compare the rank scores computed by both methods
-        rank_scores = []
-        for rank in range(1, et_mip_obj.alignment.size):  # et_mip_obj.rank_group_assignments:
-            group_scores = []
-            for group in et_mip_obj.rank_group_assignments[rank]:
-                node_name = et_mip_obj.rank_group_assignments[rank][group]['node'].name
-                group_score = trace_large.unique_nodes[node_name]['single_scores']
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            weight = 1.0 / rank
-            rank_score = weight * np.sum(group_scores, axis=0)
-            diff_rank = et_mip_obj.entropy[rank] - rank_score
-            not_passing_rank = diff_rank > 1E-6
-            # if not_passing_rank.any():
-            #     print('RANK {} COMPARISON FAILED'.format(rank))
-            #     print(rank_scores)
-            #     print(et_mip_obj.entropy[rank])
-            #     print(diff_rank)
-            #     indices = np.nonzero(not_passing_rank)
-            #     print(rank_scores[indices])
-            #     print(et_mip_obj.entropy[rank][indices])
-            #     print(diff_rank[indices])
-            self.assertTrue(not not_passing_rank.any())
-            rank_scores.append(rank_score)
-        # Compare the final ranks computed by both methods
-        final_ranks = 1 + np.sum(np.stack(rank_scores, axis=0), axis=0)
-        # diff_final = rank_plain_entropy - et_mip_obj.rho
-        diff_final = final_ranks - et_mip_obj.rho
-        not_passing_final = diff_final > 1E-6
-        # if not_passing_final.any():
-        #     print('FINAL COMPARISON FAILED')
-        #     print(final_ranks)
-        #     print(et_mip_obj.rho)
-        #     print(diff_final)
-        #     indices = np.nonzero(not_passing_final)
-        #     print(final_ranks[indices])
-        #     print(et_mip_obj.rho[indices])
-        #     print(diff_final[indices])
-        self.assertTrue(not not_passing_final.any())
-        # Compare the rank scores after gap correction
-        diff_plain_entropy = rank_plain_entropy - et_mip_obj.rank_scores
-        not_passing_plain_entropy = diff_plain_entropy > 1E-13
-        # if not_passing_plain_entropy.any():
-        #     print('GAP CORRECTION FAILED')
-        #     print(rank_plain_entropy)
-        #     print(et_mip_obj.rank_scores)
-        #     print(diff_plain_entropy)
-        #     indices = np.nonzero(not_passing_plain_entropy)
-        #     print(rank_plain_entropy[indices])
-        #     print(et_mip_obj.rank_scores[indices])
-        #     print(diff_plain_entropy[indices])
-        self.assertTrue(not not_passing_plain_entropy.any())
-
-    ####################################################################################################################
-
-    def evaluate_trace_pair_position_pooling_function(self, aln, metric):
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(msa=aln.alignment)
-        phylo_tree = PhylogeneticTree()
-        phylo_tree.construct_tree(dm=dm)
-        assignments = phylo_tree.assign_group_rank()
-        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assignments, position_specific=False,
-                      pair_specific=True)
-        trace.characterize_rank_groups(processes=self.max_threads)
-        scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=2, metric='mutual_information')
-        manager = Manager()
-        group_queue = Queue(maxsize=(aln.size * 2) - 1)
-        for node_name in trace.unique_nodes:
-            group_queue.put_nowait(node_name)
-        group_dict = manager.dict()
-        init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=False,
-                          pair_specific=True, u_dict=trace.unique_nodes)
-        trace_groups(processor=0)
-        self.assertEqual(len(group_dict.keys()), len(trace.unique_nodes.keys()))
-        group_dict = dict(group_dict)
-        for node_name in group_dict:
-            self.assertTrue('single_scores' in group_dict[node_name])
-            self.assertIsNone(group_dict[node_name]['single_scores'])
-            self.assertTrue('pair_scores' in group_dict[node_name])
-            expected_scores = scorer.score_group(trace.unique_nodes[node_name]['pair'])
-            diff = group_dict[node_name]['pair_scores'] - expected_scores
-            self.assertTrue(not diff.toarray().any())
-            trace.unique_nodes[node_name].update(group_dict[node_name])
-        #
-        rank_queue = Queue(maxsize=aln.size)
-        for rank in assignments:
-            rank_queue.put_nowait(rank)
-        rank_dict = manager.dict()
-        init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=False,
-                         pair_specific=True, a_dict=assignments, u_dict=trace.unique_nodes)
-        trace_ranks(processor=0)
-        rank_dict = dict(rank_dict)
-        for rank in assignments.keys():
-            print('RANK: {}'.format(rank))
-            group_scores = []
-            for group in sorted(assignments[rank].keys(), reverse=True):
-                node_name = assignments[rank][group]['node'].name
-                group_score = trace.unique_nodes[node_name]['pair_scores']
-                group_scores.append(group_score)
-            group_scores = np.stack(group_scores, axis=0)
-            weight = 1.0 / rank
-            rank_scores = weight * np.sum(group_scores, axis=0)
-            diff = rank_dict[rank]['pair_ranks'] - rank_scores
-            not_passing = diff > 1E-15
-            if not_passing.any():
-                print(rank_dict[rank]['pair_ranks'])
-                print(rank_scores)
-                indices = np.nonzero(not_passing)
-                print(diff[indices])
-                print(rank_dict[rank]['pair_ranks'][indices])
-                print(rank_scores[indices])
-            self.assertTrue(not not_passing.any())
-            self.assertIsNone(rank_dict[rank]['single_ranks'])
-
-    # def test5c_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the small alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    # def test5d_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the large alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #
-    # ####################################################################################################################
-    #
-    # def test6a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment and normalized mutual
-    #     # information metric
-    # def test6b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment and normalized mutual
-    #     # information metric
-    # def test6c_trace(self):
-    #     # Perform normalized mutual information trace on pairs of positions only for the small alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    # def test6d_trace(self):
-    #     # Perform normalized mutual information trace on pairs of positions only for the large alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #
-    # ####################################################################################################################
-    #
-    # def test7a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment and average product
-    #     # corrected mutual information metric
-    # def test7b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment and average product
-    #     # corrected mutual information metric
-    # def test7c_trace(self):
-    #     # Perform average product corrected mutual information trace on pairs of positions only for the small alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    # def test7d_trace(self):
-    #     # Perform average product corrected mutual information trace on pairs of positions only for the large alignment
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    # def test7e_trace(self):
-    #     # Test trace, metric average product corrected mutual information, against ETC small alignment
-    # def test7f_trace(self):
-    #     # Test trace, metric average product corrected mutual informatoin, against ETC large alignment
+    def test13h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
