@@ -160,6 +160,7 @@ class ETMIPWrapper(object):
 
         Args:
             out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            prefix (str): The file prefix to prepend to the distance files (WETC -o option).
         Returns:
             pd.DataFrame: Values computed by ET-MIp for the alignment (scoring matrix based) distance between sequences.
             pd.DataFrame: Values computed by ET-MIp for the identity distance between sequences.
@@ -424,6 +425,7 @@ class ETMIPWrapper(object):
         coverage matrices.
 
         Args:
+            prefix (str): The file prefix to prepend to the covariance score files (WETC -o option).
             out_dir (str): The path to the directory where the ET-MIp scores have been written.
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
@@ -460,6 +462,8 @@ class ETMIPWrapper(object):
         coverage matrices.
 
         Args:
+            method (str): Which method (rvET or intET) was used to generate the scores.
+            prefix (str): The file prefix to prepend to the rank files (WETC -o option).
             out_dir (str): The path to the directory where the ET-MIp scores have been written.
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
@@ -476,9 +480,11 @@ class ETMIPWrapper(object):
         data = pd.read_csv(file_path, comment='%', sep='\s+', index_col=None, names=columns)
         size = len(str(self.alignment.query_sequence).replace('-', ''))
         self.scores = np.zeros(size)
+        self.coverage = np.zeros(size)
         for ind in data.index:
             i = data.loc[ind, 'residue#'] - 1
             self.scores[i] = data.loc[ind, 'rank']
+            self.coverage[i] = data.loc[ind, 'coverage']
 
     def import_scores(self, method, prefix, out_dir):
         if method == 'ET-MIp':
@@ -498,6 +504,7 @@ class ETMIPWrapper(object):
 
         Args:
             out_dir (str): The path to the directory where the ET-MIp scores should be written.
+            method (str): Which method (intET, rvET, or ET-MIp) to use to generate scores.
             delete_files (boolean): If True all of the files written out by calling this method will be deleted after
             importing the relevant data, if False all files will be left in the specified out_dir.
         Raises:
