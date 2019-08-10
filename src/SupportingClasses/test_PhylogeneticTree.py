@@ -159,7 +159,51 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
         self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
 
-    def test4a_agglomerative_tree_small(self):
+    def test4a__et_tree_small(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        self.assertEqual(phylo_tree.tree_method, 'et')
+        self.assertEqual(phylo_tree.tree_args, {})
+        self.assertIsNone(phylo_tree.distance_matrix)
+        self.assertIsNone(phylo_tree.tree)
+        self.assertIsNone(phylo_tree.size)
+        phylo_tree.construct_tree(dm=dm)
+        self.assertEqual(phylo_tree.tree_method, 'et')
+        self.assertEqual(phylo_tree.tree_args, {})
+        self.assertEqual(phylo_tree.distance_matrix, dm)
+        self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
+        self.assertIsNotNone(phylo_tree.tree)
+        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
+        self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
+        terminal_nodes = phylo_tree.tree.get_terminals()
+        self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
+
+    def test4b__et_tree_large(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        self.assertEqual(phylo_tree.tree_method, 'et')
+        self.assertEqual(phylo_tree.tree_args, {})
+        self.assertIsNone(phylo_tree.distance_matrix)
+        self.assertIsNone(phylo_tree.tree)
+        self.assertIsNone(phylo_tree.size)
+        phylo_tree.construct_tree(dm=dm)
+        self.assertEqual(phylo_tree.tree_method, 'et')
+        self.assertEqual(phylo_tree.tree_args, {})
+        self.assertEqual(phylo_tree.distance_matrix, dm)
+        self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
+        self.assertIsNotNone(phylo_tree.tree)
+        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
+        self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
+        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
+        terminal_nodes = phylo_tree.tree.get_terminals()
+        self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
+        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
+
+    def test5a_agglomerative_tree_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -185,7 +229,7 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
         self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
 
-    def test4b_agglomerative_tree_large(self):
+    def test5b_agglomerative_tree_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -236,7 +280,7 @@ class TestPhylogeneticTree(TestBase):
                 node2 = group2[j]
                 self.check_nodes(node1=node1, node2=node2)
 
-    def test5a_write_out_tree(self):
+    def test6a_write_out_tree(self):
         nhx_fn = os.path.join(self.testing_dir, 'UPGMA_Newcki_tree.nhx')
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
@@ -257,7 +301,7 @@ class TestPhylogeneticTree(TestBase):
         self.check_lists_of_nodes_for_equality(list1=phylo_nodes, list2=loaded_nodes)
         os.remove(nhx_fn)
 
-    def test5b_write_out_tree(self):
+    def test6b_write_out_tree(self):
         nhx_fn = os.path.join(self.testing_dir, 'UPGMA_Newcki_tree.nhx')
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
@@ -296,14 +340,21 @@ class TestPhylogeneticTree(TestBase):
             last_dist = dist
         self.assertEqual(len(node_names), (phylo_tree.size * 2) - 1)
 
-    def test6a_traverse_top_down(self):
+    def test7a_traverse_top_down(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test6b_traverse_top_down(self):
+    def test7b_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test7c_traverse_top_down(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -312,7 +363,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test6c_traverse_top_down(self):
+    def test7d_traverse_top_down(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -324,14 +375,21 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test6d_traverse_top_down(self):
+    def test7e_traverse_top_down(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test6e_traverse_top_down(self):
+    def test7f_traverse_top_down(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_top_down_traversal(phylo_tree)
+
+    def test7g_traverse_top_down(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -340,7 +398,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_top_down_traversal(phylo_tree)
 
-    def test6f_traverse_top_down(self):
+    def test7h_traverse_top_down(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -363,14 +421,21 @@ class TestPhylogeneticTree(TestBase):
             last_dist = dist
         self.assertEqual(len(node_names), (phylo_tree.size * 2) - 1)
 
-    def test7a_traverse_bottom_up(self):
+    def test8a_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test7b_traverse_bottom_up(self):
+    def test8b_traverse_bottom_up(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_bottom_up_traversal(phylo_tree)
+
+    def test8c_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -379,7 +444,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test7c_traverse_bottom_up(self):
+    def test8d_traverse_bottom_up(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -391,14 +456,21 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test7d_traverse_bottom_up(self):
+    def test8e_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test7e_traverse_bottom_up(self):
+    def test8f_traverse_bottom_up(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_bottom_up_traversal(phylo_tree)
+
+    def test8g_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -407,7 +479,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_bottom_up_traversal(phylo_tree)
 
-    def test7f_traverse_bottom_up(self):
+    def test8h_traverse_bottom_up(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -451,14 +523,22 @@ class TestPhylogeneticTree(TestBase):
         # Make sure that the final rank processed was the size of number of sequences the tree was built from.
         self.assertEqual(rank_count - 1, tree.size)
 
-    def test8a_traverse_by_rank(self):
+    def test9a_traverse_by_rank(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_by_rank_traversal(tree=phylo_tree)
+        self.validate_upgma_tree(tree=phylo_tree, dm=dm)
 
-    def test8b_traverse_by_rank(self):
+    def test9b_traverse_by_rank(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_by_rank_traversal(tree=phylo_tree)
+
+    def test9c_traverse_by_rank(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -467,7 +547,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_by_rank_traversal(tree=phylo_tree)
 
-    def test8c_traverse_by_rank(self):
+    def test9d_traverse_by_rank(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -477,7 +557,7 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
         self.evaluate_by_rank_traversal(tree=et_mip_obj.tree)
 
-    def test8d_traverse_by_rank(self):
+    def test9e_traverse_by_rank(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
@@ -485,7 +565,14 @@ class TestPhylogeneticTree(TestBase):
         self.evaluate_by_rank_traversal(tree=phylo_tree)
         self.validate_upgma_tree(tree=phylo_tree, dm=dm)
 
-    def test8e_traverse_by_rank(self):
+    def test9f_traverse_by_rank(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_by_rank_traversal(tree=phylo_tree)
+
+    def test9g_traverse_by_rank(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -494,7 +581,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=dm)
         self.evaluate_by_rank_traversal(tree=phylo_tree)
 
-    def test8f_traverse_by_rank(self):
+    def test9h_traverse_by_rank(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -504,7 +591,7 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
         self.evaluate_by_rank_traversal(tree=et_mip_obj.tree)
 
-    def test9a_rename_internal_nodes(self):
+    def test10a_rename_internal_nodes(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -523,7 +610,7 @@ class TestPhylogeneticTree(TestBase):
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
 
-    def test9b_rename_internal_nodes(self):
+    def test10b_rename_internal_nodes(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -542,7 +629,7 @@ class TestPhylogeneticTree(TestBase):
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
 
-    def test9c_rename_internal_nodes(self):
+    def test10c_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
@@ -563,7 +650,7 @@ class TestPhylogeneticTree(TestBase):
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
 
-    def test9d_rename_internal_nodes(self):
+    def test10d_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
@@ -584,7 +671,51 @@ class TestPhylogeneticTree(TestBase):
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
 
-    def test9e_rename_internal_nodes(self):
+    def test10e_rename_internal_nodes(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
+        non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        phylo_tree.rename_internal_nodes()
+        self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
+        count_equal = 0
+        count_not_equal = 0
+        for nt_name in non_terminal_nodes:
+            if nt_name == non_terminal_nodes[nt_name].name:
+                count_equal += 1
+            else:
+                count_not_equal += 1
+        self.assertEqual(count_equal, self.query_aln_fa_small.size - 1)
+        self.assertGreaterEqual(count_not_equal, 0)
+        for t_name in terminal_nodes:
+            self.assertEqual(t_name, terminal_nodes[t_name].name)
+
+    def test10f_rename_internal_nodes(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
+        non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        phylo_tree.rename_internal_nodes()
+        self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
+        count_equal = 0
+        count_not_equal = 0
+        for nt_name in non_terminal_nodes:
+            if nt_name == non_terminal_nodes[nt_name].name:
+                count_equal += 1
+            else:
+                count_not_equal += 1
+        self.assertGreaterEqual(count_equal, self.query_aln_fa_large.size - 1)
+        self.assertGreaterEqual(count_not_equal, 0)
+        for t_name in terminal_nodes:
+            self.assertEqual(t_name, terminal_nodes[t_name].name)
+
+    def test10g_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -600,7 +731,7 @@ class TestPhylogeneticTree(TestBase):
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
 
-    def test9f_rename_internal_nodes(self):
+    def test10h_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -661,7 +792,7 @@ class TestPhylogeneticTree(TestBase):
             # Explicitly check that all descendants from from the previous rank are represented in the root nodes
             previous_nodes = all_roots
 
-    def test10a_assign_rank_group_small(self):
+    def test11a_assign_rank_group_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -674,7 +805,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_msf_small)
 
-    def test10b_assign_rank_group_large(self):
+    def test11b_assign_rank_group_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -687,7 +818,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_msf_large)
 
-    def test10c_assign_rank_group_small(self):
+    def test11c_assign_rank_group_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
@@ -695,7 +826,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_small)
 
-    def test10d_assign_rank_group_large(self):
+    def test11d_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
@@ -703,7 +834,23 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_large)
 
-    def test10e_assign_rank_group_small(self):
+    def test11e_assign_rank_group_small(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_small)
+
+    def test11f_assign_rank_group_large(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_large)
+
+    def test11g_assign_rank_group_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -713,7 +860,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_small)
 
-    def test10f_assign_rank_group_large(self):
+    def test11h_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -723,7 +870,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_fa_large)
 
-    def test10g_assign_rank_group_small(self):
+    def test11i_assign_rank_group_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -735,7 +882,7 @@ class TestPhylogeneticTree(TestBase):
         self.evaulate_rank_group_assignments(assignment=et_mip_obj.rank_group_assignments,
                                              alignment=self.query_aln_msf_small)
 
-    def test10h_assign_rank_group_large(self):
+    def test11j_assign_rank_group_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -779,7 +926,7 @@ class TestPhylogeneticTree(TestBase):
                 self.assertEqual(descendants, set([]))
                 self.assertEqual(len(node_ranks[rank]), rank)
 
-    def test10i_assign_rank_group_small(self):
+    def test11k_assign_rank_group_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -792,7 +939,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank(ranks=[1, 2, 3, 5, 7, 10, 25])
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test10j_assign_rank_group_large(self):
+    def test11l_assign_rank_group_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -805,7 +952,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test10k_assign_rank_group_small(self):
+    def test11m_assign_rank_group_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
@@ -813,7 +960,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test10l_assign_rank_group_large(self):
+    def test11n_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
@@ -821,7 +968,23 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test10m_assign_rank_group_small(self):
+    def test110_assign_rank_group_small(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test11p_assign_rank_group_large(self):
+        calculator = AlignmentDistanceCalculator()
+        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        assignments = phylo_tree.assign_group_rank()
+        self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
+
+    def test11q_assign_rank_group_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -831,7 +994,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test10n_assign_rank_group_large(self):
+    def test11r_assign_rank_group_large(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
@@ -895,21 +1058,35 @@ class TestPhylogeneticTree(TestBase):
             self.assertTrue(match, internal_dm)
             count += 1
 
-    def test11a_validate_upgma_tree(self):
+    def test12a_validate_upgma_tree(self):
         calculator = AlignmentDistanceCalculator()
         _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.validate_upgma_tree(tree=phylo_tree, dm=dm, verbose=False)
 
-    def test11b_validate_upgma_tree(self):
+    def test12b_validate_upgma_tree(self):
         calculator = AlignmentDistanceCalculator()
         _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_large.alignment)
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=dm)
         self.validate_upgma_tree(tree=phylo_tree, dm=dm, verbose=False)
 
-    def test11c_validate_upgma_tree(self):
+    def test12c_validate_upgma_tree(self):
+        calculator = AlignmentDistanceCalculator()
+        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_small.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.validate_upgma_tree(tree=phylo_tree, dm=dm, verbose=False)
+
+    def test12d_validate_upgma_tree(self):
+        calculator = AlignmentDistanceCalculator()
+        _, dm, _, _ = calculator.get_et_distance(self.query_aln_fa_large.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        self.validate_upgma_tree(tree=phylo_tree, dm=dm, verbose=False)
+
+    def test12e_validate_upgma_tree(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -920,7 +1097,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
         self.validate_upgma_tree(tree=phylo_tree, dm=et_mip_obj.distance_matrix, verbose=False)
 
-    def test11d_validate_upgma_tree(self):
+    def test12f_validate_upgma_tree(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -931,7 +1108,7 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
         self.validate_upgma_tree(tree=phylo_tree, dm=et_mip_obj.distance_matrix, verbose=False)
 
-    def test11e_validate_upgma_tree(self):
+    def test12g_validate_upgma_tree(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -941,7 +1118,7 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.import_phylogenetic_tree(out_dir=wetc_test_dir)
         self.validate_upgma_tree(tree=et_mip_obj.tree, dm=et_mip_obj.distance_matrix, verbose=True)
 
-    def test11f_validate_upgma_tree(self):
+    def test12h_validate_upgma_tree(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -983,14 +1160,14 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(d1_keys), 0)
         self.assertEqual(len(d2_keys), 0)
 
-    def test11a_compare_assignments_small(self):
+    def test13a_compare_assignments_small(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         start = time()
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
         inter1 = time()
-        print('Initializatoin took {} min'.format((inter1 - start) / 60.0))
+        print('Initialization took {} min'.format((inter1 - start) / 60.0))
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
         inter2 = time()
         print('Score calculation took {} min'.format((inter2 - inter1) / 60.0))
@@ -1007,7 +1184,7 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
             self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
-    def test11b_compare_assignments_large(self):
+    def test13b_compare_assignments_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
@@ -1030,6 +1207,33 @@ class TestPhylogeneticTree(TestBase):
             self.assertTrue(rank in et_mip_obj.rank_group_assignments)
             self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
             self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
+
+    def compare_tree_and_wetc_tree(self, fa_aln, msf_aln):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False, method='intET')
+        calculator = AlignmentDistanceCalculator()
+        _, dm, _, _ = calculator.get_et_distance(fa_aln.alignment)
+        phylo_tree = PhylogeneticTree(tree_building_method='et')
+        phylo_tree.construct_tree(dm=dm)
+        wetc_iter = et_mip_obj.tree.traverse_by_rank()
+        py_iter = phylo_tree.traverse_by_rank()
+        while wetc_iter and py_iter:
+            wetc_nodes = next(wetc_iter)
+            py_nodes = next(py_iter)
+            sorted_wetc_nodes = sorted(wetc_nodes, cmp=compare_nodes)
+            sorted_py_nodes = sorted(py_nodes, cmp=compare_nodes)
+            self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
+            for i in range(len(sorted_py_nodes)):
+                self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+
+    def test14a_compare_to_wetc_tree_small(self):
+        self.compare_tree_and_wetc_tree(fa_aln=self.query_aln_fa_small, msf_aln=self.query_aln_msf_small)
+
+    def test14b_compare_to_wetc_tree_small(self):
+        self.compare_tree_and_wetc_tree(fa_aln=self.query_aln_fa_large, msf_aln=self.query_aln_msf_large)
 
 
 def compare_nodes(node1, node2):

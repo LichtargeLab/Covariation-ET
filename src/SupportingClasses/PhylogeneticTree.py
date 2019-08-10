@@ -96,6 +96,91 @@ class PhylogeneticTree(object):
         upgma_tree = constructor.upgma(distance_matrix=self.distance_matrix)
         return upgma_tree
 
+    def _et_tree(self):
+        """
+        ET Tree
+
+        This method reproduces the tree used by the Evolutionary Trace method in the past.This is a variant on the UPGMA
+        tree construction method which joins nodes, not based on their minimum distance to each other but on the minimum
+        average distance between their terminal descendants.
+        """
+
+        def height_of(clade):
+            """
+            Height Of
+
+            Calculate clade height -- the longest path to any terminal (PRIVATE).
+
+            Copied verbatim from Bio.Phylo.DistanceTreeConstructor
+
+            Args:
+                clade (Bio.Phylo.BaseTree.Clade): Clade object for which to determine the height.
+            Returns:
+                int: The height of the provided clade.
+            """
+            height = 0
+            if clade.is_terminal():
+                height = clade.branch_length
+            else:
+                height = height + max(height_of(c) for c in clade.clades)
+            return height
+
+        from Bio.Phylo import BaseTree
+        from copy import deepcopy
+        from itertools import product
+        original_dist_mat = np.array(self.distance_matrix)
+        index_map = {}
+        clades = []
+        for i in range(self.size):
+            name = self.distance_matrix.names[i]
+            index_map[name] = i
+            clade = BaseTree.Clade(None, name)
+            clades.append(clade)
+        min_i = 0
+        min_j = 0
+        inner_count = self.size
+        dm = deepcopy(self.distance_matrix)
+        inner_clade = None
+        while len(dm) > 1:
+            # Find minimum index
+            min_dist = dm[1, 0]
+            for i in range(1, len(dm)):
+                for j in range(0, i):
+                    if min_dist >= dm[i, j]:
+                        min_dist = dm[i, j]
+                        min_i = i
+                        min_j = j
+            # Create clade
+            clade1 = clades[min_i]
+            clade2 = clades[min_j]
+            inner_count -= 1
+            inner_clade = BaseTree.Clade(None, "Inner{}".format(inner_count))
+            inner_clade.clades.append(clade1)
+            inner_clade.clades.append(clade2)
+            # Assign branch length
+            if clade1.is_terminal():
+                clade1.branch_length = min_dist * 1.0 / 2
+            else:
+                clade1.branch_length = min_dist * 1.0 / 2 - height_of(clade1)
+            if clade2.is_terminal():
+                clade2.branch_length = min_dist * 1.0 / 2
+            else:
+                clade2.branch_length = min_dist * 1.0 / 2 - height_of(clade2)
+            # Rebuild distance mat set the distances of new node at the index of min_j
+            for k in range(0, len(dm)):
+                if k != min_i and k != min_j:
+                    indices_inner = [index_map[node.name] for node in inner_clade.get_terminals()]
+                    indices_k = [index_map[node.name] for node in clades[k].get_terminals()]
+                    pos_inner, pos_k = zip(*product(indices_inner, indices_k))
+                    dm[min_j, k] = np.mean(original_dist_mat[list(pos_inner), list(pos_k)])
+            dm.names[min_j] = "Inner" + str(inner_count)
+            del dm[min_i]
+            # Update node list
+            clades[min_j] = inner_clade
+            del clades[min_i]
+        inner_clade.branch_length = 0
+        return BaseTree.Tree(inner_clade)
+
     def _agglomerative_clustering(self, cache_dir=None, affinity='euclidean', linkage='ward'):
         """
         Agglomerative Clustering
@@ -153,13 +238,13 @@ class PhylogeneticTree(object):
             attributes of the PhylogeneticTree instance.
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
-                       'custom': self._custom_tree}
+                       'custom': self._custom_tree, 'et': self._et_tree}
         if isinstance(dm, DistanceMatrix):
             self.distance_matrix = dm
         else:
             raise ValueError('Distance matrix (dm) must have type Bio.Phylo.TreeConstruction.DistanceMatrix!')
-        self.tree = method_dict[self.tree_method](**self.tree_args)
         self.size = len(dm)
+        self.tree = method_dict[self.tree_method](**self.tree_args)
 
     def write_out_tree(self, filename):
         """
@@ -269,6 +354,7 @@ class PhylogeneticTree(object):
         len(self.tree.get_terminals) - 1
         """
         starting_node_pos = int(self.tree.root.name.strip('Inner'))
+        print('Starting Node Pos: {}'.format(starting_node_pos))
         if starting_node_pos == 1:
             return
         node_pattern = 'Inner{}'
