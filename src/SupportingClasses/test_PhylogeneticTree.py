@@ -968,7 +968,7 @@ class TestPhylogeneticTree(TestBase):
         assignments = phylo_tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
 
-    def test110_assign_rank_group_small(self):
+    def test11o_assign_rank_group_small(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='et')
@@ -1208,35 +1208,51 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
             self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
-    def compare_tree_and_wetc_tree(self, fa_aln, msf_aln):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+    def compare_tree_and_wetc_tree(self, p_id, fa_aln, msf_aln):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=msf_aln)
         et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False, method='intET')
-        calculator = AlignmentDistanceCalculator()
+        calculator = AlignmentDistanceCalculator(model='blosum62')
         _, dm, _, _ = calculator.get_et_distance(fa_aln.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='et')
         phylo_tree.construct_tree(dm=dm)
         wetc_iter = et_mip_obj.tree.traverse_by_rank()
         py_iter = phylo_tree.traverse_by_rank()
-        while wetc_iter and py_iter:
+        try:
             wetc_nodes = next(wetc_iter)
+        except StopIteration:
+            wetc_nodes = None
+        try:
             py_nodes = next(py_iter)
-            sorted_wetc_nodes = sorted(wetc_nodes, cmp=compare_nodes)
-            sorted_py_nodes = sorted(py_nodes, cmp=compare_nodes)
-            print('#' * 100)
-            print(sorted_wetc_nodes)
-            print(sorted_py_nodes)
-            self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
-            for i in range(len(sorted_py_nodes)):
-                self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+        except StopIteration:
+            py_nodes = None
+        while wetc_nodes and py_nodes:
+            if wetc_nodes is None:
+                self.assertIsNone(py_nodes)
+            else:
+                sorted_wetc_nodes = sorted(wetc_nodes, cmp=compare_nodes)
+                sorted_py_nodes = sorted(py_nodes, cmp=compare_nodes)
+                self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
+                for i in range(len(sorted_py_nodes)):
+                    self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+            try:
+                wetc_nodes = next(wetc_iter)
+            except StopIteration:
+                wetc_nodes = None
+            try:
+                py_nodes = next(py_iter)
+            except StopIteration:
+                py_nodes = None
 
     def test14a_compare_to_wetc_tree_small(self):
-        self.compare_tree_and_wetc_tree(fa_aln=self.query_aln_fa_small, msf_aln=self.query_aln_msf_small)
+        self.compare_tree_and_wetc_tree(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small,
+                                        msf_aln=self.query_aln_msf_small)
 
     def test14b_compare_to_wetc_tree_small(self):
-        self.compare_tree_and_wetc_tree(fa_aln=self.query_aln_fa_large, msf_aln=self.query_aln_msf_large)
+        self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
+                                        msf_aln=self.query_aln_msf_large)
 
 
 def compare_nodes(node1, node2):
