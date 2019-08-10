@@ -6,6 +6,9 @@ Created on June 3, 2019
 import os
 import heapq
 import numpy as np
+from copy import deepcopy
+from itertools import product
+from Bio.Phylo import BaseTree
 from Bio.Phylo import read, write
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from sklearn.cluster import AgglomerativeClustering
@@ -20,10 +23,13 @@ class PhylogeneticTree(object):
     Attributes:
         distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix) The distance matrix a tree is based on.
         tree_method (str): The method by which to construct a phylogenetic tree. The currently supported options are:
+            'et'
             'upgma'
             'agglomerative'
             'custom'
         tree_args (dict): The arguments needed to use each of these tree building methods.
+            'et'
+                No additional arguments.
             'upgma'
                 No additional arguments.
             'agglomerative'
@@ -125,9 +131,6 @@ class PhylogeneticTree(object):
                 height = height + max(height_of(c) for c in clade.clades)
             return height
 
-        from Bio.Phylo import BaseTree
-        from copy import deepcopy
-        from itertools import product
         original_dist_mat = np.array(self.distance_matrix)
         index_map = {}
         clades = []
