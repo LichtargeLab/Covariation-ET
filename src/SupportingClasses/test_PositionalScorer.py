@@ -73,6 +73,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
         self.assertEqual(pos_scorer.metric, 'identity')
         self.assertEqual(pos_scorer.metric_type, 'integer')
+        self.assertEqual(pos_scorer.rank_type, 'min')
 
     def test1b_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='identity')
@@ -81,6 +82,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
         self.assertEqual(pos_scorer.metric, 'identity')
         self.assertEqual(pos_scorer.metric_type, 'integer')
+        self.assertEqual(pos_scorer.rank_type, 'min')
 
     def test1c_init(self):
         with self.assertRaises(ValueError):
@@ -95,6 +97,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
         self.assertEqual(pos_scorer.metric, 'plain_entropy')
         self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'min')
 
     def test1e_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='plain_entropy')
@@ -103,6 +106,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
         self.assertEqual(pos_scorer.metric, 'plain_entropy')
         self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'min')
 
     def test1f_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='mutual_information')
@@ -111,6 +115,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
         self.assertEqual(pos_scorer.metric, 'mutual_information')
         self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'max')
 
     def test1g_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='normalized_mutual_information')
@@ -119,6 +124,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
         self.assertEqual(pos_scorer.metric, 'normalized_mutual_information')
         self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'max')
 
     def test1h_init(self):
         pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
@@ -128,6 +134,7 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
         self.assertEqual(pos_scorer.metric, 'average_product_corrected_mutual_information')
         self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'max')
 
     def evaluate_score_group_ambiguous(self, node_dict, metric):
         pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)

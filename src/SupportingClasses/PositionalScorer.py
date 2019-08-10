@@ -20,6 +20,11 @@ pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
                      'average_product_corrected_mutual_information',
                      'filtered_average_product_corrected_mutual_information'}
 
+min_metrics = {'identity', 'plain_entropy'}
+
+max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
+              'filtered_average_product_corrected_mutual_information'}
+
 
 class PositionalScorer(object):
     """
@@ -66,6 +71,12 @@ class PositionalScorer(object):
             self.metric_type = 'real'
         else:
             raise ValueError('Provided metric is neither integer valued nor real valued!')
+        if metric in min_metrics:
+            self.rank_type = 'min'
+        elif metric in max_metrics:
+            self.rank_type = 'max'
+        else:
+            raise ValueError('Provided metric is neither min or max ranked!')
 
     def score_group(self, freq_table):
         """
