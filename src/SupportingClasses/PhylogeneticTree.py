@@ -142,14 +142,20 @@ class PhylogeneticTree(object):
         dm = deepcopy(self.distance_matrix)
         inner_clade = None
         while len(dm) > 1:
+            print('#' * 100)
+            print(len(dm))
+            print(len(clades))
             # Find minimum index
-            min_dist = dm[1, 0]
-            for i in range(1, len(dm)):
-                for j in range(0, i):
+            min_dist = dm[0, 1]
+            for i in range(len(dm)):
+                for j in range(i + 1, len(dm)):
+                    print(dm[i,j])
                     if min_dist >= dm[i, j]:
                         min_dist = dm[i, j]
                         min_i = i
                         min_j = j
+            # print(min_i)
+            # print(min_j)
             # Create clade
             clade1 = clades[min_i]
             clade2 = clades[min_j]
