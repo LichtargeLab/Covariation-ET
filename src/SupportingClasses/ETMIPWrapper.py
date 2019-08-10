@@ -150,7 +150,7 @@ class ETMIPWrapper(object):
         for i in range(1, self.alignment.size):
             self.entropy[i] = rank_df['Rank {} Entropy'.format(i)].values
 
-    def import_distance_matrices(self, out_dir):
+    def import_distance_matrices(self, out_dir, prefix='etc_out'):
         """
         Import Distance Matrices
 
@@ -169,9 +169,9 @@ class ETMIPWrapper(object):
         """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, 'etc_out.aln_dist.tsv')
-        file_path2 = os.path.join(out_dir, 'etc_out.id_dist.tsv')
-        file_path3 = os.path.join(out_dir, 'etc_out.debug.tsv')
+        file_path1 = os.path.join(out_dir, '{}.aln_dist.tsv'.format(prefix))
+        file_path2 = os.path.join(out_dir, '{}.id_dist.tsv'.format(prefix))
+        file_path3 = os.path.join(out_dir, '{}.debug.tsv'.format(prefix))
         if not os.path.isfile(file_path1) or not os.path.isfile(file_path2) or not os.path.isfile(file_path3):
             raise ValueError('Provided directory does not contain expected distance files!')
         aln_dist_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)

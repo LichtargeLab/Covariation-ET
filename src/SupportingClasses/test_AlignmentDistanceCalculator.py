@@ -243,12 +243,13 @@ class TestAlignmentDistanceCalculator(TestBase):
         self.assertTrue(not diff.any())
 
     def test10a_get_et_distance_small(self):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir,
+                                                                                        prefix='etc_out_intET')
         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
         id_dist_array = np.asarray(id_dist_df, dtype=float)
         aln_dist_dm1 = convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
@@ -269,12 +270,13 @@ class TestAlignmentDistanceCalculator(TestBase):
         self.assertTrue(not diff_aln_dist_threshold.any())
 
     def test10b_get_et_distance_large(self):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, delete_files=False)
-        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir,
+                                                                                        prefix='etc_out_intET')
         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
         id_dist_array = np.asarray(id_dist_df, dtype=float)
         aln_dist_dm1 = convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
