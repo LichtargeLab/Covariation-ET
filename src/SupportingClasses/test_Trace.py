@@ -250,7 +250,8 @@ class TestTrace(TestBase):
                           position_specific=single, pair_specific=pair, low_memory=low_mem, output_dir=out_dir)
         trace_obj.characterize_rank_groups(processes=num_proc)
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
-        rank_array = trace_obj.trace(scorer=scorer, processes=num_proc, gap_correction=gap_correction)
+        rank_array, score_array, coverage_array = trace_obj.trace(scorer=scorer, processes=num_proc,
+                                                                  gap_correction=gap_correction)
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
             group_scores = []
@@ -289,17 +290,60 @@ class TestTrace(TestBase):
                 print(diff_rank[indices_rank])
             self.assertFalse(not_passing_rank.any())
             expected_ranks += rank_scores
-        diff_ranks = rank_array - expected_ranks
+        diff_ranks = score_array - expected_ranks
         not_passing = diff_ranks > 1E-12
         if not_passing.any():
-            print(rank_array)
+            print(score_array)
             print(expected_ranks)
             print(diff_ranks)
             indices = np.nonzero(not_passing)
-            print(rank_array[indices])
+            print(score_array[indices])
             print(expected_ranks[indices])
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
+        # Simple check against ranking and coverage is to find the min and max values
+        if scorer.rank_type == 'min':
+            min_score = np.min(score_array)
+            min_mask = score_array == min_score
+            min_rank = np.min(rank_array)
+            rank_mask = rank_array == min_rank
+            diff_min_ranks = min_mask - rank_mask
+            self.assertFalse(diff_min_ranks.any())
+            max_coverage = np.max(coverage_array)
+            cov_mask = coverage_array == max_coverage
+            diff_max_cov = min_mask - cov_mask
+            self.assertFalse(diff_max_cov.any())
+            max_score = np.max(score_array)
+            max_mask = score_array == max_score
+            max_rank = np.max(rank_array)
+            rank_mask2 = rank_array == max_rank
+            diff_max_ranks = max_mask - rank_mask2
+            self.assertFalse(diff_max_ranks.any())
+            min_coverage = np.min(coverage_array)
+            cov_mask2 = coverage_array == min_coverage
+            diff_min_cov = max_mask - cov_mask2
+            self.assertFalse(diff_min_cov.any())
+        else:
+            max_score = np.max(score_array)
+            max_mask = score_array == max_score
+            max_rank = np.max(rank_array)
+            rank_mask = rank_array == max_rank
+            diff_max_ranks = max_mask - rank_mask
+            self.assertFalse(diff_max_ranks.any())
+            min_coverage = np.min(coverage_array)
+            cov_mask = coverage_array == min_coverage
+            diff_min_cov = max_mask - cov_mask
+            self.assertFalse(diff_min_cov.any())
+            min_score = np.min(score_array)
+            min_mask = score_array == min_score
+            min_rank = np.min(rank_array)
+            rank_mask2 = rank_array == min_rank
+            diff_min_ranks = min_mask - rank_mask2
+            self.assertFalse(diff_min_ranks.any())
+            max_coverage = np.max(coverage_array)
+            cov_mask2 = coverage_array == max_coverage
+            diff_max_cov = min_mask - cov_mask2
+            self.assertFalse(diff_max_cov.any())
 
     def test3a_trace(self):
         # Perform identity trace on single positions only for the small alignment (all ranks)
@@ -341,17 +385,27 @@ class TestTrace(TestBase):
         trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
                                              write_out_freq_table=False)
         scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='identity')
-        rank_ids = trace_small.trace(scorer=scorer, gap_correction=None, processes=self.max_threads)
-        diff_ranks = rank_ids - et_mip_obj.scores
+        rank_ids, score_ids, coverage_ids = trace_small.trace(scorer=scorer, gap_correction=None,
+                                                              processes=self.max_threads)
+        diff_ranks = score_ids - et_mip_obj.scores
         if diff_ranks.any():
-            print(rank_ids)
+            print(score_ids)
             print(et_mip_obj.scores)
             print(diff_ranks)
             indices = np.nonzero(diff_ranks)
-            print(rank_ids[indices])
+            print(score_ids[indices])
             print(et_mip_obj.scores[indices])
             print(diff_ranks[indices])
         self.assertFalse(diff_ranks.any())
+        diff_coverage = coverage_ids - et_mip_obj.coverage
+        if diff_coverage.any():
+            print(coverage_ids)
+            print(et_mip_obj.coverage)
+            print(diff_coverage)
+            indices = np.nonzero(diff_coverage)
+            print(coverage_ids[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverage[indices])
 
     def test3e_trace(self):
         # Compare the results of identity trace over single positions between this implementation and the WETC
@@ -433,19 +487,20 @@ class TestTrace(TestBase):
         trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
                                              write_out_freq_table=False)
         scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='plain_entropy')
-        rank_entropies = trace_small.trace(scorer=scorer, gap_correction=0.6, processes=self.max_threads)
-        diff_ranks = rank_entropies - et_mip_obj.scores
+        rank_entropies, score_entropies, coverage_entropies = trace_small.trace(scorer=scorer, gap_correction=0.6,
+                                                                                processes=self.max_threads)
+        diff_ranks = score_entropies - et_mip_obj.scores
         not_passing = np.abs(diff_ranks) > 1e-2
         if not_passing.any():
-            print(rank_entropies)
+            print(score_entropies)
             print(et_mip_obj.scores)
             print(diff_ranks)
             indices = np.nonzero(diff_ranks)
-            print(rank_entropies[indices])
+            print(score_entropies[indices])
             print(et_mip_obj.scores[indices])
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
-        rounded_entropies = np.round(rank_entropies, decimals=2)
+        rounded_entropies = np.round(score_entropies, decimals=2)
         diff_ranks2 = rounded_entropies - et_mip_obj.scores
         if diff_ranks2.any():
             print(rounded_entropies)
@@ -454,8 +509,30 @@ class TestTrace(TestBase):
             indices = np.nonzero(diff_ranks2)
             print(rounded_entropies[indices])
             print(et_mip_obj.scores[indices])
-            print(diff_ranks[indices])
+            print(diff_ranks2[indices])
         self.assertFalse(diff_ranks2.any())
+        diff_coverage = coverage_entropies - et_mip_obj.coverage
+        not_passing = np.abs(diff_coverage) > 1e-2
+        if not_passing.any():
+            print(coverage_entropies)
+            print(et_mip_obj.coverage)
+            print(diff_coverage)
+            indices = np.nonzero(diff_coverage)
+            print(coverage_entropies[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverage[indices])
+        self.assertFalse(not_passing.any())
+        rounded_coverages = np.round(coverage_entropies, decimals=2)
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        if diff_coverages2.any():
+            print(rounded_coverages)
+            print(et_mip_obj.coverages)
+            print(diff_coverages2)
+            indices = np.nonzero(diff_coverages2)
+            print(rounded_coverages[indices])
+            print(et_mip_obj.coverages[indices])
+            print(diff_coverages2[indices])
+        self.assertFalse(diff_coverages2.any())
 
     def test4e_trace(self):
         # Compare the results of plain entropy trace over single positions between this implementation and the WETC
@@ -621,31 +698,58 @@ class TestTrace(TestBase):
                                            write_out_freq_table=False)
         scorer_mip = PositionalScorer(seq_length=gap_filtered_fa_aln.seq_length, pos_size=2,
                                       metric='filtered_average_product_corrected_mutual_information')
-        rank_mips = trace_mip.trace(scorer=scorer_mip, gap_correction=None, processes=self.max_threads)
-        diff_ranks = rank_mips - et_mip_obj.scores
+        rank_mips, score_mips, coverage_mips = trace_mip.trace(scorer=scorer_mip, gap_correction=None,
+                                                               processes=self.max_threads)
+        diff_ranks = score_mips - et_mip_obj.scores
         not_passing = np.abs(diff_ranks) > 1e-3
         if not_passing.any():
-            print(rank_mips)
+            print(score_mips)
             print(et_mip_obj.scores)
             print(diff_ranks)
             indices = np.nonzero(not_passing)
-            print(rank_mips[indices])
+            print(score_mips[indices])
             print(et_mip_obj.scores[indices])
             print(diff_ranks[indices])
-            print(rank_mips[indices][0])
+            print(score_mips[indices][0])
             print(et_mip_obj.scores[indices][0])
             print(diff_ranks[indices][0])
         self.assertFalse(not_passing.any())
-        rounded_covs = np.round(rank_mips, decimals=3)
-        diff_ranks2 = rounded_covs - et_mip_obj.scores
+        rounded_scores = np.round(score_mips, decimals=3)
+        diff_ranks2 = rounded_scores - et_mip_obj.scores
         not_passing_rounded = np.abs(diff_ranks2) > 1e-15
         if not_passing_rounded.any():
-            print(rounded_covs)
+            print(rounded_scores)
             print(et_mip_obj.scores)
             print(diff_ranks2)
             indices = np.nonzero(not_passing_rounded)
-            print(rounded_covs[indices])
+            print(rounded_scores[indices])
             print(et_mip_obj.scores[indices])
+            print(diff_ranks2[indices])
+        self.assertFalse(not_passing_rounded.any())
+        diff_coverages = coverage_mips - et_mip_obj.coverage
+        not_passing = np.abs(diff_coverages) > 1e-3
+        if not_passing.any():
+            print(coverage_mips)
+            print(et_mip_obj.coverage)
+            print(diff_coverages)
+            indices = np.nonzero(not_passing)
+            print(coverage_mips[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverages[indices])
+            print(coverage_mips[indices][0])
+            print(et_mip_obj.coverage[indices][0])
+            print(diff_coverages[indices][0])
+        self.assertFalse(not_passing.any())
+        rounded_coverages = np.round(coverage_mips, decimals=3)
+        diff_ranks2 = rounded_coverages - et_mip_obj.coverage
+        not_passing_rounded = np.abs(diff_ranks2) > 1e-15
+        if not_passing_rounded.any():
+            print(rounded_coverages)
+            print(et_mip_obj.coverage)
+            print(diff_ranks2)
+            indices = np.nonzero(not_passing_rounded)
+            print(rounded_coverages[indices])
+            print(et_mip_obj.coverage[indices])
             print(diff_ranks2[indices])
         self.assertFalse(not_passing_rounded.any())
 

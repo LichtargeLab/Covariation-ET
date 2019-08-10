@@ -9,6 +9,7 @@ from Queue import Empty
 import cPickle as pickle
 from time import sleep, time
 from Bio.Alphabet import Gapped
+from scipy.stats import rankdata
 from multiprocessing import Manager, Pool, Queue, Lock
 from FrequencyTable import FrequencyTable
 from utils import gap_characters, build_mapping
@@ -55,6 +56,9 @@ class Trace(object):
         self.assignments = group_assignments
         self.unique_nodes = None
         self.rank_scores = None
+        self.final_scores = None
+        self.final_ranks = None
+        self.final_coverage = None
         self.pos_specific = position_specific
         self.pair_specific = pair_specific
         if output_dir is None:
@@ -216,9 +220,7 @@ class Trace(object):
                 raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
             rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
             final_scores += rank_scores
-        if ((scorer.metric != 'mutual_information') and
-                (scorer.metric != 'average_product_corrected_mutual_information') and
-                (scorer.metric != 'filtered_average_product_corrected_mutual_information')):
+        if scorer.rank_type == 'min':
             final_scores += 1
         rank_time = time()
         print('Rank processing completed in {} min'.format((rank_time - group_time) / 60.0))
@@ -240,9 +242,29 @@ class Trace(object):
                     final_scores[i] = max_rank_score
             gap_time = time()
             print('Gap correction completed in {} min'.format((gap_time - rank_time) / 60.0))
+        self.final_scores = final_scores
+        if scorer.position_size == 1:
+            indices = range(self.aln.seq_length)
+            normalization = self.aln.seq_length
+            to_rank = final_scores
+            self.final_coverage = np.zeros(self.aln.seq_length)
+        elif scorer.position_size == 2:
+            indices = np.triu_indices(self.aln.seq_length, k=1)
+            normalization = len(indices[0])
+            to_rank = final_scores[indices]
+            self.final_coverage = np.zeros((self.aln.seq_length, self.aln.seq_length))
+        else:
+            raise ValueError('Final scoring not supported for position sizes other than 1 or 2, {} provided'.format(
+                scorer.position_size))
+        if scorer.rank_type == 'min':
+            to_rank = -1 * to_rank
+        self.final_ranks = rankdata(to_rank, method='max') - 1
+        self.final_coverage[indices] = self.final_ranks
+        self.final_coverage *= 100
+        self.final_coverage /= normalization
         end = time()
         print('Trace of with {} metric took: {} min'.format(scorer.metric, (end - start) / 60.0))
-        return final_scores
+        return self.final_ranks, self.final_scores, self.final_coverage
 
 
 def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
