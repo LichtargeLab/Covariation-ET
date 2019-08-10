@@ -142,15 +142,17 @@ class PhylogeneticTree(object):
         dm = deepcopy(self.distance_matrix)
         inner_clade = None
         while len(dm) > 1:
-            print('#' * 100)
-            print(len(dm))
-            print(len(clades))
+            # print('#' * 100)
+            # print(len(dm))
+            # print(len(clades))
             # Find minimum index
-            min_dist = dm[0, 1]
+            min_i = 0
+            min_j = 1
+            min_dist = dm[min_i, min_j]
             for i in range(len(dm)):
                 for j in range(i + 1, len(dm)):
-                    print(dm[i,j])
-                    if min_dist >= dm[i, j]:
+                    # print(dm[i, j])
+                    if min_dist > dm[i, j]:
                         min_dist = dm[i, j]
                         min_i = i
                         min_j = j
@@ -174,16 +176,23 @@ class PhylogeneticTree(object):
                 clade2.branch_length = min_dist * 1.0 / 2 - height_of(clade2)
             # Rebuild distance mat set the distances of new node at the index of min_j
             for k in range(0, len(dm)):
+                print('@' * 100)
                 if k != min_i and k != min_j:
+                    print(len(inner_clade.get_terminals()))
                     indices_inner = [index_map[node.name] for node in inner_clade.get_terminals()]
+                    print(len(indices_inner))
+                    print(len(clades[k].get_terminals()))
                     indices_k = [index_map[node.name] for node in clades[k].get_terminals()]
+                    print(len(indices_k))
                     pos_inner, pos_k = zip(*product(indices_inner, indices_k))
-                    dm[min_j, k] = np.mean(original_dist_mat[list(pos_inner), list(pos_k)])
-            dm.names[min_j] = "Inner" + str(inner_count)
-            del dm[min_i]
+                    print(len(indices_inner) * len(indices_k))
+                    print(len(pos_inner))
+                    dm[min_i, k] = np.mean(original_dist_mat[list(pos_inner), list(pos_k)])
+            dm.names[min_i] = "Inner" + str(inner_count)
+            del dm[min_j]
             # Update node list
-            clades[min_j] = inner_clade
-            del clades[min_i]
+            clades[min_i] = inner_clade
+            del clades[min_j]
         inner_clade.branch_length = 0
         return BaseTree.Tree(inner_clade)
 

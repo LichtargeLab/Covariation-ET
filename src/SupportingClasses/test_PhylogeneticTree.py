@@ -1225,6 +1225,9 @@ class TestPhylogeneticTree(TestBase):
             py_nodes = next(py_iter)
             sorted_wetc_nodes = sorted(wetc_nodes, cmp=compare_nodes)
             sorted_py_nodes = sorted(py_nodes, cmp=compare_nodes)
+            print('#' * 100)
+            print(sorted_wetc_nodes)
+            print(sorted_py_nodes)
             self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
             for i in range(len(sorted_py_nodes)):
                 self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
