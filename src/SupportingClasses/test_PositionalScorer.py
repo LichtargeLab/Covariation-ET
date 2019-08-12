@@ -313,6 +313,7 @@ class TestPositionalScorer(TestBase):
                 expected_rank_score_pair = rank_integer_value_score(score_matrix=group_scores_pair, rank=rank)
             else:
                 expected_rank_score_pair = rank_real_value_score(score_matrix=group_scores_pair, rank=rank)
+            expected_rank_score_pair = np.triu(expected_rank_score_pair, k=1)
             rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair, rank=rank)
             diff_pair = rank_score_pair - expected_rank_score_pair
             self.assertTrue(not diff_pair.any())
