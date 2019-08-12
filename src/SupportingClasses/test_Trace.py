@@ -248,10 +248,121 @@ class TestTrace(TestBase):
             expected_ranks = None
         trace_obj = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assignments,
                           position_specific=single, pair_specific=pair, low_memory=low_mem, output_dir=out_dir)
-        trace_obj.characterize_rank_groups(processes=num_proc)
+        trace_obj.characterize_rank_groups(processes=num_proc, write_out_sub_aln=False, write_out_freq_table=False)
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
         rank_array, score_array, coverage_array = trace_obj.trace(scorer=scorer, processes=num_proc,
                                                                   gap_correction=gap_correction)
+        # Simple check against ranking and coverage is to find the min and max values
+        if pos_size == 2:
+            self.assertFalse(np.tril(rank_array).any())
+            self.assertFalse(np.tril(score_array).any())
+            self.assertFalse(np.tril(coverage_array).any())
+        if scorer.rank_type == 'min':
+            if pos_size == 1:
+                min_score = np.min(score_array)
+                min_rank = np.min(rank_array)
+                max_coverage = np.max(coverage_array)
+                max_score = np.max(score_array)
+                max_rank = np.max(rank_array)
+                min_coverage = np.min(coverage_array)
+            else:
+                min_score = np.min(score_array[np.triu_indices(aln.seq_length, k=1)])
+                min_rank = np.min(rank_array[np.triu_indices(aln.seq_length, k=1)])
+                max_coverage = np.max(coverage_array[np.triu_indices(aln.seq_length, k=1)])
+                max_score = np.max(score_array[np.triu_indices(aln.seq_length, k=1)])
+                max_rank = np.max(rank_array[np.triu_indices(aln.seq_length, k=1)])
+                min_coverage = np.min(coverage_array[np.triu_indices(aln.seq_length, k=1)])
+            min_mask = (score_array == min_score) * 1
+            rank_mask = (rank_array == min_rank) * 1
+            diff_min_ranks = min_mask - rank_mask
+            if diff_min_ranks.any():
+                print(min_score)
+                print(min_rank)
+                print(np.sum(min_mask))
+                print(np.sum(rank_mask))
+            self.assertFalse(diff_min_ranks.any())
+            cov_mask = coverage_array == min_coverage
+            diff_min_cov = min_mask - cov_mask
+            if diff_min_cov.any():
+                print(min_score)
+                print(min_coverage)
+                print(np.sum(min_mask))
+                print(np.sum(cov_mask))
+            self.assertFalse(diff_min_cov.any())
+            max_mask = score_array == max_score
+            rank_mask2 = rank_array == max_rank
+            diff_max_ranks = max_mask - rank_mask2
+            if diff_max_ranks.any():
+                print(max_score)
+                print(max_rank)
+                print(np.sum(max_mask))
+                print(np.sum(rank_mask2))
+            self.assertFalse(diff_max_ranks.any())
+            cov_mask2 = coverage_array == max_coverage
+            diff_max_cov = max_mask - cov_mask2
+            if diff_max_cov.any():
+                print(max_score)
+                print(max_coverage)
+                print(np.sum(max_mask))
+                print(np.sum(cov_mask2))
+            self.assertFalse(diff_min_cov.any())
+        else:
+            if pos_size == 1:
+                max_score = np.max(score_array)
+                max_rank = np.max(rank_array)
+                max_coverage = np.max(coverage_array)
+                min_score = np.min(score_array)
+                min_rank = np.min(rank_array)
+                min_coverage = np.min(coverage_array)
+                min_mask = score_array == min_score
+                rank_mask = rank_array == max_rank
+                cov_mask = coverage_array == max_coverage
+                max_mask = score_array == max_score
+                rank_mask2 = rank_array == min_rank
+                cov_mask2 = coverage_array == min_coverage
+            else:
+                max_score = np.max(score_array[np.triu_indices(aln.seq_length, k=1)])
+                max_rank = np.max(rank_array[np.triu_indices(aln.seq_length, k=1)])
+                max_coverage = np.max(coverage_array[np.triu_indices(aln.seq_length, k=1)])
+                min_score = np.min(score_array[np.triu_indices(aln.seq_length, k=1)])
+                min_rank = np.min(rank_array[np.triu_indices(aln.seq_length, k=1)])
+                min_coverage = np.min(coverage_array[np.triu_indices(aln.seq_length, k=1)])
+                min_mask = np.triu(score_array == min_score, k=1)
+                rank_mask = np.triu(rank_array == max_rank, k=1)
+                cov_mask = np.triu(coverage_array == max_coverage, k=1)
+                max_mask = np.triu(score_array == max_score, k=1)
+                rank_mask2 = np.triu(rank_array == min_rank, k=1)
+                cov_mask2 = np.triu(coverage_array == min_coverage, k=1)
+            diff_min_ranks = min_mask - rank_mask
+            if diff_min_ranks.any():
+                print(min_score)
+                print(min_rank)
+                print(score_array)
+                print()
+                print(np.sum(min_mask))
+                print(np.sum(rank_mask))
+            self.assertFalse(diff_min_ranks.any())
+            diff_min_cov = min_mask - cov_mask
+            if diff_min_cov.any():
+                print(min_score)
+                print(max_coverage)
+                print(np.sum(min_mask))
+                print(np.sum(cov_mask))
+            self.assertFalse(diff_min_cov.any())
+            diff_max_ranks = max_mask - rank_mask2
+            if diff_max_ranks.any():
+                print(max_score)
+                print(max_rank)
+                print(np.sum(max_mask))
+                print(np.sum(rank_mask2))
+            self.assertFalse(diff_max_ranks.any())
+            diff_max_cov = max_mask - cov_mask2
+            if diff_max_cov.any():
+                print(max_score)
+                print(max_coverage)
+                print(np.sum(max_mask))
+                print(np.sum(cov_mask2))
+            self.assertFalse(diff_min_cov.any())
         unique_scores = {}
         for rank in sorted(assignments.keys(), reverse=True):
             group_scores = []
@@ -265,7 +376,7 @@ class TestTrace(TestBase):
                         group_score = scorer.score_group(load_freq_table(trace_obj.unique_nodes[node_name]['single'],
                                                                          low_memory=low_mem))
                     else:
-                            raise ValueError('Either pair or single must be true for this test.')
+                        raise ValueError('Either pair or single must be true for this test.')
                     unique_scores[node_name] = group_score
                 else:
                     group_score = unique_scores[node_name]
@@ -278,14 +389,20 @@ class TestTrace(TestBase):
             rank_scores = weight * np.sum(group_scores, axis=0)
             if metric == 'identity':
                 rank_scores = rank_scores > 0 * 1
-            diff_rank = load_numpy_array(trace_obj.rank_scores[rank], low_memory=low_mem) - rank_scores
+            if single:
+                curr_rank = load_numpy_array(trace_obj.rank_scores[rank]['single_ranks'], low_memory=low_mem)
+            elif pair:
+                curr_rank = load_numpy_array(trace_obj.rank_scores[rank]['pair_ranks'], low_memory=low_mem)
+            else:
+                raise ValueError('Either pair or single must be true for this test.')
+            diff_rank = curr_rank - rank_scores
             not_passing_rank = diff_rank > 1E-12
             if not_passing_rank.any():
-                print(trace_obj.rank_scores[rank])
+                print(curr_rank)
                 print(rank_scores)
                 print(diff_rank)
                 indices_rank = np.nonzero(not_passing_rank)
-                print(trace_obj.rank_scores[rank][indices_rank])
+                print(curr_rank[indices_rank])
                 print(rank_scores[indices_rank])
                 print(diff_rank[indices_rank])
             self.assertFalse(not_passing_rank.any())
@@ -301,49 +418,6 @@ class TestTrace(TestBase):
             print(expected_ranks[indices])
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
-        # Simple check against ranking and coverage is to find the min and max values
-        if scorer.rank_type == 'min':
-            min_score = np.min(score_array)
-            min_mask = score_array == min_score
-            min_rank = np.min(rank_array)
-            rank_mask = rank_array == min_rank
-            diff_min_ranks = min_mask - rank_mask
-            self.assertFalse(diff_min_ranks.any())
-            max_coverage = np.max(coverage_array)
-            cov_mask = coverage_array == max_coverage
-            diff_max_cov = min_mask - cov_mask
-            self.assertFalse(diff_max_cov.any())
-            max_score = np.max(score_array)
-            max_mask = score_array == max_score
-            max_rank = np.max(rank_array)
-            rank_mask2 = rank_array == max_rank
-            diff_max_ranks = max_mask - rank_mask2
-            self.assertFalse(diff_max_ranks.any())
-            min_coverage = np.min(coverage_array)
-            cov_mask2 = coverage_array == min_coverage
-            diff_min_cov = max_mask - cov_mask2
-            self.assertFalse(diff_min_cov.any())
-        else:
-            max_score = np.max(score_array)
-            max_mask = score_array == max_score
-            max_rank = np.max(rank_array)
-            rank_mask = rank_array == max_rank
-            diff_max_ranks = max_mask - rank_mask
-            self.assertFalse(diff_max_ranks.any())
-            min_coverage = np.min(coverage_array)
-            cov_mask = coverage_array == min_coverage
-            diff_min_cov = max_mask - cov_mask
-            self.assertFalse(diff_min_cov.any())
-            min_score = np.min(score_array)
-            min_mask = score_array == min_score
-            min_rank = np.min(rank_array)
-            rank_mask2 = rank_array == min_rank
-            diff_min_ranks = min_mask - rank_mask2
-            self.assertFalse(diff_min_ranks.any())
-            max_coverage = np.max(coverage_array)
-            cov_mask2 = coverage_array == max_coverage
-            diff_max_cov = min_mask - cov_mask2
-            self.assertFalse(diff_max_cov.any())
 
     def test3a_trace(self):
         # Perform identity trace on single positions only for the small alignment (all ranks)
@@ -398,7 +472,8 @@ class TestTrace(TestBase):
             print(diff_ranks[indices])
         self.assertFalse(diff_ranks.any())
         diff_coverage = coverage_ids - et_mip_obj.coverage
-        if diff_coverage.any():
+        not_passing = np.abs(diff_coverage) > 1e-2
+        if not_passing.any():
             print(coverage_ids)
             print(et_mip_obj.coverage)
             print(diff_coverage)
@@ -406,6 +481,19 @@ class TestTrace(TestBase):
             print(coverage_ids[indices])
             print(et_mip_obj.coverage[indices])
             print(diff_coverage[indices])
+        self.assertFalse(not_passing.any())
+        rounded_coverages = np.round(coverage_ids, decimals=3)
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        not_passing2 = diff_coverages2 > 1E-15
+        if not_passing2.any():
+            print(rounded_coverages)
+            print(et_mip_obj.coverage)
+            print(diff_coverages2)
+            indices = np.nonzero(not_passing2)
+            print(rounded_coverages[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverages2[indices])
+        self.assertFalse(not_passing2.any())
 
     def test3e_trace(self):
         # Compare the results of identity trace over single positions between this implementation and the WETC
@@ -522,17 +610,18 @@ class TestTrace(TestBase):
             print(et_mip_obj.coverage[indices])
             print(diff_coverage[indices])
         self.assertFalse(not_passing.any())
-        rounded_coverages = np.round(coverage_entropies, decimals=2)
+        rounded_coverages = np.round(coverage_entropies, decimals=3)
         diff_coverages2 = rounded_coverages - et_mip_obj.coverage
-        if diff_coverages2.any():
+        not_passing2 = diff_coverages2 > 1E-15
+        if not_passing2.any():
             print(rounded_coverages)
-            print(et_mip_obj.coverages)
+            print(et_mip_obj.coverage)
             print(diff_coverages2)
-            indices = np.nonzero(diff_coverages2)
+            indices = np.nonzero(not_passing2)
             print(rounded_coverages[indices])
-            print(et_mip_obj.coverages[indices])
+            print(et_mip_obj.coverage[indices])
             print(diff_coverages2[indices])
-        self.assertFalse(diff_coverages2.any())
+        self.assertFalse(not_passing2.any())
 
     def test4e_trace(self):
         # Compare the results of plain entropy trace over single positions between this implementation and the WETC
@@ -672,6 +761,42 @@ class TestTrace(TestBase):
                             metric='average_product_corrected_mutual_information',
                             low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
+    def test8a_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test8b_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test8c_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test8d_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
     def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
         if not os.path.isdir(wetc_test_dir):
@@ -727,38 +852,28 @@ class TestTrace(TestBase):
             print(diff_ranks2[indices])
         self.assertFalse(not_passing_rounded.any())
         diff_coverages = coverage_mips - et_mip_obj.coverage
-        not_passing = np.abs(diff_coverages) > 1e-3
+        not_passing = np.abs(diff_coverages) > 1.7e-3
         if not_passing.any():
             print(coverage_mips)
             print(et_mip_obj.coverage)
             print(diff_coverages)
             indices = np.nonzero(not_passing)
-            print(coverage_mips[indices])
-            print(et_mip_obj.coverage[indices])
-            print(diff_coverages[indices])
-            print(coverage_mips[indices][0])
-            print(et_mip_obj.coverage[indices][0])
-            print(diff_coverages[indices][0])
+            for i in range(len(indices[0])):
+                print(indices[0][i], indices[1][i], et_mip_obj.coverage[indices[0][i], indices[1][i]],
+                      coverage_mips[indices[0][i], indices[1][i]], diff_coverages[indices[0][i], indices[1][i]],
+                      1e-2, np.abs(diff_coverages[indices[0][i], indices[1][i]]) > 1e-2)
+            print(score_mips[indices])
+            print(rank_mips[indices])
+            print(np.sum(not_passing))
+            print(np.nonzero(not_passing))
         self.assertFalse(not_passing.any())
-        rounded_coverages = np.round(coverage_mips, decimals=3)
-        diff_ranks2 = rounded_coverages - et_mip_obj.coverage
-        not_passing_rounded = np.abs(diff_ranks2) > 1e-15
-        if not_passing_rounded.any():
-            print(rounded_coverages)
-            print(et_mip_obj.coverage)
-            print(diff_ranks2)
-            indices = np.nonzero(not_passing_rounded)
-            print(rounded_coverages[indices])
-            print(et_mip_obj.coverage[indices])
-            print(diff_ranks2[indices])
-        self.assertFalse(not_passing_rounded.any())
 
-    def test7e_trace(self):
+    def test8e_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
         # implementation and the WETC implementation for the small alignment.
         self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
 
-    def test7f_trace(self):
+    def test8f_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
         # implementation and the WETC implementation for the large alignment.
         self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
@@ -859,25 +974,25 @@ class TestTrace(TestBase):
                 self.assertIsNone(frequency_tables[node_name]['pair'])
         rmtree(unique_dir)
 
-    def test8a_characterize_rank_groups_initialize_characterization_pool(self):
+    def test9a_characterize_rank_groups_initialize_characterization_pool(self):
         # Test pool initialization function and mappable function (minimal example) for characterization, small aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
             out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
 
-    def test8b_characterize_rank_groups_initialize_characterization_pool(self):
+    def test9b_characterize_rank_groups_initialize_characterization_pool(self):
         # Test pool initialization function and mappable function (minimal example) for characterization, small aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
             out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
 
-    def test8c_characterize_rank_groups_initialize_characterization_pool(self):
+    def test9c_characterize_rank_groups_initialize_characterization_pool(self):
         # Test pool initialization function and mappable function (minimal example) for characterization, large aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
             out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
-    def test8d_characterize_rank_groups_initialize_characterization_pool(self):
+    def test9d_characterize_rank_groups_initialize_characterization_pool(self):
         # Test pool initialization function and mappable function (minimal example) for characterization, large aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
@@ -1018,7 +1133,7 @@ class TestTrace(TestBase):
                 self.assertIsNone(rank_dict[rank]['pair_ranks'])
         # rmtree(unique_dir)
 
-    def test9a_trace_pool_functions(self):
+    def test10a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
         # and the identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1026,7 +1141,7 @@ class TestTrace(TestBase):
             pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test9b_trace_pool_functions(self):
+    def test10b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
         # and the identity metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1034,7 +1149,7 @@ class TestTrace(TestBase):
             single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test9c_trace_pool_functions(self):
+    def test10c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
         # and identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1042,7 +1157,7 @@ class TestTrace(TestBase):
             pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test9d_trace_pool_functions(self):
+    def test10d_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
         # and identity metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1050,7 +1165,7 @@ class TestTrace(TestBase):
             single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test9e_trace_pool_functions(self):
+    def test10e_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1058,7 +1173,7 @@ class TestTrace(TestBase):
             pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test9f_trace_pool_functions(self):
+    def test10f_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the identity metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1066,7 +1181,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test9g_trace_pool_functions(self):
+    def test10g_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and identity metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1074,7 +1189,7 @@ class TestTrace(TestBase):
             pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test9h_trace_pool_functions(self):
+    def test10h_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and identity metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1082,7 +1197,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test10a_trace_pool_functions(self):
+    def test11a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
         # and the plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1090,7 +1205,7 @@ class TestTrace(TestBase):
             pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test10b_trace_pool_functions(self):
+    def test11b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
         # and the plain entropy metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1098,7 +1213,7 @@ class TestTrace(TestBase):
             single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test10c_trace_pool_functions(self):
+    def test11c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
         # and plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1106,7 +1221,7 @@ class TestTrace(TestBase):
             pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test10d_trace_pool_functions(self):
+    def test11d_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
         # and plain entropy metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1114,7 +1229,7 @@ class TestTrace(TestBase):
             single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test10e_trace_pool_functions(self):
+    def test11e_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1122,7 +1237,7 @@ class TestTrace(TestBase):
             pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test10f_trace_pool_functions(self):
+    def test11f_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the plain entropy metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1130,7 +1245,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test10g_trace_pool_functions(self):
+    def test11g_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and plain entropy metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1138,7 +1253,7 @@ class TestTrace(TestBase):
             pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test10h_trace_pool_functions(self):
+    def test11h_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and plain entropy metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1146,7 +1261,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test11a_trace_pool_functions(self):
+    def test12a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1154,7 +1269,7 @@ class TestTrace(TestBase):
             pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test11b_trace_pool_functions(self):
+    def test12b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the mutual information metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1162,7 +1277,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test11c_trace_pool_functions(self):
+    def test12c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1170,7 +1285,7 @@ class TestTrace(TestBase):
             pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
             write_out_freq_table=False)
 
-    def test11d_trace_pool_functions(self):
+    def test12d_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and mutual information metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1178,7 +1293,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test12a_trace_pool_functions(self):
+    def test13a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the normalized mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1186,7 +1301,7 @@ class TestTrace(TestBase):
             pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_small_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test12b_trace_pool_functions(self):
+    def test13b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the normalized mutual information metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1194,7 +1309,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test12c_trace_pool_functions(self):
+    def test13c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and normalized mutual information metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1202,7 +1317,7 @@ class TestTrace(TestBase):
             pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_large_dir,
             write_out_aln=False, write_out_freq_table=False)
 
-    def test12d_trace_pool_functions(self):
+    def test13d_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and normalized mutual information metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1210,7 +1325,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13a_trace_pool_functions(self):
+    def test14a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1218,7 +1333,7 @@ class TestTrace(TestBase):
             pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13b_trace_pool_functions(self):
+    def test14b_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
         # and the average product corrected mutual information (MIp) metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1226,7 +1341,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13c_trace_pool_functions(self):
+    def test14c_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1234,7 +1349,7 @@ class TestTrace(TestBase):
             pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13d_trace_pool_functions(self):
+    def test14d_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1242,7 +1357,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13e_trace_pool_functions(self):
+    def test14e_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1250,7 +1365,7 @@ class TestTrace(TestBase):
             pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13f_trace_pool_functions(self):
+    def test14f_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1258,7 +1373,7 @@ class TestTrace(TestBase):
             single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13g_trace_pool_functions(self):
+    def test14g_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions_identity_metric(
@@ -1266,7 +1381,7 @@ class TestTrace(TestBase):
             pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
-    def test13h_trace_pool_functions(self):
+    def test14h_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
         # and average product corrected mutual information (MIp) metric (custom ranks)
         self.evaluate_trace_pool_functions_identity_metric(
