@@ -125,6 +125,8 @@ class PositionalScorer(object):
         """
         scoring_functions = {'integer': rank_integer_value_score, 'real': rank_real_value_score}
         scores = scoring_functions[self.metric_type](score_tensor, rank)
+        if self.position_size == 2:
+            scores = np.triu(scores, k=1)
         return scores
 
 

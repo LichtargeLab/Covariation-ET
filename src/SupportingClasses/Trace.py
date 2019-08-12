@@ -218,10 +218,16 @@ class Trace(object):
                 rank_scores = self.rank_scores[rank]['single_ranks']
             else:
                 raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
+            # print(rank_scores)
             rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
+            # print(rank_scores.shape)
+            # print(rank_scores[(np.array(range(self.aln.seq_length)), np.array(range(self.aln.seq_length)))])
             final_scores += rank_scores
         if scorer.rank_type == 'min':
-            final_scores += 1
+            if scorer.position_size == 1:
+                final_scores += 1
+            elif scorer.position_size == 2:
+                final_scores += np.triu(np.ones((self.aln.seq_length, self.aln.seq_length)), k=1)
         rank_time = time()
         print('Rank processing completed in {} min'.format((rank_time - group_time) / 60.0))
         # Perform gap correction, if a column gap content threshold has been set.
@@ -243,28 +249,51 @@ class Trace(object):
             gap_time = time()
             print('Gap correction completed in {} min'.format((gap_time - rank_time) / 60.0))
         self.final_scores = final_scores
-        if scorer.position_size == 1:
-            indices = range(self.aln.seq_length)
-            normalization = self.aln.seq_length
-            to_rank = final_scores
-            self.final_coverage = np.zeros(self.aln.seq_length)
-        elif scorer.position_size == 2:
-            indices = np.triu_indices(self.aln.seq_length, k=1)
-            normalization = len(indices[0])
-            to_rank = final_scores[indices]
-            self.final_coverage = np.zeros((self.aln.seq_length, self.aln.seq_length))
-        else:
-            raise ValueError('Final scoring not supported for position sizes other than 1 or 2, {} provided'.format(
-                scorer.position_size))
-        if scorer.rank_type == 'min':
-            to_rank = -1 * to_rank
-        self.final_ranks = rankdata(to_rank, method='max') - 1
-        self.final_coverage[indices] = self.final_ranks
-        self.final_coverage *= 100
-        self.final_coverage /= normalization
+        self.final_ranks, self.final_coverage = self._compute_rank_and_coverage(
+            scores=self.final_scores, pos_size=scorer.position_size, rank_type=scorer.rank_type)
         end = time()
         print('Trace of with {} metric took: {} min'.format(scorer.metric, (end - start) / 60.0))
         return self.final_ranks, self.final_scores, self.final_coverage
+
+    def _compute_rank_and_coverage(self, scores, pos_size, rank_type):
+        """
+        Compute Rank and Coverage
+
+        This function generates rank and coverage values for a set of scores.
+
+        Args:
+            scores (np.array): A set of scores to rank and compute coverage for.
+            pos_size (int): The dimensionality of the array (whether single, 1, positions or pair, 2, positions are
+            being characterized).
+            rank_type (str): Whether the optimal value of a set of scores is its 'max' or its 'min'.
+        Returns:
+            np.array: An array of ranks for the set of scores.
+            np.array: An array of coverage scores (what percentile of values are at or below the given score).
+        """
+        if rank_type == 'max':
+            weight = -1.0
+        elif rank_type == 'min':
+            weight = 1.0
+        else:
+            raise ValueError('No support for rank types other than max or min, {} provided'.format(rank_type))
+        if pos_size == 1:
+            indices = range(self.aln.seq_length)
+            normalization = float(self.aln.seq_length)
+            to_rank = scores * weight
+            ranks = np.zeros(self.aln.seq_length)
+            coverages = np.zeros(self.aln.seq_length)
+        elif pos_size == 2:
+            indices = np.triu_indices(self.aln.seq_length, k=1)
+            normalization = float(len(indices[0]))
+            to_rank = scores[indices] * weight
+            ranks = np.zeros((self.aln.seq_length, self.aln.seq_length))
+            coverages = np.zeros((self.aln.seq_length, self.aln.seq_length))
+        else:
+            raise ValueError('Ranking not supported for position sizes other than 1 or 2, {} provided'.format(pos_size))
+        ranks[indices] = rankdata(to_rank, method='dense')
+        coverages[indices] = rankdata(to_rank, method='max')
+        coverages /= normalization
+        return ranks, coverages
 
 
 def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
@@ -891,6 +920,7 @@ def trace_ranks(processor):
                 single_rank_scores = None
             if pair:
                 pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
+                # print(pair_rank_scores[range(pair_rank_scores.shape[0]), range(pair_rank_scores.shape[0])])
                 pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
                                                     node_name=rank, pos_type='pair', score_type='rank',
                                                     metric=pos_scorer.metric)

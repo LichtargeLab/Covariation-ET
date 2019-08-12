@@ -136,6 +136,16 @@ class TestPositionalScorer(TestBase):
         self.assertEqual(pos_scorer.metric_type, 'real')
         self.assertEqual(pos_scorer.rank_type, 'max')
 
+    def test1i_init(self):
+        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
+                                      metric='filtered_average_product_corrected_mutual_information')
+        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
+        self.assertEqual(pos_scorer.position_size, 2)
+        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
+        self.assertEqual(pos_scorer.metric, 'filtered_average_product_corrected_mutual_information')
+        self.assertEqual(pos_scorer.metric_type, 'real')
+        self.assertEqual(pos_scorer.rank_type, 'max')
+
     def evaluate_score_group_ambiguous(self, node_dict, metric):
         pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
         dim_single = (self.seq_len,)
@@ -303,6 +313,7 @@ class TestPositionalScorer(TestBase):
                 expected_rank_score_pair = rank_integer_value_score(score_matrix=group_scores_pair, rank=rank)
             else:
                 expected_rank_score_pair = rank_real_value_score(score_matrix=group_scores_pair, rank=rank)
+            expected_rank_score_pair = np.triu(expected_rank_score_pair, k=1)
             rank_score_pair = pos_scorer_pair.score_rank(score_tensor=group_scores_pair, rank=rank)
             diff_pair = rank_score_pair - expected_rank_score_pair
             self.assertTrue(not diff_pair.any())
