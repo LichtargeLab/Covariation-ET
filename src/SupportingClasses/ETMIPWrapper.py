@@ -174,7 +174,8 @@ class ETMIPWrapper(object):
         file_path2 = os.path.join(out_dir, '{}.id_dist.tsv'.format(prefix))
         file_path3 = os.path.join(out_dir, '{}.debug.tsv'.format(prefix))
         if not os.path.isfile(file_path1) or not os.path.isfile(file_path2) or not os.path.isfile(file_path3):
-            raise ValueError('Provided directory does not contain expected distance files!')
+            raise ValueError('Provided directory does not contain expected distance files!\n{}\n{}\n{}'.format(
+                file_path1, file_path2, file_path3))
         aln_dist_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         id_dist_df = pd.read_csv(file_path2, sep='\t', header=0, index_col=0)
         intermediate_df = pd.read_csv(file_path3, sep='\t', header=0, index_col=False, comment='%')
@@ -182,7 +183,7 @@ class ETMIPWrapper(object):
         self.distance_matrix = convert_array_to_distance_matrix(array_data, list(aln_dist_df.columns))
         return aln_dist_df, id_dist_df, intermediate_df
 
-    def import_phylogenetic_tree(self, out_dir, file_name='etc_out.nhx'):
+    def import_phylogenetic_tree(self, out_dir, prefix='etc_out'):
         """
         Import Phylogenetic Tree
 
@@ -190,18 +191,21 @@ class ETMIPWrapper(object):
 
         Args:
             out_dir (str): The path to the directory where the ETC tree has been written.
-            file_name (str): The name of the nhx tree to import.
+            prefix (str): The file prefix to prepend to the nhx tree file (WETC -o option).
         """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, file_name)
+        file_path1 = os.path.join(out_dir, '{}.nhx'.format(prefix))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected distance files!')
         tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': file_path1})
         if self.distance_matrix is None:
+            print('DM IS NONE')
             try:
-                self.import_distance_matrices(out_dir=out_dir)
+                print('IMPORTING DM')
+                self.import_distance_matrices(prefix=prefix, out_dir=out_dir)
             except ValueError:
+                print('FAILED TO IMPORT DM')
                 self.distance_matrix = DistanceMatrix(names=self.alignment.seq_order)
         tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
@@ -520,7 +524,7 @@ class ETMIPWrapper(object):
             self.coverage = loaded_data['coverage']
             self.time = loaded_data['time']
             with open(serialized_path2, 'rb') as handle:
-                self.tree, self.rank_group_assignments = pickle.load(handle)
+                self.distance_matrix, self.tree, self.rank_group_assignments = pickle.load(handle)
         else:
             self.check_alignment(target_dir=out_dir)
             binary_path = os.environ.get('WETC_PATH')
@@ -547,14 +551,18 @@ class ETMIPWrapper(object):
             print('Error:')
             print(error)
             os.chdir(current_dir)
-            self.import_phylogenetic_tree(file_name='{}.nhx'.format(prefix), out_dir=out_dir)
-            self.rank_group_assignments = self.tree.assign_group_rank()
+            self.import_phylogenetic_tree(prefix=prefix, out_dir=out_dir)
+            try:
+                self.rank_group_assignments = self.import_assignments(out_dir=out_dir)
+            except ValueError:
+                self.rank_group_assignments = self.tree.assign_group_rank()
             self.import_scores(prefix=prefix, out_dir=out_dir, method=method)
             if delete_files:
                 self.remove_ouptut(out_dir=out_dir)
             np.savez(serialized_path1, time=self.time, scores=self.scores, coverage=self.coverage)
             with open(serialized_path2, 'wb') as handle:
-                pickle.dump((self.tree, self.rank_group_assignments), handle, pickle.HIGHEST_PROTOCOL)
+                pickle.dump((self.distance_matrix, self.tree, self.rank_group_assignments), handle,
+                            pickle.HIGHEST_PROTOCOL)
         print(self.time)
         return self.time
 
