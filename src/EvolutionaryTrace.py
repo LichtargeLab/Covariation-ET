@@ -7,6 +7,7 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
+import cPickle as pickle
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table
 from SupportingClasses.SeqAlignment import SeqAlignment
@@ -145,19 +146,27 @@ class EvolutionaryTrace(object):
         out the output directory. A second alignment is then created with all columns which are gaps in the query
         sequence removed, and if specified this is written to the output directory as well.
         """
-        if not os.path.isfile(self.original_aln_fn):
-            raise ValueError('Provided alignment path is not valid: {}'.format(self.original_aln_fn))
-        self.original_aln = SeqAlignment(file_name=self.original_aln_fn, query_id=self.query_id,
-                                         polymer_type=self.polymer_type)
-        self.original_aln.import_alignment()
-        aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
-        if 'original_aln' in self.output_files:
-            self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
-                aln_base_name)))
-        self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
-        self.non_gapped_aln = self.original_aln.remove_gaps()
-        if 'non-gap_aln' in self.output_files:
-            self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
+        serial_fn = '{}_alignments.pkl'.format(self.query_id)
+        if os.path.isfile(serial_fn):
+            with open(serial_fn, 'rb') as handle:
+                self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(hanlde)
+        else:
+            if not os.path.isfile(self.original_aln_fn):
+                raise ValueError('Provided alignment path is not valid: {}'.format(self.original_aln_fn))
+            self.original_aln = SeqAlignment(file_name=self.original_aln_fn, query_id=self.query_id,
+                                             polymer_type=self.polymer_type)
+            self.original_aln.import_alignment()
+            aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
+            if 'original_aln' in self.output_files:
+                self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
+                    aln_base_name)))
+            self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
+            self.non_gapped_aln = self.original_aln.remove_gaps()
+            if 'non-gap_aln' in self.output_files:
+                self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
+            with open(serial_fn, 'wb') as handle:
+                pickle.dump((self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln), handle,
+                            protocol=pickle.HIGHEST_PROTOCOL)
 
     def compute_distance_matrix_tree_and_assignments(self):
         """
@@ -169,20 +178,28 @@ class EvolutionaryTrace(object):
         the tree is written to the output directory (in Newick/nhx format). Finally, nodes from the tree are assigned to
         ranks and groups.
         """
-        calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'), model=self.distance_model,
-                                                 skip_letters=None)
-        if self.et_distance:
-            self.distance_matrix = calculator.get_et_distance(self.original_aln.alignment)
+        serial_fn = '{}_{}{}_Dist_{}_Tree.pkl'.format(self.query_id, ('ET_' if self.et_distance else ''),
+                                                      self.distance_model, self.tree_building_method)
+        if os.path.isfile(serial_fn):
+            with open(serial_fn, 'rb') as handle:
+                self.distance_matrix, self.phylo_tree, self.assignments = pickle.load(handle)
         else:
-            self.distance_matrix = calculator.get_distance(self.original_aln.alignment)
-        self.phylo_tree = PhylogeneticTree(tree_building_method=self.tree_building_method,
-                                           tree_building_args=self.tree_building_options)
-        self.phylo_tree.construct_tree(dm=self.distance_matrix)
-        self.phylo_tree.rename_internal_nodes()
-        self.phylo_tree_fn = os.path.join(self.out_dir, 'tree.nhx')
-        if 'tree' in self.output_files:
-            self.phylo_tree.write_out_tree(filename=self.phylo_tree_fn)
-        self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
+            calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'), model=self.distance_model,
+                                                     skip_letters=None)
+            if self.et_distance:
+                _, self.distance_matrix, _, _ = calculator.get_et_distance(self.original_aln.alignment)
+            else:
+                self.distance_matrix = calculator.get_distance(self.original_aln.alignment)
+            self.phylo_tree = PhylogeneticTree(tree_building_method=self.tree_building_method,
+                                               tree_building_args=self.tree_building_options)
+            self.phylo_tree.construct_tree(dm=self.distance_matrix)
+            self.phylo_tree.rename_internal_nodes()
+            self.phylo_tree_fn = os.path.join(self.out_dir, 'tree.nhx')
+            if 'tree' in self.output_files:
+                self.phylo_tree.write_out_tree(filename=self.phylo_tree_fn)
+            self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
+            with open(serial_fn, 'wb') as handle:
+                pickle.dump((self.distance_matrix, self.phylo_tree, self.assignments), handle, pickle.HIGHEST_PROTOCOL)
 
     def perform_trace(self):
         """
@@ -194,23 +211,44 @@ class EvolutionaryTrace(object):
         combined to compute a final rank score. The rank scores are combined to generate final scores which are then
         ranked and coverage scores are computed.
         """
-        self.trace = Trace(alignment=self.non_gapped_aln, phylo_tree=self.phylo_tree,
-                           group_assignments=self.assignments, position_specific=(self.position_type == 'Single'),
-                           pair_specific=(self.position_type == 'Pair'), output_dir=self.out_dir,
-                           low_memory=self.low_memory)
-        self.trace.characterize_rank_groups(processes=self.processors,
-                                            write_out_sub_aln='sub-alignments' in self.output_files,
-                                            write_out_freq_table='frequency_tables' in self.output_files)
-        self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
-                                       pos_size=(1 if self.position_type == 'Single' else 2),
-                                       metric=self.scoring_metric)
-        self.ranking, self.scores, self.coverage = self.trace.trace(scorer=self.scorer, processes=self.processors,
-                                                                    gap_correction=self.gap_correction)
+        serial_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.pkl'.format(
+            self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
+            ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
+        if os.path.isfile(serial_fn):
+            with open(serial_fn, 'rb') as handle:
+                self.trace, self.ranking, self.scores, self.coverage = pickle.load(handle)
+        else:
+            self.trace = Trace(alignment=self.non_gapped_aln, phylo_tree=self.phylo_tree,
+                               group_assignments=self.assignments, position_specific=(self.position_type == 'single'),
+                               pair_specific=(self.position_type == 'pair'), output_dir=self.out_dir,
+                               low_memory=self.low_memory)
+            self.trace.characterize_rank_groups(processes=self.processors,
+                                                write_out_sub_aln='sub-alignments' in self.output_files,
+                                                write_out_freq_table='frequency_tables' in self.output_files)
+            self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
+                                           pos_size=(1 if self.position_type == 'single' else 2),
+                                           metric=self.scoring_metric)
+            self.ranking, self.scores, self.coverage = self.trace.trace(scorer=self.scorer, processes=self.processors,
+                                                                        gap_correction=self.gap_correction)
+            with open(serial_fn, 'wb') as handle:
+                pickle.dump((self.trace, self.ranking, self.scores, self.coverage), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
         root_freq_table = self.trace.unique_nodes[root_node_name][self.position_type.lower()]
         root_freq_table = load_freq_table(freq_table=root_freq_table, low_memory=self.low_memory)
-        write_out_et_scores(file_name=".tsv", out_dir=self.out_dir, aln=self.non_gapped_aln, freq_table=root_freq_table,
-                            ranks=self.ranking, scores=self.scores, coverages=self.coverage)
+        # Generate descriptive file name
+        rank_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
+            self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
+            ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
+        # rank_fn = '{}_{}'.format(self.query_id, ('ET_' if self.et_distance else ''), )
+        # rank_fn += '{}_Dist_{}_Tree_'.format(self.distance_model, self.tree_building_method)
+        # if self.ranks is None:
+        #     rank_fn += 'All_Ranks_'
+        # else:
+        #     rank_fn += 'Custom_Ranks_'
+        # rank_fn += '{}_Scoring.ranks'.format(self.scoring_metric)
+        write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
+                            freq_table=root_freq_table, ranks=self.ranking, scores=self.scores, coverages=self.coverage,
+                            precision=3)
 
 
 def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3):
@@ -231,40 +269,51 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         if a real valued scoring metric was used).
     """
     scoring_dict = {'Variability_Count': [], 'Variability_Characters': [], 'Rank': [], 'Score': [], 'Coverage': []}
+    columns = []
     if freq_table.position_size == 1:
         scoring_dict['Position'] = []
         scoring_dict['Query'] = []
+        columns += ['Position', 'Query']
     elif freq_table.position_size == 2:
         scoring_dict['Position_i'] = []
         scoring_dict['Position_j'] = []
         scoring_dict['Query_i'] = []
         scoring_dict['Query_j'] = []
-        ranks = ranks[np.tril_indices(aln.seq_length, k=1)]
-        scores = scores[np.tril_indices(aln.seq_length, k=1)]
-        coverages = coverages[np.tril_indices(aln.seq_length, k=1)]
+        # ranks = ranks[np.tril_indices(aln.seq_length, k=1)]
+        # scores = scores[np.tril_indices(aln.seq_length, k=1)]
+        # coverages = coverages[np.tril_indices(aln.seq_length, k=1)]
+        columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
     else:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
+    columns += ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
     positions = freq_table.get_positions()
     for i in range(len(positions)):
         position = positions[i]
         if freq_table.position_size == 1:
-            scoring_dict['Position'].append(position)
+            scoring_dict['Position'].append(position + 1)
             scoring_dict['Query'].append(aln.query_sequence[positions[i]])
+            scoring_dict['Rank'].append(ranks[position])
+            scoring_dict['Score'].append(scores[position])
+            scoring_dict['Coverage'].append(coverages[position])
         else:
-            scoring_dict['Position_i'].append(position[0])
-            scoring_dict['Position_j'].append(position[1])
+            if position[0] == position[1]:
+                continue
+            scoring_dict['Position_i'].append(position[0] + 1)
+            scoring_dict['Position_j'].append(position[1] + 1)
             scoring_dict['Query_i'].append(aln.query_sequence[position[0]])
             scoring_dict['Query_j'].append(aln.query_sequence[position[1]])
+            scoring_dict['Rank'].append(ranks[position[0], position[1]])
+            scoring_dict['Score'].append(scores[position[0], position[1]])
+            scoring_dict['Coverage'].append(coverages[position[0], position[1]])
         chars = freq_table.get_chars(pos=position)
         scoring_dict['Variability_Count'].append(len(chars))
         scoring_dict['Variability_Characters'].append(','.join(chars))
-        scoring_dict['Rank'].append(ranks[i])
-        scoring_dict['Score'].append(scores[i])
-        scoring_dict['Coverage'].append(coverages[i])
     scoring_df = pd.DataFrame(scoring_dict)
     full_path = os.path.join(out_dir, file_name)
-    scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision))
+    print(columns)
+    scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
+		      columns=columns)
 
 
 def parse_args():
