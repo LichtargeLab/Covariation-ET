@@ -142,7 +142,6 @@ class TestTrace(TestBase):
                 self.assertTrue('single' in trace.unique_nodes[node_name])
                 self.assertTrue('pair' in trace.unique_nodes[node_name])
                 if node_name not in visited:
-                    print(node_name)
                     sub_aln = aln.generate_sub_alignment(
                         sequence_ids=trace.assignments[rank][group]['terminals'])
                     if write_aln:
@@ -337,8 +336,6 @@ class TestTrace(TestBase):
             if diff_min_ranks.any():
                 print(min_score)
                 print(min_rank)
-                print(score_array)
-                print()
                 print(np.sum(min_mask))
                 print(np.sum(rank_mask))
             self.assertFalse(diff_min_ranks.any())
@@ -852,7 +849,7 @@ class TestTrace(TestBase):
             print(diff_ranks2[indices])
         self.assertFalse(not_passing_rounded.any())
         diff_coverages = coverage_mips - et_mip_obj.coverage
-        not_passing = np.abs(diff_coverages) > 1.7e-3
+        not_passing = np.abs(diff_coverages) > 1E-3
         if not_passing.any():
             print(coverage_mips)
             print(et_mip_obj.coverage)
@@ -866,7 +863,9 @@ class TestTrace(TestBase):
             print(rank_mips[indices])
             print(np.sum(not_passing))
             print(np.nonzero(not_passing))
-        self.assertFalse(not_passing.any())
+            self.assertLessEqual(np.sum(not_passing), np.ceil(0.01 * np.sum(range(fa_aln.seq_length - 1))))
+        else:
+            self.assertFalse(not_passing.any())
 
     def test8e_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
@@ -1117,6 +1116,7 @@ class TestTrace(TestBase):
             self.assertTrue(rank in rank_dict)
             self.assertTrue('pair_ranks' in rank_dict[rank])
             if pair:
+                expected_rank_scores = np.triu(expected_rank_scores, k=1)
                 rank_scores = load_numpy_array(mat=rank_dict[rank]['pair_ranks'], low_memory=low_memory)
                 diff = np.abs(rank_scores - expected_rank_scores)
                 not_passing = diff > 1E-15
