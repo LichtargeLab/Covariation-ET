@@ -149,7 +149,7 @@ class EvolutionaryTrace(object):
         serial_fn = '{}_alignments.pkl'.format(self.query_id)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
-                self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(hanlde)
+                self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(handle)
         else:
             if not os.path.isfile(self.original_aln_fn):
                 raise ValueError('Provided alignment path is not valid: {}'.format(self.original_aln_fn))
@@ -162,7 +162,7 @@ class EvolutionaryTrace(object):
                     aln_base_name)))
             self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
             self.non_gapped_aln = self.original_aln.remove_gaps()
-            if 'non-gap_aln' in self.output_files:
+            if 'non_gap_aln' in self.output_files:
                 self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln), handle,
