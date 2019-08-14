@@ -146,7 +146,8 @@ class EvolutionaryTrace(object):
         out the output directory. A second alignment is then created with all columns which are gaps in the query
         sequence removed, and if specified this is written to the output directory as well.
         """
-        serial_fn = '{}_alignments.pkl'.format(self.query_id)
+        serial_fn = os.path.join(self.out_dir, '{}_alignments.pkl'.format(self.query_id))
+        aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
                 self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(handle)
@@ -156,17 +157,16 @@ class EvolutionaryTrace(object):
             self.original_aln = SeqAlignment(file_name=self.original_aln_fn, query_id=self.query_id,
                                              polymer_type=self.polymer_type)
             self.original_aln.import_alignment()
-            aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
-            if 'original_aln' in self.output_files:
-                self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
-                    aln_base_name)))
             self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
             self.non_gapped_aln = self.original_aln.remove_gaps()
-            if 'non_gap_aln' in self.output_files:
-                self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln), handle,
                             protocol=pickle.HIGHEST_PROTOCOL)
+        if 'original_aln' in self.output_files:
+            self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
+                aln_base_name)))
+        if 'non_gap_aln' in self.output_files:
+            self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
 
     def compute_distance_matrix_tree_and_assignments(self):
         """
@@ -180,9 +180,10 @@ class EvolutionaryTrace(object):
         """
         serial_fn = '{}_{}{}_Dist_{}_Tree.pkl'.format(self.query_id, ('ET_' if self.et_distance else ''),
                                                       self.distance_model, self.tree_building_method)
+        serial_fn = os.path.join(self.out_dir, serial_fn)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
-                self.distance_matrix, self.phylo_tree, self.assignments = pickle.load(handle)
+                self.distance_matrix, self.phylo_tree, self.phylo_tree_fn, self.assignments = pickle.load(handle)
         else:
             calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'), model=self.distance_model,
                                                      skip_letters=None)
@@ -194,12 +195,14 @@ class EvolutionaryTrace(object):
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
             self.phylo_tree.rename_internal_nodes()
-            self.phylo_tree_fn = os.path.join(self.out_dir, 'tree.nhx')
-            if 'tree' in self.output_files:
-                self.phylo_tree.write_out_tree(filename=self.phylo_tree_fn)
+            self.phylo_tree_fn = os.path.join(self.out_dir, '{}_{}{}_dist_{}_tree.nhx'.format(
+                self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
             with open(serial_fn, 'wb') as handle:
-                pickle.dump((self.distance_matrix, self.phylo_tree, self.assignments), handle, pickle.HIGHEST_PROTOCOL)
+                pickle.dump((self.distance_matrix, self.phylo_tree, self.phylo_tree_fn, self.assignments), handle,
+                            pickle.HIGHEST_PROTOCOL)
+        if 'tree' in self.output_files:
+            self.phylo_tree.write_out_tree(filename=self.phylo_tree_fn)
 
     def perform_trace(self):
         """
@@ -214,6 +217,7 @@ class EvolutionaryTrace(object):
         serial_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.pkl'.format(
             self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
+        serial_fn = os.path.join(self.out_dir, serial_fn)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
                 self.trace, self.ranking, self.scores, self.coverage = pickle.load(handle)
