@@ -622,6 +622,217 @@ class TestEvoultionaryTrace(TestBase):
             gap_correction=None, out_dir=self.out_large_dir, processors=1, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
-# Troubleshot EvolutionaryTrace class and its tests.
-#
-# All current test 1a-f, 2a-f, 3a-f, 4a-f pass. Should consider adding tests for each WETC command mirrored here to show that the overall method is as accurate (running end to end) as each component is.
+    def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='intET', delete_files=False)
+        et = EvolutionaryTrace(query_id=p_id, polymer_type='Protein', aln_fn=fa_aln.file_name, et_distance=True,
+                               distance_model='blosum62', tree_building_method='et', tree_building_options={},
+                               ranks=None, position_type='single', scoring_metric='identity', gap_correction=None,
+                               out_dir=wetc_test_dir, processors=self.max_threads, low_memory=low_mem,
+                               output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+        et.import_and_process_aln()
+        et.compute_distance_matrix_tree_and_assignments()
+        et.perform_trace()
+        diff_ranks = et.scores - et_mip_obj.scores
+        if diff_ranks.any():
+            print(et.scores)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(diff_ranks)
+            print(et.scores[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(diff_ranks.any())
+        diff_coverage = et.coverage - et_mip_obj.coverage
+        not_passing = np.abs(diff_coverage) > 1e-2
+        if not_passing.any():
+            print(et.coverage)
+            print(et_mip_obj.coverage)
+            print(diff_coverage)
+            indices = np.nonzero(diff_coverage)
+            print(et.coverage[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverage[indices])
+        self.assertFalse(not_passing.any())
+        rounded_coverages = np.round(et.coverage, decimals=3)
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        not_passing2 = diff_coverages2 > 1E-15
+        if not_passing2.any():
+            print(rounded_coverages)
+            print(et_mip_obj.coverage)
+            print(diff_coverages2)
+            indices = np.nonzero(not_passing2)
+            print(rounded_coverages[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverages2[indices])
+        self.assertFalse(not_passing2.any())
+
+    def test5a_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                            fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test5b_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                            fa_aln=self.query_aln_fa_large, low_mem=True)
+
+    def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='rvET', delete_files=False)
+        et = EvolutionaryTrace(query_id=p_id, polymer_type='Protein', aln_fn=fa_aln.file_name, et_distance=True,
+                               distance_model='blosum62', tree_building_method='et', tree_building_options={},
+                               ranks=None, position_type='single', scoring_metric='plain_entropy', gap_correction=0.6,
+                               out_dir=wetc_test_dir, processors=self.max_threads, low_memory=low_mem,
+                               output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+        et.import_and_process_aln()
+        et.compute_distance_matrix_tree_and_assignments()
+        et.perform_trace()
+        diff_ranks = et.scores - et_mip_obj.scores
+        not_passing = np.abs(diff_ranks) > 1e-2
+        if not_passing.any():
+            print(et.scores)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(diff_ranks)
+            print(et.scores[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(not_passing.any())
+        rounded_entropies = np.round(et.scores, decimals=2)
+        diff_ranks2 = rounded_entropies - et_mip_obj.scores
+        if diff_ranks2.any():
+            print(rounded_entropies)
+            print(et_mip_obj.scores)
+            print(diff_ranks2)
+            indices = np.nonzero(diff_ranks2)
+            print(rounded_entropies[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks2[indices])
+        self.assertFalse(diff_ranks2.any())
+        diff_coverage = et.coverage - et_mip_obj.coverage
+        not_passing = np.abs(diff_coverage) > 1e-2
+        if not_passing.any():
+            print(et.coverage)
+            print(et_mip_obj.coverage)
+            print(diff_coverage)
+            indices = np.nonzero(diff_coverage)
+            print(et.coverage[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverage[indices])
+        self.assertFalse(not_passing.any())
+        rounded_coverages = np.round(et.coverage, decimals=3)
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        not_passing2 = diff_coverages2 > 1E-15
+        if not_passing2.any():
+            print(rounded_coverages)
+            print(et_mip_obj.coverage)
+            print(diff_coverages2)
+            indices = np.nonzero(not_passing2)
+            print(rounded_coverages[indices])
+            print(et_mip_obj.coverage[indices])
+            print(diff_coverages2[indices])
+        self.assertFalse(not_passing2.any())
+
+    def test5c_trace(self):
+        # Compare the results of plain entropy trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                               fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test5d_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                               fa_aln=self.query_aln_fa_large, low_mem=True)
+
+    def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        filtered_fa_fn = os.path.join(wetc_test_dir, '{}_filtered_aln.fa'.format(p_id))
+        if os.path.isfile(filtered_fa_fn):
+            char_filtered_fa_aln = SeqAlignment(file_name=filtered_fa_fn, query_id=p_id)
+            char_filtered_fa_aln.import_alignment()
+        else:
+            curr_fa_aln = SeqAlignment(file_name=fa_aln.file_name, query_id=p_id)
+            curr_fa_aln.import_alignment()
+            curr_fa_aln.alphabet = Gapped(IUPACProtein())
+            char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
+            char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
+            char_filtered_fa_aln.file_name = filtered_fa_fn
+        et_mip_obj = ETMIPWrapper(alignment=char_filtered_fa_aln)
+        et_mip_obj.check_alignment(target_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='ET-MIp', delete_files=False)
+        gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
+        et = EvolutionaryTrace(query_id=p_id, polymer_type='Protein', aln_fn=filtered_fa_fn, et_distance=True,
+                               distance_model='blosum62', tree_building_method='et', tree_building_options={},
+                               ranks=None, position_type='pair', gap_correction=None, out_dir=wetc_test_dir,
+                               processors=self.max_threads, low_memory=low_mem,
+                               output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                               scoring_metric='filtered_average_product_corrected_mutual_information')
+        et.import_and_process_aln()
+        et.compute_distance_matrix_tree_and_assignments()
+        et.perform_trace()
+        diff_ranks = et.scores - et_mip_obj.scores
+        not_passing = np.abs(diff_ranks) > 1e-3
+        if not_passing.any():
+            print(et.scores)
+            print(et_mip_obj.scores)
+            print(diff_ranks)
+            indices = np.nonzero(not_passing)
+            print(et.scores[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks[indices])
+            print(et.scores[indices][0])
+            print(et_mip_obj.scores[indices][0])
+            print(diff_ranks[indices][0])
+        self.assertFalse(not_passing.any())
+        rounded_scores = np.round(et.scores, decimals=3)
+        diff_ranks2 = rounded_scores - et_mip_obj.scores
+        not_passing_rounded = np.abs(diff_ranks2) > 1e-15
+        if not_passing_rounded.any():
+            print(rounded_scores)
+            print(et_mip_obj.scores)
+            print(diff_ranks2)
+            indices = np.nonzero(not_passing_rounded)
+            print(rounded_scores[indices])
+            print(et_mip_obj.scores[indices])
+            print(diff_ranks2[indices])
+        self.assertFalse(not_passing_rounded.any())
+        diff_coverages = et.coverage - et_mip_obj.coverage
+        not_passing = np.abs(diff_coverages) > 1E-3
+        if not_passing.any():
+            print(et.coverage)
+            print(et_mip_obj.coverage)
+            print(diff_coverages)
+            indices = np.nonzero(not_passing)
+            for i in range(len(indices[0])):
+                print(indices[0][i], indices[1][i], et_mip_obj.coverage[indices[0][i], indices[1][i]],
+                      et.coverage[indices[0][i], indices[1][i]], diff_coverages[indices[0][i], indices[1][i]],
+                      1e-2, np.abs(diff_coverages[indices[0][i], indices[1][i]]) > 1e-2)
+            print(et.scores[indices])
+            print(et.ranking[indices])
+            print(np.sum(not_passing))
+            print(np.nonzero(not_passing))
+            self.assertLessEqual(np.sum(not_passing), np.ceil(0.01 * np.sum(range(fa_aln.seq_length - 1))))
+        else:
+            self.assertFalse(not_passing.any())
+
+    def test5e_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the small alignment.
+        self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test5f_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the large alignment.
+        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
