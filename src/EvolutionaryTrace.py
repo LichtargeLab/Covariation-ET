@@ -11,6 +11,7 @@ import cPickle as pickle
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table
 from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
@@ -272,17 +273,46 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         precision (int): The number of decimal places to write out for floating point values such coverages (and scores
         if a real valued scoring metric was used).
     """
-    scoring_dict = {'Variability_Count': [], 'Variability_Characters': [], 'Rank': [], 'Score': [], 'Coverage': []}
+
+    def single_pos_variability(df_row, frequency_table):
+        chars = freq_table.get_chars(pos=df_row['Position'] - 1)
+        df_row['Variability_Count'] = len(chars)
+        df_row['Variability_Characters'] = ','.join(chars)
+
+    def pair_pos_variability(df_row, frequency_table):
+        chars = freq_table.get_chars(pos=(df_row['Position_i'] - 1, df_row['Position_j'] - 1))
+        df_row['Variability_Count'] = len(chars)
+        df_row['Variability_Characters'] = ','.join(chars)
+
+    full_path = os.path.join(out_dir, file_name)
+    if os.path.isfile(full_path):
+        print('Evolutionary Trace analysis with the same parameters already saved to this location.')
+        return
+    from time import time
+    start = time()
+    scoring_dict = {}
     columns = []
     if freq_table.position_size == 1:
-        scoring_dict['Position'] = []
-        scoring_dict['Query'] = []
+        scoring_dict['Position'] = list(range(1, et.non_gapped_aln.seq_length + 1))
+        scoring_dict['Query'] = list(str(et.non_gapped_aln.query_sequence))
+        scoring_dict['Rank'] = list(et.ranking)
+        scoring_dict['Score'] = list(et.scores)
+        scoring_dict['Coverage'] = list(et.coverage)
         columns += ['Position', 'Query']
     elif freq_table.position_size == 2:
-        scoring_dict['Position_i'] = []
-        scoring_dict['Position_j'] = []
-        scoring_dict['Query_i'] = []
-        scoring_dict['Query_j'] = []
+        pos_i, pos_j, query_i, query_j = [], [], [], []
+        for x in range(1, et.non_gapped_aln.seq_length + 1):
+            pos_i += [x] * (et.non_gapped_aln.seq_length - x)
+            query_i += [et.non_gapped_aln.query_sequence[x - 1]] * (et.non_gapped_aln.seq_length - x)
+            pos_j += list(range(x + 1, et.non_gapped_aln.seq_length + 1))
+            query_j += list(et.non_gapped_aln.query_sequence[x:])
+        scoring_dict['Position_i'] = pos_i
+        scoring_dict['Position_j'] = pos_j
+        scoring_dict['Query_i'] = query_i
+        scoring_dict['Query_j'] = query_j
+        scoring_dict['Rank'] = list(et.ranking[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
+        scoring_dict['Score'] = list(et.scores[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
+        scoring_dict['Coverage'] = list(et.coverage[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
         # ranks = ranks[np.tril_indices(aln.seq_length, k=1)]
         # scores = scores[np.tril_indices(aln.seq_length, k=1)]
         # coverages = coverages[np.tril_indices(aln.seq_length, k=1)]
@@ -294,30 +324,40 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
     positions = freq_table.get_positions()
     for i in range(len(positions)):
         position = positions[i]
-        if freq_table.position_size == 1:
-            scoring_dict['Position'].append(position + 1)
-            scoring_dict['Query'].append(aln.query_sequence[positions[i]])
-            scoring_dict['Rank'].append(ranks[position])
-            scoring_dict['Score'].append(scores[position])
-            scoring_dict['Coverage'].append(coverages[position])
-        else:
-            if position[0] == position[1]:
-                continue
-            scoring_dict['Position_i'].append(position[0] + 1)
-            scoring_dict['Position_j'].append(position[1] + 1)
-            scoring_dict['Query_i'].append(aln.query_sequence[position[0]])
-            scoring_dict['Query_j'].append(aln.query_sequence[position[1]])
-            scoring_dict['Rank'].append(ranks[position[0], position[1]])
-            scoring_dict['Score'].append(scores[position[0], position[1]])
-            scoring_dict['Coverage'].append(coverages[position[0], position[1]])
-        chars = freq_table.get_chars(pos=position)
-        scoring_dict['Variability_Count'].append(len(chars))
-        scoring_dict['Variability_Characters'].append(','.join(chars))
+        # if freq_table.position_size == 1:
+            # scoring_dict['Position'].append(position + 1)
+            # scoring_dict['Query'].append(aln.query_sequence[positions[i]])
+            # scoring_dict['Rank'].append(ranks[position])
+            # scoring_dict['Score'].append(scores[position])
+            # scoring_dict['Coverage'].append(coverages[position])
+        # else:
+        #     if position[0] == position[1]:
+        #         continue
+            # scoring_dict['Position_i'].append(position[0] + 1)
+            # scoring_dict['Position_j'].append(position[1] + 1)
+            # scoring_dict['Query_i'].append(aln.query_sequence[position[0]])
+            # scoring_dict['Query_j'].append(aln.query_sequence[position[1]])
+            # scoring_dict['Rank'].append(ranks[position[0], position[1]])
+            # scoring_dict['Score'].append(scores[position[0], position[1]])
+            # scoring_dict['Coverage'].append(coverages[position[0], position[1]])
+        # if freq_table.position_size == 2:
+        #     if position[0] == position[1]:
+        #         continue
+        # chars = freq_table.get_chars(pos=position)
+        # scoring_dict['Variability_Count'].append(len(chars))
+        # scoring_dict['Variability_Characters'].append(','.join(chars))
+    for k, v in scoring_dict.items():
+        print('{}: {}'.format(k, len(v)))
+    print(et.non_gapped_aln.seq_length)
+    print(np.sum(range(et.non_gapped_aln.seq_length)))
+    print(np.sum(np.triu(et.ranking, k=1) > 0))
     scoring_df = pd.DataFrame(scoring_dict)
-    full_path = os.path.join(out_dir, file_name)
-    print(columns)
+    apply_func = single_pos_variability if freq_table.position_size == 1 else pair_pos_variability
+    scoring_df.apply(apply_func, args=(freq_table,), axis=1)
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
-		      columns=columns)
+                      columns=columns)
+    end = time()
+    print('Results written to file in {} min'.format((end - start) / 60.0))
 
 
 def parse_args():
@@ -425,8 +465,6 @@ def parse_args():
         arguments['tree_building_options'] = {}
         arguments['ranks'] = None
         arguments['output_files'] = 'default'
-        arguments['low_memory'] = False
-        arguments['processors'] = 1
         if arguments['preset'] == 'ET-MIp':
             arguments['position_type'] = 'pair'
             arguments['scoring_metric'] = 'filtered_average_product_corrected_mutual_information'
@@ -448,7 +486,7 @@ def parse_args():
         arguments['tree_building_options'] = {}
     # Process output files:
     if arguments['output_files'] == 'default':
-        arguments['output_files'] = {'original_aln', 'non-gap_aln', 'tree', 'scores'}
+        arguments['output_files'] = {'original_aln', 'non_gap_aln', 'tree', 'scores'}
     else:
         arguments['output_files'] = set(arguments['output_files'])
     return arguments

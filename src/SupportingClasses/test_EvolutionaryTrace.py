@@ -389,7 +389,7 @@ class TestEvoultionaryTrace(TestBase):
 
     def evaluate_write_out_et_scores(self, et, fn):
         self.assertTrue(os.path.isfile(fn))
-        et_df = pd.read_csv(fn, sep='\t', header=0, index_col=None)
+        et_df = pd.read_csv(fn, sep='\t', header=0, index_col=None, keep_default_na=False)
         self.assertTrue('Variability_Count' in et_df.columns)
         self.assertTrue('Variability_Characters' in et_df.columns)
         self.assertTrue('Rank' in et_df.columns)
@@ -437,6 +437,7 @@ class TestEvoultionaryTrace(TestBase):
                 expected_characters = root_freq_table.get_chars(pos=(pos_i, pos_j))
                 self.assertEqual(len(expected_characters),
                                  et_df.loc[ind, 'Variability_Count'])
+                # print(pos_i + 1, pos_j + 1, et_df.loc[ind, 'Variability_Characters'])
                 self.assertEqual(expected_characters,
                                  et_df.loc[ind, 'Variability_Characters'].split(','))
                 expected_rank = et.ranking[pos_i, pos_j]
