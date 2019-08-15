@@ -355,7 +355,6 @@ class PhylogeneticTree(object):
         len(self.tree.get_terminals) - 1
         """
         starting_node_pos = int(self.tree.root.name.strip('Inner'))
-        print('Starting Node Pos: {}'.format(starting_node_pos))
         if starting_node_pos == 1:
             return
         node_pattern = 'Inner{}'

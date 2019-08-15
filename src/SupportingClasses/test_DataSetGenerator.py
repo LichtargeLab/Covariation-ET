@@ -138,8 +138,6 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Seq_Fasta'], self.expected_seq_fn_small)
         self.assertTrue(os.path.isfile(self.expected_seq_fn_small))
         self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
-        print(test_generator.protein_data[self.small_structure_id]['BLAST'])
-        print(self.expected_blast_fn)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['BLAST'], self.expected_blast_fn)
 
         self.assertTrue(os.path.isfile(self.expected_blast_fn))

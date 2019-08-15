@@ -437,7 +437,6 @@ class TestEvoultionaryTrace(TestBase):
                 expected_characters = root_freq_table.get_chars(pos=(pos_i, pos_j))
                 self.assertEqual(len(expected_characters),
                                  et_df.loc[ind, 'Variability_Count'])
-                # print(pos_i + 1, pos_j + 1, et_df.loc[ind, 'Variability_Characters'])
                 self.assertEqual(expected_characters,
                                  et_df.loc[ind, 'Variability_Characters'].split(','))
                 expected_rank = et.ranking[pos_i, pos_j]

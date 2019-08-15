@@ -172,7 +172,6 @@ class Trace(object):
         manager = Manager()
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_queue = Queue(maxsize=(self.aln.size * 2) - 1 + processes)
-        # new
         visited = set([])
         for r in sorted(self.assignments.keys(), reverse=True):
             for g in self.assignments[r]:
@@ -218,10 +217,7 @@ class Trace(object):
                 rank_scores = self.rank_scores[rank]['single_ranks']
             else:
                 raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
-            # print(rank_scores)
             rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
-            # print(rank_scores.shape)
-            # print(rank_scores[(np.array(range(self.aln.seq_length)), np.array(range(self.aln.seq_length)))])
             final_scores += rank_scores
         if scorer.rank_type == 'min':
             if scorer.position_size == 1:
@@ -793,10 +789,7 @@ def trace_groups(processor):
                 single_group_score = None
             if pair:
                 pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
-                # innermost_start = time()
                 pair_group_score = pos_scorer.score_group(pair_freq_table)
-                # innermost_end = time()
-                # print('Group pair score took: {}'.format((innermost_end - innermost_start) / 60.0))
                 pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
                                                     node_name=node_name, pos_type='pair',
                                                     metric=pos_scorer.metric, score_type='group')
@@ -920,7 +913,6 @@ def trace_ranks(processor):
                 single_rank_scores = None
             if pair:
                 pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
-                # print(pair_rank_scores[range(pair_rank_scores.shape[0]), range(pair_rank_scores.shape[0])])
                 pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
                                                     node_name=rank, pos_type='pair', score_type='rank',
                                                     metric=pos_scorer.metric)

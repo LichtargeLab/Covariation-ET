@@ -296,7 +296,7 @@ class SeqAlignment(object):
         new_alignment.marked = deepcopy(self.marked)
         return new_alignment
 
-    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None):  # ,save_dir=None):
+    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None):
         """
         Compute Effective Alignment Size
 
@@ -309,7 +309,6 @@ class SeqAlignment(object):
             identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
             distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix): A precomputed identity distance matrix for this
             alignment.
-            save_dir (str): The path to a directory wheren a .npz file containing distances between sequences in the
             alignment can be saved. The file created will be <model>.npz.
         Returns:
             float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)

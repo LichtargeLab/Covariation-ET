@@ -1093,9 +1093,6 @@ class TestPhylogeneticTree(TestBase):
     #     # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
     #     self.validate_upgma_tree(tree=et_mip_obj.tree, dm=et_mip_obj.distance_matrix, verbose=True)
 
-########################################################################################################################
-########################################################################################################################
-
     def evaluate_rank(self, rank, dict1, dict2):
         # Logic for this test:
         # Iterate over the groups in both rank dictionaries, get their root node and terminal node lists, if the root

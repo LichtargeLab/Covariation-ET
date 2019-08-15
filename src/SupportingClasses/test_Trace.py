@@ -855,10 +855,6 @@ class TestTrace(TestBase):
             print(et_mip_obj.coverage)
             print(diff_coverages)
             indices = np.nonzero(not_passing)
-            for i in range(len(indices[0])):
-                print(indices[0][i], indices[1][i], et_mip_obj.coverage[indices[0][i], indices[1][i]],
-                      coverage_mips[indices[0][i], indices[1][i]], diff_coverages[indices[0][i], indices[1][i]],
-                      1e-2, np.abs(diff_coverages[indices[0][i], indices[1][i]]) > 1e-2)
             print(score_mips[indices])
             print(rank_mips[indices])
             print(np.sum(not_passing))
@@ -877,14 +873,11 @@ class TestTrace(TestBase):
         # implementation and the WETC implementation for the large alignment.
         self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
-    ####################################################################################################################
-
     def evaluate_characterize_rank_groups_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
                                                             write_sub_aln, write_freq_table):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
         if not os.path.isdir(unique_dir):
             os.makedirs(unique_dir)
-        # new
         single_alphabet = Gapped(aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
         pair_size = None
@@ -948,9 +941,6 @@ class TestTrace(TestBase):
                     single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
                 single_array = single_table.get_table().toarray()
                 single_diff = single_array - expected_single_array
-                # print(single_array)
-                # print(expected_single_array)
-                # print(single_diff)
                 self.assertFalse(single_diff.any())
                 if write_freq_table:
                     self.assertTrue(os.path.isfile(os.path.join(unique_dir,
@@ -997,8 +987,6 @@ class TestTrace(TestBase):
             single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
             out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
-    ####################################################################################################################
-
     def evaluate_trace_pool_functions_identity_metric(self, aln, phylo_tree, assign, single, pair, metric, low_memory,
                                                       out_dir, write_out_aln, write_out_freq_table):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
@@ -1034,8 +1022,6 @@ class TestTrace(TestBase):
                 single_scores = load_numpy_array(mat=group_dict[node_name]['single_scores'], low_memory=low_memory)
                 diff = single_scores - expected_scores
                 if diff.any():
-                    print(node_name)
-                    print(single_freq_table.get_frequency_matrix())
                     print(single_scores)
                     print(expected_scores)
                     print(diff)
@@ -1131,7 +1117,6 @@ class TestTrace(TestBase):
                 self.assertTrue(not not_passing.any())
             else:
                 self.assertIsNone(rank_dict[rank]['pair_ranks'])
-        # rmtree(unique_dir)
 
     def test10a_trace_pool_functions(self):
         # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,

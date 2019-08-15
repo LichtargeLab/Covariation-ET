@@ -57,7 +57,6 @@ class TestAlignmentDistanceCalculator(TestBase):
         expected_mapping['.'] = len(alpha.letters)
         expected_mapping['*'] = len(alpha.letters)
         self.assertEqual(identity_calc_current.mapping, expected_mapping)
-        print(identity_calc_current.scoring_matrix)
         expected_matrix = np.zeros((len(alpha.letters) + 2, len(alpha.letters) + 2))
         expected_matrix[range(len(alpha.letters) + 1), range(len(alpha.letters) + 1)] = 1
         diff = identity_calc_current.scoring_matrix - expected_matrix

@@ -305,7 +305,6 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
             pos_j += list(range(x + 1, et.non_gapped_aln.seq_length + 1))
             query_j += list(et.non_gapped_aln.query_sequence[x:])
             starting_index = off_diagonal_indices[-1] + 2
-        print(freq_table.get_table()[off_diagonal_indices, :].nonzero())
         scoring_dict['Position_i'] = pos_i
         scoring_dict['Position_j'] = pos_j
         scoring_dict['Query_i'] = query_i
@@ -466,7 +465,6 @@ def parse_args():
 if __name__ == "__main__":
     # Read input from the command line
     args = parse_args()
-    print(args)
     # Initialize EvolutionaryTrace object
     et = EvolutionaryTrace(query_id=args['query'], polymer_type=args['polymer_type'], aln_fn=args['alignment'],
                            et_distance=args['et_distance'], distance_model=args['distance_model'],

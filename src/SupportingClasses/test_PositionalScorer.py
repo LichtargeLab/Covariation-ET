@@ -63,7 +63,6 @@ class TestPositionalScorer(TestBase):
                                                             cls.terminals[parent.clades[1].name]['single'])
                 cls.first_parents[parent.name]['pair'] = (cls.terminals[parent.clades[0].name]['pair'] +
                                                           cls.terminals[parent.clades[1].name]['pair'])
-        #
         cls.seq_len = cls.query_aln_fa_small.seq_length
 
     def test1a_init(self):

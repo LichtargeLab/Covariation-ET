@@ -27,10 +27,7 @@ class TestPDBReference(TestBase):
         self.assertEqual(pdb1.file_name, self.data_set.protein_data[self.small_structure_id]['PDB'])
         self.assertIsInstance(pdb1.structure, Structure)
         self.assertTrue('A' in pdb1.chains)
-        print(pdb1.seq['A'])
-        print(self.data_set.protein_data[self.small_structure_id]['Sequence'])
         self.assertEqual(pdb1.seq['A'], str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
-        print('Size of pdb residue list: {}'.format(len(pdb1.pdb_residue_list['A'])))
         for i in range(1, self.data_set.protein_data[self.small_structure_id]['Length'] + 1):
             self.assertGreaterEqual(pdb1.pdb_residue_list['A'][i - 1], i)
         expected_dict = {pdb1.pdb_residue_list['A'][i]:
