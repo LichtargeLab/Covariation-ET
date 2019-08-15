@@ -7,6 +7,7 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
+from time import time
 import cPickle as pickle
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table
@@ -273,87 +274,57 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         precision (int): The number of decimal places to write out for floating point values such coverages (and scores
         if a real valued scoring metric was used).
     """
-
-    def single_pos_variability(df_row, frequency_table):
-        chars = freq_table.get_chars(pos=df_row['Position'] - 1)
-        df_row['Variability_Count'] = len(chars)
-        df_row['Variability_Characters'] = ','.join(chars)
-
-    def pair_pos_variability(df_row, frequency_table):
-        chars = freq_table.get_chars(pos=(df_row['Position_i'] - 1, df_row['Position_j'] - 1))
-        df_row['Variability_Count'] = len(chars)
-        df_row['Variability_Characters'] = ','.join(chars)
-
     full_path = os.path.join(out_dir, file_name)
     if os.path.isfile(full_path):
         print('Evolutionary Trace analysis with the same parameters already saved to this location.')
         return
-    from time import time
     start = time()
     scoring_dict = {}
     columns = []
     if freq_table.position_size == 1:
         scoring_dict['Position'] = list(range(1, et.non_gapped_aln.seq_length + 1))
         scoring_dict['Query'] = list(str(et.non_gapped_aln.query_sequence))
+        relevant_table = freq_table.get_table()
+        positions = relevant_table.nonzero()
+        scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
+        scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
+                                                            for x in positions[1][positions[0] == i]])
+                                                  for i in range(relevant_table.shape[0])]
         scoring_dict['Rank'] = list(et.ranking)
         scoring_dict['Score'] = list(et.scores)
         scoring_dict['Coverage'] = list(et.coverage)
         columns += ['Position', 'Query']
     elif freq_table.position_size == 2:
+        off_diagonal_indices = []
+        starting_index = 1
         pos_i, pos_j, query_i, query_j = [], [], [], []
         for x in range(1, et.non_gapped_aln.seq_length + 1):
+            off_diagonal_indices += list(range(starting_index, starting_index + (et.non_gapped_aln.seq_length - x)))
             pos_i += [x] * (et.non_gapped_aln.seq_length - x)
             query_i += [et.non_gapped_aln.query_sequence[x - 1]] * (et.non_gapped_aln.seq_length - x)
             pos_j += list(range(x + 1, et.non_gapped_aln.seq_length + 1))
             query_j += list(et.non_gapped_aln.query_sequence[x:])
+            starting_index = off_diagonal_indices[-1] + 2
+        print(freq_table.get_table()[off_diagonal_indices, :].nonzero())
         scoring_dict['Position_i'] = pos_i
         scoring_dict['Position_j'] = pos_j
         scoring_dict['Query_i'] = query_i
         scoring_dict['Query_j'] = query_j
+        relevant_table = freq_table.get_table()[off_diagonal_indices, :]
+        positions = relevant_table.nonzero()
+        scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
+        scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
+                                                            for x in positions[1][positions[0] == i]])
+                                                  for i in range(relevant_table.shape[0])]
         scoring_dict['Rank'] = list(et.ranking[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
         scoring_dict['Score'] = list(et.scores[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
         scoring_dict['Coverage'] = list(et.coverage[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
-        # ranks = ranks[np.tril_indices(aln.seq_length, k=1)]
-        # scores = scores[np.tril_indices(aln.seq_length, k=1)]
-        # coverages = coverages[np.tril_indices(aln.seq_length, k=1)]
         columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
     else:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
     columns += ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
-    positions = freq_table.get_positions()
-    for i in range(len(positions)):
-        position = positions[i]
-        # if freq_table.position_size == 1:
-            # scoring_dict['Position'].append(position + 1)
-            # scoring_dict['Query'].append(aln.query_sequence[positions[i]])
-            # scoring_dict['Rank'].append(ranks[position])
-            # scoring_dict['Score'].append(scores[position])
-            # scoring_dict['Coverage'].append(coverages[position])
-        # else:
-        #     if position[0] == position[1]:
-        #         continue
-            # scoring_dict['Position_i'].append(position[0] + 1)
-            # scoring_dict['Position_j'].append(position[1] + 1)
-            # scoring_dict['Query_i'].append(aln.query_sequence[position[0]])
-            # scoring_dict['Query_j'].append(aln.query_sequence[position[1]])
-            # scoring_dict['Rank'].append(ranks[position[0], position[1]])
-            # scoring_dict['Score'].append(scores[position[0], position[1]])
-            # scoring_dict['Coverage'].append(coverages[position[0], position[1]])
-        # if freq_table.position_size == 2:
-        #     if position[0] == position[1]:
-        #         continue
-        # chars = freq_table.get_chars(pos=position)
-        # scoring_dict['Variability_Count'].append(len(chars))
-        # scoring_dict['Variability_Characters'].append(','.join(chars))
-    for k, v in scoring_dict.items():
-        print('{}: {}'.format(k, len(v)))
-    print(et.non_gapped_aln.seq_length)
-    print(np.sum(range(et.non_gapped_aln.seq_length)))
-    print(np.sum(np.triu(et.ranking, k=1) > 0))
     scoring_df = pd.DataFrame(scoring_dict)
-    apply_func = single_pos_variability if freq_table.position_size == 1 else pair_pos_variability
-    scoring_df.apply(apply_func, args=(freq_table,), axis=1)
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                       columns=columns)
     end = time()
