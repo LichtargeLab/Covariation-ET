@@ -298,6 +298,7 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         off_diagonal_indices = []
         starting_index = 1
         pos_i, pos_j, query_i, query_j = [], [], [], []
+        inner1 = time()
         for x in range(1, et.non_gapped_aln.seq_length + 1):
             off_diagonal_indices += list(range(starting_index, starting_index + (et.non_gapped_aln.seq_length - x)))
             pos_i += [x] * (et.non_gapped_aln.seq_length - x)
@@ -305,28 +306,49 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
             pos_j += list(range(x + 1, et.non_gapped_aln.seq_length + 1))
             query_j += list(et.non_gapped_aln.query_sequence[x:])
             starting_index = off_diagonal_indices[-1] + 2
+        inner2 = time()
+        print('POSi, POSj, CHARi, CHARj TOOK: {} min'.format((inner2 - inner1)/60.0))
         scoring_dict['Position_i'] = pos_i
         scoring_dict['Position_j'] = pos_j
         scoring_dict['Query_i'] = query_i
         scoring_dict['Query_j'] = query_j
         relevant_table = freq_table.get_table()[off_diagonal_indices, :]
+        inner3 = time()
+        print('COUNT TABLE RETRIEVAL TOOK: {} min'.format((inner3 - inner2)/60.0))
         positions = relevant_table.nonzero()
+        inner4 = time()
+        print('TABLE NONZERO TOOK: {} min'.format((inner4 - inner3)/60.0))
         scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
+        inner5 = time()
+        print('VAR COUNT TOOK: {} min'.format((inner5 - inner4)/60.0))
         scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
                                                             for x in positions[1][positions[0] == i]])
                                                   for i in range(relevant_table.shape[0])]
+        inner6 = time()
+        print('VAR CHAR TOOK: {} min'.format((inner6 - inner5)))
         scoring_dict['Rank'] = list(et.ranking[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
+        inner7 = time()
+        print('RANK TOOK: {} min'.format((inner7 - inner6)/60.0))
         scoring_dict['Score'] = list(et.scores[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
+        inner8 = time()
+        print('SCORES TOOK: {} min'.format((inner8 - inner7) / 60.0))
         scoring_dict['Coverage'] = list(et.coverage[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
+        inner9 = time()
+        print('COVERAGE TOOK: {} min'.format((inner9 - inner8) / 60.0))
         columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
     else:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
     columns += ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+    inner10 = time()
+    print('BUILDING DICT TOOK: {} min'.format((inner10 - inner9)/60.0))
     scoring_df = pd.DataFrame(scoring_dict)
+    inner11 = time()
+    print('DF CONSTRUCTION TOOK: {} min'.format((inner11 - inner10)/60.0))
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                       columns=columns)
     end = time()
+    print('TO CSV TOOK: {} min'.format((end - inner11)/60.0))
     print('Results written to file in {} min'.format((end - start) / 60.0))
 
 
