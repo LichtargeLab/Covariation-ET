@@ -8,11 +8,13 @@ import numpy as np
 import pandas as pd
 from copy import deepcopy
 from Bio.Alphabet import Gapped
+from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import TestBase
-from test_PhylogeneticTree import TestPhylogeneticTree, compare_nodes
+from test_PhylogeneticTree import compare_nodes
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
 from ETMIPWrapper import ETMIPWrapper
+from FrequencyTable import FrequencyTable
 from PhylogeneticTree import PhylogeneticTree
 from PositionalScorer import PositionalScorer
 from Trace import Trace, load_freq_table, load_numpy_array

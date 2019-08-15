@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from time import time
 import cPickle as pickle
+from multiprocessing import Pool
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table
 from SupportingClasses.SeqAlignment import SeqAlignment
@@ -245,19 +246,44 @@ class EvolutionaryTrace(object):
         rank_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
             self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
-        # rank_fn = '{}_{}'.format(self.query_id, ('ET_' if self.et_distance else ''), )
-        # rank_fn += '{}_Dist_{}_Tree_'.format(self.distance_model, self.tree_building_method)
-        # if self.ranks is None:
-        #     rank_fn += 'All_Ranks_'
-        # else:
-        #     rank_fn += 'Custom_Ranks_'
-        # rank_fn += '{}_Scoring.ranks'.format(self.scoring_metric)
         write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
                             freq_table=root_freq_table, ranks=self.ranking, scores=self.scores, coverages=self.coverage,
-                            precision=3)
+                            precision=3, processors=self.processors)
 
 
-def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3):
+def init_var_pool(count_table):
+    """
+    Initialize Variability Pool
+
+    This function shares a FrequencyTable object with a multiprocessing pool so that the variability of each position
+    can be assessed in a synchronized manner.
+
+    Args:
+        count_table (FrequencyTable): The root level FrequencyTable for the trace which is being written to file.
+    """
+    global c_table
+    c_table = count_table
+
+
+def get_var_pool(pos):
+    """
+    Get Variability Pool
+
+    This function retrieves the characters observed at a given position in a FrequencyTable, turns them into a string
+    and returns them.
+
+    Args:
+        pos (tuple): A tuple of two ints specifying the position for which characters should be retrieved (1 will be
+        subtracted from each value because the values are expected to be 1, not 0, indexed).
+    Returns:
+        str: A string listing characters observed at the specified position, separated by commas.
+    """
+    character_list = c_table.get_chars(pos=(pos[0] - 1, pos[1] - 1))
+    character_str = ','.join(character_list)
+    return character_str
+
+
+def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3, processors=1):
     """
     Write Out Evolutionary Trace Scores
 
@@ -273,6 +299,9 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         coverages (np.array): The coverage for each position analyzed in the trace.
         precision (int): The number of decimal places to write out for floating point values such coverages (and scores
         if a real valued scoring metric was used).
+        processors (int): If pairs of residues were scored in the trace being written to file, then this will be the
+        size of the multiprocessing pool used to speed up the slowest step (retrieving characters at each position to
+        describe its variability).
     """
     full_path = os.path.join(out_dir, file_name)
     if os.path.isfile(full_path):
@@ -282,73 +311,52 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
     scoring_dict = {}
     columns = []
     if freq_table.position_size == 1:
-        scoring_dict['Position'] = list(range(1, et.non_gapped_aln.seq_length + 1))
-        scoring_dict['Query'] = list(str(et.non_gapped_aln.query_sequence))
+        scoring_dict['Position'] = list(range(1, aln.seq_length + 1))
+        scoring_dict['Query'] = list(str(aln.query_sequence))
         relevant_table = freq_table.get_table()
         positions = relevant_table.nonzero()
         scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
         scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
                                                             for x in positions[1][positions[0] == i]])
                                                   for i in range(relevant_table.shape[0])]
-        scoring_dict['Rank'] = list(et.ranking)
-        scoring_dict['Score'] = list(et.scores)
-        scoring_dict['Coverage'] = list(et.coverage)
+        scoring_dict['Rank'] = list(ranks)
+        scoring_dict['Score'] = list(scores)
+        scoring_dict['Coverage'] = list(coverages)
         columns += ['Position', 'Query']
     elif freq_table.position_size == 2:
         off_diagonal_indices = []
         starting_index = 1
         pos_i, pos_j, query_i, query_j = [], [], [], []
-        inner1 = time()
-        for x in range(1, et.non_gapped_aln.seq_length + 1):
-            off_diagonal_indices += list(range(starting_index, starting_index + (et.non_gapped_aln.seq_length - x)))
-            pos_i += [x] * (et.non_gapped_aln.seq_length - x)
-            query_i += [et.non_gapped_aln.query_sequence[x - 1]] * (et.non_gapped_aln.seq_length - x)
-            pos_j += list(range(x + 1, et.non_gapped_aln.seq_length + 1))
-            query_j += list(et.non_gapped_aln.query_sequence[x:])
+        for x in range(1, aln.seq_length + 1):
+            off_diagonal_indices += list(range(starting_index, starting_index + (aln.seq_length - x)))
+            pos_i += [x] * (aln.seq_length - x)
+            query_i += [aln.query_sequence[x - 1]] * (aln.seq_length - x)
+            pos_j += list(range(x + 1, aln.seq_length + 1))
+            query_j += list(aln.query_sequence[x:])
             starting_index = off_diagonal_indices[-1] + 2
-        inner2 = time()
-        print('POSi, POSj, CHARi, CHARj TOOK: {} min'.format((inner2 - inner1)/60.0))
         scoring_dict['Position_i'] = pos_i
         scoring_dict['Position_j'] = pos_j
         scoring_dict['Query_i'] = query_i
         scoring_dict['Query_j'] = query_j
         relevant_table = freq_table.get_table()[off_diagonal_indices, :]
-        inner3 = time()
-        print('COUNT TABLE RETRIEVAL TOOK: {} min'.format((inner3 - inner2)/60.0))
-        positions = relevant_table.nonzero()
-        inner4 = time()
-        print('TABLE NONZERO TOOK: {} min'.format((inner4 - inner3)/60.0))
         scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
-        inner5 = time()
-        print('VAR COUNT TOOK: {} min'.format((inner5 - inner4)/60.0))
-        scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
-                                                            for x in positions[1][positions[0] == i]])
-                                                  for i in range(relevant_table.shape[0])]
-        inner6 = time()
-        print('VAR CHAR TOOK: {} min'.format((inner6 - inner5)))
-        scoring_dict['Rank'] = list(et.ranking[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
-        inner7 = time()
-        print('RANK TOOK: {} min'.format((inner7 - inner6)/60.0))
-        scoring_dict['Score'] = list(et.scores[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
-        inner8 = time()
-        print('SCORES TOOK: {} min'.format((inner8 - inner7) / 60.0))
-        scoring_dict['Coverage'] = list(et.coverage[np.triu_indices(et.non_gapped_aln.seq_length, k=1)])
-        inner9 = time()
-        print('COVERAGE TOOK: {} min'.format((inner9 - inner8) / 60.0))
+        pool = Pool(processes=processors, initializer=init_var_pool, initargs=(freq_table,))
+        char_variability = pool.map(get_var_pool, list(zip(pos_i, pos_j)))
+        pool.close()
+        pool.join()
+        scoring_dict['Variability_Characters'] = char_variability
+        scoring_dict['Rank'] = list(ranks[np.triu_indices(aln.seq_length, k=1)])
+        scoring_dict['Score'] = list(scores[np.triu_indices(aln.seq_length, k=1)])
+        scoring_dict['Coverage'] = list(coverages[np.triu_indices(aln.seq_length, k=1)])
         columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
     else:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
     columns += ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
-    inner10 = time()
-    print('BUILDING DICT TOOK: {} min'.format((inner10 - inner9)/60.0))
     scoring_df = pd.DataFrame(scoring_dict)
-    inner11 = time()
-    print('DF CONSTRUCTION TOOK: {} min'.format((inner11 - inner10)/60.0))
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                       columns=columns)
     end = time()
-    print('TO CSV TOOK: {} min'.format((end - inner11)/60.0))
     print('Results written to file in {} min'.format((end - start) / 60.0))
 
 
