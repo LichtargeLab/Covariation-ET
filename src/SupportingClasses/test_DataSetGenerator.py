@@ -12,12 +12,17 @@ from Bio.Seq import Seq
 from Bio.SeqIO import write
 from Bio.SeqRecord import SeqRecord
 from multiprocessing import cpu_count, Lock
-from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
-from src.SupportingClasses.DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb,
-                                                    parse_query_sequence, init_pdb_processing_pool, pdb_processing,
-                                                    blast_query_sequence, filter_blast_sequences, align_sequences,
-                                                    identity_filter, init_filtering_and_alignment_pool,
-                                                    filtering_and_alignment)
+from dotenv import find_dotenv, load_dotenv
+from EvolutionaryTraceAlphabet import FullIUPACProtein
+from DataSetGenerator import (DataSetGenerator, import_protein_list, download_pdb, parse_query_sequence,
+                              init_pdb_processing_pool, pdb_processing, blast_query_sequence, filter_blast_sequences,
+                              align_sequences, identity_filter, init_filtering_and_alignment_pool,
+                              filtering_and_alignment)
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
 
 
 class TestDataSetGenerator(TestCase):
@@ -29,7 +34,7 @@ class TestDataSetGenerator(TestCase):
         cls.local_database = 'customuniref90.fasta'
         cls.remote_database = 'nr'
         cls.max_threads = cpu_count() - 2
-        cls.input_path = os.path.join(os.path.abspath('../Test/'), 'Input_Temp')
+        cls.input_path = os.path.join(os.environ.get("TEST_PATH"), 'Input_Temp')
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
             os.makedirs(cls.protein_list_path)

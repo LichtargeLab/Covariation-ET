@@ -20,10 +20,10 @@ from Bio.Application import ApplicationError
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
-from src.SupportingClasses.PDBReference import PDBReference
-from src.SupportingClasses.SeqAlignment import SeqAlignment
-from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+from PDBReference import PDBReference
+from SeqAlignment import SeqAlignment
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from EvolutionaryTraceAlphabet import FullIUPACProtein
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
