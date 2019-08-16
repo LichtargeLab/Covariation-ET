@@ -6,7 +6,7 @@ Created onJune 19, 2019
 import os
 from unittest import TestCase
 from multiprocessing import cpu_count
-from src.SupportingClasses.DataSetGenerator import DataSetGenerator
+from DataSetGenerator import DataSetGenerator
 
 
 class TestBase(TestCase):
