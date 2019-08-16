@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import lil_matrix, csc_matrix
 from Bio.Alphabet import Gapped
-from src.SupportingClasses.test_Base import TestBase
-from src.SupportingClasses.utils import build_mapping
-from src.SupportingClasses.SeqAlignment import SeqAlignment
-from src.SupportingClasses.FrequencyTable import FrequencyTable
-from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
+from test_Base import TestBase
+from utils import build_mapping
+from SeqAlignment import SeqAlignment
+from FrequencyTable import FrequencyTable
+from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestFrequencyTable(TestBase):
