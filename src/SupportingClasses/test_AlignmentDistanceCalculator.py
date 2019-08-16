@@ -9,12 +9,11 @@ import numpy as np
 from time import time
 from copy import deepcopy
 from Bio.Phylo.TreeConstruction import DistanceCalculator
-from src.SupportingClasses.test_Base import TestBase
-from src.SupportingClasses.ETMIPWrapper import ETMIPWrapper
-from src.SupportingClasses.SeqAlignment import SeqAlignment
-from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
-from src.SupportingClasses.AlignmentDistanceCalculator import (AlignmentDistanceCalculator,
-                                                               convert_array_to_distance_matrix)
+from test_Base import TestBase
+from ETMIPWrapper import ETMIPWrapper
+from SeqAlignment import SeqAlignment
+from EvolutionaryTraceAlphabet import FullIUPACProtein
+from AlignmentDistanceCalculator import (AlignmentDistanceCalculator, convert_array_to_distance_matrix)
 
 
 class TestAlignmentDistanceCalculator(TestBase):
