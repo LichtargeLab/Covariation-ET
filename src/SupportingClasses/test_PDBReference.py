@@ -1,7 +1,7 @@
 import unittest
 from Bio.PDB.Structure import Structure
-from src.SupportingClasses.test_Base import TestBase
-from src.SupportingClasses.PDBReference import PDBReference
+from test_Base import TestBase
+from PDBReference import PDBReference
 
 
 class TestPDBReference(TestBase):
