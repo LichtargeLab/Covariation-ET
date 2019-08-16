@@ -12,11 +12,11 @@ from Bio.Seq import Seq
 from Bio.Alphabet import  Gapped
 from Bio.SeqRecord import  SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from src.SupportingClasses.utils import build_mapping
-from src.SupportingClasses.test_Base import TestBase
-from src.SupportingClasses.SeqAlignment import SeqAlignment
-from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from src.SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
+from test_Base import TestBase
+from utils import build_mapping
+from SeqAlignment import SeqAlignment
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestSeqAlignment(TestBase):
@@ -601,7 +601,6 @@ class TestSeqAlignment(TestBase):
         with self.assertRaises(TypeError):
             aln_small.compute_effective_alignment_size()
         aln_small.import_alignment()
-        print('Alphabet: {}'.format(aln_small.alignment._alphabet))
         calc = AlignmentDistanceCalculator()
         distance_mat = np.array(calc.get_distance(aln_small.alignment))
         identity_mat = 1 - np.array(distance_mat)
