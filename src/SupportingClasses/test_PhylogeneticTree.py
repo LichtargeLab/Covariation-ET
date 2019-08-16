@@ -5,11 +5,11 @@ from time import time
 from re import compile
 from shutil import rmtree
 from copy import deepcopy
-from src.SupportingClasses.test_Base import TestBase
-from src.SupportingClasses.ETMIPWrapper import ETMIPWrapper
-from src.SupportingClasses.SeqAlignment import SeqAlignment
-from src.SupportingClasses.PhylogeneticTree import PhylogeneticTree, get_path_length
-from src.SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from test_Base import TestBase
+from ETMIPWrapper import ETMIPWrapper
+from SeqAlignment import SeqAlignment
+from PhylogeneticTree import PhylogeneticTree
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
 class TestPhylogeneticTree(TestBase):
@@ -272,7 +272,6 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(list1), len(list2))
         for i in range(len(list1)):
             group1 = list1[i]
-            print(dir(group1[0]))
             group1 = sorted(group1, key=compare_nodes_key(compare_nodes))
             group2 = list2[i]
             group2 = sorted(group2, key=compare_nodes_key(compare_nodes))
@@ -1186,8 +1185,8 @@ class TestPhylogeneticTree(TestBase):
             if wetc_nodes is None:
                 self.assertIsNone(py_nodes)
             else:
-                sorted_wetc_nodes = sorted(wetc_nodes, cmp=compare_nodes)
-                sorted_py_nodes = sorted(py_nodes, cmp=compare_nodes)
+                sorted_wetc_nodes = sorted(wetc_nodes, key=compare_nodes_key(compare_nodes))
+                sorted_py_nodes = sorted(py_nodes, key=compare_nodes_key(compare_nodes))
                 self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
                 for i in range(len(sorted_py_nodes)):
                     self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
