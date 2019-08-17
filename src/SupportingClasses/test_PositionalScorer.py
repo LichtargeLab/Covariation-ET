@@ -3,6 +3,7 @@ Created on July 12, 2019
 
 @author: Daniel Konecki
 """
+import unittest
 import numpy as np
 from Bio.Alphabet import Gapped
 from test_Base import TestBase
@@ -663,3 +664,7 @@ class TestPositionalScorer(TestBase):
 
     def test11d_heuristic_average_product_correction(self):
         self.evaluate_filtered_average_product_correction(node_dict=self.first_parents)
+
+
+if __name__ == '__main__':
+    unittest.main()
