@@ -66,7 +66,7 @@ class FrequencyTable(object):
         Return:
             int: The 1 dimensional position that the passed in position maps to on the __positional_table.
         """
-        if self.position_size == 1 and not isinstance(pos, int):
+        if self.position_size == 1 and not isinstance(pos, (int, np.integer)):
             raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
         if (self.position_size > 1) and not isinstance(pos, tuple) and (len(pos) != self.position_size):
             raise TypeError('Positions for FrequencyTable with position_size>1 must have length == position_size')
