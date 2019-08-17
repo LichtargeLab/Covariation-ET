@@ -419,6 +419,10 @@ class TestEvoultionaryTrace(TestBase):
                 expected_query = et.non_gapped_aln.query_sequence[position]
                 self.assertEqual(expected_query, et_df.loc[ind, 'Query'])
                 expected_characters = root_freq_table.get_chars(pos=position)
+                print(expected_characters)
+                print(len(expected_characters))
+                print(et.non_gapped_aln.alignment[:, position])
+                print(et_df.loc[ind, 'Variability_Count'])
                 self.assertEqual(len(expected_characters),
                                  et_df.loc[ind, 'Variability_Count'])
                 self.assertEqual(expected_characters,
