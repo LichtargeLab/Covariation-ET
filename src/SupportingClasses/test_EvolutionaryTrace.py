@@ -12,7 +12,7 @@ from copy import deepcopy
 from Bio.Alphabet import Gapped
 from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import TestBase
-from test_PhylogeneticTree import compare_nodes
+from test_PhylogeneticTree import compare_nodes, compare_nodes_key
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
 from ETMIPWrapper import ETMIPWrapper
@@ -307,8 +307,8 @@ class TestEvoultionaryTrace(TestBase):
             if curr_expected_nodes is None:
                 self.assertIsNone(curr_nodes)
             else:
-                sorted_curr_nodes = sorted(curr_nodes, cmp=compare_nodes)
-                sorted_curr_expected_nodes = sorted(curr_expected_nodes, cmp=compare_nodes)
+                sorted_curr_nodes = sorted(curr_nodes, key=compare_nodes_key(compare_nodes))
+                sorted_curr_expected_nodes = sorted(curr_expected_nodes, key=compare_nodes_key(compare_nodes))
                 self.assertEqual(len(sorted_curr_nodes), len(sorted_curr_expected_nodes))
                 for i in range(len(sorted_curr_expected_nodes)):
                     self.check_nodes(sorted_curr_nodes[i], sorted_curr_expected_nodes[i])
