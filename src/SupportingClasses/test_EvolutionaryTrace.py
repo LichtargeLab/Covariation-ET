@@ -4,6 +4,8 @@ Created on August 13, 2019
 @author: Daniel Konecki
 """
 import os
+import sys
+import unittest
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -20,7 +22,8 @@ from PositionalScorer import PositionalScorer
 from Trace import Trace, load_freq_table, load_numpy_array
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
-from ..EvolutionaryTrace import EvolutionaryTrace
+sys.path.append(os.path.abspath('..'))
+from EvolutionaryTrace import EvolutionaryTrace
 
 
 class TestEvoultionaryTrace(TestBase):
@@ -838,3 +841,7 @@ class TestEvoultionaryTrace(TestBase):
         # Compare the results of average product corrected mutual information over pairs of positions between this
         # implementation and the WETC implementation for the large alignment.
         self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
+
+
+if __name__ == '__main__':
+    unittest.main()

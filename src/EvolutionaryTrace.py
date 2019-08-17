@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from time import time
-import cPickle as pickle
+import  pickle
 from multiprocessing import Pool
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table

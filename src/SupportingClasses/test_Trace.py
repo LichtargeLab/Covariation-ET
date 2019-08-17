@@ -4,6 +4,7 @@ Created on July 11, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
@@ -1373,3 +1374,7 @@ class TestTrace(TestBase):
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
             single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+
+if __name__ == '__main__':
+    unittest.main()

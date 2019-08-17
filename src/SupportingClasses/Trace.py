@@ -5,8 +5,8 @@ Created on May 23, 2019
 """
 import os
 import numpy as np
-from Queue import Empty
-import cPickle as pickle
+from queue import Empty
+import pickle
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from scipy.stats import rankdata
