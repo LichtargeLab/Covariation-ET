@@ -235,14 +235,14 @@ class TestEvoultionaryTrace(TestBase):
     #                                          scoring_metric='filtered_average_product_corrected_mutual_information',
     #                                          processors=self.max_threads, low_memory=True,
     #                                          output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
-
-    def test_2d_import_and_process_aln(self):
-        self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
-                                             aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
-                                             tree_building_method='et', tree_building_options={}, ranks=None,
-                                             position_type='single', scoring_metric='identity', gap_correction=None,
-                                             out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
-                                             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    #
+    # def test_2d_import_and_process_aln(self):
+    #     self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
+    #                                          aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
+    #                                          tree_building_method='et', tree_building_options={}, ranks=None,
+    #                                          position_type='single', scoring_metric='identity', gap_correction=None,
+    #                                          out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+    #                                          output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
     #
     # def test_2e_import_and_process_aln(self):
     #     self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
@@ -605,12 +605,12 @@ class TestEvoultionaryTrace(TestBase):
     #         gap_correction=None, out_dir=self.out_small_dir, processors=1, low_memory=True,
     #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
-    # def test_4d_perform_trace(self):
-    #     self.evaluate_perform_trace(
-    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
-    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=1, low_memory=True)
+    def test_4d_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=1, low_memory=True)
 
     # def test_4e_perform_trace(self):
     #     self.evaluate_perform_trace(
