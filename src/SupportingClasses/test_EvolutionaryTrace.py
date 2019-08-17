@@ -236,31 +236,31 @@ class TestEvoultionaryTrace(TestBase):
                                              processors=self.max_threads, low_memory=True,
                                              output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
-    def test_2d_import_and_process_aln(self):
-        self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
-                                             aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
-                                             tree_building_method='et', tree_building_options={}, ranks=None,
-                                             position_type='single', scoring_metric='identity', gap_correction=None,
-                                             out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
-                                             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
-
-    def test_2e_import_and_process_aln(self):
-        self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
-                                             aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
-                                             tree_building_method='et', tree_building_options={}, ranks=None,
-                                             position_type='single', scoring_metric='plain_entropy',
-                                             gap_correction=None, out_dir=self.out_large_dir,
-                                             processors=self.max_threads, low_memory=True,
-                                             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
-
-    def test_2f_import_and_process_aln(self):
-        self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
-                                             aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
-                                             tree_building_method='et', tree_building_options={}, ranks=None,
-                                             position_type='pair', processors=self.max_threads, low_memory=True,
-                                             scoring_metric='filtered_average_product_corrected_mutual_information',
-                                             gap_correction=None, out_dir=self.out_large_dir,
-                                             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    # def test_2d_import_and_process_aln(self):
+    #     self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
+    #                                          aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
+    #                                          tree_building_method='et', tree_building_options={}, ranks=None,
+    #                                          position_type='single', scoring_metric='identity', gap_correction=None,
+    #                                          out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+    #                                          output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    #
+    # def test_2e_import_and_process_aln(self):
+    #     self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
+    #                                          aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
+    #                                          tree_building_method='et', tree_building_options={}, ranks=None,
+    #                                          position_type='single', scoring_metric='plain_entropy',
+    #                                          gap_correction=None, out_dir=self.out_large_dir,
+    #                                          processors=self.max_threads, low_memory=True,
+    #                                          output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    #
+    # def test_2f_import_and_process_aln(self):
+    #     self.evaluate_import_and_process_aln(query_id=self.large_structure_id, polymer_type='Protein',
+    #                                          aln_fn=self.large_fa_fn, et_distance=True, distance_model='blosum62',
+    #                                          tree_building_method='et', tree_building_options={}, ranks=None,
+    #                                          position_type='pair', processors=self.max_threads, low_memory=True,
+    #                                          scoring_metric='filtered_average_product_corrected_mutual_information',
+    #                                          gap_correction=None, out_dir=self.out_large_dir,
+    #                                          output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def evaluate_compute_distance_matrix_tree_and_assignments(self, query_id, polymer_type, aln_fn, et_distance,
                                                               distance_model, tree_building_method,
@@ -368,29 +368,29 @@ class TestEvoultionaryTrace(TestBase):
             gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
-    def test_3d_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
-            low_memory=True)
-
-    def test_3e_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_large_dir,
-            processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
-                                                                        'scores'})
-
-    def test_3f_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
-            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    # def test_3d_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
+    #         low_memory=True)
+    #
+    # def test_3e_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_large_dir,
+    #         processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
+    #                                                                     'scores'})
+    #
+    # def test_3f_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
+    #         gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def evaluate_write_out_et_scores(self, et, fn):
         self.assertTrue(os.path.isfile(fn))
@@ -681,11 +681,11 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
                                             fa_aln=self.query_aln_fa_small, low_mem=False)
 
-    def test5b_trace(self):
-        # Compare the results of identity trace over single positions between this implementation and the WETC
-        # implementation for the large alignment.
-        self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-                                            fa_aln=self.query_aln_fa_large, low_mem=True)
+    # def test5b_trace(self):
+    #     # Compare the results of identity trace over single positions between this implementation and the WETC
+    #     # implementation for the large alignment.
+    #     self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+    #                                         fa_aln=self.query_aln_fa_large, low_mem=True)
 
     def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
@@ -753,11 +753,11 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
                                                fa_aln=self.query_aln_fa_small, low_mem=False)
 
-    def test5d_trace(self):
-        # Compare the results of identity trace over single positions between this implementation and the WETC
-        # implementation for the large alignment.
-        self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-                                               fa_aln=self.query_aln_fa_large, low_mem=True)
+    # def test5d_trace(self):
+    #     # Compare the results of identity trace over single positions between this implementation and the WETC
+    #     # implementation for the large alignment.
+    #     self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+    #                                            fa_aln=self.query_aln_fa_large, low_mem=True)
 
     def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
@@ -837,10 +837,10 @@ class TestEvoultionaryTrace(TestBase):
         # implementation and the WETC implementation for the small alignment.
         self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
 
-    def test5f_trace(self):
-        # Compare the results of average product corrected mutual information over pairs of positions between this
-        # implementation and the WETC implementation for the large alignment.
-        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
+    # def test5f_trace(self):
+    #     # Compare the results of average product corrected mutual information over pairs of positions between this
+    #     # implementation and the WETC implementation for the large alignment.
+    #     self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
 
 if __name__ == '__main__':
