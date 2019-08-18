@@ -874,12 +874,12 @@ def trace_ranks(processor):
         if rank == 'STOP':
             break
         # Check whether the group score has already been saved to file.
-        single_fn, single_check = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
+        single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
                                                     score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
-        pair_fn, pair_check = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
+        pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
                                                 score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
         # If the file(s) were found set the return values for this rank.
-        if low_mem and (single >= single_check) and (pair >= pair_check):
+        if low_mem and (single_check >= single) and (pair_check >= pair):
             single_rank_scores = single_fn if single else None
             pair_rank_scores = pair_fn if pair else None
         else:
