@@ -210,7 +210,7 @@ class ETMIPWrapper(object):
         tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
 
-    def import_assignments(self, out_dir):
+    def import_assignments(self, prefix, out_dir):
         """
         Import Assignments
         Args:
@@ -218,7 +218,7 @@ class ETMIPWrapper(object):
         """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, 'etc_out.group.tsv')
+        file_path1 = os.path.join(out_dir, '{}.group.tsv'.format(prefix))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected distance files!')
         from time import time
@@ -553,7 +553,7 @@ class ETMIPWrapper(object):
             os.chdir(current_dir)
             self.import_phylogenetic_tree(prefix=prefix, out_dir=out_dir)
             try:
-                self.rank_group_assignments = self.import_assignments(out_dir=out_dir)
+                self.import_assignments(prefix=prefix, out_dir=out_dir)
             except ValueError:
                 self.rank_group_assignments = self.tree.assign_group_rank()
             self.import_scores(prefix=prefix, out_dir=out_dir, method=method)
