@@ -210,7 +210,7 @@ class TestEvoultionaryTrace(TestBase):
             os.remove(expected_fn2)
         self.assertTrue(os.path.isfile(expected_serial_fn))
 
-    def test_2a_import_and_process_aln(self):
+    # def test_2a_import_and_process_aln(self):
     #     self.evaluate_import_and_process_aln(query_id=self.small_structure_id, polymer_type='Protein',
     #                                          aln_fn=self.small_fa_fn, et_distance=True, distance_model='blosum62',
     #                                          tree_building_method='et', tree_building_options={}, ranks=None,
