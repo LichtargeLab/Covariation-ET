@@ -57,7 +57,7 @@ class ContactScorer(object):
         alpha carbon.
     """
 
-    def __init__(self, query, seq_alignment, pdb_reference, cutoff):
+    def __init__(self, query, seq_alignment, pdb_reference, cutoff, chain=None):
         """
         __init__
 
@@ -73,6 +73,9 @@ class ContactScorer(object):
             pdb_reference (str/path, PDBReference): The object containing the PDB structure of interest, or an already
             initialized PDBReference object.
             cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
+            chain (str): Which chain in the PDB structure to use for comparison and evaluation. If left blank the best
+            chain will be identified by aligning the query sequence from seq_alignment against the chains in
+            pdb_reference and the closest match will be selected.
         """
         self.query = query
         if type(seq_alignment) is SeqAlignment:
@@ -84,7 +87,7 @@ class ContactScorer(object):
         else:
             self.query_structure = os.path.abspath(pdb_reference)
         self.cutoff = cutoff
-        self.best_chain = None
+        self.best_chain = chain
         self.query_pdb_mapping = None
         self._specific_mapping = None
         self.distances = None
