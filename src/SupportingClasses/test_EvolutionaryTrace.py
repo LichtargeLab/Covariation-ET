@@ -344,53 +344,53 @@ class TestEvoultionaryTrace(TestBase):
                                      set([x.name for x in et.assignments[rank][group]['descendants']]))
         self.assertTrue(os.path.isfile(serial_fn))
 
-    def test_3a_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_small_dir,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
-            low_memory=True)
-
-    def test_3b_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_small_dir,
-            processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
-                                                                        'scores'})
-
-    def test_3c_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
-            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
-
-    def test_3d_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
-            low_memory=True)
-
-    def test_3e_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_large_dir,
-            processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
-                                                                        'scores'})
-
-    def test_3f_compute_distance_matrix_tree_and_assignments(self):
-        self.evaluate_compute_distance_matrix_tree_and_assignments(
-            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
-            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    # def test_3a_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_small_dir,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
+    #         low_memory=True)
+    #
+    # def test_3b_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_small_dir,
+    #         processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
+    #                                                                     'scores'})
+    #
+    # def test_3c_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
+    #         gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    #
+    # def test_3d_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
+    #         low_memory=True)
+    #
+    # def test_3e_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_large_dir,
+    #         processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
+    #                                                                     'scores'})
+    #
+    # def test_3f_compute_distance_matrix_tree_and_assignments(self):
+    #     self.evaluate_compute_distance_matrix_tree_and_assignments(
+    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
+    #         gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def evaluate_write_out_et_scores(self, et, fn):
         self.assertTrue(os.path.isfile(fn))
@@ -583,13 +583,13 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_write_out_et_scores(et=et, fn=expected_final_fn)
         self.assertTrue(os.path.isfile(serial_fn))
 
-    # def test_4a_perform_trace(self):
-    #     self.evaluate_perform_trace(
-    #         query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
-    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_small_dir,
-    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
-    #         low_memory=True)
+    def test_4a_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_small_dir,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
+            low_memory=True)
     #
     # def test_4b_perform_trace(self):
     #     self.evaluate_perform_trace(
@@ -605,14 +605,14 @@ class TestEvoultionaryTrace(TestBase):
     #         position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
     #         gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
     #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
-    #
-    # def test_4d_perform_trace(self):
-    #     self.evaluate_perform_trace(
-    #         query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
-    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-    #         position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
-    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
-    #         low_memory=True)
+
+    def test_4d_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
+            low_memory=True)
     #
     # def test_4e_perform_trace(self):
     #     self.evaluate_perform_trace(
