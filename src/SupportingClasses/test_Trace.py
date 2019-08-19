@@ -193,11 +193,11 @@ class TestTrace(TestBase):
                     visited.add(node_name)
         rmtree(unique_dir)
 
-    # def test2a_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_small, single=True, pair=True, processors=1,
-    #                                            low_mem=False, write_aln=True, write_freq_table=True)
+    def test2a_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_small, single=True, pair=True, processors=1,
+                                               low_mem=False, write_aln=True, write_freq_table=True)
 
     def test2b_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, single processed
@@ -205,11 +205,11 @@ class TestTrace(TestBase):
                                                assign=self.assignments_large, single=True, pair=True, processors=1,
                                                low_mem=True, write_aln=False, write_freq_table=False)
 
-    # def test2c_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_custom_small, single=True, pair=True,
-    #                                            processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+    def test2c_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=1, low_mem=False, write_aln=True, write_freq_table=True)
 
     def test2d_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, single processed
@@ -217,12 +217,12 @@ class TestTrace(TestBase):
                                                assign=self.assignments_custom_large, single=True, pair=True, processors=1,
                                                low_mem=True, write_aln=False, write_freq_table=False)
 
-    # def test2e_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_small, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
-    #                                            write_freq_table=True)
+    def test2e_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_small, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
 
     def test2f_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
@@ -231,12 +231,12 @@ class TestTrace(TestBase):
                                                processors=self.max_threads, low_mem=True, write_aln=False,
                                                write_freq_table=False)
 
-    # def test2g_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_custom_small, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
-    #                                            write_freq_table=True)
+    def test2g_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
 
     def test2h_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
