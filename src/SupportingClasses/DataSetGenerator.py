@@ -4,18 +4,22 @@ Created on May 23, 2019
 @author: Daniel Konecki
 """
 import os
+import re
 import argparse
 import numpy as np
 import pandas as pd
 from time import time
 from re import compile
+from urllib.error import HTTPError
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
+from Bio.SwissProt import read
 from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
+from Bio.ExPASy import get_sprot_raw
 from Bio.Application import ApplicationError
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
@@ -284,14 +288,40 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
     else:
         if verbose:
             print('Parsing query sequence from file: {}'.format(pdb_fn))
-        pdb_struct = PDBReference(pdb_file=pdb_fn)
-        pdb_struct.import_pdb(structure_id=protein_id)
-        try:
-            seq = pdb_struct.seq[chain_id]
-        except KeyError:
-            chain_id = sorted(pdb_struct.seq.keys())
-            seq = pdb_struct.seq[chain_id]
-        sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description='Target Query')
+        # acc_pattern = re.compile(r'^[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$')
+        chain_uniprot = {}
+        for record in parse(pdb_fn, 'pdb-seqres'):
+            chain_uniprot[record.annotations['chain']] = []
+            for ref in record.dbxrefs:
+                xref_db, xref_acc = ref.split(':')
+                # acc_check = acc_pattern.match(xref_acc)
+                # if xref_db == 'UNP' and acc_check:
+                if xref_db == 'UNP':
+                    chain_uniprot[record.annotations['chain']].append(xref_acc)
+        if chain_uniprot[chain_id]:
+            unp_ids = chain_uniprot[chain_id]
+        else:
+            unp_ids = chain_uniprot[sorted(chain_uniprot.keys())[0]]
+        seq = None
+        final_unp_id = None
+        for unp_id in unp_ids:
+            try:
+                handle = get_sprot_raw(unp_id)
+            except HTTPError:
+                continue
+            final_unp_id = unp_id
+            record = read(handle)
+            seq = record.sequence
+        if seq is None:
+            pdb_struct = PDBReference(pdb_file=pdb_fn)
+            pdb_struct.import_pdb(structure_id=protein_id)
+            try:
+                seq = pdb_struct.seq[chain_id]
+            except KeyError:
+                chain_id = sorted(pdb_struct.seq.keys())
+                seq = pdb_struct.seq[chain_id]
+        desc = 'Target Query' + (':From UniProt Accession: {}'.format(final_unp_id) if unp_id else '')
+        sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
         seq_records = [sequence]
         with open(protein_fasta_fn, 'w') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
