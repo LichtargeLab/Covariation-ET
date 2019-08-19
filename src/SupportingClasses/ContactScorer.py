@@ -285,7 +285,8 @@ class ContactScorer(object):
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for residue in self.query_structure.structure[0][self.best_chain]:
+            for res_num in self.query_structure.residue_pos[self.best_chain]:
+                residue = self.query_structure.structure[0][self.best_chain][res_num]
                 # Loop over residues to calculate distance between all residues i and j
                 key1 = residue.get_id()[1]
                 if key1 not in coords:
