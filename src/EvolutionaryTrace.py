@@ -197,7 +197,6 @@ class EvolutionaryTrace(object):
             self.phylo_tree = PhylogeneticTree(tree_building_method=self.tree_building_method,
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
-            self.phylo_tree.rename_internal_nodes()
             self.phylo_tree_fn = os.path.join(self.out_dir, '{}_{}{}_dist_{}_tree.nhx'.format(
                 self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
