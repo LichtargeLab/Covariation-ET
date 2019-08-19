@@ -28,10 +28,12 @@ class TestContactScorer(TestBase):
         cls.aln_file1 = cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln']
         cls.pdb_file1 = cls.data_set.protein_data[cls.small_structure_id]['PDB']
         cls.pdb_chain1 = cls.data_set.protein_data[cls.small_structure_id]['Chain']
+        cls.pdb_len1 = cls.data_set.protein_data[cls.small_structure_id]['Length']
         cls.query2 = cls.large_structure_id
         cls.aln_file2 = cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln']
         cls.pdb_file2 = cls.data_set.protein_data[cls.large_structure_id]['PDB']
         cls.pdb_chain2 = cls.data_set.protein_data[cls.large_structure_id]['Chain']
+        cls.pdb_len2 = cls.data_set.protein_data[cls.large_structure_id]['Length']
 
     def setUp(self):
         # self.query1 = '1c17A'
@@ -298,30 +300,34 @@ class TestContactScorer(TestBase):
         self.assertIsNone(eval2.dist_type)
 
     def test_2a___str(self):
+        with self.assertRaises(ValueError):
+            str(self.scorer1)
+        self.scorer1.fit()
+        expected_str1 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
+            self.pdb_len1, 3, self.pdb_chain1)
+        self.assertEqual(str(self.scorer1), expected_str1)
+        with self.assertRaises(ValueError):
+            str(self.scorer2)
+        self.scorer2.fit()
+        expected_str2 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
+            self.pdb_len2, 3, self.pdb_chain2)
+        self.assertEqual(str(self.scorer2), expected_str2)
+
+    def test_2b___str(self):
         eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
         with self.assertRaises(ValueError):
             str(eval1)
         eval1.fit()
-        self.assertEqual(str(eval1),
-                         'Query Sequence of Length: 79\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
+        expected_str1 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
+            self.pdb_len1, 3, self.pdb_chain1)
+        self.assertEqual(str(eval1), expected_str1)
         eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
         with self.assertRaises(ValueError):
             str(eval2)
         eval2.fit()
-        self.assertEqual(str(eval2),
-                         'Query Sequence of Length: 368\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
-
-    def test_2v___str(self):
-        with self.assertRaises(ValueError):
-            str(self.scorer1)
-        self.scorer1.fit()
-        self.assertEqual(str(self.scorer1),
-                         'Query Sequence of Length: 79\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
-        with self.assertRaises(ValueError):
-            str(self.scorer2)
-        self.scorer2.fit()
-        self.assertEqual(str(self.scorer2),
-                         'Query Sequence of Length: 368\nPDB with 1 Chains\nBest Sequence Match to Chain: A')
+        expected_str2 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
+            self.pdb_len2, 3, self.pdb_chain2)
+        self.assertEqual(str(eval2), expected_str2)
     # 
     # def test_fit(self):
     #     self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))

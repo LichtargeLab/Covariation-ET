@@ -129,7 +129,7 @@ class ContactScorer(object):
                 if isinstance(self.query_alignment, str):
                     self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
                 self.query_alignment.import_alignment()
-                self.query_alignment.remove_gaps()
+                self.query_alignment = self.query_alignment.remove_gaps()
             if self.query_structure is None:
                 raise ValueError('Scorer cannot be fit, because no PDB was provided.')
             else:
