@@ -574,17 +574,26 @@ class TestEvoultionaryTrace(TestBase):
         expected_ranks, expected_scores, expected_coverage = expected_trace.trace(scorer=expected_scorer,
                                                                                   gap_correction=gap_correction,
                                                                                   processes=self.max_threads)
-        self.assertFalse((et.ranking - expected_ranks).any())
-        diff = et.scores - expected_scores
-        if diff.any():
+        diff_ranks = et.ranking - expected_ranks
+        if diff_ranks.any():
+            print(et.ranking)
+            print(expected_ranks)
+            print(diff_ranks)
+            indices = np.nonzero(diff_ranks)
+            print(et.ranking[indices])
+            print(expected_ranks[indices])
+            print(diff_ranks[indices])
+        self.assertFalse(diff_ranks.any())
+        diff_scores = et.scores - expected_scores
+        if diff_scores.any():
             print(et.scores)
             print(expected_scores)
-            print(diff)
-            indices = np.nonzero(diff)
+            print(diff_scores)
+            indices = np.nonzero(diff_scores)
             print(et.scores[indices])
             print(expected_scores[indices])
-            print(diff[indices])
-        self.assertFalse(diff.any())
+            print(diff_scores[indices])
+        self.assertFalse(diff_scores.any())
         self.assertFalse((et.coverage - expected_coverage).any())
         expected_final_fn = os.path.join(out_dir, '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
             query_id, ('ET_' if et_distance else ''), distance_model, tree_building_method,
