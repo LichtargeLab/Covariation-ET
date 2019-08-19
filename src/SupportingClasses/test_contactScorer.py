@@ -427,82 +427,94 @@ class TestContactScorer(TestBase):
         self.assertEqual(eval2.best_chain, 'A')
         self.assertEqual(eval2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
 
-    # def test__get_all_coords(self):
-    #     self.scorer1.fit()
-    #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-    #     expected1 = np.vstack([[32.009, -3.867, -7.132], [31.313, -5.089, -7.616], [30.848, -5.958, -6.453],
-    #                            [29.671, -5.946, -6.094], [32.271, -5.871, -8.520], [32.697, -5.107, -9.764],
-    #                            [33.817, -6.055, -10.812], [35.183, -6.331, -9.687], [32.971, -4.141, -6.850],
-    #                            [31.470, -3.497, -6.322], [32.029, -3.183, -7.914], [30.450, -4.786, -8.190],
-    #                            [33.159, -6.118, -7.958], [31.788, -6.784, -8.833], [31.815, -4.858, -10.336],
-    #                            [33.194, -4.198, -9.459], [36.108, -6.051, -10.169], [35.220, -7.375, -9.415],
-    #                            [35.044, -5.732, -8.799]])
-    #     measured1 = np.vstack(ContactScorer._get_all_coords(residue1))
-    #     self.assertLess(np.sum(measured1 - expected1), 1e-5)
-    #     self.scorer2.fit()
-    #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][5]
-    #     expected2 = np.vstack([[34.379, 19.087, 39.460], [33.929, 20.460, 39.036], [32.641, 20.827, 39.757],
-    #                           [31.587, 20.266, 39.470], [33.683, 20.497, 37.525], [34.857, 20.070, 36.827],
-    #                           [33.502, 21.908, 37.040]])
-    #     measured2 = np.vstack(ContactScorer._get_all_coords(residue2))
-    #     self.assertLess(np.sum(measured2 - expected2), 1e-5)
-    # 
-    # def test__get_c_alpha_coords(self):
-    #     self.scorer1.fit()
-    #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-    #     expected1 = np.vstack([[31.313, -5.089, -7.616]])
-    #     measured1 = np.vstack(ContactScorer._get_c_alpha_coords(residue1))
-    #     self.assertLess(np.sum(measured1 - expected1), 1e-5)
-    #     self.scorer2.fit()
-    #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][5]
-    #     expected2 = np.vstack([[33.929, 20.460, 39.036]])
-    #     measured2 = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
-    #     self.assertLess(np.sum(measured2 - expected2), 1e-5)
-    # 
-    # def test__get_c_beta_coords(self):
-    #     self.scorer1.fit()
-    #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-    #     expected1 = np.vstack([[32.271, -5.871, -8.520]])
-    #     measured1 = np.vstack(ContactScorer._get_c_beta_coords(residue1))
-    #     self.assertLess(np.sum(measured1 - expected1), 1e-5)
-    #     self.scorer2.fit()
-    #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][5]
-    #     expected2 = np.vstack([[33.683, 20.497, 37.525]])
-    #     measured2 = np.vstack(ContactScorer._get_c_beta_coords(residue2))
-    #     self.assertLess(np.sum(measured2 - expected2), 1e-5)
-    # 
-    # def test__get_coords(self):
-    #     self.scorer1.fit()
-    #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-    #     expected1a = np.vstack([[32.009, -3.867, -7.132], [31.313, -5.089, -7.616], [30.848, -5.958, -6.453],
-    #                             [29.671, -5.946, -6.094], [32.271, -5.871, -8.520], [32.697, -5.107, -9.764],
-    #                             [33.817, -6.055, -10.812], [35.183, -6.331, -9.687], [32.971, -4.141, -6.850],
-    #                             [31.470, -3.497, -6.322], [32.029, -3.183, -7.914], [30.450, -4.786, -8.190],
-    #                             [33.159, -6.118, -7.958], [31.788, -6.784, -8.833], [31.815, -4.858, -10.336],
-    #                             [33.194, -4.198, -9.459], [36.108, -6.051, -10.169], [35.220, -7.375, -9.415],
-    #                             [35.044, -5.732, -8.799]])
-    #     measured1a = np.vstack(ContactScorer._get_coords(residue1, method='Any'))
-    #     self.assertLess(np.sum(measured1a - expected1a), 1e-5)
-    #     expected1b = np.vstack([[31.313, -5.089, -7.616]])
-    #     measured1b = np.vstack(ContactScorer._get_coords(residue1, method='CA'))
-    #     self.assertLess(np.sum(measured1b - expected1b), 1e-5)
-    #     expected1c = np.vstack([[32.271, -5.871, -8.520]])
-    #     measured1c = np.vstack(ContactScorer._get_coords(residue1, method='CB'))
-    #     self.assertLess(np.sum(measured1c - expected1c), 1e-5)
-    #     self.scorer2.fit()
-    #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][5]
-    #     expected2a = np.vstack([[34.379, 19.087, 39.460], [33.929, 20.460, 39.036], [32.641, 20.827, 39.757],
-    #                             [31.587, 20.266, 39.470], [33.683, 20.497, 37.525], [34.857, 20.070, 36.827],
-    #                             [33.502, 21.908, 37.040]])
-    #     measured2a = np.vstack(ContactScorer._get_coords(residue2, method='Any'))
-    #     self.assertLess(np.sum(measured2a - expected2a), 1e-5)
-    #     expected2b = np.vstack([[33.929, 20.460, 39.036]])
-    #     measured2b = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
-    #     self.assertLess(np.sum(measured2b - expected2b), 1e-5)
-    #     expected2c = np.vstack([[33.683, 20.497, 37.525]])
-    #     measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
-    #     self.assertLess(np.sum(measured2c - expected2c), 1e-5)
-    # 
+    def test_4a__get_all_coords(self):
+        self.scorer1.fit()
+        residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
+        expected1 = np.vstack([[-3.260, 7.392, 33.952], [-2.317, 6.655, 34.795], [-0.919, 6.658, 34.208],
+                               [-0.802, 7.111, 33.058], [-2.897, 5.256, 34.804], [-4.336, 5.353, 34.377],
+                               [-4.607, 6.783, 33.948]])
+        measured1 = np.vstack(ContactScorer._get_all_coords(residue1))
+        diff = measured1 - expected1
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4b__get_all_coords(self):
+        self.scorer2.fit()
+        residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
+        expected2 = np.vstack([[156.841, 21.422, 49.694], [157.088, 22.877, 49.918], [156.067, 23.458, 50.893],
+                               [156.426, 24.143, 51.855], [157.033, 23.649, 48.591], [157.983, 23.277, 47.444],
+                               [157.455, 23.836, 46.128], [159.408, 23.761, 47.709]])
+        measured2 = np.vstack(ContactScorer._get_all_coords(residue2))
+        diff = measured2 - expected2
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4c__get_c_alpha_coords(self):
+        self.scorer1.fit()
+        residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
+        expected1 = np.vstack([[-2.317, 6.655, 34.795]])
+        measured1 = np.vstack(ContactScorer._get_c_alpha_coords(residue1))
+        diff = measured1 - expected1
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4d__get_c_alpha_coords(self):
+        self.scorer2.fit()
+        residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
+        expected2 = np.vstack([[157.088, 22.877, 49.918]])
+        measured2 = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
+        diff = measured2 - expected2
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4e__get_c_beta_coords(self):
+        self.scorer1.fit()
+        residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
+        expected1 = np.vstack([[-2.897, 5.256, 34.804]])
+        measured1 = np.vstack(ContactScorer._get_c_beta_coords(residue1))
+        diff = measured1 - expected1
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4f__get_c_beta_coords(self):
+        self.scorer2.fit()
+        residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
+        expected2 = np.vstack([[157.033, 23.649, 48.591]])
+        measured2 = np.vstack(ContactScorer._get_c_beta_coords(residue2))
+        diff = measured2 - expected2
+        not_passing = diff > 1E-5
+        self.assertFalse(not_passing.any())
+
+    def test_4g__get_coords(self):
+        self.scorer1.fit()
+        residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
+        expected1a = np.vstack([[-3.260, 7.392, 33.952], [-2.317, 6.655, 34.795], [-0.919, 6.658, 34.208],
+                               [-0.802, 7.111, 33.058], [-2.897, 5.256, 34.804], [-4.336, 5.353, 34.377],
+                               [-4.607, 6.783, 33.948]])
+        measured1a = np.vstack(ContactScorer._get_coords(residue1, method='Any'))
+        self.assertFalse(((measured1a - expected1a) > 1E-5).any())
+        expected1b = np.vstack([[-2.317, 6.655, 34.795]])
+        measured1b = np.vstack(ContactScorer._get_coords(residue1, method='CA'))
+        self.assertFalse(((measured1b - expected1b) > 1E-5).any())
+        expected1c = np.vstack([[-2.897, 5.256, 34.804]])
+        measured1c = np.vstack(ContactScorer._get_coords(residue1, method='CB'))
+        self.assertFalse(((measured1c - expected1c) > 1E-5).any())
+
+    def test_4h__get_coords(self):
+        self.scorer2.fit()
+        residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
+        expected2a = np.vstack([[156.841, 21.422, 49.694], [157.088, 22.877, 49.918], [156.067, 23.458, 50.893],
+                               [156.426, 24.143, 51.855], [157.033, 23.649, 48.591], [157.983, 23.277, 47.444],
+                               [157.455, 23.836, 46.128], [159.408, 23.761, 47.709]])
+        measured2a = np.vstack(ContactScorer._get_coords(residue2, method='Any'))
+        self.assertFalse(((measured2a - expected2a) > 1E-5).any())
+        expected2b = np.vstack([[157.088, 22.877, 49.918]])
+        measured2b = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
+        self.assertFalse(((measured2b - expected2b) > 1E-5).any())
+        expected2c = np.vstack([[157.033, 23.649, 48.591]])
+        measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
+        self.assertFalse(((measured2c - expected2c) > 1E-5).any())
+
     # def test_measure_distance(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
