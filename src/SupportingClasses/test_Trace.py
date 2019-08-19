@@ -172,6 +172,7 @@ class TestTrace(TestBase):
                             print(expected_single_table.get_table().toarray()[indices])
                             print(diff[indices])
                             print(node_name)
+                            print(sub_aln.alignment())
                         self.assertFalse(diff.any())
                         if write_freq_table:
                             self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}_position_freq_table.tsv'.format(
