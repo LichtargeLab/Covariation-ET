@@ -246,6 +246,7 @@ class PhylogeneticTree(object):
             raise ValueError('Distance matrix (dm) must have type Bio.Phylo.TreeConstruction.DistanceMatrix!')
         self.size = len(dm)
         self.tree = method_dict[self.tree_method](**self.tree_args)
+        self.rename_internal_nodes()
 
     def write_out_tree(self, filename):
         """
