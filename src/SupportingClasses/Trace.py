@@ -221,6 +221,7 @@ class Trace(object):
             final_scores += rank_scores
         if scorer.rank_type == 'min':
             if scorer.position_size == 1:
+                print('ADDING FINAL 1!!!')
                 final_scores += 1
             elif scorer.position_size == 2:
                 final_scores += np.triu(np.ones((self.aln.seq_length, self.aln.seq_length)), k=1)
