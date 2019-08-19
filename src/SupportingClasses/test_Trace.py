@@ -162,17 +162,17 @@ class TestTrace(TestBase):
                         single_table = trace.unique_nodes[node_name]['single']
                         if low_mem:
                             single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
-                        diff = single_table.get_table() - expected_single_table.get_table()
+                        diff = (single_table.get_table() - expected_single_table.get_table()).toarray()
                         if diff.any():
-                            print(np.array(single_table.get_table()))
-                            print(np.array(expected_single_table))
-                            print(np.array(diff))
-                            indices = np.nonzero(np.array(diff))
-                            print(np.array(single_table.get_table())[indices])
-                            print(np.array(expected_single_table)[indices])
-                            print(np.array(diff)[indices])
+                            print(single_table.get_table().toarray())
+                            print(expected_single_table.toarray())
+                            print(diff)
+                            indices = np.nonzero(diff)
+                            print(single_table.get_table().toarray()[indices])
+                            print(expected_single_table.toarray()[indices])
+                            print(diff[indices])
                             print(node_name)
-                        self.assertFalse(diff.toarray().any())
+                        self.assertFalse(diff.any())
                         if write_freq_table:
                             self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}_position_freq_table.tsv'.format(
                                 node_name))))
