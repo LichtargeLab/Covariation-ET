@@ -586,7 +586,8 @@ class TestPhylogeneticTree(TestBase):
         expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
         # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
         # the construction is repeated using the specific (custom_tree) method.
-        et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
+        et_mip_obj.tree.size = len(et_mip_obj.distance_matrix)
+        et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
         self.assertEqual(et_mip_obj.tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
@@ -606,7 +607,8 @@ class TestPhylogeneticTree(TestBase):
         expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
         # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
         # the construction is repeated using the specific (custom_tree) method.
-        et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
+        et_mip_obj.tree.size = len(et_mip_obj.distance_matrix)
+        et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
         self.assertEqual(et_mip_obj.tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
@@ -623,7 +625,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (upgma_tree) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._upgma_tree()
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._upgma_tree()
         self.assertNotEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
@@ -647,7 +650,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (upgma_tree) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._upgma_tree()
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._upgma_tree()
         self.assertNotEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
@@ -671,7 +675,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (et_tree) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._et_tree()
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._et_tree()
         self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
@@ -696,7 +701,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (et_tree) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._et_tree()
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._et_tree()
         self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
@@ -723,7 +729,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (agglomerative_clustering) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
         self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
@@ -742,7 +749,8 @@ class TestPhylogeneticTree(TestBase):
         # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
         # construction is performed manually using the specific (agglomerative_clustering) method.
         phylo_tree.distance_matrix = dm
-        phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
+        phylo_tree.size = len(dm)
+        phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
         self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
         non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}

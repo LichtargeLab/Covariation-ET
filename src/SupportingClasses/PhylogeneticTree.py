@@ -221,10 +221,15 @@ class PhylogeneticTree(object):
         ml_model.fit(np.array(self.distance_matrix))
         newick_tree_string = convert_agglomerative_clustering_to_newick_tree(
             clusterer=ml_model, labels=self.distance_matrix.names, distance_matrix=np.array(self.distance_matrix))
-        newick_fn = os.path.join(cache_dir, 'joblib', 'agg_clustering_{}_{}.newick'.format(affinity, linkage))
+        if cache_dir:
+            newick_fn = os.path.join(cache_dir, 'joblib', 'agg_clustering_{}_{}.newick'.format(affinity, linkage))
+        else:
+            newick_fn = os.path.join(os.getcwd(), 'agg_clustering_{}_{}.newick'.format(affinity, linkage))
         with open(newick_fn, 'w') as newick_handle:
             newick_handle.write(newick_tree_string)
         agg_clustering_tree = read(file=newick_fn, format='newick')
+        if cache_dir is None:
+            os.remove(newick_fn)
         return agg_clustering_tree
 
     def construct_tree(self, dm):
