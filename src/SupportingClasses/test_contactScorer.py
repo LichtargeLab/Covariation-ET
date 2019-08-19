@@ -268,6 +268,10 @@ class TestContactScorer(TestBase):
         self.assertIsNone(self.scorer1._specific_mapping)
         self.assertIsNone(self.scorer1.distances)
         self.assertIsNone(self.scorer1.dist_type)
+
+    def test_1b___init(self):
+        with self.assertRaises(TypeError):
+            ContactScorer()
         self.assertEqual(self.scorer2.query_alignment, os.path.abspath(self.aln_file2))
         self.assertEqual(self.scorer2.query_structure, os.path.abspath(self.pdb_file2))
         self.assertEqual(self.scorer2.cutoff, 8.0)
@@ -277,7 +281,7 @@ class TestContactScorer(TestBase):
         self.assertIsNone(self.scorer2.distances)
         self.assertIsNone(self.scorer2.dist_type)
 
-    def test_1b___init(self):
+    def test_1c___init(self):
         with self.assertRaises(TypeError):
             ContactScorer()
         eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
@@ -289,6 +293,10 @@ class TestContactScorer(TestBase):
         self.assertIsNone(eval1._specific_mapping)
         self.assertIsNone(eval1.distances)
         self.assertIsNone(eval1.dist_type)
+
+    def test_1d___init(self):
+        with self.assertRaises(TypeError):
+            ContactScorer()
         eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
         self.assertEqual(eval2.query_alignment, os.path.abspath(self.aln_file2))
         self.assertEqual(eval2.query_structure, os.path.abspath(self.pdb_file2))
@@ -306,6 +314,8 @@ class TestContactScorer(TestBase):
         expected_str1 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
             self.pdb_len1, 3, self.pdb_chain1)
         self.assertEqual(str(self.scorer1), expected_str1)
+
+    def test_2b___str(self):
         with self.assertRaises(ValueError):
             str(self.scorer2)
         self.scorer2.fit()
@@ -313,7 +323,7 @@ class TestContactScorer(TestBase):
             self.pdb_len2, 3, self.pdb_chain2)
         self.assertEqual(str(self.scorer2), expected_str2)
 
-    def test_2b___str(self):
+    def test_2c___str(self):
         eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
         with self.assertRaises(ValueError):
             str(eval1)
@@ -321,6 +331,8 @@ class TestContactScorer(TestBase):
         expected_str1 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
             self.pdb_len1, 3, self.pdb_chain1)
         self.assertEqual(str(eval1), expected_str1)
+
+    def test_2d___str(self):
         eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
         with self.assertRaises(ValueError):
             str(eval2)
@@ -328,50 +340,93 @@ class TestContactScorer(TestBase):
         expected_str2 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
             self.pdb_len2, 3, self.pdb_chain2)
         self.assertEqual(str(eval2), expected_str2)
-    # 
-    # def test_fit(self):
-    #     self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))
-    #     self.assertEqual(self.scorer1.query_structure, os.path.abspath(self.pdb_file1))
-    #     self.scorer1.fit()
-    #     self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-    #     self.assertEqual(self.scorer1.best_chain, 'A')
-    #     self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(79)})
-    #     self.scorer1.best_chain = None
-    #     self.scorer1.fit()
-    #     self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-    #     self.assertEqual(self.scorer1.best_chain, 'A')
-    #     self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(79)})
-    #     self.scorer1.query_pdb_mapping = None
-    #     self.scorer1.fit()
-    #     self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-    #     self.assertEqual(self.scorer1.best_chain, 'A')
-    #     self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(79)})
-    #     self.assertEqual(self.scorer2.query_alignment, os.path.abspath(self.aln_file2))
-    #     self.assertEqual(self.scorer2.query_structure, os.path.abspath(self.pdb_file2))
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    # 
-    #     self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(368)})
-    #     self.scorer2.best_chain = None
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    # 
-    #     self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(368)})
-    #     self.scorer2.query_pdb_mapping = None
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    # 
-    #     self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(368)})
-    # 
+
+    def test_3a_fit(self):
+        self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))
+        self.assertEqual(self.scorer1.query_structure, os.path.abspath(self.pdb_file1))
+        self.scorer1.fit()
+        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
+        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
+        self.assertEqual(self.scorer1.best_chain, 'A')
+        self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+        self.scorer1.best_chain = None
+        self.scorer1.fit()
+        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
+        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
+        self.assertEqual(self.scorer1.best_chain, 'A')
+        self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+        self.scorer1.query_pdb_mapping = None
+        self.scorer1.fit()
+        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
+        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
+        self.assertEqual(self.scorer1.best_chain, 'A')
+        self.assertEqual(self.scorer1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+
+    def test_3b_fit(self):
+        self.assertEqual(self.scorer2.query_alignment, os.path.abspath(self.aln_file2))
+        self.assertEqual(self.scorer2.query_structure, os.path.abspath(self.pdb_file2))
+        self.scorer2.fit()
+        self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
+        self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
+        self.assertEqual(self.scorer2.best_chain, 'A')
+        self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+        self.scorer2.best_chain = None
+        self.scorer2.fit()
+        self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
+        self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
+        self.assertEqual(self.scorer2.best_chain, 'A')
+        self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+        self.scorer2.query_pdb_mapping = None
+        self.scorer2.fit()
+        self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
+        self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
+        self.assertEqual(self.scorer2.best_chain, 'A')
+        self.assertEqual(self.scorer2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+
+    def test_3c_fit(self):
+        eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
+        self.assertEqual(eval1.query_alignment, os.path.abspath(self.aln_file1))
+        self.assertEqual(eval1.query_structure, os.path.abspath(self.pdb_file1))
+        eval1.fit()
+        self.assertNotEqual(eval1.query_alignment, self.aln_file1)
+        self.assertNotEqual(eval1.query_structure, self.pdb_file1)
+        self.assertEqual(eval1.best_chain, 'A')
+        self.assertEqual(eval1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+        eval1.best_chain = None
+        eval1.fit()
+        self.assertNotEqual(eval1.query_alignment, self.aln_file1)
+        self.assertNotEqual(eval1.query_structure, self.pdb_file1)
+        self.assertEqual(eval1.best_chain, 'A')
+        self.assertEqual(eval1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+        eval1.query_pdb_mapping = None
+        eval1.fit()
+        self.assertNotEqual(eval1.query_alignment, self.aln_file1)
+        self.assertNotEqual(eval1.query_structure, self.pdb_file1)
+        self.assertEqual(eval1.best_chain, 'A')
+        self.assertEqual(eval1.query_pdb_mapping, {i: i for i in range(self.pdb_len1)})
+
+    def test_3d_fit(self):
+        eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
+        self.assertEqual(eval2.query_alignment, os.path.abspath(self.aln_file2))
+        self.assertEqual(eval2.query_structure, os.path.abspath(self.pdb_file2))
+        eval2.fit()
+        self.assertNotEqual(eval2.query_alignment, self.aln_file2)
+        self.assertNotEqual(eval2.query_structure, self.pdb_file2)
+        self.assertEqual(eval2.best_chain, 'A')
+        self.assertEqual(eval2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+        eval2.best_chain = None
+        eval2.fit()
+        self.assertNotEqual(eval2.query_alignment, self.aln_file2)
+        self.assertNotEqual(eval2.query_structure, self.pdb_file2)
+        self.assertEqual(eval2.best_chain, 'A')
+        self.assertEqual(eval2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+        eval2.query_pdb_mapping = None
+        eval2.fit()
+        self.assertNotEqual(eval2.query_alignment, self.aln_file2)
+        self.assertNotEqual(eval2.query_structure, self.pdb_file2)
+        self.assertEqual(eval2.best_chain, 'A')
+        self.assertEqual(eval2.query_pdb_mapping, {i: i for i in range(self.pdb_len2)})
+
     # def test__get_all_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
