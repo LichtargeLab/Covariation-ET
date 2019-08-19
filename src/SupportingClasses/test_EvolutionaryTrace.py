@@ -575,7 +575,16 @@ class TestEvoultionaryTrace(TestBase):
                                                                                   gap_correction=gap_correction,
                                                                                   processes=self.max_threads)
         self.assertFalse((et.ranking - expected_ranks).any())
-        self.assertFalse((et.scores - expected_scores).any())
+        diff = et.scores - expected_scores
+        if diff.any():
+            print(et.scores)
+            print(expected_scores)
+            print(diff)
+            indices = np.nonzero(diff)
+            print(et.scores[indices])
+            print(expected_scores[indices])
+            print(diff[indices])
+        self.assertFalse(diff.any())
         self.assertFalse((et.coverage - expected_coverage).any())
         expected_final_fn = os.path.join(out_dir, '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
             query_id, ('ET_' if et_distance else ''), distance_model, tree_building_method,
@@ -591,13 +600,13 @@ class TestEvoultionaryTrace(TestBase):
     #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
     #         low_memory=True)
 
-    def test_4b_perform_trace(self):
-        self.evaluate_perform_trace(
-            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
-            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_small_dir,
-            processors=self.max_threads, low_memory=True,
-            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+    # def test_4b_perform_trace(self):
+    #     self.evaluate_perform_trace(
+    #         query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+    #         distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+    #         position_type='single', scoring_metric='plain_entropy', gap_correction=None, out_dir=self.out_small_dir,
+    #         processors=self.max_threads, low_memory=True,
+    #         output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     # def test_4c_perform_trace(self):
     #     self.evaluate_perform_trace(
