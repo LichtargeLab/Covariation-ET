@@ -165,11 +165,11 @@ class TestTrace(TestBase):
                         diff = (single_table.get_table() - expected_single_table.get_table()).toarray()
                         if diff.any():
                             print(single_table.get_table().toarray())
-                            print(expected_single_table.toarray())
+                            print(expected_single_table.get_table().toarray())
                             print(diff)
                             indices = np.nonzero(diff)
                             print(single_table.get_table().toarray()[indices])
-                            print(expected_single_table.toarray()[indices])
+                            print(expected_single_table.get_table().toarray()[indices])
                             print(diff[indices])
                             print(node_name)
                         self.assertFalse(diff.any())
