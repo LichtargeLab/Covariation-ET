@@ -42,6 +42,23 @@ class TestDataSetGenerator(TestCase):
         cls.small_query_seq = SeqRecord(Seq('PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLEEMNLPGKWKPKMIGGIGGFIKVRQYDQIPVEIGHKAIGTV'
                                             'LVGPTPVNIIGRNLLTQIGTLNF', alphabet=FullIUPACProtein),
                                         id=cls.small_structure_id, description='Target Query')
+        cls.small_query_seq_uniprot = SeqRecord(
+            Seq('MGARASVLSGGELDKWEKIRLRPGGKKKYKLKHIVWASRELERFAVNPGLLETSEGCRQILGQLQPSLQTGSEELRSLYNTVATLYCVHQRIDVKDTKEALE'
+                'KIEEEQNKSKKKAQQAAAAAGTGNSSQVSQNYPIVQNLQGQMVHQAISPRTLNAWVKVVEEKAFSPEVIPMFSALSEGATPQDLNTMLNTVGGHQAAMQMLK'
+                'ETINEEAAEWDRVHPVHAGPIAPGQMREPRGSDIAGTTSTLQEQIGWMTNNPPIPVGEIYKRWIILGLNKIVRMYSPTSILDIRQGPKEPFRDYVDRFYKTL'
+                'RAEQASQDVKNWMTETLLVQNANPDCKTILKALGPAATLEEMMTACQGVGGPGHKARVLAEAMSQVTNPANIMMQRGNFRNQRKTVKCFNCGKEGHIAKNCR'
+                'APRKKGCWRCGREGHQMKDCTERQANFLREDLAFLQGKAREFSSEQTRANSPTRRELQVWGGENNSLSEAGADRQGTVSFNFPQITLWQRPLVTIRIGGQLK'
+                'EALLDTGADDTVLEEMNLPGKWKPKMIGGIGGFIKVRQYDQIPVEICGHKAIGTVLVGPTPVNIIGRNLLTQIGCTLNFPISPIETVPVKLKPGMDGPKVKQ'
+                'WPLTEEKIKALVEICTEMEKEGKISKIGPENPYNTPVFAIKKKDSTKWRKLVDFRELNKRTQDFWEVQLGIPHPAGLKKKKSVTVLDVGDAYFSVPLDKDFR'
+                'KYTAFTIPSINNETPGIRYQYNVLPQGWKGSPAIFQSSMTKILEPFRKQNPDIVIYQYMDDLYVGSDLEIGQHRTKIEELRQHLLRWGFTTPDKKHQKEPPF'
+                'LWMGYELHPDKWTVQPIMLPEKDSWTVNDIQKLVGKLNWASQIYAGIKVKQLCKLLRGTKALTEVIPLTEEAELELAENREILKEPVHEVYYDPSKDLVAEI'
+                'QKQGQGQWTYQIYQEPFKNLKTGKYARMRGAHTNDVKQLTEAVQKVSTESIVIWGKIPKFKLPIQKETWEAWWMEYWQATWIPEWEFVNTPPLVKLWYQLEK'
+                'EPIVGAETFYVDGAANRETKLGKAGYVTDRGRQKVVSIADTTNQKTELQAIHLALQDSGLEVNIVTDSQYALGIIQAQPDKSESELVSQIIEQLIKKEKVYL'
+                'AWVPAHKGIGGNEQVDKLVSAGIRKVLFLNGIDKAQEEHEKYHSNWRAMASDFNLPPVVAKEIVASCDKCQLKGEAMHGQVDCSPGIWQLDCTHLEGKIILV'
+                'AVHVASGYIEAEVIPAETGQETAYFLLKLAGRWPVKTIHTDNGSNFTSTTVKAACWWAGIKQEFGIPYNPQSQGVVESMNNELKKIIGQVRDQAEHLKTAVQ'
+                'MAVFIHNFKRKGGIGGYSAGERIVDIIATDIQTKELQKQITKIQNFRVYYRDNKDPLWKGPAKLLWKGEGAVVIQDNSDIKVVPRRKAKIIRDYGKQMAGDD'
+                'CVASRQDED', alphabet=FullIUPACProtein), id=cls.small_structure_id,
+            description='Target Query:From UniProt Accession: P03369')
         cls.large_structure_id = '2zxe'
         cls.large_query_seq = SeqRecord(Seq(
             'LDELKKEVSMDDHKLSLDELHNKYGTDLTRGLTNARAKEILARDGPNSLTPPPTTPEWIKFCRQLFGGFSILLWIGAILCFLAYGIQAATEDEPANDNLYLGVVLS'
@@ -55,6 +72,18 @@ class TestDataSetGenerator(TestCase):
             'PMDLIGKRVRWDDRWISDVEDSFGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSIFQQGMKNKILIFGLFEETALAAFLSYCPGTDVALRMYPLKP'
             'SWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', alphabet=FullIUPACProtein), id=cls.large_structure_id,
             description='Target Query')
+        cls.large_query_seq_uniprot = SeqRecord(Seq(
+            'MGKGTASDKYEPAATSENATKSKKKGKKDKIDKKRDLDELKKEVSMDDHKLSLDELHNKYGTDLTRGLTNARAKEILARDGPNSLTPPPTTPEWIKFCRQLFGGFS'
+            'ILLWIGAILCFLAYGIQAATEDEPANDNLYLGVVLSTVVIVTGCFSYYQEAKSSRIMDSFKNMVPQQALVIRDGEKSTINAEFVVAGDLVEVKGGDRIPADLRIIS'
+            'AHGCKVDNSSLTGESEPQTRSPEFSSENPLETRNIAFFSTNCVEGTARGVVVYTGDRTVMGRIATLASGLEVGRTPIAIEIEHFIHIITGVAVFLGVSFFILSLIL'
+            'GYSWLEAVIFLIGIIVANVPEGLLATVTVCLTLTAKRMARKNCLVKNLEAVETLGSTSTICSDKTGTLTQNRMTVAHMWFDNQIHEADTTENQSGAAFDKTSATWS'
+            'ALSRIAALCNRAVFQAGQDNVPILKRSVAGDASESALLKCIELCCGSVQGMRDRNPKIVEIPFNSTNKYQLSIHENEKSSESRYLLVMKGAPERILDRCSTILLNG'
+            'AEEPLKEDMKEAFQNAYLELGGLGERVLGFCHFALPEDKYNEGYPFDADEPNFPTTDLCFVGLMAMIDPPRAAVPDAVGKCRSAGIKVIMVTGDHPITAKAIAKGV'
+            'GIISEGNETIEDIAARLNIPIGQVNPRDAKACVVHGSDLKDLSTEVLDDILHYHTEIVFARTSPQQKLIIVEGCQRQGAIVAVTGDGVNDSPALKKADIGVAMGIS'
+            'GSDVSKQAADMILLDDNFASIVTGVEEGRLIFDNLKKSIAYTLTSNIPEITPFLVFIIGNVPLPLGTVTILCIDLGTDMVPAISLAYEQAESDIMKRQPRNPKTDK'
+            'LVNERLISMAYGQIGMIQALGGFFSYFVILAENGFLPMDLIGKRVRWDDRWISDVEDSFGQQWTYEQRKIVEFTCHTSFFISIVVVQWADLIICKTRRNSIFQQGM'
+            'KNKILIFGLFEETALAAFLSYCPGTDVALRMYPLKPSWWFCAFPYSLIIFLYDEMRRFIIRRSPGGWVEQETYY', alphabet=FullIUPACProtein),
+            id=cls.large_structure_id, description='Target Query:From UniProt Accession: Q4H132')
         cls.protein_list_name = 'Test_Set.txt'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, cls.protein_list_name)
         cls.pdb_path = os.path.join(cls.input_path, 'PDB')
@@ -234,7 +263,7 @@ class TestDataSetGenerator(TestCase):
                                                                                sequence_path=self.sequence_path,
                                                                                pdb_fn=self.expected_pdb_fn_small)
         self.assertTrue(os.path.isdir(self.sequence_path))
-        self.assertEqual(str(self.small_query_seq.seq), str(seq_small.seq))
+        self.assertEqual(str(self.small_query_seq_uniprot.seq), str(seq_small.seq))
         self.assertEqual(len_small, len(seq_small))
         self.assertEqual(seq_fn_small, self.expected_seq_fn_small)
         self.assertEqual(chain_small, 'A')
@@ -243,7 +272,7 @@ class TestDataSetGenerator(TestCase):
                                                                                sequence_path=self.sequence_path,
                                                                                pdb_fn=self.expected_pdb_fn_large)
         self.assertTrue(os.path.isdir(self.sequence_path))
-        self.assertEqual(str(self.large_query_seq.seq), str(seq_large.seq))
+        self.assertEqual(str(self.large_query_seq_uniprot.seq), str(seq_large.seq))
         self.assertEqual(len_large, len(seq_large))
         self.assertEqual(seq_fn_large, self.expected_seq_fn_large)
         self.assertEqual(chain_large, 'A')
@@ -257,8 +286,8 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(p_data['PDB'], self.expected_pdb_fn_small)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_small))
         self.assertEqual(p_data['Chain'], 'A')
-        self.assertEqual(str(p_data['Sequence'].seq), str(self.small_query_seq.seq))
-        self.assertEqual(p_data['Length'], len(self.small_query_seq.seq))
+        self.assertEqual(str(p_data['Sequence'].seq), str(self.small_query_seq_uniprot.seq))
+        self.assertEqual(p_data['Length'], len(self.small_query_seq_uniprot.seq))
         self.assertEqual(p_data['Seq_Fasta'], self.expected_seq_fn_small)
         self.assertTrue(os.path.isfile(self.expected_seq_fn_small))
 
@@ -271,8 +300,8 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(p_data['PDB'], self.expected_pdb_fn_large)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
         self.assertEqual(p_data['Chain'], 'A')
-        self.assertEqual(str(p_data['Sequence'].seq), str(self.large_query_seq.seq))
-        self.assertEqual(p_data['Length'], len(self.large_query_seq.seq))
+        self.assertEqual(str(p_data['Sequence'].seq), str(self.large_query_seq_uniprot.seq))
+        self.assertEqual(p_data['Length'], len(self.large_query_seq_uniprot.seq))
         self.assertEqual(p_data['Seq_Fasta'], self.expected_seq_fn_large)
         self.assertTrue(os.path.isfile(self.expected_seq_fn_large))
 
