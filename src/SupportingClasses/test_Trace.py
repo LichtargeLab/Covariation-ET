@@ -193,57 +193,57 @@ class TestTrace(TestBase):
                     visited.add(node_name)
         rmtree(unique_dir)
 
-    def test2a_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, small alignment, single processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=True, pair=True, processors=1,
-                                               low_mem=False, write_aln=True, write_freq_table=True)
-
-    def test2b_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, large alignment, single processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_large, single=True, pair=True, processors=1,
-                                               low_mem=True, write_aln=False, write_freq_table=False)
-
-    def test2c_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, small alignment, single processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_custom_small, single=True, pair=True,
-                                               processors=1, low_mem=False, write_aln=True, write_freq_table=True)
-
-    def test2d_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, large alignment, single processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_custom_large, single=True, pair=True, processors=1,
-                                               low_mem=True, write_aln=False, write_freq_table=False)
-
-    def test2e_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, small alignment, multi-processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_small, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=False, write_aln=True,
-                                               write_freq_table=True)
-
-    def test2f_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, large alignment, multi-processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_large, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=True, write_aln=False,
-                                               write_freq_table=False)
-
-    def test2g_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, small alignment, multi-processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                                               assign=self.assignments_custom_small, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=False, write_aln=True,
-                                               write_freq_table=True)
-
-    def test2h_characterize_rank_groups(self):
-        # Test characterizing both single and pair positions, large alignment, multi-processed
-        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_custom_large, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=True, write_aln=False,
-                                               write_freq_table=False)
+    # def test2a_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, small alignment, single processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                                            assign=self.assignments_small, single=True, pair=True, processors=1,
+    #                                            low_mem=False, write_aln=True, write_freq_table=True)
+    #
+    # def test2b_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, large alignment, single processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                                            assign=self.assignments_large, single=True, pair=True, processors=1,
+    #                                            low_mem=True, write_aln=False, write_freq_table=False)
+    #
+    # def test2c_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, small alignment, single processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                                            assign=self.assignments_custom_small, single=True, pair=True,
+    #                                            processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+    #
+    # def test2d_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, large alignment, single processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                                            assign=self.assignments_custom_large, single=True, pair=True, processors=1,
+    #                                            low_mem=True, write_aln=False, write_freq_table=False)
+    #
+    # def test2e_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, small alignment, multi-processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                                            assign=self.assignments_small, single=True, pair=True,
+    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
+    #                                            write_freq_table=True)
+    #
+    # def test2f_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, large alignment, multi-processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                                            assign=self.assignments_large, single=True, pair=True,
+    #                                            processors=self.max_threads, low_mem=True, write_aln=False,
+    #                                            write_freq_table=False)
+    #
+    # def test2g_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, small alignment, multi-processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                                            assign=self.assignments_custom_small, single=True, pair=True,
+    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
+    #                                            write_freq_table=True)
+    #
+    # def test2h_characterize_rank_groups(self):
+    #     # Test characterizing both single and pair positions, large alignment, multi-processed
+    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                                            assign=self.assignments_custom_large, single=True, pair=True,
+    #                                            processors=self.max_threads, low_mem=True, write_aln=False,
+    #                                            write_freq_table=False)
 
     def evaluate_trace(self, aln, phylo_tree, assignments, single, pair, metric, num_proc, out_dir, gap_correction=None,
                        low_mem=True):
@@ -427,33 +427,33 @@ class TestTrace(TestBase):
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
 
-    # def test3a_trace(self):
-    #     # Perform identity trace on single positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3b_trace(self):
-    #     # Perform identity trace on single positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3c_trace(self):
-    #     # Perform identity trace on single positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test3d_trace(self):
-    #     # Perform identity trace on single positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    def test3a_trace(self):
+        # Perform identity trace on single positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3b_trace(self):
+        # Perform identity trace on single positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3c_trace(self):
+        # Perform identity trace on single positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test3d_trace(self):
+        # Perform identity trace on single positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
