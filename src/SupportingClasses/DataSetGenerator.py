@@ -253,7 +253,9 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
     Parse Query Sequence
 
     This function opens a downloaded PDB file for a given protein id (for which download_pdb has already been
-    called) and extracts the sequence of the specified chain_id for the structure. The parsed sequence is given in
+    called) and extracts the sequence of the specified chain_id for the structure. If Swiss/UniProt data is available in
+    the structure file header an attempt is made to retrieve the full sequence referenced by the specified chain in the
+    structure. If Swiss/UniProt information is not available the sequence parsed from the structure file is given in
     single letter amino acid codes. The sequence is saved to a file in sequence_path and is given a file name with the
     pattern {protein id}.fasta. If the specified chain_id is not available for the structure the first chain
     (alphabetically) is used. The chain is returned as the last value so the user knows if the specified chain was used
@@ -278,6 +280,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             print('Making dir: {}'.format(sequence_path))
         os.makedirs(sequence_path)
     protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
+    final_unp_id = None
     if os.path.isfile(protein_fasta_fn):
         if verbose:
             print('Loading query sequence from file: {}'.format(protein_fasta_fn))
@@ -285,25 +288,33 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
             sequence = next(seq_iter)
             sequence.alphabet = FullIUPACProtein()
+            match = re.match(r'.*Target Query: Chain: ([A-Z])(: From UniProt Accession: (.*))?$',
+                             sequence.description)
+            inner_chain_id = match.group(1)
+            try:
+                final_unp_id = match.group(3)
+            except IndexError:
+                final_unp_id = None
     else:
         if verbose:
             print('Parsing query sequence from file: {}'.format(pdb_fn))
-        # acc_pattern = re.compile(r'^[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$')
+        # Parse the UniProt accession data out of the PDB file (if available)
         chain_uniprot = {}
         for record in parse(pdb_fn, 'pdb-seqres'):
             chain_uniprot[record.annotations['chain']] = []
             for ref in record.dbxrefs:
                 xref_db, xref_acc = ref.split(':')
-                # acc_check = acc_pattern.match(xref_acc)
-                # if xref_db == 'UNP' and acc_check:
                 if xref_db == 'UNP':
                     chain_uniprot[record.annotations['chain']].append(xref_acc)
+        # Identify the UniProt id(s) for the specified chain or the first (alphabetically) available chain.
         if chain_uniprot[chain_id]:
             unp_ids = chain_uniprot[chain_id]
+            inner_chain_id = chain_id
         else:
-            unp_ids = chain_uniprot[sorted(chain_uniprot.keys())[0]]
+            inner_chain_id = sorted(chain_uniprot.keys())[0]
+            unp_ids = chain_uniprot[inner_chain_id]
+        # Attempt to retrieve the identified chain's sequence from Swiss/UniProt.
         seq = None
-        final_unp_id = None
         for unp_id in unp_ids:
             try:
                 handle = get_sprot_raw(unp_id)
@@ -312,22 +323,25 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             final_unp_id = unp_id
             record = read(handle)
             seq = record.sequence
+        # If this fails, use the sequence from the PDB structure itself.
         if seq is None:
             pdb_struct = PDBReference(pdb_file=pdb_fn)
             pdb_struct.import_pdb(structure_id=protein_id)
             try:
                 seq = pdb_struct.seq[chain_id]
+                inner_chain_id = chain_id
             except KeyError:
-                chain_id = sorted(pdb_struct.seq.keys())
-                seq = pdb_struct.seq[chain_id]
-        desc = 'Target Query' + (':From UniProt Accession: {}'.format(final_unp_id) if unp_id else '')
+                inner_chain_id = sorted(pdb_struct.seq.keys())
+                seq = pdb_struct.seq[inner_chain_id]
+        desc = ('Target Query: Chain: {}'.format(inner_chain_id) +
+                (': From UniProt Accession: {}'.format(final_unp_id) if final_unp_id else ''))
         sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
         seq_records = [sequence]
         with open(protein_fasta_fn, 'w') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     if verbose:
         print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn, chain_id
+    return sequence, len(sequence), protein_fasta_fn, inner_chain_id, final_unp_id
 
 
 def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
@@ -381,10 +395,10 @@ def pdb_processing(in_tuple):
     if pdb_fn is None:
         seq, length, seq_fn = None, None, None
     else:
-        seq, length, seq_fn, chain_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
-                                                             sequence_path=sequence_dir, pdb_fn=pdb_fn,
-                                                             verbose=verbose_out)
-    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn}
+        seq, length, seq_fn, chain_id, unp_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
+                                                                     sequence_path=sequence_dir, pdb_fn=pdb_fn,
+                                                                     verbose=verbose_out)
+    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn, 'UniProt': unp_id}
     return protein_id, data
 
 
