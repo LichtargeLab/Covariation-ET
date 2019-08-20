@@ -364,7 +364,7 @@ class PhylogeneticTree(object):
         if starting_node_pos == 1:
             return
         node_pattern = 'Inner{}'
-        for node in self.traverse_bottom_up():
+        for node in self.traverse_top_down():
             if not node.is_terminal():
                 node_pos = int(node.name.strip('Inner'))
                 node.name = node_pattern.format(self.size - node_pos)
