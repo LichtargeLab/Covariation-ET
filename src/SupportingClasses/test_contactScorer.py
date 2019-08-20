@@ -514,181 +514,183 @@ class TestContactScorer(TestBase):
     #     expected2c = np.vstack([[157.033, 23.649, 48.591]])
     #     measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
     #     self.assertFalse(((measured2c - expected2c) > 1E-5).any())
-
-    def test_5a_measure_distance(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        self.assertEqual(self.scorer1.dist_type, 'Any')
-        residue1a = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-        residue1b = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][2]
-        pos1a = ContactScorer._get_all_coords(residue1a)
-        pos1b = ContactScorer._get_all_coords(residue1b)
-        expected1a = None
-        for i in range(len(pos1a)):
-            for j in range(len(pos1b)):
-                curr_dist = np.sqrt(np.power(pos1a[i][0] - pos1b[j][0], 2) + np.power(pos1a[i][1] - pos1b[j][1], 2) +
-                                    np.power(pos1a[i][2] - pos1b[j][2], 2))
-                if (expected1a is None) or (curr_dist < expected1a):
-                    expected1a = curr_dist
-        self.assertLess(expected1a - self.scorer1.distances[0, 1], 1E-5)
-        self.scorer1.measure_distance(method='CA')
-        self.assertEqual(self.scorer1.dist_type, 'CA')
-        ca_atom1a = residue1a['CA'].get_coord()
-        ca_atom1b = residue1b['CA'].get_coord()
-        expected1b = np.sqrt(np.power(ca_atom1a[0] - ca_atom1b[0], 2) + np.power(ca_atom1a[1] - ca_atom1b[1], 2) +
-                             np.power(ca_atom1a[2] - ca_atom1b[2], 2))
-        self.assertLess(expected1b - self.scorer1.distances[0, 1], 1E-5)
-        self.scorer1.measure_distance(method='CB')
-        self.assertEqual(self.scorer1.dist_type, 'CB')
-        cb_atom1a = residue1a['CB'].get_coord()
-        cb_atom1b = residue1b['CB'].get_coord()
-        expected1c = np.sqrt(np.power(cb_atom1a[0] - cb_atom1b[0], 2) + np.power(cb_atom1a[1] - cb_atom1b[1], 2) +
-                             np.power(cb_atom1a[2] - cb_atom1b[2], 2))
-        self.assertLess(expected1c - self.scorer1.distances[0, 1], 1E-5)
-
-    def test_5b_measure_distance(self):
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='Any')
-        self.assertEqual(self.scorer2.dist_type, 'Any')
-        residue2a = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
-        residue2b = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][33]
-        pos2a = ContactScorer._get_all_coords(residue2a)
-        pos2b = ContactScorer._get_all_coords(residue2b)
-        expected2a = None
-        for i in range(len(pos2a)):
-            for j in range(len(pos2b)):
-                curr_dist = np.sqrt(np.power(pos2a[i][0] - pos2b[j][0], 2) + np.power(pos2a[i][1] - pos2b[j][1], 2) +
-                                    np.power(pos2a[i][2] - pos2b[j][2], 2))
-                if (expected2a is None) or (curr_dist < expected2a):
-                    expected2a = curr_dist
-        self.assertLess(expected2a - self.scorer2.distances[0, 1], 1e-5)
-        self.scorer2.measure_distance(method='CA')
-        self.assertEqual(self.scorer2.dist_type, 'CA')
-        ca_atom2a = residue2a['CA'].get_coord()
-        ca_atom2b = residue2b['CA'].get_coord()
-        expected2b = np.sqrt(np.power(ca_atom2a[0] - ca_atom2b[0], 2) + np.power(ca_atom2a[1] - ca_atom2b[1], 2) +
-                             np.power(ca_atom2a[2] - ca_atom2b[2], 2))
-        self.assertLess(expected2b - self.scorer2.distances[0, 1], 1e-5)
-        self.scorer2.measure_distance(method='CB')
-        self.assertEqual(self.scorer2.dist_type, 'CB')
-        cb_atom2a = residue2a['CB'].get_coord()
-        cb_atom2b = residue2b['CB'].get_coord()
-        expected2c = np.sqrt(np.power(cb_atom2a[0] - cb_atom2b[0], 2) + np.power(cb_atom2a[1] - cb_atom2b[1], 2) +
-                             np.power(cb_atom2a[2] - cb_atom2b[2], 2))
-        self.assertLess(expected2c - self.scorer2.distances[0, 1], 1e-5)
-
-    def test_5c_measure_distance(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        self.assertEqual(self.scorer1.dist_type, 'Any')
-        residue_coords = {}
-        dists = np.zeros((self.pdb_len1, self.pdb_len1))
-        dists2 = np.zeros((self.pdb_len1, self.pdb_len1))
-        counter = 0
-        for res_num in self.scorer1.query_structure.residue_pos[self.scorer1.best_chain]:
-            residue = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][res_num]
-            coords = self.scorer1._get_all_coords(residue)
-            residue_coords[counter] = coords
-            for residue2 in residue_coords:
-                if residue2 == counter:
-                    continue
-                else:
-                    dist = self._et_calcDist(coords, residue_coords[residue2])
-                    dist2 = np.sqrt(dist)
-                    dists[counter, residue2] = dist
-                    dists[residue2, counter] = dist
-                    dists2[counter, residue2] = dist2
-                    dists2[residue2, counter] = dist2
-            counter += 1
-        distance_diff = np.square(self.scorer1.distances) - dists
-        self.assertLess(np.max(distance_diff), 1e-3)
-        adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
-                    (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
-        self.assertEqual(np.sum(adj_diff), 0)
-        self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
-        distance_diff2 = self.scorer1.distances - dists2
-        self.assertEqual(np.sum(distance_diff2), 0.0)
-        self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
-
-    def test_5d_measure_distance(self):
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='Any')
-        self.assertEqual(self.scorer2.dist_type, 'Any')
-        residue_coords = {}
-        dists = np.zeros((self.pdb_len2, self.pdb_len2))
-        dists2 = np.zeros((self.pdb_len2, self.pdb_len2))
-        counter = 0
-        for res_num in self.scorer2.query_structure.residue_pos[self.scorer2.best_chain]:
-            residue = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][res_num]
-            coords = self.scorer2._get_all_coords(residue)
-            residue_coords[counter] = coords
-            for residue2 in residue_coords:
-                if residue2 == counter:
-                    continue
-                else:
-                    dist = self._et_calcDist(coords, residue_coords[residue2])
-                    dist2 = np.sqrt(dist)
-                    dists[counter, residue2] = dist
-                    dists[residue2, counter] = dist
-                    dists2[counter, residue2] = dist2
-                    dists2[residue2, counter] = dist2
-            counter += 1
-        distance_diff = np.square(self.scorer2.distances) - dists
-        self.assertLess(np.max(distance_diff), 2E-3)
-        adj_diff = ((np.square(self.scorer2.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
-                    (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
-        self.assertEqual(np.sum(adj_diff), 0)
-        self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
-        distance_diff2 = self.scorer2.distances - dists2
-        self.assertEqual(np.sum(distance_diff2), 0.0)
-        self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
-
-    # def test_find_pairs_by_separation(self):
+    #
+    # def test_5a_measure_distance(self):
     #     self.scorer1.fit()
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.find_pairs_by_separation(category='Wide')
-    #     expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-    #     for i in range(79):
-    #         for j in range(i + 1, 79):
-    #             pair = (i, j)
-    #             separation = j - i
-    #             if (separation >= 1) and (separation < 6):
-    #                 expected1['Neighbors'].append(pair)
-    #             if (separation >= 6) and (separation < 13):
-    #                 expected1['Short'].append(pair)
-    #             if (separation >= 13) and (separation < 24):
-    #                 expected1['Medium'].append(pair)
-    #             if separation >= 24:
-    #                 expected1['Long'].append(pair)
-    #             expected1['Any'].append(pair)
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Any'), expected1['Any'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Short'), expected1['Short'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Medium'), expected1['Medium'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Long'), expected1['Long'])
+    #     self.scorer1.measure_distance(method='Any')
+    #     self.assertEqual(self.scorer1.dist_type, 'Any')
+    #     residue1a = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
+    #     residue1b = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][2]
+    #     pos1a = ContactScorer._get_all_coords(residue1a)
+    #     pos1b = ContactScorer._get_all_coords(residue1b)
+    #     expected1a = None
+    #     for i in range(len(pos1a)):
+    #         for j in range(len(pos1b)):
+    #             curr_dist = np.sqrt(np.power(pos1a[i][0] - pos1b[j][0], 2) + np.power(pos1a[i][1] - pos1b[j][1], 2) +
+    #                                 np.power(pos1a[i][2] - pos1b[j][2], 2))
+    #             if (expected1a is None) or (curr_dist < expected1a):
+    #                 expected1a = curr_dist
+    #     self.assertLess(expected1a - self.scorer1.distances[0, 1], 1E-5)
+    #     self.scorer1.measure_distance(method='CA')
+    #     self.assertEqual(self.scorer1.dist_type, 'CA')
+    #     ca_atom1a = residue1a['CA'].get_coord()
+    #     ca_atom1b = residue1b['CA'].get_coord()
+    #     expected1b = np.sqrt(np.power(ca_atom1a[0] - ca_atom1b[0], 2) + np.power(ca_atom1a[1] - ca_atom1b[1], 2) +
+    #                          np.power(ca_atom1a[2] - ca_atom1b[2], 2))
+    #     self.assertLess(expected1b - self.scorer1.distances[0, 1], 1E-5)
+    #     self.scorer1.measure_distance(method='CB')
+    #     self.assertEqual(self.scorer1.dist_type, 'CB')
+    #     cb_atom1a = residue1a['CB'].get_coord()
+    #     cb_atom1b = residue1b['CB'].get_coord()
+    #     expected1c = np.sqrt(np.power(cb_atom1a[0] - cb_atom1b[0], 2) + np.power(cb_atom1a[1] - cb_atom1b[1], 2) +
+    #                          np.power(cb_atom1a[2] - cb_atom1b[2], 2))
+    #     self.assertLess(expected1c - self.scorer1.distances[0, 1], 1E-5)
+    #
+    # def test_5b_measure_distance(self):
     #     self.scorer2.fit()
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.find_pairs_by_separation(category='Small')
-    #     expected2 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-    #     for i in range(368):
-    #         for j in range(i + 1, 368):
-    #             pair = (i, j)
-    #             separation = j - i
-    #             if (separation >= 1) and (separation < 6):
-    #                 expected2['Neighbors'].append(pair)
-    #             if (separation >= 6) and (separation < 13):
-    #                 expected2['Short'].append(pair)
-    #             if (separation >= 13) and (separation < 24):
-    #                 expected2['Medium'].append(pair)
-    #             if separation >= 24:
-    #                 expected2['Long'].append(pair)
-    #             expected2['Any'].append(pair)
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Any'), expected2['Any'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Neighbors'), expected2['Neighbors'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
-    # 
+    #     self.scorer2.measure_distance(method='Any')
+    #     self.assertEqual(self.scorer2.dist_type, 'Any')
+    #     residue2a = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][32]
+    #     residue2b = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][33]
+    #     pos2a = ContactScorer._get_all_coords(residue2a)
+    #     pos2b = ContactScorer._get_all_coords(residue2b)
+    #     expected2a = None
+    #     for i in range(len(pos2a)):
+    #         for j in range(len(pos2b)):
+    #             curr_dist = np.sqrt(np.power(pos2a[i][0] - pos2b[j][0], 2) + np.power(pos2a[i][1] - pos2b[j][1], 2) +
+    #                                 np.power(pos2a[i][2] - pos2b[j][2], 2))
+    #             if (expected2a is None) or (curr_dist < expected2a):
+    #                 expected2a = curr_dist
+    #     self.assertLess(expected2a - self.scorer2.distances[0, 1], 1e-5)
+    #     self.scorer2.measure_distance(method='CA')
+    #     self.assertEqual(self.scorer2.dist_type, 'CA')
+    #     ca_atom2a = residue2a['CA'].get_coord()
+    #     ca_atom2b = residue2b['CA'].get_coord()
+    #     expected2b = np.sqrt(np.power(ca_atom2a[0] - ca_atom2b[0], 2) + np.power(ca_atom2a[1] - ca_atom2b[1], 2) +
+    #                          np.power(ca_atom2a[2] - ca_atom2b[2], 2))
+    #     self.assertLess(expected2b - self.scorer2.distances[0, 1], 1e-5)
+    #     self.scorer2.measure_distance(method='CB')
+    #     self.assertEqual(self.scorer2.dist_type, 'CB')
+    #     cb_atom2a = residue2a['CB'].get_coord()
+    #     cb_atom2b = residue2b['CB'].get_coord()
+    #     expected2c = np.sqrt(np.power(cb_atom2a[0] - cb_atom2b[0], 2) + np.power(cb_atom2a[1] - cb_atom2b[1], 2) +
+    #                          np.power(cb_atom2a[2] - cb_atom2b[2], 2))
+    #     self.assertLess(expected2c - self.scorer2.distances[0, 1], 1e-5)
+    #
+    # def test_5c_measure_distance(self):
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='Any')
+    #     self.assertEqual(self.scorer1.dist_type, 'Any')
+    #     residue_coords = {}
+    #     dists = np.zeros((self.pdb_len1, self.pdb_len1))
+    #     dists2 = np.zeros((self.pdb_len1, self.pdb_len1))
+    #     counter = 0
+    #     for res_num in self.scorer1.query_structure.residue_pos[self.scorer1.best_chain]:
+    #         residue = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][res_num]
+    #         coords = self.scorer1._get_all_coords(residue)
+    #         residue_coords[counter] = coords
+    #         for residue2 in residue_coords:
+    #             if residue2 == counter:
+    #                 continue
+    #             else:
+    #                 dist = self._et_calcDist(coords, residue_coords[residue2])
+    #                 dist2 = np.sqrt(dist)
+    #                 dists[counter, residue2] = dist
+    #                 dists[residue2, counter] = dist
+    #                 dists2[counter, residue2] = dist2
+    #                 dists2[residue2, counter] = dist2
+    #         counter += 1
+    #     distance_diff = np.square(self.scorer1.distances) - dists
+    #     self.assertLess(np.max(distance_diff), 1e-3)
+    #     adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
+    #                 (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
+    #     self.assertEqual(np.sum(adj_diff), 0)
+    #     self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
+    #     distance_diff2 = self.scorer1.distances - dists2
+    #     self.assertEqual(np.sum(distance_diff2), 0.0)
+    #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+    #
+    # def test_5d_measure_distance(self):
+    #     self.scorer2.fit()
+    #     self.scorer2.measure_distance(method='Any')
+    #     self.assertEqual(self.scorer2.dist_type, 'Any')
+    #     residue_coords = {}
+    #     dists = np.zeros((self.pdb_len2, self.pdb_len2))
+    #     dists2 = np.zeros((self.pdb_len2, self.pdb_len2))
+    #     counter = 0
+    #     for res_num in self.scorer2.query_structure.residue_pos[self.scorer2.best_chain]:
+    #         residue = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][res_num]
+    #         coords = self.scorer2._get_all_coords(residue)
+    #         residue_coords[counter] = coords
+    #         for residue2 in residue_coords:
+    #             if residue2 == counter:
+    #                 continue
+    #             else:
+    #                 dist = self._et_calcDist(coords, residue_coords[residue2])
+    #                 dist2 = np.sqrt(dist)
+    #                 dists[counter, residue2] = dist
+    #                 dists[residue2, counter] = dist
+    #                 dists2[counter, residue2] = dist2
+    #                 dists2[residue2, counter] = dist2
+    #         counter += 1
+    #     distance_diff = np.square(self.scorer2.distances) - dists
+    #     self.assertLess(np.max(distance_diff), 2E-3)
+    #     adj_diff = ((np.square(self.scorer2.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
+    #                 (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
+    #     self.assertEqual(np.sum(adj_diff), 0)
+    #     self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
+    #     distance_diff2 = self.scorer2.distances - dists2
+    #     self.assertEqual(np.sum(distance_diff2), 0.0)
+    #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+
+    def test_6a_find_pairs_by_separation(self):
+        self.scorer1.fit()
+        with self.assertRaises(ValueError):
+            self.scorer1.find_pairs_by_separation(category='Wide')
+        expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
+        for i in range(self.pdb_len1):
+            for j in range(i + 1, self.pdb_len1):
+                pair = (i, j)
+                separation = j - i
+                if (separation >= 1) and (separation < 6):
+                    expected1['Neighbors'].append(pair)
+                if (separation >= 6) and (separation < 13):
+                    expected1['Short'].append(pair)
+                if (separation >= 13) and (separation < 24):
+                    expected1['Medium'].append(pair)
+                if separation >= 24:
+                    expected1['Long'].append(pair)
+                expected1['Any'].append(pair)
+        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Any'), expected1['Any'])
+        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
+        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Short'), expected1['Short'])
+        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Medium'), expected1['Medium'])
+        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Long'), expected1['Long'])
+
+    def test_6b_find_pairs_by_separation(self):
+        self.scorer2.fit()
+        with self.assertRaises(ValueError):
+            self.scorer2.find_pairs_by_separation(category='Small')
+        expected2 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
+        for i in range(self.pdb_len2):
+            for j in range(i + 1, self.pdb_len2):
+                pair = (i, j)
+                separation = j - i
+                if (separation >= 1) and (separation < 6):
+                    expected2['Neighbors'].append(pair)
+                if (separation >= 6) and (separation < 13):
+                    expected2['Short'].append(pair)
+                if (separation >= 13) and (separation < 24):
+                    expected2['Medium'].append(pair)
+                if separation >= 24:
+                    expected2['Long'].append(pair)
+                expected2['Any'].append(pair)
+        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Any'), expected2['Any'])
+        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Neighbors'), expected2['Neighbors'])
+        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
+        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
+        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
+
     # def test__map_predictions_to_pdb(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
