@@ -301,7 +301,7 @@ class TestTrace(TestBase):
             self.assertFalse(diff_min_cov.any())
             max_mask = score_array == max_score
             rank_mask2 = rank_array == max_rank
-            diff_max_ranks = max_mask - rank_mask2
+            diff_max_ranks = max_mask ^ rank_mask2
             if diff_max_ranks.any():
                 print(max_score)
                 print(max_rank)
@@ -309,7 +309,7 @@ class TestTrace(TestBase):
                 print(np.sum(rank_mask2))
             self.assertFalse(diff_max_ranks.any())
             cov_mask2 = coverage_array == max_coverage
-            diff_max_cov = max_mask - cov_mask2
+            diff_max_cov = max_mask ^ cov_mask2
             if diff_max_cov.any():
                 print(max_score)
                 print(max_coverage)
@@ -343,28 +343,28 @@ class TestTrace(TestBase):
                 max_mask = np.triu(score_array == max_score, k=1)
                 rank_mask2 = np.triu(rank_array == min_rank, k=1)
                 cov_mask2 = np.triu(coverage_array == min_coverage, k=1)
-            diff_min_ranks = min_mask - rank_mask
+            diff_min_ranks = min_mask ^ rank_mask
             if diff_min_ranks.any():
                 print(min_score)
                 print(min_rank)
                 print(np.sum(min_mask))
                 print(np.sum(rank_mask))
             self.assertFalse(diff_min_ranks.any())
-            diff_min_cov = min_mask - cov_mask
+            diff_min_cov = min_mask ^ cov_mask
             if diff_min_cov.any():
                 print(min_score)
                 print(max_coverage)
                 print(np.sum(min_mask))
                 print(np.sum(cov_mask))
             self.assertFalse(diff_min_cov.any())
-            diff_max_ranks = max_mask - rank_mask2
+            diff_max_ranks = max_mask ^ rank_mask2
             if diff_max_ranks.any():
                 print(max_score)
                 print(max_rank)
                 print(np.sum(max_mask))
                 print(np.sum(rank_mask2))
             self.assertFalse(diff_max_ranks.any())
-            diff_max_cov = max_mask - cov_mask2
+            diff_max_cov = max_mask ^ cov_mask2
             if diff_max_cov.any():
                 print(max_score)
                 print(max_coverage)
