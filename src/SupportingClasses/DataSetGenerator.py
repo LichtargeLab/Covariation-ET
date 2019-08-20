@@ -507,7 +507,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         with open(pileup_fn, 'r') as pileup_handle:
             fasta_iter = parse(handle=pileup_handle, format='fasta')
             for seq_record in fasta_iter:
-                if seq_record.description.endswith('Target Query'):  # Add the target sequence without checking.
+                if seq_record.description.startswith(protein_id):  # Add the target sequence without checking.
                     sequences.append(seq_record)
                     continue
                 hsp_data_match = hsp_data_pattern.match(seq_record.description)
