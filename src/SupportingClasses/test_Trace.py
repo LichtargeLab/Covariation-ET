@@ -427,33 +427,33 @@ class TestTrace(TestBase):
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
 
-    def test3a_trace(self):
-        # Perform identity trace on single positions only for the small alignment (all ranks)
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                            assignments=self.assignments_small, single=True, pair=False, metric='identity',
-                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-
-    def test3b_trace(self):
-        # Perform identity trace on single positions only for the small alignment (custom ranks)
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-                            assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
-                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-
-    def test3c_trace(self):
-        # Perform identity trace on single positions only for the large alignment (all ranks)
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                            assignments=self.assignments_large, single=True, pair=False, metric='identity',
-                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-
-    def test3d_trace(self):
-        # Perform identity trace on single positions only for the large alignment (custom ranks)
-        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                            assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
-                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    # def test3a_trace(self):
+    #     # Perform identity trace on single positions only for the small alignment (all ranks)
+    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                         assignments=self.assignments_small, single=True, pair=False, metric='identity',
+    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+    #
+    # def test3b_trace(self):
+    #     # Perform identity trace on single positions only for the small alignment (custom ranks)
+    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+    #                         assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
+    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+    #
+    # def test3c_trace(self):
+    #     # Perform identity trace on single positions only for the large alignment (all ranks)
+    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                         assignments=self.assignments_large, single=True, pair=False, metric='identity',
+    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    #
+    # def test3d_trace(self):
+    #     # Perform identity trace on single positions only for the large alignment (custom ranks)
+    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                         assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
+    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
@@ -515,33 +515,33 @@ class TestTrace(TestBase):
     #     self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
     #                                         fa_aln=self.query_aln_fa_large, low_mem=True)
     #
-    # def test3g_trace(self):
-    #     # Perform identity trace on pairs of positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3h_trace(self):
-    #     # Perform identity trace on pairs of positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3i_trace(self):
-    #     # Perform identity trace on pairs of positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test3j_trace(self):
-    #     # Perform identity trace on pairs of positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    def test3g_trace(self):
+        # Perform identity trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3h_trace(self):
+        # Perform identity trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3i_trace(self):
+        # Perform identity trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test3j_trace(self):
+        # Perform identity trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     # def test4a_trace(self):
     #     # Perform plain entropy trace on single positions only for the small alignment (all ranks)
