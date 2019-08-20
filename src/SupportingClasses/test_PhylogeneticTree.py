@@ -340,6 +340,8 @@ class TestPhylogeneticTree(TestBase):
             self.assertGreaterEqual(dist, last_dist)
             last_dist = dist
         self.assertEqual(len(node_names), (phylo_tree.size * 2) - 1)
+        self.assertTrue('Inner1' in node_names)
+        self.assertTrue('Inner{}'.format(phylo_tree.size - 1) in node_names)
 
     def test7a_traverse_top_down(self):
         calculator = AlignmentDistanceCalculator()
@@ -415,6 +417,8 @@ class TestPhylogeneticTree(TestBase):
             self.assertLessEqual(dist, last_dist)
             last_dist = dist
         self.assertEqual(len(node_names), (phylo_tree.size * 2) - 1)
+        self.assertTrue('Inner1' in node_names)
+        self.assertTrue('Inner{}'.format(phylo_tree.size - 1) in node_names)
 
     def test8a_traverse_bottom_up(self):
         calculator = AlignmentDistanceCalculator()
@@ -1003,6 +1007,7 @@ class TestPhylogeneticTree(TestBase):
 
     def validate_upgma_tree(self, tree, dm, verbose=False):
         reverse_rank_traversal = list(tree.traverse_by_rank())[::-1]
+        # reverse_rank_traversal = list(tree.traverse_by_rank())
         internal_dm = deepcopy(dm)
         count = 1
         while count < len(dm):
@@ -1016,9 +1021,11 @@ class TestPhylogeneticTree(TestBase):
             # Determine which nodes from the previous rank were joined to create a new node in the current rank (there
             # should always be two)
             joined_nodes = list(prev_rank_names - curr_rank_names)
+            # joined_nodes = list(curr_rank_names - prev_rank_names)
             self.assertEqual(len(joined_nodes), 2)
             # Determine which node in the current rank was the product of joining nodes (there should be only one)
             resulting_node = list(curr_rank_names - prev_rank_names)
+            # resulting_node = list(prev_rank_names - curr_rank_names)
             self.assertEqual(len(resulting_node), 1)
             # Get the distance matrix positions the minimum score
             dm_array = np.array(internal_dm)
@@ -1032,7 +1039,9 @@ class TestPhylogeneticTree(TestBase):
                 print(curr_rank_names)
                 print(joined_nodes)
                 print(resulting_node)
+                print([curr_rank[x].clades for x in range(len(curr_rank)) if curr_rank[x].name == resulting_node[0]])
                 print(internal_dm[joined_nodes[0], joined_nodes[1]])
+                print(np.where(dm_array == internal_dm[joined_nodes[0], joined_nodes[1]]))
                 print(min_score)
                 print(positions)
             for i in range(len(positions[0])):

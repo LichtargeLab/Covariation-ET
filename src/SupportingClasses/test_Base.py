@@ -20,8 +20,8 @@ class TestBase(TestCase):
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
             os.makedirs(cls.protein_list_path)
-        cls.small_structure_id = '7hvp'
-        cls.large_structure_id = '2zxe'
+        cls.small_structure_id = '135l'
+        cls.large_structure_id = '1bol'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
         with open(cls.protein_list_fn, 'w') as test_list_handle:

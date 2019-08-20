@@ -728,7 +728,10 @@ class TestSeqAlignment(TestBase):
                     best_count = counts[aa]
                     best_aa = aa
                 elif counts[aa] == best_count and aa < best_aa:
-                    best_aa = aa
+                    if aa == '-':
+                        pass
+                    else:
+                        best_aa = aa
             self.assertEqual(consensus.seq[i], best_aa)
 
     def test12b_consensus_sequences(self):
@@ -750,7 +753,10 @@ class TestSeqAlignment(TestBase):
                     best_count = counts[aa]
                     best_aa = aa
                 elif counts[aa] == best_count and aa < best_aa:
-                    best_aa = aa
+                    if aa == '-':
+                        pass
+                    else:
+                        best_aa = aa
             self.assertEqual(consensus.seq[i], best_aa)
 
     def test13a__alignment_to_num(self):
