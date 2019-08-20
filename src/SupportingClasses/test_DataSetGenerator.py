@@ -168,9 +168,9 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['PDB'], self.expected_pdb_fn_small)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_small))
         self.assertEqual(str(test_generator.protein_data[self.small_structure_id]['Sequence'].seq),
-                         str(self.small_query_seq.seq))
+                         str(self.small_query_seq_uniprot.seq))
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Length'],
-                         len(str(self.small_query_seq.seq)))
+                         len(str(self.small_query_seq_uniprot.seq)))
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Seq_Fasta'], self.expected_seq_fn_small)
         self.assertTrue(os.path.isfile(self.expected_seq_fn_small))
         self.assertLessEqual(test_generator.protein_data[self.small_structure_id]['BLAST_Hits'], self.max_target_seqs)
@@ -202,9 +202,9 @@ class TestDataSetGenerator(TestCase):
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['PDB'], self.expected_pdb_fn_large)
         self.assertTrue(os.path.isfile(self.expected_pdb_fn_large))
         self.assertEqual(str(test_generator.protein_data[self.large_structure_id]['Sequence'].seq),
-                         str(self.large_query_seq.seq))
+                         str(self.large_query_seq_uniprot.seq))
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['Length'],
-                         len(str(self.large_query_seq.seq)))
+                         len(str(self.large_query_seq_uniprot.seq)))
         self.assertEqual(test_generator.protein_data[self.large_structure_id]['Seq_Fasta'], self.expected_seq_fn_large)
         self.assertTrue(os.path.isfile(self.expected_seq_fn_large))
         self.assertLessEqual(test_generator.protein_data[self.large_structure_id]['BLAST_Hits'], self.max_target_seqs)
@@ -258,24 +258,26 @@ class TestDataSetGenerator(TestCase):
             rmtree(self.sequence_path)
         if not os.path.isdir(self.pdb_path):
             self.test4a_pdb_processing_download_pdb()
-        seq_small, len_small, seq_fn_small, chain_small = parse_query_sequence(protein_id=self.small_structure_id,
-                                                                               chain_id='A',
-                                                                               sequence_path=self.sequence_path,
-                                                                               pdb_fn=self.expected_pdb_fn_small)
+        seq_small, len_small, seq_fn_small, chain_small, unp_small = parse_query_sequence(
+            protein_id=self.small_structure_id, chain_id='A', sequence_path=self.sequence_path,
+            pdb_fn=self.expected_pdb_fn_small)
         self.assertTrue(os.path.isdir(self.sequence_path))
         self.assertEqual(str(self.small_query_seq_uniprot.seq), str(seq_small.seq))
         self.assertEqual(len_small, len(seq_small))
         self.assertEqual(seq_fn_small, self.expected_seq_fn_small)
         self.assertEqual(chain_small, 'A')
-        seq_large, len_large, seq_fn_large, chain_large = parse_query_sequence(protein_id=self.large_structure_id,
-                                                                               chain_id='A',
-                                                                               sequence_path=self.sequence_path,
-                                                                               pdb_fn=self.expected_pdb_fn_large)
+        self.assertIsNotNone(unp_small)
+        self.assertTrue(unp_small in {'P03369', 'POL_HV1A2'})
+        seq_large, len_large, seq_fn_large, chain_large, unp_large = parse_query_sequence(
+            protein_id=self.large_structure_id, chain_id='A', sequence_path=self.sequence_path,
+            pdb_fn=self.expected_pdb_fn_large)
         self.assertTrue(os.path.isdir(self.sequence_path))
         self.assertEqual(str(self.large_query_seq_uniprot.seq), str(seq_large.seq))
         self.assertEqual(len_large, len(seq_large))
         self.assertEqual(seq_fn_large, self.expected_seq_fn_large)
         self.assertEqual(chain_large, 'A')
+        self.assertIsNotNone(unp_large)
+        self.assertTrue(unp_large in {'Q4H132', 'Q4H132_SQUAC'})
 
     def test4c_pdb_processing(self):
         test_lock = Lock()
