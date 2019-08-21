@@ -585,7 +585,7 @@ class TestPhylogeneticTree(TestBase):
         self.assertEqual(len(old_inner), len(new_inner))
         if flip:
             for name in old_inner:
-                expected_name = 'Inner{}'.format(size - int(re.match('^Inner([0-9]+)$').group(1)))
+                expected_name = 'Inner{}'.format(size - int(re.match('^Inner([0-9]+)$', name).group(1)))
                 self.assertTrue(old_inner[name] is new_inner[expected_name], "{} and {} do not match nodes!".format(
                     name, expected_name))
         else:
