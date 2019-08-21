@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 import numpy as np
 from time import time
@@ -580,6 +581,20 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
         self.evaluate_by_rank_traversal(tree=et_mip_obj.tree)
 
+    def evaluate_rename_internal_nodes(self, old_inner, old_terminal, new_inner, new_terminal, flip, size):
+        self.assertEqual(len(old_inner), len(new_inner))
+        if flip:
+            for name in old_inner:
+                expected_name = 'Inner{}'.format(size - int(re.match('^Inner([0-9]+)$').group(1)))
+                self.assertTrue(old_inner[name] is new_inner[expected_name], "{} and {} do not match nodes!".format(
+                    name, expected_name))
+        else:
+            for name in old_inner:
+                self.assertTrue(old_inner[name] is new_inner[name])
+        self.assertEqual(len(old_terminal), len(new_terminal))
+        for name in old_terminal:
+            self.assertTrue(old_terminal[name] is new_terminal[name])
+
     def test10a_rename_internal_nodes(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
@@ -600,6 +615,10 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, et_mip_obj.tree.size)
 
     def test10b_rename_internal_nodes(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
@@ -621,6 +640,10 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, et_mip_obj.tree.size)
 
     def test10c_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -646,6 +669,10 @@ class TestPhylogeneticTree(TestBase):
         self.assertGreaterEqual(count_not_equal, count_equal)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, True, phylo_tree.size)
 
     def test10d_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -671,6 +698,10 @@ class TestPhylogeneticTree(TestBase):
         self.assertGreaterEqual(count_not_equal, count_equal)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, True, phylo_tree.size)
 
     def test10e_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -697,6 +728,10 @@ class TestPhylogeneticTree(TestBase):
         self.assertGreaterEqual(count_not_equal, 0)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, phylo_tree.size)
 
     def test10f_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -723,6 +758,10 @@ class TestPhylogeneticTree(TestBase):
         self.assertGreaterEqual(count_not_equal, 0)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, phylo_tree.size)
 
     def test10g_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -743,6 +782,10 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, phylo_tree.size)
 
     def test10h_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -763,6 +806,10 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
         for t_name in terminal_nodes:
             self.assertEqual(t_name, terminal_nodes[t_name].name)
+        non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
+        terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
+        self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
+                                            terminal_nodes_update, False, phylo_tree.size)
 
     def evaulate_rank_group_assignments(self, assignment, alignment):
         expected_terminals = set(alignment.seq_order)
