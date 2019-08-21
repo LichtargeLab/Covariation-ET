@@ -378,20 +378,19 @@ class ContactScorer(object):
             if predictions.shape[0] != self.query_alignment.seq_length:
                 raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
             indices = np.triu_indices(self.query_alignment.seq_length, 1)
-            mappable_pos = np.array(self.query_pdb_mapping.keys())
+            mappable_pos = np.array(list(self.query_pdb_mapping.keys()))
             x_mappable = np.in1d(indices[0], mappable_pos)
             y_mappable = np.in1d(indices[1], mappable_pos)
             final_mappable = x_mappable & y_mappable
             indices = (indices[0][final_mappable], indices[1][final_mappable])
             # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
             # distances matrix.
-            keys = sorted(self.query_pdb_mapping.keys())
-            values = [self.query_pdb_mapping[k] for k in keys]
-            replace = np.array([keys, values])
-            mask1 = np.in1d(indices[0], replace[0, :])
-            indices[0][mask1] = replace[1, np.searchsorted(replace[0, :], indices[0][mask1])]
-            mask2 = np.in1d(indices[1], replace[0, :])
-            indices[1][mask2] = replace[1, np.searchsorted(replace[0, :], indices[1][mask2])]
+            dist_indices = np.triu_indices(self.distances.shape[0], 1)
+            dist_mappable_pos = np.array(list(self.query_pdb_mapping.values()))
+            dist_x_mappable = np.in1d(dist_indices[0], dist_mappable_pos)
+            dist_y_mappable = np.in1d(dist_indices[1], dist_mappable_pos)
+            final_dist_mappable = dist_x_mappable & dist_y_mappable
+            dist_indices = (dist_indices[0][final_dist_mappable], dist_indices[1][final_dist_mappable])
             # Keep only data for the specified category
             pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
             indices_to_keep = []
@@ -400,8 +399,6 @@ class ContactScorer(object):
                 pair_j = np.where(indices[1] == pair[1])
                 overlap = np.intersect1d(pair_i, pair_j)
                 if len(overlap) != 1:
-                    # from IPython import embed
-                    # embed()
                     raise ValueError('Something went wrong while computing overlaps.')
                 indices_to_keep.append(overlap[0])
             self._specific_mapping[category] = (indices, indices_to_keep)
@@ -409,7 +406,7 @@ class ContactScorer(object):
             indices, indices_to_keep = self._specific_mapping[category]
         mapped_predictions = predictions[indices]
         mapped_predictions = np.array(mapped_predictions[indices_to_keep])
-        mapped_distances = self.distances[indices]
+        mapped_distances = self.distances[dist_indices]
         mapped_distances = np.array(mapped_distances[indices_to_keep])
         return mapped_predictions, mapped_distances
 

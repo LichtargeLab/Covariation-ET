@@ -643,96 +643,158 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(distance_diff2), 0.0)
     #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
 
-    def test_6a_find_pairs_by_separation(self):
-        self.scorer1.fit()
-        with self.assertRaises(ValueError):
-            self.scorer1.find_pairs_by_separation(category='Wide')
-        expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-        for i in range(self.pdb_len1):
-            for j in range(i + 1, self.pdb_len1):
-                pair = (i, j)
-                separation = j - i
-                if (separation >= 1) and (separation < 6):
-                    expected1['Neighbors'].append(pair)
-                if (separation >= 6) and (separation < 13):
-                    expected1['Short'].append(pair)
-                if (separation >= 13) and (separation < 24):
-                    expected1['Medium'].append(pair)
-                if separation >= 24:
-                    expected1['Long'].append(pair)
-                expected1['Any'].append(pair)
-        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Any'), expected1['Any'])
-        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
-        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Short'), expected1['Short'])
-        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Medium'), expected1['Medium'])
-        self.assertEqual(self.scorer1.find_pairs_by_separation(category='Long'), expected1['Long'])
-
-    def test_6b_find_pairs_by_separation(self):
-        self.scorer2.fit()
-        with self.assertRaises(ValueError):
-            self.scorer2.find_pairs_by_separation(category='Small')
-        expected2 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-        for i in range(self.pdb_len2):
-            for j in range(i + 1, self.pdb_len2):
-                pair = (i, j)
-                separation = j - i
-                if (separation >= 1) and (separation < 6):
-                    expected2['Neighbors'].append(pair)
-                if (separation >= 6) and (separation < 13):
-                    expected2['Short'].append(pair)
-                if (separation >= 13) and (separation < 24):
-                    expected2['Medium'].append(pair)
-                if separation >= 24:
-                    expected2['Long'].append(pair)
-                expected2['Any'].append(pair)
-        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Any'), expected2['Any'])
-        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Neighbors'), expected2['Neighbors'])
-        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
-        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
-        self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
-
-    # def test__map_predictions_to_pdb(self):
+    # def test_6a_find_pairs_by_separation(self):
     #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(79, 79)
-    #     scores1[np.tril_indices(79, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     pairs1a = self.scorer1.find_pairs_by_separation(category='Any')
-    #     expected_scores1a = scores1[[x[0] for x in pairs1a], [x[1] for x in pairs1a]]
-    #     expected_dists1a = self.scorer1.distances[[x[0] for x in pairs1a], [x[1] for x in pairs1a]]
-    #     self.assertLess(np.sum(expected_scores1a - scores_mapped1a), 1e-5)
-    #     self.assertLess(np.sum(expected_dists1a - dists_mapped1a), 1e-5)
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     pairs1b = self.scorer1.find_pairs_by_separation(category='Neighbors')
-    #     expected_scores1b = scores1[[x[0] for x in pairs1b], [x[1] for x in pairs1b]]
-    #     expected_dists1b = self.scorer1.distances[[x[0] for x in pairs1b], [x[1] for x in pairs1b]]
-    #     self.assertLess(np.sum(expected_scores1b - scores_mapped1b), 1e-5)
-    #     self.assertLess(np.sum(expected_dists1b - dists_mapped1b), 1e-5)
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     pairs1c = self.scorer1.find_pairs_by_separation(category='Short')
-    #     expected_scores1c = scores1[[x[0] for x in pairs1c], [x[1] for x in pairs1c]]
-    #     expected_dists1c = self.scorer1.distances[[x[0] for x in pairs1c], [x[1] for x in pairs1c]]
-    #     self.assertLess(np.sum(expected_scores1c - scores_mapped1c), 1e-5)
-    #     self.assertLess(np.sum(expected_dists1c - dists_mapped1c), 1e-5)
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     pairs1d = self.scorer1.find_pairs_by_separation(category='Medium')
-    #     expected_scores1d = scores1[[x[0] for x in pairs1d], [x[1] for x in pairs1d]]
-    #     expected_dists1d = self.scorer1.distances[[x[0] for x in pairs1d], [x[1] for x in pairs1d]]
-    #     self.assertLess(np.sum(expected_scores1d - scores_mapped1d), 1e-5)
-    #     self.assertLess(np.sum(expected_dists1d - dists_mapped1d), 1e-5)
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     pairs1e = self.scorer1.find_pairs_by_separation(category='Long')
-    #     expected_scores1e = scores1[[x[0] for x in pairs1e], [x[1] for x in pairs1e]]
-    #     expected_dists1e = self.scorer1.distances[[x[0] for x in pairs1e], [x[1] for x in pairs1e]]
-    #     self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
-    #     self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
-    #     #
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.find_pairs_by_separation(category='Wide')
+    #     expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
+    #     for i in range(self.pdb_len1):
+    #         for j in range(i + 1, self.pdb_len1):
+    #             pair = (i, j)
+    #             separation = j - i
+    #             if (separation >= 1) and (separation < 6):
+    #                 expected1['Neighbors'].append(pair)
+    #             if (separation >= 6) and (separation < 13):
+    #                 expected1['Short'].append(pair)
+    #             if (separation >= 13) and (separation < 24):
+    #                 expected1['Medium'].append(pair)
+    #             if separation >= 24:
+    #                 expected1['Long'].append(pair)
+    #             expected1['Any'].append(pair)
+    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Any'), expected1['Any'])
+    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
+    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Short'), expected1['Short'])
+    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Medium'), expected1['Medium'])
+    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Long'), expected1['Long'])
+    #
+    # def test_6b_find_pairs_by_separation(self):
+    #     self.scorer2.fit()
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.find_pairs_by_separation(category='Small')
+    #     expected2 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
+    #     for i in range(self.pdb_len2):
+    #         for j in range(i + 1, self.pdb_len2):
+    #             pair = (i, j)
+    #             separation = j - i
+    #             if (separation >= 1) and (separation < 6):
+    #                 expected2['Neighbors'].append(pair)
+    #             if (separation >= 6) and (separation < 13):
+    #                 expected2['Short'].append(pair)
+    #             if (separation >= 13) and (separation < 24):
+    #                 expected2['Medium'].append(pair)
+    #             if separation >= 24:
+    #                 expected2['Long'].append(pair)
+    #             expected2['Any'].append(pair)
+    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Any'), expected2['Any'])
+    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Neighbors'), expected2['Neighbors'])
+    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
+    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
+    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
+
+    def test_7a__map_predictions_to_pdb(self):
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='CB')
+        scores1 = np.random.rand(self.pdb_len1, self.pdb_len1)
+        scores1[np.tril_indices(self.pdb_len1, 1)] = 0
+        scores1 += scores1.T
+        scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+        pairs1a = self.scorer1.find_pairs_by_separation(category='Any')
+        score_ind1a = ([], [])
+        dist_ind1a = ([], [])
+        for pair in pairs1a:
+            if (pair[0] in self.scorer1.query_pdb_mapping) and (pair[1] in self.scorer1.query_pdb_mapping):
+                # print('PAIR:', pair)
+                score_ind1a[0].append(pair[0])
+                score_ind1a[1].append(pair[1])
+                dist_ind1a[0].append(self.scorer1.query_pdb_mapping[pair[0]])
+                dist_ind1a[1].append(self.scorer1.query_pdb_mapping[pair[1]])
+        expected_scores1a = scores1[score_ind1a]
+        expected_dists1a = self.scorer1.distances[dist_ind1a]
+        score1a_diff = expected_scores1a - scores_mapped1a
+        not_passing1a = score1a_diff > 1e-5
+        if not_passing1a.any():
+            print(scores_mapped1a)
+            print(expected_scores1a)
+            print(score1a_diff)
+            indices = np.nonzero((score1a_diff))
+            print(scores_mapped1a[indices])
+            print(expected_scores1a[indices])
+            print(score1a_diff[indices])
+        self.assertFalse(not_passing1a.any())
+        dist1a_diff = expected_dists1a - dists_mapped1a
+        not_passing1a = dist1a_diff > 1e-5
+        if not_passing1a.any():
+            print(dists_mapped1a)
+            print(expected_dists1a)
+            print(dist1a_diff)
+            indices = np.nonzero(dist1a_diff)
+            print(dists_mapped1a[indices])
+            print(expected_dists1a[indices])
+            print(dist1a_diff[indices])
+        self.assertFalse(not_passing1a.any())
+        scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
+                                                                               category='Neighbors')
+        pairs1b = self.scorer1.find_pairs_by_separation(category='Neighbors')
+        expected_scores1b = scores1[[x[0] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping],
+                                    [x[1] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping]]
+        expected_dists1b = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1b
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping],
+                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1b
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping]]
+        self.assertLess(np.sum(expected_scores1b - scores_mapped1b), 1e-5)
+        self.assertLess(np.sum(expected_dists1b - dists_mapped1b), 1e-5)
+        scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
+        pairs1c = self.scorer1.find_pairs_by_separation(category='Short')
+        expected_scores1c = scores1[[x[0] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping],
+                                    [x[1] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping]]
+        expected_dists1c = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1c
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping],
+                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1c
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping]]
+        self.assertLess(np.sum(expected_scores1c - scores_mapped1c), 1e-5)
+        self.assertLess(np.sum(expected_dists1c - dists_mapped1c), 1e-5)
+        scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
+        pairs1d = self.scorer1.find_pairs_by_separation(category='Medium')
+        expected_scores1d = scores1[[x[0] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping],
+                                    [x[1] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping]]
+        expected_dists1d = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1d
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping],
+                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1d
+                                                   if x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping]]
+        self.assertLess(np.sum(expected_scores1d - scores_mapped1d), 1e-5)
+        self.assertLess(np.sum(expected_dists1d - dists_mapped1d), 1e-5)
+        scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
+        pairs1e = self.scorer1.find_pairs_by_separation(category='Long')
+        expected_scores1e = scores1[[x[0] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping],
+                                    [x[1] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
+                                     x[1] in self.scorer1.query_pdb_mapping]]
+        expected_dists1e = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1e if
+                                                   x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping],
+                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1e if
+                                                   x[0] in self.scorer1.query_pdb_mapping and
+                                                   x[1] in self.scorer1.query_pdb_mapping]]
+        self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
+        self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
+
+    # def test_7b__map_predictions_to_pdb(self):
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(368, 368)
-    #     scores2[np.tril_indices(368, 1)] = 0
+    #     scores2 = np.random.rand(self.pdb_len2, self.pdb_len2)
+    #     scores2[np.tril_indices(self.pdb_len2, 1)] = 0
     #     scores2 += scores2.T
     #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
     #     pairs2a = self.scorer2.find_pairs_by_separation(category='Any')
@@ -765,7 +827,7 @@ class TestContactScorer(TestBase):
     #     expected_dists2e = self.scorer2.distances[[x[0] for x in pairs2e], [x[1] for x in pairs2e]]
     #     self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
     #     self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
-    # 
+
     # def test_score_auc(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
