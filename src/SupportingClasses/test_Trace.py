@@ -72,59 +72,59 @@ class TestTrace(TestBase):
     #     rmtree(cls.out_small_dir)
     #     rmtree(cls.out_large_dir)
 
-    # def test1a_init(self):
-    #     trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         group_assignments=self.assignments_small, position_specific=True, pair_specific=True,
-    #                         output_dir=self.out_small_dir, low_memory=False)
-    #     self.assertEqual(trace_small.aln.file_name, self.query_aln_fa_small.file_name)
-    #     self.assertEqual(trace_small.aln.query_id, self.query_aln_fa_small.query_id)
-    #     for s in range(trace_small.aln.size):
-    #         self.assertEqual(str(trace_small.aln.alignment[s].seq), str(self.query_aln_fa_small.alignment[s].seq))
-    #     self.assertEqual(trace_small.aln.seq_order, self.query_aln_fa_small.seq_order)
-    #     self.assertEqual(str(trace_small.aln.query_sequence), str(self.query_aln_fa_small.query_sequence))
-    #     self.assertEqual(trace_small.aln.seq_length, self.query_aln_fa_small.seq_length)
-    #     self.assertEqual(trace_small.aln.size, self.query_aln_fa_small.size)
-    #     self.assertEqual(trace_small.aln.marked, self.query_aln_fa_small.marked)
-    #     self.assertEqual(trace_small.aln.polymer_type, self.query_aln_fa_small.polymer_type)
-    #     self.assertTrue(isinstance(trace_small.aln.alphabet, type(self.query_aln_fa_small.alphabet)))
-    #     self.assertEqual(len(trace_small.aln.alphabet.letters), len(self.query_aln_fa_small.alphabet.letters))
-    #     for char in trace_small.aln.alphabet.letters:
-    #         self.assertTrue(char in self.query_aln_fa_small.alphabet.letters)
-    #     self.assertEqual(trace_small.phylo_tree, self.phylo_tree_small)
-    #     self.assertEqual(trace_small.assignments, self.assignments_small)
-    #     self.assertIsNone(trace_small.unique_nodes)
-    #     self.assertIsNone(trace_small.rank_scores)
-    #     self.assertEqual(trace_small.pos_specific, True)
-    #     self.assertEqual(trace_small.pair_specific, True)
-    #     self.assertEqual(trace_small.out_dir, self.out_small_dir)
-    #     self.assertFalse(trace_small.low_memory)
-    #
-    # def test1b_init(self):
-    #     trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         group_assignments=self.assignments_large, position_specific=True, pair_specific=True,
-    #                         output_dir=self.out_large_dir, low_memory=True)
-    #     self.assertEqual(trace_large.aln.file_name, self.query_aln_fa_large.file_name)
-    #     self.assertEqual(trace_large.aln.query_id, self.query_aln_fa_large.query_id)
-    #     for s in range(trace_large.aln.size):
-    #         self.assertEqual(str(trace_large.aln.alignment[s].seq), str(self.query_aln_fa_large.alignment[s].seq))
-    #     self.assertEqual(trace_large.aln.seq_order, self.query_aln_fa_large.seq_order)
-    #     self.assertEqual(str(trace_large.aln.query_sequence), str(self.query_aln_fa_large.query_sequence))
-    #     self.assertEqual(trace_large.aln.seq_length, self.query_aln_fa_large.seq_length)
-    #     self.assertEqual(trace_large.aln.size, self.query_aln_fa_large.size)
-    #     self.assertEqual(trace_large.aln.marked, self.query_aln_fa_large.marked)
-    #     self.assertEqual(trace_large.aln.polymer_type, self.query_aln_fa_large.polymer_type)
-    #     self.assertTrue(isinstance(trace_large.aln.alphabet, type(self.query_aln_fa_large.alphabet)))
-    #     self.assertEqual(len(trace_large.aln.alphabet.letters), len(self.query_aln_fa_large.alphabet.letters))
-    #     for char in trace_large.aln.alphabet.letters:
-    #         self.assertTrue(char in self.query_aln_fa_large.alphabet.letters)
-    #     self.assertEqual(trace_large.phylo_tree, self.phylo_tree_large)
-    #     self.assertEqual(trace_large.assignments, self.assignments_large)
-    #     self.assertIsNone(trace_large.unique_nodes)
-    #     self.assertIsNone(trace_large.rank_scores)
-    #     self.assertEqual(trace_large.pos_specific, True)
-    #     self.assertEqual(trace_large.pair_specific, True)
-    #     self.assertEqual(trace_large.out_dir, self.out_large_dir)
-    #     self.assertTrue(trace_large.low_memory)
+    def test1a_init(self):
+        trace_small = Trace(alignment=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            group_assignments=self.assignments_small, position_specific=True, pair_specific=True,
+                            output_dir=self.out_small_dir, low_memory=False)
+        self.assertEqual(trace_small.aln.file_name, self.query_aln_fa_small.file_name)
+        self.assertEqual(trace_small.aln.query_id, self.query_aln_fa_small.query_id)
+        for s in range(trace_small.aln.size):
+            self.assertEqual(str(trace_small.aln.alignment[s].seq), str(self.query_aln_fa_small.alignment[s].seq))
+        self.assertEqual(trace_small.aln.seq_order, self.query_aln_fa_small.seq_order)
+        self.assertEqual(str(trace_small.aln.query_sequence), str(self.query_aln_fa_small.query_sequence))
+        self.assertEqual(trace_small.aln.seq_length, self.query_aln_fa_small.seq_length)
+        self.assertEqual(trace_small.aln.size, self.query_aln_fa_small.size)
+        self.assertEqual(trace_small.aln.marked, self.query_aln_fa_small.marked)
+        self.assertEqual(trace_small.aln.polymer_type, self.query_aln_fa_small.polymer_type)
+        self.assertTrue(isinstance(trace_small.aln.alphabet, type(self.query_aln_fa_small.alphabet)))
+        self.assertEqual(len(trace_small.aln.alphabet.letters), len(self.query_aln_fa_small.alphabet.letters))
+        for char in trace_small.aln.alphabet.letters:
+            self.assertTrue(char in self.query_aln_fa_small.alphabet.letters)
+        self.assertEqual(trace_small.phylo_tree, self.phylo_tree_small)
+        self.assertEqual(trace_small.assignments, self.assignments_small)
+        self.assertIsNone(trace_small.unique_nodes)
+        self.assertIsNone(trace_small.rank_scores)
+        self.assertEqual(trace_small.pos_specific, True)
+        self.assertEqual(trace_small.pair_specific, True)
+        self.assertEqual(trace_small.out_dir, self.out_small_dir)
+        self.assertFalse(trace_small.low_memory)
+
+    def test1b_init(self):
+        trace_large = Trace(alignment=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            group_assignments=self.assignments_large, position_specific=True, pair_specific=True,
+                            output_dir=self.out_large_dir, low_memory=True)
+        self.assertEqual(trace_large.aln.file_name, self.query_aln_fa_large.file_name)
+        self.assertEqual(trace_large.aln.query_id, self.query_aln_fa_large.query_id)
+        for s in range(trace_large.aln.size):
+            self.assertEqual(str(trace_large.aln.alignment[s].seq), str(self.query_aln_fa_large.alignment[s].seq))
+        self.assertEqual(trace_large.aln.seq_order, self.query_aln_fa_large.seq_order)
+        self.assertEqual(str(trace_large.aln.query_sequence), str(self.query_aln_fa_large.query_sequence))
+        self.assertEqual(trace_large.aln.seq_length, self.query_aln_fa_large.seq_length)
+        self.assertEqual(trace_large.aln.size, self.query_aln_fa_large.size)
+        self.assertEqual(trace_large.aln.marked, self.query_aln_fa_large.marked)
+        self.assertEqual(trace_large.aln.polymer_type, self.query_aln_fa_large.polymer_type)
+        self.assertTrue(isinstance(trace_large.aln.alphabet, type(self.query_aln_fa_large.alphabet)))
+        self.assertEqual(len(trace_large.aln.alphabet.letters), len(self.query_aln_fa_large.alphabet.letters))
+        for char in trace_large.aln.alphabet.letters:
+            self.assertTrue(char in self.query_aln_fa_large.alphabet.letters)
+        self.assertEqual(trace_large.phylo_tree, self.phylo_tree_large)
+        self.assertEqual(trace_large.assignments, self.assignments_large)
+        self.assertIsNone(trace_large.unique_nodes)
+        self.assertIsNone(trace_large.rank_scores)
+        self.assertEqual(trace_large.pos_specific, True)
+        self.assertEqual(trace_large.pair_specific, True)
+        self.assertEqual(trace_large.out_dir, self.out_large_dir)
+        self.assertTrue(trace_large.low_memory)
 
     def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem, write_aln,
                                           write_freq_table):
@@ -193,57 +193,57 @@ class TestTrace(TestBase):
                     visited.add(node_name)
         rmtree(unique_dir)
 
-    # def test2a_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_small, single=True, pair=True, processors=1,
-    #                                            low_mem=False, write_aln=True, write_freq_table=True)
-    #
-    # def test2b_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, large alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                                            assign=self.assignments_large, single=True, pair=True, processors=1,
-    #                                            low_mem=True, write_aln=False, write_freq_table=False)
-    #
-    # def test2c_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_custom_small, single=True, pair=True,
-    #                                            processors=1, low_mem=False, write_aln=True, write_freq_table=True)
-    #
-    # def test2d_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, large alignment, single processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                                            assign=self.assignments_custom_large, single=True, pair=True, processors=1,
-    #                                            low_mem=True, write_aln=False, write_freq_table=False)
-    #
-    # def test2e_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_small, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
-    #                                            write_freq_table=True)
-    #
-    # def test2f_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, large alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                                            assign=self.assignments_large, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=True, write_aln=False,
-    #                                            write_freq_table=False)
-    #
-    # def test2g_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, small alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                                            assign=self.assignments_custom_small, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=False, write_aln=True,
-    #                                            write_freq_table=True)
-    #
-    # def test2h_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, large alignment, multi-processed
-    #     self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                                            assign=self.assignments_custom_large, single=True, pair=True,
-    #                                            processors=self.max_threads, low_mem=True, write_aln=False,
-    #                                            write_freq_table=False)
+    def test2a_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_small, single=True, pair=True, processors=1,
+                                               low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2b_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_large, single=True, pair=True, processors=1,
+                                               low_mem=True, write_aln=False, write_freq_table=False)
+
+    def test2c_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2d_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_custom_large, single=True, pair=True, processors=1,
+                                               low_mem=True, write_aln=False, write_freq_table=False)
+
+    def test2e_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_small, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
+
+    def test2f_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_large, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=True, write_aln=False,
+                                               write_freq_table=False)
+
+    def test2g_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                                               assign=self.assignments_custom_small, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=False, write_aln=True,
+                                               write_freq_table=True)
+
+    def test2h_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, multi-processed
+        self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                                               assign=self.assignments_custom_large, single=True, pair=True,
+                                               processors=self.max_threads, low_mem=True, write_aln=False,
+                                               write_freq_table=False)
 
     def evaluate_trace(self, aln, phylo_tree, assignments, single, pair, metric, num_proc, out_dir, gap_correction=None,
                        low_mem=True):
@@ -427,33 +427,33 @@ class TestTrace(TestBase):
             print(diff_ranks[indices])
         self.assertFalse(not_passing.any())
 
-    # def test3a_trace(self):
-    #     # Perform identity trace on single positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3b_trace(self):
-    #     # Perform identity trace on single positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test3c_trace(self):
-    #     # Perform identity trace on single positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test3d_trace(self):
-    #     # Perform identity trace on single positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    def test3a_trace(self):
+        # Perform identity trace on single positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3b_trace(self):
+        # Perform identity trace on single positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test3c_trace(self):
+        # Perform identity trace on single positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test3d_trace(self):
+        # Perform identity trace on single positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
@@ -503,18 +503,18 @@ class TestTrace(TestBase):
             print(diff_coverages2[indices])
         self.assertFalse(not_passing2.any())
 
-    # def test3e_trace(self):
-    #     # Compare the results of identity trace over single positions between this implementation and the WETC
-    #     # implementation for the small alignment.
-    #     self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
-    #                                         fa_aln=self.query_aln_fa_small, low_mem=False)
-    #
-    # def test3f_trace(self):
-    #     # Compare the results of identity trace over single positions between this implementation and the WETC
-    #     # implementation for the large alignment.
-    #     self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-    #                                         fa_aln=self.query_aln_fa_large, low_mem=True)
-    #
+    def test3e_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                            fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test3f_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                            fa_aln=self.query_aln_fa_large, low_mem=True)
+
     def test3g_trace(self):
         # Perform identity trace on pairs of positions only for the small alignment (all ranks)
         # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
@@ -543,33 +543,33 @@ class TestTrace(TestBase):
                             assignments=self.assignments_custom_large, single=False, pair=True, metric='identity',
                             low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
-    # def test4a_trace(self):
-    #     # Perform plain entropy trace on single positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=True, pair=False, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test4b_trace(self):
-    #     # Perform plain entropy trace on single positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=True, pair=False, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test4c_trace(self):
-    #     # Perform plain entropy trace on single positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=True, pair=False, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test4d_trace(self):
-    #     # Perform plain entropy trace on single positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=True, pair=False, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    def test4a_trace(self):
+        # Perform plain entropy trace on single positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4b_trace(self):
+        # Perform plain entropy trace on single positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4c_trace(self):
+        # Perform plain entropy trace on single positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test4d_trace(self):
+        # Perform plain entropy trace on single positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=True, pair=False, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
@@ -631,179 +631,179 @@ class TestTrace(TestBase):
             print(diff_coverages2[indices])
         self.assertFalse(not_passing2.any())
 
-    # def test4e_trace(self):
-    #     # Compare the results of plain entropy trace over single positions between this implementation and the WETC
-    #     # implementation for the small alignment.
-    #     self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
-    #                                            fa_aln=self.query_aln_fa_small, low_mem=False)
-    #
-    # def test4f_trace(self):
-    #     # Compare the results of identity trace over single positions between this implementation and the WETC
-    #     # implementation for the large alignment.
-    #     self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-    #                                            fa_aln=self.query_aln_fa_large, low_mem=True)
-    #
-    # def test4g_trace(self):
-    #     # Perform plain entropy trace on pairs of positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test4h_trace(self):
-    #     # Perform plain entropy trace on pairs of positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test4i_trace(self):
-    #     # Perform plain entropy trace on pairs of positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test4j_trace(self):
-    #     # Perform plain entropy trace on pairs of positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True, metric='plain_entropy',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test5a_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True, metric='mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test5b_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True,
-    #                         metric='mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_small_dir)
-    #
-    # def test5c_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True, metric='mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test5d_trace(self):
-    #     # Perform mutual information trace on pairs of positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True,
-    #                         metric='mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_large_dir)
-    #
-    # def test6a_trace(self):
-    #     # Perform normalize mutual information trace on pairs of positions only for the small alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True,
-    #                         metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_small_dir)
-    #
-    # def test6b_trace(self):
-    #     # Perform normalize mutual information trace on pairs of positions only for the small alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True,
-    #                         metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_small_dir)
-    #
-    # def test6c_trace(self):
-    #     # Perform normalize mutual information trace on pairs of positions only for the large alignment (all ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True,
-    #                         metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_large_dir)
-    #
-    # def test6d_trace(self):
-    #     # Perform normalize mutual information trace on pairs of positions only for the large alignment (custom ranks)
-    #     # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True,
-    #                         metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
-    #                         out_dir=self.out_large_dir)
-    #
-    # def test7a_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
-    #     # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True,
-    #                         metric='average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test7b_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
-    #     # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True,
-    #                         metric='average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test7c_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
-    #     # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True,
-    #                         metric='average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test7d_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
-    #     # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True,
-    #                         metric='average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test8a_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
-    #     # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_small, single=False, pair=True,
-    #                         metric='filtered_average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test8b_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
-    #     # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
-    #                         assignments=self.assignments_custom_small, single=False, pair=True,
-    #                         metric='filtered_average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
-    #
-    # def test8c_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
-    #     # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_large, single=False, pair=True,
-    #                         metric='filtered_average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
-    #
-    # def test8d_trace(self):
-    #     # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
-    #     # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
-    #     # expected ranks are achieved.
-    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-    #                         assignments=self.assignments_custom_large, single=False, pair=True,
-    #                         metric='filtered_average_product_corrected_mutual_information',
-    #                         low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+    def test4e_trace(self):
+        # Compare the results of plain entropy trace over single positions between this implementation and the WETC
+        # implementation for the small alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
+                                               fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test4f_trace(self):
+        # Compare the results of identity trace over single positions between this implementation and the WETC
+        # implementation for the large alignment.
+        self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
+                                               fa_aln=self.query_aln_fa_large, low_mem=True)
+
+    def test4g_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4h_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test4i_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test4j_trace(self):
+        # Perform plain entropy trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True, metric='plain_entropy',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test5a_trace(self):
+        # Perform mutual information trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True, metric='mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test5b_trace(self):
+        # Perform mutual information trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test5c_trace(self):
+        # Perform mutual information trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True, metric='mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test5d_trace(self):
+        # Perform mutual information trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test6a_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the small alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test6b_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the small alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_small_dir)
+
+    def test6c_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the large alignment (all ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test6d_trace(self):
+        # Perform normalize mutual information trace on pairs of positions only for the large alignment (custom ranks)
+        # Assume scoring happens correctly since it has been tested above and ensure that expected ranks are achieved
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='normalized_mutual_information', low_mem=True, num_proc=self.max_threads,
+                            out_dir=self.out_large_dir)
+
+    def test7a_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test7b_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test7c_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test7d_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test8a_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_small, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test8b_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the small
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_small_dir)
+
+    def test8c_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (all ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_large, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
+
+    def test8d_trace(self):
+        # Perform average product corrected mutual information (MIp) trace on pairs of positions only for the large
+        # alignment (custom ranks). Assume scoring happens correctly since it has been tested above and ensure that
+        # expected ranks are achieved.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
     def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
@@ -874,15 +874,15 @@ class TestTrace(TestBase):
         else:
             self.assertFalse(not_passing.any())
 
-    # def test8e_trace(self):
-    #     # Compare the results of average product corrected mutual information over pairs of positions between this
-    #     # implementation and the WETC implementation for the small alignment.
-    #     self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
-    #
-    # def test8f_trace(self):
-    #     # Compare the results of average product corrected mutual information over pairs of positions between this
-    #     # implementation and the WETC implementation for the large alignment.
-    #     self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
+    def test8e_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the small alignment.
+        self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test8f_trace(self):
+        # Compare the results of average product corrected mutual information over pairs of positions between this
+        # implementation and the WETC implementation for the large alignment.
+        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
     def evaluate_characterize_rank_groups_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
                                                             write_sub_aln, write_freq_table):
@@ -974,29 +974,29 @@ class TestTrace(TestBase):
                 self.assertIsNone(frequency_tables[node_name]['pair'])
         rmtree(unique_dir)
 
-    # def test9a_characterize_rank_groups_initialize_characterization_pool(self):
-    #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
-    #     self.evaluate_characterize_rank_groups_pooling_functions(
-    #         single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
-    #         out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
-    #
-    # def test9b_characterize_rank_groups_initialize_characterization_pool(self):
-    #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
-    #     self.evaluate_characterize_rank_groups_pooling_functions(
-    #         single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
-    #         out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
-    #
-    # def test9c_characterize_rank_groups_initialize_characterization_pool(self):
-    #     # Test pool initialization function and mappable function (minimal example) for characterization, large aln
-    #     self.evaluate_characterize_rank_groups_pooling_functions(
-    #         single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
-    #         out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
-    #
-    # def test9d_characterize_rank_groups_initialize_characterization_pool(self):
-    #     # Test pool initialization function and mappable function (minimal example) for characterization, large aln
-    #     self.evaluate_characterize_rank_groups_pooling_functions(
-    #         single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
-    #         out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+    def test9a_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9b_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9c_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test9d_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
     def evaluate_trace_pool_functions_identity_metric(self, aln, phylo_tree, assign, single, pair, metric, low_memory,
                                                       out_dir, write_out_aln, write_out_freq_table):
@@ -1129,261 +1129,261 @@ class TestTrace(TestBase):
             else:
                 self.assertIsNone(rank_dict[rank]['pair_ranks'])
 
-    # def test10a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-    #     # and the identity metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
-    #         pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test10b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-    #     # and the identity metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test10c_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-    #     # and identity metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
-    #         pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test10d_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-    #     # and identity metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test10e_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the identity metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test10f_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the identity metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test10g_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and identity metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test10h_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and identity metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test11a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-    #     # and the plain entropy metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
-    #         pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test11b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
-    #     # and the plain entropy metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test11c_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-    #     # and plain entropy metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
-    #         pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test11d_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
-    #     # and plain entropy metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test11e_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the plain entropy metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test11f_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the plain entropy metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test11g_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and plain entropy metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test11h_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and plain entropy metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test12a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the mutual information metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test12b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the mutual information metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test12c_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and mutual information metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
-    #         write_out_freq_table=False)
-    #
-    # def test12d_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and mutual information metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test13a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the normalized mutual information metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_small_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test13b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the normalized mutual information metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
-    #         out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test13c_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and normalized mutual information metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_large_dir,
-    #         write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test13d_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and normalized mutual information metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
-    #         out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14a_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the average product corrected mutual information (MIp) metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14b_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
-    #     # and the average product corrected mutual information (MIp) metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14c_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14d_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14e_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
-    #         pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14f_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14g_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (all ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
-    #         pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
-    #
-    # def test14h_trace_pool_functions(self):
-    #     # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
-    #     # and average product corrected mutual information (MIp) metric (custom ranks)
-    #     self.evaluate_trace_pool_functions_identity_metric(
-    #         aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
-    #         single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
-    #         out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+    def test10a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
+            pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test10b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
+            pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test10d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=True, pair=False, metric='identity', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test10f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test10g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and identity metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test10h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and identity metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='identity', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the plain entropy metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
+            pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test11b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, single positions,
+        # and the plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and plain entropy metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
+            pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test11d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, single positions,
+        # and plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=True, pair=False, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the plain entropy metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test11f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test11g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and plain entropy metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test11h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and plain entropy metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='plain_entropy', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test12a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the mutual information metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test12b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test12c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and mutual information metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir, write_out_aln=False,
+            write_out_freq_table=False)
+
+    def test12d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='mutual_information', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test13a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the normalized mutual information metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_small_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test13b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the normalized mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test13c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and normalized mutual information metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='normalized_mutual_information', low_memory=True, out_dir=self.out_large_dir,
+            write_out_aln=False, write_out_freq_table=False)
+
+    def test13d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and normalized mutual information metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='normalized_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14a_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14b_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the small alignment, paired positions,
+        # and the average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14c_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14d_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14e_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14f_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14g_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test14h_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions_identity_metric(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
 
 if __name__ == '__main__':
