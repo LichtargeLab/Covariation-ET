@@ -690,247 +690,248 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
+    #
+    # def test_7a__map_predictions_to_pdb(self):
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='CB')
+    #     scores1 = np.random.rand(self.pdb_len1, self.pdb_len1)
+    #     scores1[np.tril_indices(self.pdb_len1, 1)] = 0
+    #     scores1 += scores1.T
+    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+    #     pairs1a = self.scorer1.find_pairs_by_separation(category='Any')
+    #     expected_scores1a = scores1[[x[0] for x in pairs1a if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping],
+    #                                 [x[1] for x in pairs1a if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping]]
+    #     expected_dists1a = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1a
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping],
+    #                                               [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1a
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores1a - scores_mapped1a), 1e-5)
+    #     self.assertLess(np.sum(expected_dists1a - dists_mapped1a), 1e-5)
+    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
+    #                                                                            category='Neighbors')
+    #     pairs1b = self.scorer1.find_pairs_by_separation(category='Neighbors')
+    #     expected_scores1b = scores1[[x[0] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping],
+    #                                 [x[1] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping]]
+    #     expected_dists1b = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1b
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping],
+    #                                               [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1b
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores1b - scores_mapped1b), 1e-5)
+    #     self.assertLess(np.sum(expected_dists1b - dists_mapped1b), 1e-5)
+    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
+    #     pairs1c = self.scorer1.find_pairs_by_separation(category='Short')
+    #     expected_scores1c = scores1[[x[0] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping],
+    #                                 [x[1] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping]]
+    #     expected_dists1c = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1c
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping],
+    #                                               [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1c
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores1c - scores_mapped1c), 1e-5)
+    #     self.assertLess(np.sum(expected_dists1c - dists_mapped1c), 1e-5)
+    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
+    #     pairs1d = self.scorer1.find_pairs_by_separation(category='Medium')
+    #     expected_scores1d = scores1[[x[0] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping],
+    #                                 [x[1] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping]]
+    #     expected_dists1d = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1d
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping],
+    #                                               [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1d
+    #                                                if x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores1d - scores_mapped1d), 1e-5)
+    #     self.assertLess(np.sum(expected_dists1d - dists_mapped1d), 1e-5)
+    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
+    #     pairs1e = self.scorer1.find_pairs_by_separation(category='Long')
+    #     expected_scores1e = scores1[[x[0] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping],
+    #                                 [x[1] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
+    #                                  x[1] in self.scorer1.query_pdb_mapping]]
+    #     expected_dists1e = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1e if
+    #                                                x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping],
+    #                                               [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1e if
+    #                                                x[0] in self.scorer1.query_pdb_mapping and
+    #                                                x[1] in self.scorer1.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
+    #     self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
+    #
+    # def test_7b__map_predictions_to_pdb(self):
+    #     self.scorer2.fit()
+    #     self.scorer2.measure_distance(method='CB')
+    #     scores2 = np.random.rand(self.pdb_len2, self.pdb_len2)
+    #     scores2[np.tril_indices(self.pdb_len2, 1)] = 0
+    #     scores2 += scores2.T
+    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
+    #     pairs2a = self.scorer2.find_pairs_by_separation(category='Any')
+    #     expected_scores2a = scores2[[x[0] for x in pairs2a if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping],
+    #                                 [x[1] for x in pairs2a if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping]]
+    #     expected_dists2a = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2a
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping],
+    #                                               [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2a
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores2a - scores_mapped2a), 1e-5)
+    #     self.assertLess(np.sum(expected_dists2a - dists_mapped2a), 1e-5)
+    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
+    #                                                                            category='Neighbors')
+    #     pairs2b = self.scorer2.find_pairs_by_separation(category='Neighbors')
+    #     expected_scores2b = scores2[[x[0] for x in pairs2b if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping],
+    #                                 [x[1] for x in pairs2b if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping]]
+    #     expected_dists2b = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2b
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping],
+    #                                               [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2b
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores2b - scores_mapped2b), 1e-5)
+    #     self.assertLess(np.sum(expected_dists2b - dists_mapped2b), 1e-5)
+    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
+    #     pairs2c = self.scorer2.find_pairs_by_separation(category='Short')
+    #     expected_scores2c = scores2[[x[0] for x in pairs2c if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping],
+    #                                 [x[1] for x in pairs2c if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping]]
+    #     expected_dists2c = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2c
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping],
+    #                                               [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2c
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores2c - scores_mapped2c), 1e-5)
+    #     self.assertLess(np.sum(expected_dists2c - dists_mapped2c), 1e-5)
+    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
+    #     pairs2d = self.scorer2.find_pairs_by_separation(category='Medium')
+    #     expected_scores2d = scores2[[x[0] for x in pairs2d if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping],
+    #                                 [x[1] for x in pairs2d if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping]]
+    #     expected_dists2d = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2d
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping],
+    #                                               [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2d
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores2d - scores_mapped2d), 1e-5)
+    #     self.assertLess(np.sum(expected_dists2d - dists_mapped2d), 1e-5)
+    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
+    #     pairs2e = self.scorer2.find_pairs_by_separation(category='Long')
+    #     expected_scores2e = scores2[[x[0] for x in pairs2e if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping],
+    #                                 [x[1] for x in pairs2e if x[0] in self.scorer2.query_pdb_mapping and
+    #                                  x[1] in self.scorer2.query_pdb_mapping]]
+    #     expected_dists2e = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2e
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping],
+    #                                               [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2e
+    #                                                if x[0] in self.scorer2.query_pdb_mapping and
+    #                                                x[1] in self.scorer2.query_pdb_mapping]]
+    #     self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
+    #     self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
 
-    def test_7a__map_predictions_to_pdb(self):
+    def test_8a_score_auc(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
         scores1 = np.random.rand(self.pdb_len1, self.pdb_len1)
         scores1[np.tril_indices(self.pdb_len1, 1)] = 0
         scores1 += scores1.T
         scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-        pairs1a = self.scorer1.find_pairs_by_separation(category='Any')
-        expected_scores1a = scores1[[x[0] for x in pairs1a if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping],
-                                    [x[1] for x in pairs1a if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping]]
-        expected_dists1a = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1a
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping],
-                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1a
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores1a - scores_mapped1a), 1e-5)
-        self.assertLess(np.sum(expected_dists1a - dists_mapped1a), 1e-5)
+        fpr_expected1a, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
+        auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
+        tpr1a, fpr1a, auroc1a = self.scorer1.score_auc(scores1, category='Any')
+        self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
+        self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
+        self.assertEqual(auroc_expected1a, auroc1a)
         scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
                                                                                category='Neighbors')
-        pairs1b = self.scorer1.find_pairs_by_separation(category='Neighbors')
-        expected_scores1b = scores1[[x[0] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping],
-                                    [x[1] for x in pairs1b if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping]]
-        expected_dists1b = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1b
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping],
-                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1b
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores1b - scores_mapped1b), 1e-5)
-        self.assertLess(np.sum(expected_dists1b - dists_mapped1b), 1e-5)
+        fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
+        auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
+        tpr1b, fpr1b, auroc1b = self.scorer1.score_auc(scores1, category='Neighbors')
+        self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
+        self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
+        self.assertEqual(auroc_expected1b, auroc1b)
         scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-        pairs1c = self.scorer1.find_pairs_by_separation(category='Short')
-        expected_scores1c = scores1[[x[0] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping],
-                                    [x[1] for x in pairs1c if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping]]
-        expected_dists1c = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1c
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping],
-                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1c
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores1c - scores_mapped1c), 1e-5)
-        self.assertLess(np.sum(expected_dists1c - dists_mapped1c), 1e-5)
+        fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
+        auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
+        tpr1c, fpr1c, auroc1c = self.scorer1.score_auc(scores1, category='Short')
+        self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
+        self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
+        self.assertEqual(auroc_expected1c, auroc1c)
         scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-        pairs1d = self.scorer1.find_pairs_by_separation(category='Medium')
-        expected_scores1d = scores1[[x[0] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping],
-                                    [x[1] for x in pairs1d if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping]]
-        expected_dists1d = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1d
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping],
-                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1d
-                                                   if x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores1d - scores_mapped1d), 1e-5)
-        self.assertLess(np.sum(expected_dists1d - dists_mapped1d), 1e-5)
+        fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
+        auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
+        tpr1d, fpr1d, auroc1d = self.scorer1.score_auc(scores1, category='Medium')
+        self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
+        self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
+        self.assertEqual(auroc_expected1d, auroc1d)
         scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-        pairs1e = self.scorer1.find_pairs_by_separation(category='Long')
-        expected_scores1e = scores1[[x[0] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping],
-                                    [x[1] for x in pairs1e if x[0] in self.scorer1.query_pdb_mapping and
-                                     x[1] in self.scorer1.query_pdb_mapping]]
-        expected_dists1e = self.scorer1.distances[[self.scorer1.query_pdb_mapping[x[0]] for x in pairs1e if
-                                                   x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping],
-                                                  [self.scorer1.query_pdb_mapping[x[1]] for x in pairs1e if
-                                                   x[0] in self.scorer1.query_pdb_mapping and
-                                                   x[1] in self.scorer1.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
-        self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
+        fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
+        auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
+        tpr1e, fpr1e, auroc1e = self.scorer1.score_auc(scores1, category='Long')
+        self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
+        self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
+        self.assertEqual(auroc_expected1e, auroc1e)
 
-    def test_7b__map_predictions_to_pdb(self):
+    def test_8b_score_auc(self):
         self.scorer2.fit()
         self.scorer2.measure_distance(method='CB')
         scores2 = np.random.rand(self.pdb_len2, self.pdb_len2)
         scores2[np.tril_indices(self.pdb_len2, 1)] = 0
         scores2 += scores2.T
         scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-        pairs2a = self.scorer2.find_pairs_by_separation(category='Any')
-        expected_scores2a = scores2[[x[0] for x in pairs2a if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping],
-                                    [x[1] for x in pairs2a if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping]]
-        expected_dists2a = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2a
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping],
-                                                  [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2a
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores2a - scores_mapped2a), 1e-5)
-        self.assertLess(np.sum(expected_dists2a - dists_mapped2a), 1e-5)
+        fpr_expected2a, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
+        auroc_expected2a = auc(fpr_expected2a, tpr_expected2a)
+        tpr2a, fpr2a, auroc2a = self.scorer2.score_auc(scores2, category='Any')
+        self.assertEqual(np.sum(fpr_expected2a - fpr2a), 0)
+        self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
+        self.assertEqual(auroc_expected2a, auroc2a)
         scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
                                                                                category='Neighbors')
-        pairs2b = self.scorer2.find_pairs_by_separation(category='Neighbors')
-        expected_scores2b = scores2[[x[0] for x in pairs2b if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping],
-                                    [x[1] for x in pairs2b if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping]]
-        expected_dists2b = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2b
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping],
-                                                  [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2b
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores2b - scores_mapped2b), 1e-5)
-        self.assertLess(np.sum(expected_dists2b - dists_mapped2b), 1e-5)
+        fpr_expected2b, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
+        auroc_expected2b = auc(fpr_expected2b, tpr_expected2b)
+        tpr2b, fpr2b, auroc2b = self.scorer2.score_auc(scores2, category='Neighbors')
+        self.assertEqual(np.sum(fpr_expected2b - fpr2b), 0)
+        self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
+        self.assertEqual(auroc_expected2b, auroc2b)
         scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-        pairs2c = self.scorer2.find_pairs_by_separation(category='Short')
-        expected_scores2c = scores2[[x[0] for x in pairs2c if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping],
-                                    [x[1] for x in pairs2c if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping]]
-        expected_dists2c = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2c
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping],
-                                                  [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2c
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores2c - scores_mapped2c), 1e-5)
-        self.assertLess(np.sum(expected_dists2c - dists_mapped2c), 1e-5)
+        fpr_expected2c, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
+        auroc_expected2c = auc(fpr_expected2c, tpr_expected2c)
+        tpr2c, fpr2c, auroc2c = self.scorer2.score_auc(scores2, category='Short')
+        self.assertEqual(np.sum(fpr_expected2c - fpr2c), 0)
+        self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
+        self.assertEqual(auroc_expected2c, auroc2c)
         scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-        pairs2d = self.scorer2.find_pairs_by_separation(category='Medium')
-        expected_scores2d = scores2[[x[0] for x in pairs2d if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping],
-                                    [x[1] for x in pairs2d if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping]]
-        expected_dists2d = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2d
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping],
-                                                  [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2d
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores2d - scores_mapped2d), 1e-5)
-        self.assertLess(np.sum(expected_dists2d - dists_mapped2d), 1e-5)
+        fpr_expected2d, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
+        auroc_expected2d = auc(fpr_expected2d, tpr_expected2d)
+        tpr2d, fpr2d, auroc2d = self.scorer2.score_auc(scores2, category='Medium')
+        self.assertEqual(np.sum(fpr_expected2d - fpr2d), 0)
+        self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
+        self.assertEqual(auroc_expected2d, auroc2d)
         scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-        pairs2e = self.scorer2.find_pairs_by_separation(category='Long')
-        expected_scores2e = scores2[[x[0] for x in pairs2e if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping],
-                                    [x[1] for x in pairs2e if x[0] in self.scorer2.query_pdb_mapping and
-                                     x[1] in self.scorer2.query_pdb_mapping]]
-        expected_dists2e = self.scorer2.distances[[self.scorer2.query_pdb_mapping[x[0]] for x in pairs2e
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping],
-                                                  [self.scorer2.query_pdb_mapping[x[1]] for x in pairs2e
-                                                   if x[0] in self.scorer2.query_pdb_mapping and
-                                                   x[1] in self.scorer2.query_pdb_mapping]]
-        self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
-        self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
-
-    # def test_score_auc(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(79, 79)
-    #     scores1[np.tril_indices(79, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     fpr_expected1a, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
-    #     auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
-    #     tpr1a, fpr1a, auroc1a = self.scorer1.score_auc(scores1, category='Any')
-    #     self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
-    #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
-    #     self.assertEqual(auroc_expected1a, auroc1a)
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
-    #     auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
-    #     tpr1b, fpr1b, auroc1b = self.scorer1.score_auc(scores1, category='Neighbors')
-    #     self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
-    #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
-    #     self.assertEqual(auroc_expected1b, auroc1b)
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
-    #     auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
-    #     tpr1c, fpr1c, auroc1c = self.scorer1.score_auc(scores1, category='Short')
-    #     self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
-    #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
-    #     self.assertEqual(auroc_expected1c, auroc1c)
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
-    #     auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
-    #     tpr1d, fpr1d, auroc1d = self.scorer1.score_auc(scores1, category='Medium')
-    #     self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
-    #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
-    #     self.assertEqual(auroc_expected1d, auroc1d)
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
-    #     auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
-    #     tpr1e, fpr1e, auroc1e = self.scorer1.score_auc(scores1, category='Long')
-    #     self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
-    #     self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
-    #     self.assertEqual(auroc_expected1e, auroc1e)
-    #     #
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(368, 368)
-    #     scores2[np.tril_indices(368, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     fpr_expected2a, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
-    #     auroc_expected2a = auc(fpr_expected2a, tpr_expected2a)
-    #     tpr2a, fpr2a, auroc2a = self.scorer2.score_auc(scores2, category='Any')
-    #     self.assertEqual(np.sum(fpr_expected2a - fpr2a), 0)
-    #     self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
-    #     self.assertEqual(auroc_expected2a, auroc2a)
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     fpr_expected2b, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
-    #     auroc_expected2b = auc(fpr_expected2b, tpr_expected2b)
-    #     tpr2b, fpr2b, auroc2b = self.scorer2.score_auc(scores2, category='Neighbors')
-    #     self.assertEqual(np.sum(fpr_expected2b - fpr2b), 0)
-    #     self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
-    #     self.assertEqual(auroc_expected2b, auroc2b)
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     fpr_expected2c, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
-    #     auroc_expected2c = auc(fpr_expected2c, tpr_expected2c)
-    #     tpr2c, fpr2c, auroc2c = self.scorer2.score_auc(scores2, category='Short')
-    #     self.assertEqual(np.sum(fpr_expected2c - fpr2c), 0)
-    #     self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
-    #     self.assertEqual(auroc_expected2c, auroc2c)
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     fpr_expected2d, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
-    #     auroc_expected2d = auc(fpr_expected2d, tpr_expected2d)
-    #     tpr2d, fpr2d, auroc2d = self.scorer2.score_auc(scores2, category='Medium')
-    #     self.assertEqual(np.sum(fpr_expected2d - fpr2d), 0)
-    #     self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
-    #     self.assertEqual(auroc_expected2d, auroc2d)
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     fpr_expected2e, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
-    #     auroc_expected2e = auc(fpr_expected2e, tpr_expected2e)
-    #     tpr2e, fpr2e, auroc2e = self.scorer2.score_auc(scores2, category='Long')
-    #     self.assertEqual(np.sum(fpr_expected2e - fpr2e), 0)
-    #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
-    #     self.assertEqual(auroc_expected2e, auroc2e)
+        fpr_expected2e, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
+        auroc_expected2e = auc(fpr_expected2e, tpr_expected2e)
+        tpr2e, fpr2e, auroc2e = self.scorer2.score_auc(scores2, category='Long')
+        self.assertEqual(np.sum(fpr_expected2e - fpr2e), 0)
+        self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
+        self.assertEqual(auroc_expected2e, auroc2e)
     # 
     # def test_plot_auc(self):
     #     self.scorer1.fit()
