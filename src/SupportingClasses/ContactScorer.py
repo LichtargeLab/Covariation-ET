@@ -401,9 +401,9 @@ class ContactScorer(object):
                 if len(overlap) != 1:
                     raise ValueError('Something went wrong while computing overlaps.')
                 indices_to_keep.append(overlap[0])
-            self._specific_mapping[category] = (indices, indices_to_keep)
+            self._specific_mapping[category] = (indices, dist_indices, indices_to_keep)
         else:
-            indices, indices_to_keep = self._specific_mapping[category]
+            indices, dist_indices, indices_to_keep = self._specific_mapping[category]
         mapped_predictions = predictions[indices]
         mapped_predictions = np.array(mapped_predictions[indices_to_keep])
         mapped_distances = self.distances[dist_indices]
