@@ -11,7 +11,7 @@ from shutil import rmtree
 from unittest import TestCase
 from scipy.stats import rankdata
 from Bio.PDB.Polypeptide import one_to_three
-from sklearn.metrics import auc, roc_curve, precision_score, recall_score
+from sklearn.metrics import auc, roc_curve, precision_score, recall_score, f1_score
 from test_Base import TestBase
 from ContactScorer import ContactScorer, surface_plot, heatmap_plot, plot_z_scores
 sys.path.append(os.path.abspath('..'))
@@ -90,6 +90,19 @@ class TestContactScorer(TestBase):
         mapped_dists = mapped_dists[ind]
         truth = (mapped_dists <= 8.0) * 1.0
         precision = recall_score(truth, preds)
+        return precision
+
+    @staticmethod
+    def check_f1(mapped_scores, mapped_dists, count=None):
+        if count is None:
+            count = mapped_dists.shape[0]
+        ranked_scores = rankdata(-1 * np.array(mapped_scores), method='dense')
+        ind = np.where(ranked_scores <= count)
+        mapped_scores = mapped_scores[ind]
+        preds = (mapped_scores > 0.0) * 1.0
+        mapped_dists = mapped_dists[ind]
+        truth = (mapped_dists <= 8.0) * 1.0
+        precision = f1_score(truth, preds)
         return precision
 
     def _et_calcDist(self, atoms1, atoms2):
@@ -1131,161 +1144,317 @@ class TestContactScorer(TestBase):
     #     with self.assertRaises(ValueError):
     #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
     #
-    def test_11a_score_recall(self):
+    # def test_11a_score_recall(self):
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='CB')
+    #     scores1 = np.random.rand(self.pdb_len1, self.pdb_len1)
+    #     scores1[np.tril_indices(self.pdb_len1, 1)] = 0
+    #     scores1 += scores1.T
+    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+    #     expected_recall1a_all = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
+    #     recall1a_all = self.scorer1.score_recall(predictions=scores1, category='Any')
+    #     self.assertEqual(expected_recall1a_all, recall1a_all)
+    #     expected_recall1a_k10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+    #     recall1a_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Any')
+    #     self.assertEqual(expected_recall1a_k10, recall1a_k10)
+    #     expected_recall1a_n10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+    #                                               count=10.0)
+    #     precision1a_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Any')
+    #     self.assertEqual(expected_recall1a_n10, precision1a_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Any')
+    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
+    #                                                                            category='Neighbors')
+    #     expected_recall1b_all = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
+    #     recall1b_all = self.scorer1.score_recall(predictions=scores1, category='Neighbors')
+    #     self.assertEqual(expected_recall1b_all, recall1b_all)
+    #     expected_recall1b_k10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+    #     recall1b_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Neighbors')
+    #     self.assertEqual(expected_recall1b_k10, recall1b_k10)
+    #     expected_recall1b_n10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+    #                                               count=10.0)
+    #     recall1b_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Neighbors')
+    #     self.assertEqual(expected_recall1b_n10, recall1b_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Neighbors')
+    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
+    #     expected_recall1c_all = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
+    #     recall1c_all = self.scorer1.score_recall(predictions=scores1, category='Short')
+    #     self.assertEqual(expected_recall1c_all, recall1c_all)
+    #     recall1c_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Short')
+    #     expected_recall1c_k10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+    #     self.assertEqual(expected_recall1c_k10, recall1c_k10)
+    #     expected_recall1c_n10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+    #                                               count=10.0)
+    #     recall1c_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Short')
+    #     self.assertEqual(expected_recall1c_n10, recall1c_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Short')
+    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
+    #     expected_recall1d_all = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
+    #     recall1d_all = self.scorer1.score_recall(predictions=scores1, category='Medium')
+    #     self.assertEqual(expected_recall1d_all, recall1d_all)
+    #     expected_recall1d_k10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+    #     recall1d_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Medium')
+    #     self.assertEqual(expected_recall1d_k10, recall1d_k10)
+    #     expected_recall1d_n10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+    #                                               count=10.0)
+    #     recall1d_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Medium')
+    #     self.assertEqual(expected_recall1d_n10, recall1d_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Medium')
+    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
+    #     expected_recall1e_all = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
+    #     recall1e_all = self.scorer1.score_recall(predictions=scores1, category='Long')
+    #     self.assertEqual(expected_recall1e_all, recall1e_all)
+    #     expected_recall1e_k10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+    #     recall1e_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Long')
+    #     self.assertEqual(expected_recall1e_k10, recall1e_k10)
+    #     expected_recall1e_n10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+    #                                               count=10.0)
+    #     recall1e_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Long')
+    #     self.assertEqual(expected_recall1e_n10, recall1e_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Long')
+    #
+    # def test_11b_score_recall(self):
+    #     self.scorer2.fit()
+    #     self.scorer2.measure_distance(method='CB')
+    #     scores2 = np.random.rand(self.pdb_len2, self.pdb_len2)
+    #     scores2[np.tril_indices(self.pdb_len2, 1)] = 0
+    #     scores2 += scores2.T
+    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
+    #     expected_recall2a_all = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
+    #     recall2a_all = self.scorer2.score_recall(predictions=scores2, category='Any')
+    #     self.assertEqual(expected_recall2a_all, recall2a_all)
+    #     expected_recall2a_k10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+    #     recall2a_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Any')
+    #     self.assertEqual(expected_recall2a_k10, recall2a_k10)
+    #     expected_recall2a_n10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+    #                                               count=10.0)
+    #     recall2a_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Any')
+    #     self.assertEqual(expected_recall2a_n10, recall2a_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Any')
+    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
+    #                                                                            category='Neighbors')
+    #     expected_recall2b_all = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
+    #     recall2b_all = self.scorer2.score_recall(predictions=scores2, category='Neighbors')
+    #     self.assertEqual(expected_recall2b_all, recall2b_all)
+    #     expected_recall2b_k10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+    #     recall2b_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Neighbors')
+    #     self.assertEqual(expected_recall2b_k10, recall2b_k10)
+    #     expected_recall2b_n10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+    #                                               count=10.0)
+    #     recall2b_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Neighbors')
+    #     self.assertEqual(expected_recall2b_n10, recall2b_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Neighbors')
+    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
+    #     expected_recall2c_all = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
+    #     recall2c_all = self.scorer2.score_recall(predictions=scores2, category='Short')
+    #     self.assertEqual(expected_recall2c_all, recall2c_all)
+    #     recall2c_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Short')
+    #     expected_recall2c_k10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+    #     self.assertEqual(expected_recall2c_k10, recall2c_k10)
+    #     expected_recall2c_n10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+    #                                               count=10.0)
+    #     recall2c_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Short')
+    #     self.assertEqual(expected_recall2c_n10, recall2c_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Short')
+    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
+    #     expected_recall2d_all = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
+    #     recall2d_all = self.scorer2.score_recall(predictions=scores2, category='Medium')
+    #     self.assertEqual(expected_recall2d_all, recall2d_all)
+    #     expected_recall2d_k10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+    #     recall2d_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Medium')
+    #     self.assertEqual(expected_recall2d_k10, recall2d_k10)
+    #     expected_recall2d_n10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+    #                                               count=10.0)
+    #     recall2d_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Medium')
+    #     self.assertEqual(expected_recall2d_n10, recall2d_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Medium')
+    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
+    #     expected_recall2e_all = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
+    #     recall2e_all = self.scorer2.score_recall(predictions=scores2, category='Long')
+    #     self.assertEqual(expected_recall2e_all, recall2e_all)
+    #     expected_recall2e_k10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+    #     recall2e_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Long')
+    #     self.assertEqual(expected_recall2e_k10, recall2e_k10)
+    #     expected_recall2e_n10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+    #                                               count=10.0)
+    #     recall2e_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Long')
+    #     self.assertEqual(expected_recall2e_n10, precall2e_n10)
+    #     with self.assertRaises(ValueError):
+    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Long')
+    #
+    def test_12a_score_f1(self):
         self.scorer1.fit()
         self.scorer1.measure_distance(method='CB')
         scores1 = np.random.rand(self.pdb_len1, self.pdb_len1)
         scores1[np.tril_indices(self.pdb_len1, 1)] = 0
         scores1 += scores1.T
         scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-        expected_recall1a_all = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
-        recall1a_all = self.scorer1.score_recall(predictions=scores1, category='Any')
-        self.assertEqual(expected_recall1a_all, recall1a_all)
-        expected_recall1a_k10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-                                                  count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-        recall1a_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Any')
-        self.assertEqual(expected_recall1a_k10, recall1a_k10)
-        expected_recall1a_n10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-                                                  count=10.0)
-        precision1a_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Any')
-        self.assertEqual(expected_recall1a_n10, precision1a_n10)
+        expected_f1_1a_all = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
+        f1_1a_all = self.scorer1.score_f1(predictions=scores1, category='Any')
+        self.assertEqual(expected_f1_1a_all, f1_1a_all)
+        expected_f1_1a_k10 = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+                                           count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        f1_1a_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Any')
+        self.assertEqual(expected_f1_1a_k10, f1_1a_k10)
+        expected_f1_1a_n10 = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
+                                           count=10.0)
+        f1_1a_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Any')
+        self.assertEqual(expected_f1_1a_n10, f1_1a_n10)
         with self.assertRaises(ValueError):
-            self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Any')
+            self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Any')
         scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
                                                                                category='Neighbors')
-        expected_recall1b_all = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
-        recall1b_all = self.scorer1.score_recall(predictions=scores1, category='Neighbors')
-        self.assertEqual(expected_recall1b_all, recall1b_all)
-        expected_recall1b_k10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-                                                  count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-        recall1b_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Neighbors')
-        self.assertEqual(expected_recall1b_k10, recall1b_k10)
-        expected_recall1b_n10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-                                                  count=10.0)
-        recall1b_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Neighbors')
-        self.assertEqual(expected_recall1b_n10, recall1b_n10)
+        expected_f1_1b_all = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
+        f1_1b_all = self.scorer1.score_f1(predictions=scores1, category='Neighbors')
+        self.assertEqual(expected_f1_1b_all, f1_1b_all)
+        expected_f1_1b_k10 = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+                                           count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        f1_1b_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Neighbors')
+        self.assertEqual(expected_f1_1b_k10, f1_1b_k10)
+        expected_f1_1b_n10 = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
+                                           count=10.0)
+        f1_1b_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Neighbors')
+        self.assertEqual(expected_f1_1b_n10, f1_1b_n10)
         with self.assertRaises(ValueError):
-            self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Neighbors')
+            self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Neighbors')
         scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-        expected_recall1c_all = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
-        recall1c_all = self.scorer1.score_recall(predictions=scores1, category='Short')
-        self.assertEqual(expected_recall1c_all, recall1c_all)
-        recall1c_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Short')
-        expected_recall1c_k10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-                                                  count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-        self.assertEqual(expected_recall1c_k10, recall1c_k10)
-        expected_recall1c_n10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-                                                  count=10.0)
-        recall1c_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Short')
-        self.assertEqual(expected_recall1c_n10, recall1c_n10)
+        expected_f1_1c_all = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
+        f1_1c_all = self.scorer1.score_f1(predictions=scores1, category='Short')
+        self.assertEqual(expected_f1_1c_all, f1_1c_all)
+        f1_1c_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Short')
+        expected_f1_1c_k10 = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+                                           count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        self.assertEqual(expected_f1_1c_k10, f1_1c_k10)
+        expected_f1_1c_n10 = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
+                                           count=10.0)
+        f1_1c_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Short')
+        self.assertEqual(expected_f1_1c_n10, f1_1c_n10)
         with self.assertRaises(ValueError):
-            self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Short')
+            self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Short')
         scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-        expected_recall1d_all = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
-        recall1d_all = self.scorer1.score_recall(predictions=scores1, category='Medium')
-        self.assertEqual(expected_recall1d_all, recall1d_all)
-        expected_recall1d_k10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-                                                  count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-        recall1d_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Medium')
-        self.assertEqual(expected_recall1d_k10, recall1d_k10)
-        expected_recall1d_n10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-                                                  count=10.0)
-        recall1d_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Medium')
-        self.assertEqual(expected_recall1d_n10, recall1d_n10)
+        expected_f1_1d_all = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
+        f1_1d_all = self.scorer1.score_f1(predictions=scores1, category='Medium')
+        self.assertEqual(expected_f1_1d_all, f1_1d_all)
+        expected_f1_1d_k10 = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+                                           count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        f1_1d_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Medium')
+        self.assertEqual(expected_f1_1d_k10, f1_1d_k10)
+        expected_f1_1d_n10 = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
+                                           count=10.0)
+        f1_1d_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Medium')
+        self.assertEqual(expected_f1_1d_n10, f1_1d_n10)
         with self.assertRaises(ValueError):
-            self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Medium')
+            self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Medium')
         scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-        expected_recall1e_all = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
-        recall1e_all = self.scorer1.score_recall(predictions=scores1, category='Long')
-        self.assertEqual(expected_recall1e_all, recall1e_all)
-        expected_recall1e_k10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-                                                  count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-        recall1e_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Long')
-        self.assertEqual(expected_recall1e_k10, recall1e_k10)
-        expected_recall1e_n10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-                                                  count=10.0)
-        recall1e_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Long')
-        self.assertEqual(expected_recall1e_n10, recall1e_n10)
+        expected_f1_1e_all = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
+        f1_1e_all = self.scorer1.score_f1(predictions=scores1, category='Long')
+        self.assertEqual(expected_f1_1e_all, f1_1e_all)
+        expected_f1_1e_k10 = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+                                           count=floor(self.scorer1.query_alignment.seq_length / 10.0))
+        f1_1e_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Long')
+        self.assertEqual(expected_f1_1e_k10, f1_1e_k10)
+        expected_f1_1e_n10 = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
+                                           count=10.0)
+        f1_1e_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Long')
+        self.assertEqual(expected_f1_1e_n10, f1_1e_n10)
         with self.assertRaises(ValueError):
-            self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Long')
+            self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Long')
 
-    def test_10b_score_precision(self):
+    def test_12b_score_f1(self):
         self.scorer2.fit()
         self.scorer2.measure_distance(method='CB')
         scores2 = np.random.rand(self.pdb_len2, self.pdb_len2)
         scores2[np.tril_indices(self.pdb_len2, 1)] = 0
         scores2 += scores2.T
         scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-        expected_recall2a_all = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
-        recall2a_all = self.scorer2.score_recall(predictions=scores2, category='Any')
-        self.assertEqual(expected_recall2a_all, recall2a_all)
-        expected_recall2a_k10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-                                                  count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-        recall2a_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Any')
-        self.assertEqual(expected_recall2a_k10, recall2a_k10)
-        expected_recall2a_n10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-                                                  count=10.0)
-        recall2a_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Any')
-        self.assertEqual(expected_recall2a_n10, recall2a_n10)
+        expected_f1_2a_all = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
+        f1_2a_all = self.scorer2.score_f1(predictions=scores2, category='Any')
+        self.assertEqual(expected_f1_2a_all, f1_2a_all)
+        expected_f1_2a_k10 = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+                                           count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        f1_2a_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Any')
+        self.assertEqual(expected_f1_2a_k10, f1_2a_k10)
+        expected_f1_2a_n10 = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
+                                           count=10.0)
+        f1_2a_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Any')
+        self.assertEqual(expected_f1_2a_n10, f1_2a_n10)
         with self.assertRaises(ValueError):
-            self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Any')
+            self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Any')
         scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
                                                                                category='Neighbors')
-        expected_recall2b_all = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
-        recall2b_all = self.scorer2.score_recall(predictions=scores2, category='Neighbors')
-        self.assertEqual(expected_recall2b_all, recall2b_all)
-        expected_recall2b_k10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-                                                  count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-        recall2b_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Neighbors')
-        self.assertEqual(expected_recall2b_k10, recall2b_k10)
-        expected_recall2b_n10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-                                                  count=10.0)
-        recall2b_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Neighbors')
-        self.assertEqual(expected_recall2b_n10, recall2b_n10)
+        expected_f1_2b_all = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
+        f1_2b_all = self.scorer2.score_f1(predictions=scores2, category='Neighbors')
+        self.assertEqual(expected_f1_2b_all, f1_2b_all)
+        expected_f1_2b_k10 = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+                                           count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        f1_2b_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Neighbors')
+        self.assertEqual(expected_f1_2b_k10, f1_2b_k10)
+        expected_f1_2b_n10 = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
+                                           count=10.0)
+        f1_2b_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Neighbors')
+        self.assertEqual(expected_f1_2b_n10, f1_2b_n10)
         with self.assertRaises(ValueError):
-            self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Neighbors')
+            self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Neighbors')
         scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-        expected_recall2c_all = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
-        recall2c_all = self.scorer2.score_recall(predictions=scores2, category='Short')
-        self.assertEqual(expected_recall2c_all, recall2c_all)
-        recall2c_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Short')
-        expected_recall2c_k10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-                                                  count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-        self.assertEqual(expected_recall2c_k10, recall2c_k10)
-        expected_recall2c_n10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-                                                  count=10.0)
-        recall2c_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Short')
-        self.assertEqual(expected_recall2c_n10, recall2c_n10)
+        expected_f1_2c_all = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
+        f1_2c_all = self.scorer2.score_f1(predictions=scores2, category='Short')
+        self.assertEqual(expected_f1_2c_all, f1_2c_all)
+        f1_2c_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Short')
+        expected_f1_2c_k10 = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+                                           count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        self.assertEqual(expected_f1_2c_k10, f1_2c_k10)
+        expected_f1_2c_n10 = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
+                                           count=10.0)
+        f1_2c_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Short')
+        self.assertEqual(expected_f1_2c_n10, f1_2c_n10)
         with self.assertRaises(ValueError):
-            self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Short')
+            self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Short')
         scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-        expected_recall2d_all = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
-        recall2d_all = self.scorer2.score_recall(predictions=scores2, category='Medium')
-        self.assertEqual(expected_recall2d_all, recall2d_all)
-        expected_recall2d_k10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-                                                  count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-        recall2d_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Medium')
-        self.assertEqual(expected_recall2d_k10, recall2d_k10)
-        expected_recall2d_n10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-                                                  count=10.0)
-        recall2d_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Medium')
-        self.assertEqual(expected_recall2d_n10, recall2d_n10)
+        expected_f1_2d_all = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
+        f1_2d_all = self.scorer2.score_f1(predictions=scores2, category='Medium')
+        self.assertEqual(expected_f1_2d_all, f1_2d_all)
+        expected_f1_2d_k10 = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+                                           count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        f1_2d_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Medium')
+        self.assertEqual(expected_f1_2d_k10, f1_2d_k10)
+        expected_f1_2d_n10 = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
+                                           count=10.0)
+        f1_2d_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Medium')
+        self.assertEqual(expected_f1_2d_n10, f1_2d_n10)
         with self.assertRaises(ValueError):
-            self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Medium')
+            self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Medium')
         scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-        expected_recall2e_all = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
-        recall2e_all = self.scorer2.score_recall(predictions=scores2, category='Long')
-        self.assertEqual(expected_recall2e_all, recall2e_all)
-        expected_recall2e_k10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-                                                  count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-        recall2e_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Long')
-        self.assertEqual(expected_recall2e_k10, recall2e_k10)
-        expected_recall2e_n10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-                                                  count=10.0)
-        precall2e_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Long')
-        self.assertEqual(expected_recall2e_n10, precall2e_n10)
+        expected_f1_2e_all = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
+        f1_2e_all = self.scorer2.score_f1(predictions=scores2, category='Long')
+        self.assertEqual(expected_f1_2e_all, f1_2e_all)
+        expected_f1_2e_k10 = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+                                           count=floor(self.scorer2.query_alignment.seq_length / 10.0))
+        f1_2e_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Long')
+        self.assertEqual(expected_f1_2e_k10, f1_2e_k10)
+        expected_f1_2e_n10 = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
+                                           count=10.0)
+        f1_2e_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Long')
+        self.assertEqual(expected_f1_2e_n10, f1_2e_n10)
         with self.assertRaises(ValueError):
-            self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Long')
+            self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Long')
     #
     # def test_score_clustering_of_contact_predictions(self):
     #     self.scorer1.fit()

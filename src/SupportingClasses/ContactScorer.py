@@ -586,6 +586,55 @@ class ContactScorer(object):
         recall = recall_score(y_true1, y_pred1)
         return recall
 
+    def score_f1(self, predictions, k=None, n=None, category='Any'):
+        """
+        Score Recall
+
+        This method can be used to calculate the f1 score of the predictions. The intention is that this method be used
+        to compute the f1 score for the top L/k or top n residue pairs, where L is the length of the query sequence and
+        k is a number less than or equal to L and n is a specific number of predictions to test. Predictions in the top
+        L/k or n are given a label of 1 if they are >0 and are given a label of 0 otherwise. The true positive set is
+        determined by taking the PDB measured distances for the top L/k or n residue pairs and setting them to 1 if they
+        are <= the cutoff provided when initializing this ContactScorer, and 0 otherwise. F1 score is the weighted
+        average of precision and recall (2 * (precision * recall) / (precision + recall)) as implemented by sklearn.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer.
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
+        Returns:
+            float: The F1 score value computed for the predictions provided.
+        """
+        if self.query_structure is None:
+            print('Recall cannot be measured, because no PDB was provided.')
+            return '-'
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        if (k is not None) and (n is not None):
+            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
+        elif k:
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        elif n is None:
+            n = mapped_distances.shape[0]
+        else:
+            pass
+        ind = np.where(ranks <= n)
+        top_predictions = mapped_predictions[ind]
+        y_pred1 = ((top_predictions > 0.0) * 1)
+        top_distances = mapped_distances[ind]
+        y_true1 = ((top_distances <= self.cutoff) * 1)
+        recall = f1_score(y_true1, y_pred1)
+        return recall
+
     def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
                                                 w2_ave_sub=None, processes=1):
         """
