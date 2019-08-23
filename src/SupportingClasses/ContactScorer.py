@@ -80,14 +80,22 @@ class ContactScorer(object):
         self.query = query
         print(type(seq_alignment))
         print(type(seq_alignment) == SeqAlignment)
-        if isinstance(seq_alignment, SeqAlignment):
-            self.query_alignment = seq_alignment
-        else:
+        if isinstance(seq_alignment, os.PathLike):
             self.query_alignment = os.path.abspath(seq_alignment)
-        if isinstance(pdb_reference, PDBReference):
-            self.query_structure = pdb_reference
         else:
+            self.query_alignment = seq_alignment
+        # if isinstance(seq_alignment, SeqAlignment):
+        #     self.query_alignment = seq_alignment
+        # else:
+        #     self.query_alignment = os.path.abspath(seq_alignment)
+        if isinstance(pdb_reference, os.PathLike):
             self.query_structure = os.path.abspath(pdb_reference)
+        else:
+            self.query_structure = pdb_reference
+        # if isinstance(pdb_reference, PDBReference):
+        #     self.query_structure = pdb_reference
+        # else:
+        #     self.query_structure = os.path.abspath(pdb_reference)
         self.cutoff = cutoff
         self.best_chain = chain
         self.query_pdb_mapping = None
@@ -128,14 +136,14 @@ class ContactScorer(object):
             if self.query_alignment is None:
                 raise ValueError('Scorer cannot be fit, because no alignment was provided.')
             else:
-                if isinstance(self.query_alignment, str):
+                if isinstance(self.query_alignment, os.PathLike):
                     self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
                 self.query_alignment.import_alignment()
                 self.query_alignment = self.query_alignment.remove_gaps()
             if self.query_structure is None:
                 raise ValueError('Scorer cannot be fit, because no PDB was provided.')
             else:
-                if isinstance(self.query_structure, str):
+                if isinstance(self.query_structure, os.PathLike):
                     self.query_structure = PDBReference(pdb_file=self.query_structure)
                 self.query_structure.import_pdb(structure_id=self.query)
             if self.best_chain is None:
