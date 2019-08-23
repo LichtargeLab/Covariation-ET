@@ -78,11 +78,11 @@ class ContactScorer(object):
             pdb_reference and the closest match will be selected.
         """
         self.query = query
-        if type(seq_alignment) is SeqAlignment:
+        if type(seq_alignment) == SeqAlignment:
             self.query_alignment = seq_alignment
         else:
             self.query_alignment = os.path.abspath(seq_alignment)
-        if type(pdb_reference) is PDBReference:
+        if type(pdb_reference) == PDBReference:
             self.query_structure = pdb_reference
         else:
             self.query_structure = os.path.abspath(pdb_reference)
