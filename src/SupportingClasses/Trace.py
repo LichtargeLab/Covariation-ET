@@ -170,40 +170,7 @@ class Trace(object):
         """
         start = time()
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
-        manager = Manager()
         # Generate group scores for each of the unique_nodes from the phylo_tree
-        # group_queue = Queue(maxsize=(self.aln.size * 2) - 1 + processes)
-        # visited = set([])
-        # for r in sorted(self.assignments.keys(), reverse=True):
-        #     for g in self.assignments[r]:
-        #         node = self.assignments[r][g]['node']
-        #         if node.name not in visited:
-        #             group_queue.put_nowait(node.name)
-        #             visited.add(node.name)
-        # for i in range(processes):
-        #     group_queue.put_nowait('STOP')
-        # group_dict = manager.dict()
-        # pool1 = Pool(processes=processes, initializer=init_trace_groups,
-        #              initargs=(group_queue, scorer, group_dict, self.pos_specific, self.pair_specific,
-        #                        self.unique_nodes, self.low_memory, unique_dir))
-        # pool1.map_async(trace_groups, range(processes))
-        # pool1.close()
-        # pool1.join()
-        # # Update the unique_nodes dictionary with the group scores
-        # group_dict = dict(group_dict)
-        # for node_name in group_dict:
-        #     self.unique_nodes[node_name].update(group_dict[node_name])
-        # group_time = time()
-        # print('Group processing completed in {} min'.format((group_time - start) / 60.0))
-
-        # visited = set([])
-        # nodes = []
-        # for r in sorted(self.assignments.keys(), reverse=True):
-        #     for g in self.assignments[r]:
-        #         node = self.assignments[r][g]['node']
-        #         if node.name not in visited:
-        #             nodes.append((node.name, ))
-        #             visited.add(node.name)
         group_pbar = tqdm(total=len(self.unique_nodes), unit='group')
 
         def update_group(return_tuple):
@@ -222,20 +189,24 @@ class Trace(object):
         group_pbar.close()
         group_time = time()
         # For each rank collect all group scores and compute a final rank score
-        rank_queue = Queue(maxsize=self.aln.size + processes)
-        for rank in sorted(self.assignments.keys(), reverse=True):
-            rank_queue.put_nowait(rank)
-        for i in range(processes):
-            rank_queue.put_nowait('STOP')
-        rank_dict = manager.dict()
+        self.rank_scores = {}
+        rank_pbar = tqdm(total=len(self.assignments), unit='rank')
+
+        def update_rank(return_tuple):
+            rank, components = return_tuple
+            self.rank_scores[rank] = components
+            rank_pbar.update(1)
+            rank_pbar.refresh()
+
         pool2 = Pool(processes=processes, initializer=init_trace_ranks,
-                     initargs=(rank_queue, scorer, rank_dict, self.pos_specific, self.pair_specific, self.assignments,
+                     initargs=(scorer, self.pos_specific, self.pair_specific, self.assignments,
                                self.unique_nodes, self.low_memory, unique_dir))
-        pool2.map_async(trace_ranks, list(range(processes)))
+        for rank in sorted(self.assignments.keys(), reverse=True):
+            pool2.apply_async(trace_ranks, (rank,), callback=update_rank)
         pool2.close()
         pool2.join()
+        rank_pbar.close()
         # Combine rank scores to generate a final score for each position
-        self.rank_scores = dict(rank_dict)
         final_scores = np.zeros(scorer.dimensions)
         for rank in self.rank_scores:
             if self.pair_specific:
@@ -248,7 +219,6 @@ class Trace(object):
             final_scores += rank_scores
         if scorer.rank_type == 'min':
             if scorer.position_size == 1:
-                print('ADDING FINAL 1!!!')
                 final_scores += 1
             elif scorer.position_size == 2:
                 final_scores += np.triu(np.ones((self.aln.seq_length, self.aln.seq_length)), k=1)
@@ -728,112 +698,6 @@ def load_numpy_array(mat, low_memory):
     return mat
 
 
-# def init_trace_groups(group_queue, scorer, group_dict, pos_specific, pair_specific, u_dict, low_memory, unique_dir):
-#     """
-#     Init Trace Pool
-#
-#     This function initializes a pool of workers with shared resources so that they can quickly perform the group level
-#     scoring for the trace algorithm.
-#
-#     Args:
-#         group_queue (multiprocessing.Queue): A queue containing the nodes which  still need to be processed. Nodes are
-#         described by their name which should have been previously characterized.
-#         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-#         group_dict (multiprocessing.Manager.dict): A dictionary to hold the group scores for a node in the tree.
-#         pos_specific (bool): Whether or not to characterize single positions.
-#         pair_specific (bool): Whether or not to characterize pairs of positions.
-#         u_dict (dict): A dictionary containing the node characterizations.
-#         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
-#         resources.
-#         unique_dir (str/path): The directory where group score vectors/matrices can be written.
-#     """
-#     global g_queue
-#     g_queue = group_queue
-#     global pos_scorer
-#     pos_scorer = scorer
-#     global g_dict
-#     g_dict = group_dict
-#     global single
-#     single = pos_specific
-#     global pair
-#     pair = pair_specific
-#     global unique_nodes
-#     unique_nodes = u_dict
-#     global low_mem
-#     low_mem = low_memory
-#     global u_dir
-#     u_dir = unique_dir
-
-
-# def trace_groups(processor):
-#     """
-#     Trace Groups
-#
-#     A function which performs the group scoring part of the trace algorithm. It depends on the init_trace_groups
-#     function to set up the necessary shared resources. Node names are pulled from the group_queue and a group score is
-#     computed based on the FrequencyTable stored in unique_nodes for that node name. This is repeated until the queue is
-#     empty.
-#
-#     Args:
-#         processor (int): Which processor is executing this function.
-#     """
-#     start = time()
-#     time_check = False
-#     sleep_time = .1
-#     group_count = 0
-#     # Continue until the queue is empty.
-#     while True:
-#         try:
-#             # Retrieve the next node
-#             node_name = g_queue.get_nowait()
-#         except Empty:
-#             # If no node is available the queue is likely empty, repeat the loop checking the queue status.
-#             sleep(sleep_time)
-#             continue
-#         # Check for the sentinel value, if it is reached break out of the process loop.
-#         if node_name == 'STOP':
-#             break
-#         inner_start = time()
-#         # Check whether the group score has already been saved to file.
-#         single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
-#                                                     score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
-#         pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='pair',
-#                                                 score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
-#         # If the file(s) were found set the return values for this node.
-#         if low_mem and (single_check >= single) and (pair_check >= pair):
-#             single_group_score = single_fn if single else None
-#             pair_group_score = pair_fn if pair else None
-#         else:
-#             # Using the provided scorer and the characterization for the node found in unique nodes, compute the
-#             # group score
-#             if single:
-#                 single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'],
-#                                                     low_memory=low_mem)
-#                 single_group_score = pos_scorer.score_group(single_freq_table)
-#                 single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
-#                                                       node_name=node_name, pos_type='single',
-#                                                       metric=pos_scorer.metric, score_type='group')
-#             else:
-#                 single_group_score = None
-#             if pair:
-#                 pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
-#                 pair_group_score = pos_scorer.score_group(pair_freq_table)
-#                 pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
-#                                                     node_name=node_name, pos_type='pair',
-#                                                     metric=pos_scorer.metric, score_type='group')
-#             else:
-#                 pair_group_score = None
-#         # Store the group scores so they can be retrieved when the pool completes processing
-#         components = {'single_scores': single_group_score, 'pair_scores': pair_group_score}
-#         g_dict[node_name] = components
-#         group_count += 1
-#         inner_end = time()
-#         if not time_check:
-#             sleep_time = inner_end - inner_start
-#     end = time()
-#     print('Processor {} completed {} groups in {} min'.format(processor, group_count, (end - start) / 60.0))
-
-
 def init_trace_groups(scorer, pos_specific, pair_specific, u_dict, low_memory, unique_dir):
     """
     Init Trace Pool
@@ -874,9 +738,9 @@ def trace_groups(node_name):
     empty.
 
     Args:
-        processor (int): Which processor is executing this function.
+        node_name (string): The node whose group score to calculate from the characterization in the unique_nodes dict
+        made available by init_trace_groups.
     """
-    start = time()
     # Check whether the group score has already been saved to file.
     single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
                                                 score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
@@ -908,13 +772,10 @@ def trace_groups(node_name):
             pair_group_score = None
     # Store the group scores so they can be retrieved when the pool completes processing
     components = {'single_scores': single_group_score, 'pair_scores': pair_group_score}
-    #
-    end = time()
-    # print('Processor {} completed {} groups in {} min'.format(processor, group_count, (end - start) / 60.0))
     return node_name, components
 
 
-def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific, a_dict, u_dict, low_memory,
+def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory,
                      unique_dir):
     """
     Init Trace Ranks
@@ -923,9 +784,7 @@ def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific,
     scoring for the trace algorithm.
 
     Args:
-        rank_queue (multiprocessing.Queue): A queue containing the ranks to be processed.
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-        rank_dict (multiprocessing.Manager.dict): A dictionary to hold the scores for a given rank.
         pos_specific (bool): Whether or not to characterize single positions.
         pair_specific (bool): Whether or not to characterize pairs of positions.
         a_dict (dict): The rank and group assignments for nodes in the tree.
@@ -935,12 +794,8 @@ def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific,
         unique_dir (str/path): The directory where group score vectors/matrices can be loaded from and where rank
         scores can be written.
     """
-    global r_queue
-    r_queue = rank_queue
     global pos_scorer
     pos_scorer = scorer
-    global r_dict
-    r_dict = rank_dict
     global single
     single = pos_specific
     global pair
@@ -955,7 +810,7 @@ def init_trace_ranks(rank_queue, scorer, rank_dict, pos_specific, pair_specific,
     u_dir = unique_dir
 
 
-def trace_ranks(processor):
+def trace_ranks(rank):
     """
     Trace Ranks
 
@@ -966,68 +821,54 @@ def trace_ranks(processor):
     the provided scorer.
 
     Args:
-        processor (int): Which processor is executing this function.
+        rank (int): Which rank to score from the assignments dictionary to score based on group scores available in the
+        unique_nodes dictionary.
     """
-    start = time()
-    rank_count = 0
-    while True:
-        try:
-            # Retrieve the next rank
-            rank = r_queue.get_nowait()
-        except Empty:
-            # If no node is available the queue is likely empty, repeat the loop checking the queue status.
-            sleep(0.1)
-            continue
-        # Check for the sentinel value, if it is reached break out of the process loop.
-        if rank == 'STOP':
-            break
-        # Check whether the group score has already been saved to file.
-        single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
-                                                    score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
-        pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
+    # Check whether the group score has already been saved to file.
+    single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
                                                 score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
-        # If the file(s) were found set the return values for this rank.
-        if low_mem and (single_check >= single) and (pair_check >= pair):
-            single_rank_scores = single_fn if single else None
-            pair_rank_scores = pair_fn if pair else None
+    pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
+                                            score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
+    # If the file(s) were found set the return values for this rank.
+    if low_mem and (single_check >= single) and (pair_check >= pair):
+        single_rank_scores = single_fn if single else None
+        pair_rank_scores = pair_fn if pair else None
+    else:
+        # Retrieve all group scores for this rank
+        if single:
+            single_group_scores = np.zeros(pos_scorer.dimensions)
         else:
-            # Retrieve all group scores for this rank
+            single_group_scores = None
+        if pair:
+            pair_group_scores = np.zeros(pos_scorer.dimensions)
+        else:
+            pair_group_scores = None
+        # For each group in the rank update the cumulative sum for the rank
+        for g in assignments[rank]:
+            node_name = assignments[rank][g]['node'].name
             if single:
-                single_group_scores = np.zeros(pos_scorer.dimensions)
-            else:
-                single_group_scores = None
+                single_group_score = unique_nodes[node_name]['single_scores']
+                single_group_score = load_numpy_array(mat=single_group_score, low_memory=low_mem)
+                single_group_scores += single_group_score
             if pair:
-                pair_group_scores = np.zeros(pos_scorer.dimensions)
-            else:
-                pair_group_scores = None
-            # For each group in the rank update the cumulative sum for the rank
-            for g in assignments[rank]:
-                node_name = assignments[rank][g]['node'].name
-                if single:
-                    single_group_score = unique_nodes[node_name]['single_scores']
-                    single_group_score = load_numpy_array(mat=single_group_score, low_memory=low_mem)
-                    single_group_scores += single_group_score
-                if pair:
-                    pair_group_score = unique_nodes[node_name]['pair_scores']
-                    pair_group_score = load_numpy_array(mat=pair_group_score, low_memory=low_mem)
-                    pair_group_scores += pair_group_score
-            # Compute the rank score over the cumulative sum of group scores.
-            if single:
-                single_rank_scores = pos_scorer.score_rank(single_group_scores, rank)
-                single_rank_scores = save_numpy_array(mat=single_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                      node_name=rank, pos_type='single', score_type='rank',
-                                                      metric=pos_scorer.metric)
-            else:
-                single_rank_scores = None
-            if pair:
-                pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
-                pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                    node_name=rank, pos_type='pair', score_type='rank',
-                                                    metric=pos_scorer.metric)
-            else:
-                pair_rank_scores = None
-        # Store the rank score so that it can be retrieved once the pool completes
-        r_dict[rank] = {'single_ranks': single_rank_scores, 'pair_ranks': pair_rank_scores}
-        rank_count += 1
-    end = time()
-    print('Processor {} completed {} ranks in {} min'.format(processor, rank_count, (end - start) / 60.0))
+                pair_group_score = unique_nodes[node_name]['pair_scores']
+                pair_group_score = load_numpy_array(mat=pair_group_score, low_memory=low_mem)
+                pair_group_scores += pair_group_score
+        # Compute the rank score over the cumulative sum of group scores.
+        if single:
+            single_rank_scores = pos_scorer.score_rank(single_group_scores, rank)
+            single_rank_scores = save_numpy_array(mat=single_rank_scores, out_dir=u_dir, low_memory=low_mem,
+                                                  node_name=rank, pos_type='single', score_type='rank',
+                                                  metric=pos_scorer.metric)
+        else:
+            single_rank_scores = None
+        if pair:
+            pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
+            pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
+                                                node_name=rank, pos_type='pair', score_type='rank',
+                                                metric=pos_scorer.metric)
+        else:
+            pair_rank_scores = None
+    # Store the rank score so that it can be retrieved once the pool completes
+    components = {'single_ranks': single_rank_scores, 'pair_ranks': pair_rank_scores}
+    return rank, components
