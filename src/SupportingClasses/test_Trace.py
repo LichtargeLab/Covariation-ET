@@ -901,31 +901,36 @@ class TestTrace(TestBase):
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
         visited = {}
-        queue1 = Queue(maxsize=aln.size + 1)
-        queue2 = Queue(maxsize=aln.size)
+        # queue1 = Queue(maxsize=aln.size + 1)
+        # queue2 = Queue(maxsize=aln.size)
         components = False
+        to_characterize = []
         for r in sorted(assign.keys(), reverse=True):
             for g in assign[r]:
                 node = assign[r][g]['node']
                 if not components:
-                    queue1.put_nowait(node.name)
+                    to_characterize.append((node.name, 'component'))
+                    # queue1.put_nowait(node.name)
                 elif node.name not in visited:
-                    queue2.put_nowait(node.name)
+                    to_characterize.append((node.name, 'inner'))
+                    # queue2.put_nowait(node.name)
                 else:
                     continue
                 visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                       'descendants': assign[r][g]['descendants']}
             if not components:
                 components = True
-        queue1.put_nowait('STOP')
-        queue2.put_nowait('STOP')
+        # queue1.put_nowait('STOP')
+        # queue2.put_nowait('STOP')
         pool_manager = Manager()
         lock = Lock()
         frequency_tables = pool_manager.dict()
         init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                                   single_to_pair, aln, single, pair, queue1, queue2, visited, frequency_tables,
+                                   single_to_pair, aln, single, pair, visited, frequency_tables,
                                    lock, unique_dir, low_mem, write_sub_aln, write_freq_table, 1)
-        characterization(processor=0)
+        for to_char in to_characterize:
+            ret_name = characterization(to_char)
+            self.assertEqual(ret_name, to_char[0])
         frequency_tables = dict(frequency_tables)
         for node_name in visited:
             sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
@@ -1013,17 +1018,13 @@ class TestTrace(TestBase):
         else:
             raise ValueError('Cannot evaluate if both single and pair are False.')
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
-        manager = Manager()
-        group_queue = Queue(maxsize=(aln.size * 2) - 1 + 1)
+        init_trace_groups(scorer=scorer, pos_specific=single, pair_specific=pair, u_dict=trace.unique_nodes,
+                          low_memory=low_memory, unique_dir=unique_dir)
+        group_dict = {}
         for node_name in trace.unique_nodes:
-            group_queue.put_nowait(node_name)
-        group_queue.put_nowait('STOP')
-        group_dict = manager.dict()
-        init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=single,
-                          pair_specific=pair, u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
-        trace_groups(processor=0)
+            ret_node_name, ret_components = trace_groups(node_name=node_name)
+            group_dict[ret_node_name] = ret_components
         self.assertEqual(len(group_dict.keys()), len(trace.unique_nodes.keys()))
-        group_dict = dict(group_dict)
         for node_name in group_dict:
             self.assertTrue('single_scores' in group_dict[node_name])
             if single:
@@ -1062,16 +1063,12 @@ class TestTrace(TestBase):
             else:
                 self.assertIsNone(group_dict[node_name]['pair_scores'])
             trace.unique_nodes[node_name].update(group_dict[node_name])
-        rank_queue = Queue(maxsize=aln.size + 1)
+        rank_dict = {}
+        init_trace_ranks(scorer=scorer, pos_specific=single, pair_specific=pair, a_dict=assign,
+                         u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
         for rank in assign:
-            rank_queue.put_nowait(rank)
-        rank_queue.put_nowait('STOP')
-        rank_dict = manager.dict()
-        init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=single,
-                         pair_specific=pair, a_dict=assign, u_dict=trace.unique_nodes, low_memory=low_memory,
-                         unique_dir=unique_dir)
-        trace_ranks(processor=0)
-        rank_dict = dict(rank_dict)
+            ret_rank, ret_components = trace_ranks(rank=rank)
+            rank_dict[ret_rank] = ret_components
         for rank in assign.keys():
             group_scores = []
             for group in sorted(assign[rank].keys(), reverse=True):

@@ -351,7 +351,6 @@ class FrequencyTable(object):
         Args:
             file_path (str): The full path to where the data should be written.
         """
-        start = time()
         if not os.path.isfile(file_path):
             columns = ['Position', 'Variability', 'Characters', 'Counts', 'Frequencies']
             out_dict = {c: [] for c in columns}
@@ -368,8 +367,6 @@ class FrequencyTable(object):
                 out_dict['Frequencies'].append(','.join([str(x) for x in freqs]))
             df = pd.DataFrame(out_dict)
             df.to_csv(file_path, sep='\t', columns=columns, header=True, index=False)
-        end = time()
-        print('Writing FrequencyTable to file took {} min'.format((end - start) / 60.0))
 
     def load_csv(self, file_path):
         """

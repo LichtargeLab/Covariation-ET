@@ -585,7 +585,6 @@ class SeqAlignment(object):
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
             requested.
         """
-        start = time()
         pos_specific = None
         if single:
             if (single_size is None) or (single_mapping is None) or (single_reverse is None):
@@ -609,8 +608,6 @@ class SeqAlignment(object):
             pos_specific.finalize_table()
         if pair:
             pair_specific.finalize_table()
-        end = time()
-        print('Characterize positions 1 took: {} min'.format((end - start) / 60.0))
         return pos_specific, pair_specific
 
     def characterize_positions2(self, single=True, pair=True, single_letter_size=None, single_letter_mapping=None,
@@ -646,7 +643,6 @@ class SeqAlignment(object):
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
             requested.
         """
-        start = time()
         if (single_letter_mapping is None) or (single_letter_size is None) or (single_letter_reverse is None):
             single_letter_size, _, single_letter_mapping, single_letter_reverse = build_mapping(
                 alphabet=Gapped(self.alphabet))
@@ -669,8 +665,6 @@ class SeqAlignment(object):
                     key = (single_letter_mapping[char[0]], single_letter_mapping[char[1]])
                     single_to_pair[key] = pair_letter_mapping[char]
             pair_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
-        end = time()
-        print('Characterize positions 2 took: {} min'.format((end - start) / 60.0))
         return pos_specific, pair_specific
 
     # def _random_assignment(self, n_cluster, cache_dir=None):
