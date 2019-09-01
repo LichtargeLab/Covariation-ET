@@ -901,8 +901,6 @@ class TestTrace(TestBase):
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
         visited = {}
-        # queue1 = Queue(maxsize=aln.size + 1)
-        # queue2 = Queue(maxsize=aln.size)
         components = False
         to_characterize = []
         for r in sorted(assign.keys(), reverse=True):
@@ -910,18 +908,14 @@ class TestTrace(TestBase):
                 node = assign[r][g]['node']
                 if not components:
                     to_characterize.append((node.name, 'component'))
-                    # queue1.put_nowait(node.name)
                 elif node.name not in visited:
                     to_characterize.append((node.name, 'inner'))
-                    # queue2.put_nowait(node.name)
                 else:
                     continue
                 visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                       'descendants': assign[r][g]['descendants']}
             if not components:
                 components = True
-        # queue1.put_nowait('STOP')
-        # queue2.put_nowait('STOP')
         pool_manager = Manager()
         lock = Lock()
         frequency_tables = pool_manager.dict()
@@ -929,7 +923,7 @@ class TestTrace(TestBase):
                                    single_to_pair, aln, single, pair, visited, frequency_tables,
                                    lock, unique_dir, low_mem, write_sub_aln, write_freq_table, 1)
         for to_char in to_characterize:
-            ret_name = characterization(to_char)
+            ret_name = characterization(*to_char)
             self.assertEqual(ret_name, to_char[0])
         frequency_tables = dict(frequency_tables)
         for node_name in visited:
