@@ -138,7 +138,7 @@ class Trace(object):
                               frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
                               write_out_freq_table, processes))
         for char_node in to_characterize:
-            res = pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
+            pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
         pool.close()
         pool.join()
         characterization_pbar.close()
