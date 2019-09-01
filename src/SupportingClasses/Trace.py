@@ -7,11 +7,10 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from queue import Empty
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from scipy.stats import rankdata
-from multiprocessing import Manager, Pool, Queue, Lock
+from multiprocessing import Manager, Pool, Lock
 from FrequencyTable import FrequencyTable
 from utils import gap_characters, build_mapping
 from EvolutionaryTraceAlphabet import MultiPositionAlphabet
@@ -86,7 +85,6 @@ class Trace(object):
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
         """
-        start = time()
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         if not os.path.isdir(unique_dir):
             os.makedirs(unique_dir)
@@ -102,40 +100,50 @@ class Trace(object):
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
         visited = {}
-        queue_components = Queue(maxsize=self.aln.size + processes)
-        queue_inner = Queue(maxsize=self.aln.size - 1 + processes)
         components = False
+        to_characterize = []
         for r in sorted(self.assignments.keys(), reverse=True):
             for g in self.assignments[r]:
                 node = self.assignments[r][g]['node']
                 if not components:
-                    queue_components.put_nowait(node.name)
+                    to_characterize.append((node.name, 'component'))
                 elif node.name not in visited:
-                    queue_inner.put_nowait(node.name)
+                    to_characterize.append((node.name, 'inner'))
                 else:
                     continue
                 visited[node.name] = {'terminals': self.assignments[r][g]['terminals'],
                                       'descendants': self.assignments[r][g]['descendants']}
             if not components:
                 components = True
-        for p in range(processes):
-            queue_components.put_nowait('STOP')
-            queue_inner.put_nowait('STOP')
+        characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
+
+        def update_characterization(return_name):
+            """
+            Update Characterization
+
+            This function serves to update the progress bar for characterization.
+
+            Args:
+                return_name (str): The name of the node which has just finished being characterized.
+            """
+            characterization_pbar.update(1)
+            characterization_pbar.refresh()
+
         pool_manager = Manager()
         frequency_tables = pool_manager.dict()
         tables_lock = Lock()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
                     initargs=(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, queue_components,
-                              queue_inner, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
-                              write_out_sub_aln, write_out_freq_table, processes))
-        pool.map_async(func=characterization, iterable=list(range(processes)))
+                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, visited,
+                              frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
+                              write_out_freq_table, processes))
+        for char_node in to_characterize:
+            res = pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
         pool.close()
         pool.join()
+        characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         self.unique_nodes = frequency_tables
-        end = time()
-        print('Characterization took: {} min'.format((end - start) / 60.0))
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
@@ -168,14 +176,23 @@ class Trace(object):
                 final_scores += rank_scores
             final_scores += 1
         """
-        start = time()
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_pbar = tqdm(total=len(self.unique_nodes), unit='group')
 
         def update_group(return_tuple):
-            node_name, components = return_tuple
-            self.unique_nodes[node_name].update(components)
+            """
+            Update Group
+
+            This function serves to update the progress bar for group scoring. It also updates the unique_nodes
+            dictionary with the returned group scores for a given node.
+
+            Args:
+                return_tuple (tuple): A tuple consisting of the name of the node (str) which has been scored and a
+                dictionary containing the single and pair position scores for that node.
+            """
+            completed_name, completed_components = return_tuple
+            self.unique_nodes[completed_name].update(completed_components)
             group_pbar.update(1)
             group_pbar.refresh()
 
@@ -187,12 +204,21 @@ class Trace(object):
         pool1.close()
         pool1.join()
         group_pbar.close()
-        group_time = time()
         # For each rank collect all group scores and compute a final rank score
         self.rank_scores = {}
         rank_pbar = tqdm(total=len(self.assignments), unit='rank')
 
         def update_rank(return_tuple):
+            """
+            Update Rank
+
+            This function serves to update the progress bar for rank scoring. It also updates the rank_scores
+            dictionary with the returned rank scores for a given rank.
+
+            Args:
+                return_tuple (tuple): A tuple consisting of the rank (int) which has been scored and a dictionary
+                containing the single and pair position scores for that ranks.
+            """
             rank, components = return_tuple
             self.rank_scores[rank] = components
             rank_pbar.update(1)
@@ -222,8 +248,6 @@ class Trace(object):
                 final_scores += 1
             elif scorer.position_size == 2:
                 final_scores += np.triu(np.ones((self.aln.seq_length, self.aln.seq_length)), k=1)
-        rank_time = time()
-        print('Rank processing completed in {} min'.format((rank_time - group_time) / 60.0))
         # Perform gap correction, if a column gap content threshold has been set.
         if gap_correction is not None:
             pos_type = 'single' if scorer.position_size == 1 else 'pair'
@@ -240,13 +264,9 @@ class Trace(object):
             for i in range(freq_table.sequence_length):
                 if freq_table.get_frequency(pos=i, char=gap_char) > gap_correction:
                     final_scores[i] = max_rank_score
-            gap_time = time()
-            print('Gap correction completed in {} min'.format((gap_time - rank_time) / 60.0))
         self.final_scores = final_scores
         self.final_ranks, self.final_coverage = self._compute_rank_and_coverage(
             scores=self.final_scores, pos_size=scorer.position_size, rank_type=scorer.rank_type)
-        end = time()
-        print('Trace of with {} metric took: {} min'.format(scorer.metric, (end - start) / 60.0))
         return self.final_ranks, self.final_scores, self.final_coverage
 
     def _compute_rank_and_coverage(self, scores, pos_size, rank_type):
@@ -288,88 +308,6 @@ class Trace(object):
         coverages[indices] = rankdata(to_rank, method='max')
         coverages /= normalization
         return ranks, coverages
-
-
-def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                               single_to_pair, alignment, pos_specific, pair_specific, queue1, queue2, components,
-                               sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
-                               write_out_freq_table, processes):
-    """
-    Init Characterization Pool
-
-    This function initializes a pool of workers with shared resources so that they can quickly characterize the sub
-    alignments for each node in the phylogenetic tree.
-
-    Args:
-        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
-        gap character).
-        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (dict): A dictionary mapping numerical positions back to the single letter alphabet.
-        pair_size (int): The size of the paired letter alphabet for the alignment being characterized (including the
-        gap character).
-        pair_mapping (dict): A dictionary mapping the paired letter alphabet to numerical positions.
-        pair_reverse (dict): A dictionary mapping numerical positions back to the paired letter alphabet.
-        single_to_pair (dict): A dictionary mapping single letter numeric positions to paired letter numeric positions.
-        alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
-        sub alignments for the terminal nodes in the tree.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
-        queue1 (multiprocessing.Queue): A queue which contains all nodes in the lowest rank (i.e. most nodes) of the
-        phylogenetic tree over which the trace is being performed.
-        queue2 (multiprocessing.Queue): A queue which contains all nodes in the phylogenetic tree for higher ranks over
-        which the trace is being performed. The nodes should be inserted in an order which makes sense for the efficient
-        characterization of nodes (i.e. leaves to root).
-        components (dict): A dictionary mapping a node to its descendants and terminal nodes.
-        sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
-        deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
-        sharable_lock (multiprocessing.Lock): A lock to be used for synchronization of the characterization process.
-        unique_dir (str/path): The directory where sub-alignment and frequency table files can be written.
-        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
-        resources.
-        write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
-        write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
-        processes (int): The number of processes being used by the initialized pool.
-    """
-    global s_size
-    s_size = single_size
-    global s_map
-    s_map = single_mapping
-    global s_rev
-    s_rev = single_reverse
-    global p_size
-    p_size = pair_size
-    global p_map
-    p_map = pair_mapping
-    global p_rev
-    p_rev = pair_reverse
-    global s_to_p
-    s_to_p = single_to_pair
-    global aln
-    aln = alignment
-    global single
-    single = pos_specific
-    global pair
-    pair = pair_specific
-    global component_queue
-    component_queue = queue1
-    global node_queue
-    node_queue = queue2
-    global comps
-    comps = components
-    global freq_tables
-    freq_tables = sharable_dict
-    global freq_lock
-    freq_lock = sharable_lock
-    global u_dir
-    u_dir = unique_dir
-    global low_mem
-    low_mem = low_memory
-    global write_sub_aln
-    write_sub_aln = write_out_sub_aln
-    global write_freq_table
-    write_freq_table = write_out_freq_table
-    global cpu_count
-    cpu_count = processes
 
 
 def check_freq_table(low_memory, node_name, table_type, out_dir):
@@ -451,54 +389,118 @@ def load_freq_table(freq_table, low_memory):
     return freq_table
 
 
-def characterization(processor):
+def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
+                               single_to_pair, alignment, pos_specific, pair_specific, components, sharable_dict,
+                               sharable_lock, unique_dir, low_memory, write_out_sub_aln, write_out_freq_table,
+                               processes):
+    """
+    Init Characterization Pool
+
+    This function initializes a pool of workers with shared resources so that they can quickly characterize the sub
+    alignments for each node in the phylogenetic tree.
+
+    Args:
+        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
+        gap character).
+        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
+        single_reverse (dict): A dictionary mapping numerical positions back to the single letter alphabet.
+        pair_size (int): The size of the paired letter alphabet for the alignment being characterized (including the
+        gap character).
+        pair_mapping (dict): A dictionary mapping the paired letter alphabet to numerical positions.
+        pair_reverse (dict): A dictionary mapping numerical positions back to the paired letter alphabet.
+        single_to_pair (dict): A dictionary mapping single letter numeric positions to paired letter numeric positions.
+        alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
+        sub alignments for the terminal nodes in the tree.
+        pos_specific (bool): Whether or not to characterize single positions.
+        pair_specific (bool): Whether or not to characterize pairs of positions.
+        queue1 (multiprocessing.Queue): A queue which contains all nodes in the lowest rank (i.e. most nodes) of the
+        phylogenetic tree over which the trace is being performed.
+        queue2 (multiprocessing.Queue): A queue which contains all nodes in the phylogenetic tree for higher ranks over
+        which the trace is being performed. The nodes should be inserted in an order which makes sense for the efficient
+        characterization of nodes (i.e. leaves to root).
+        components (dict): A dictionary mapping a node to its descendants and terminal nodes.
+        sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
+        deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
+        sharable_lock (multiprocessing.Lock): A lock to be used for synchronization of the characterization process.
+        unique_dir (str/path): The directory where sub-alignment and frequency table files can be written.
+        low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+        resources.
+        write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
+        write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
+        processes (int): The number of processes being used by the initialized pool.
+    """
+    global s_size, s_map, s_rev, p_size, p_map, p_rev, s_to_p, aln, single, pair, comps, freq_tables, freq_lock,\
+        freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, cpu_count, sleep_time
+    s_size = single_size
+    s_map = single_mapping
+    s_rev = single_reverse
+    p_size = pair_size
+    p_map = pair_mapping
+    p_rev = pair_reverse
+    s_to_p = single_to_pair
+    aln = alignment
+    single = pos_specific
+    pair = pair_specific
+    comps = components
+    freq_tables = sharable_dict
+    freq_lock = sharable_lock
+    u_dir = unique_dir
+    low_mem = low_memory
+    write_sub_aln = write_out_sub_aln
+    write_freq_table = write_out_freq_table
+    cpu_count = processes
+    # Sleep time to use for inner nodes which are not in the lowest rank of the tree being characterized. If a component
+    # of the node being characterized is missing this time will be used as the wait time before attempting to get the
+    # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
+    # single node.
+    sleep_time = 0.1
+
+
+def characterization(node_name, node_type):
     """
     Characterization
 
-    This function pulls nodes from a queue in order to characterize them. If the node is in the lowest (closest to the
-    leaves of the tree) rank being traced, then a sub-alignment is generated from the full alignment (provided
-    by init_characterization_pool) and the individual positions (if specified by pos_specific in
-    init_characterization_pool) and pairs of positions (if specified by pair_specific in init_characterization)
-    are characterized for their nucleic/amino acid content. If the node is non-terminal then the dictionary of
+    This function accepts a node and its type and characterizes that node. If the node is in the lowest (closest to the
+    leaves of the tree) rank being traced, then a sub-alignment is generated from the full alignment (provided by
+    init_characterization_pool) and the individual positions (if specified by pos_specific in
+    init_characterization_pool) and pairs of positions (if specified by pair_specific in init_characterization) are
+    characterized for their nucleic/amino acid content. If the node is non-terminal then the dictionary of
     frequency tables (sharable_dict provided by init_characterization_pool) is accessed to retrieve the characterization
     for the nodes descendants; these are then summed. Each node that is completed by a worker process is
     added to the dictionary provided to init_characterization as sharable_dict, which is where results can be
     found after all processes finish.
 
     Args:
-        processor (int): The processor in the pool which is being called.
+        node_name (str): The node name to process, this will be used to check for previous characterizations of the node
+        if the low memory option is being used. It will also be used to identify which sequences contribute to the node
+        (to generate the sub alignment) and to identify its descendants (if it is an inner node). Finally, the node name
+        is used to store the characterization so other jobs can access it if necessary (i.e. if an ancestor needs the
+        characterization for its own characterization).
+        node_type (str): Accepted values are 'component' or 'inner'. A component will be processed from scratch while an
+        inner node will be processed by retrieving the frequency tables of previously characterized nodes and adding
+        them up.
+    Return:
+        node_name (str): The node name is returned to keep track of which node has been most recently processed (in the
+        multiprocessing context).
     """
-    # Track how many nodes this process has completed
-    count = 0
-    # Track how long a single component takes to process
-    time_checked = False
-    sleep_time = .1
-    while True:
-        # Retrieve the next node from the queue
-        try:
-            node_name = component_queue.get_nowait()
-        except Empty:
-            # If no node is available the queue is likely empty, repeat the loop checking the queue status.
-            sleep(.1)
-            continue
-        # Check for the sentinel value, if it is reached break out of the process loop.
-        if node_name == 'STOP':
-            break
-        # Check whether the alignment characterization has already been saved to file.
-        single_check, single_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='single',
-                                                   out_dir=u_dir)
-        pair_check, pair_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='pair',
+    # Since sleep_time may be updated this function must declare that it is referencing the global variable sleep_time
+    global sleep_time
+    # Check whether the alignment characterization has already been saved to file.
+    single_check, single_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='single',
                                                out_dir=u_dir)
-        # If the file(s) were found set the return values for this sub-alignment.
-        if low_mem and (single_check >= single) and (pair_check >= pair):
-            pos_table = single_fn if single else None
-            pair_table = pair_fn if pair else None
-        else:  # Otherwise generate the sub-alignment and characterize it
-            # Generate the sub alignment for the current node.
-            sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
-            # If specified write the alignment to file.
-            if write_sub_aln:
-                sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
+    pair_check, pair_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='pair',
+                                           out_dir=u_dir)
+    # If the file(s) were found set the return values for this sub-alignment.
+    if low_mem and (single_check >= single) and (pair_check >= pair):
+        pos_table = single_fn if single else None
+        pair_table = pair_fn if pair else None
+    else:  # Check what kind of node is being processed
+        # Generate the sub alignment for the current node.
+        sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
+        # If specified write the alignment to file.
+        if write_sub_aln:
+            sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
+        if node_type == 'component':  # Otherwise generate the sub-alignment and characterize it
             start = time()
             # Characterize the alignment using the most size efficient method.
             if sub_aln.size < 5:
@@ -515,56 +517,16 @@ def characterization(processor):
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
-            if not time_checked:
-                sleep_time = (end - start) / float(cpu_count)
-                time_checked = True
-            # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
-            if single:
-                if write_freq_table:
-                    pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node_name)))
-                pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
-                                            node_name=node_name, table_type='single'.format(node_name), out_dir=u_dir)
-            if pair:
-                if write_freq_table:
-                    pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node_name)))
-                pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
-                                             node_name=node_name, table_type='pair'.format(node_name), out_dir=u_dir)
-        # Store the current nodes characterization in the shared dictionary.
-        tables = {'single': pos_table, 'pair': pair_table}
-        freq_lock.acquire()
-        freq_tables[node_name] = tables
-        freq_lock.release()
-        count += 1
-    # Run until no more nodes are available
-    while True:
-        # Retrieve the next node from the queue
-        try:
-            node_name = node_queue.get_nowait()
-        except Empty:
-            # If no node is available the queue is likely empty, repeat the loop checking the queue status.
-            sleep(.1)
-            continue
-        # Check for the sentinel value, if it is reached break out of the process loop.
-        if node_name == 'STOP':
-            break
-        # Check whether the alignment characterization has already been saved to file.
-        single_check, single_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='single',
-                                                   out_dir=u_dir)
-        pair_check, pair_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='pair',
-                                               out_dir=u_dir)
-        # If the file(s) were found set the return values for this sub-alignment.
-        if low_mem and (single_check >= single) and (pair_check >= pair):
-            pos_table = single_fn if single else None
-            pair_table = pair_fn if pair else None
-        else:  # Otherwise generate the sub-alignment and characterize it
-            sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['descendants'])
-            # If specified write the alignment to file.
-            if write_sub_aln:
-                sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
+            elapsed_time = (end - start) / float(cpu_count)
+            freq_lock.acquire()
+            if sleep_time > elapsed_time:
+                sleep_time = elapsed_time
+            freq_lock.release()
+        elif node_type == 'inner':
             # Since the node is non-terminal retrieve its descendants' characterizations and merge them to get the
             # parent characterization.
             descendants = set([d.name for d in comps[node_name]['descendants']])
-            tries = 0
+            # tries = 0
             components = []
             while len(descendants) > 0:
                 descendant = descendants.pop()
@@ -576,11 +538,7 @@ def characterization(processor):
                     components.append(component)
                 except KeyError:
                     descendants.add(descendant)
-                    tries += 1
-                    if (tries % 10) == 0:
-                        print('Process {} stuck on {}, {} tries so far'.format(processor, node_name, tries))
                     sleep(sleep_time)
-            print('Process {} took {} tries to get {} components'.format(processor, tries, node_name))
             pos_table = None
             pair_table = None
             # Merge the descendants' FrequencyTable(s) to generate the one for this node.
@@ -597,24 +555,25 @@ def characterization(processor):
                         pair_table = curr_pair_table
                     else:
                         pair_table += curr_pair_table
-            # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
-            if single:
-                if write_freq_table:
-                    pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node_name)))
-                pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
-                                            node_name=node_name, table_type='single'.format(node_name), out_dir=u_dir)
-            if pair:
-                if write_freq_table:
-                    pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node_name)))
-                pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
-                                             node_name=node_name, table_type='pair'.format(node_name), out_dir=u_dir)
-        # Store the current nodes characterization in the shared dictionary.
-        tables = {'single': pos_table, 'pair': pair_table}
-        freq_lock.acquire()
-        freq_tables[node_name] = tables
-        freq_lock.release()
-        count += 1
-    print('Processor {} Completed {} node characterizations'.format(processor, count))
+        else:
+            raise ValueError("node_type must be either 'component' or 'inner'.")
+        # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
+        if single:
+            if write_freq_table:
+                pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node_name)))
+            pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
+                                        node_name=node_name, table_type='single'.format(node_name), out_dir=u_dir)
+        if pair:
+            if write_freq_table:
+                pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node_name)))
+            pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
+                                         node_name=node_name, table_type='pair'.format(node_name), out_dir=u_dir)
+    # Store the current nodes characterization in the shared dictionary.
+    tables = {'single': pos_table, 'pair': pair_table}
+    freq_lock.acquire()
+    freq_tables[node_name] = tables
+    freq_lock.release()
+    return node_name
 
 
 def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
@@ -714,17 +673,12 @@ def init_trace_groups(scorer, pos_specific, pair_specific, u_dict, low_memory, u
         resources.
         unique_dir (str/path): The directory where group score vectors/matrices can be written.
     """
-    global pos_scorer
+    global pos_scorer, single, pair, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    global single
     single = pos_specific
-    global pair
     pair = pair_specific
-    global unique_nodes
     unique_nodes = u_dict
-    global low_mem
     low_mem = low_memory
-    global u_dir
     u_dir = unique_dir
 
 
@@ -733,13 +687,18 @@ def trace_groups(node_name):
     Trace Groups
 
     A function which performs the group scoring part of the trace algorithm. It depends on the init_trace_groups
-    function to set up the necessary shared resources. Node names are pulled from the group_queue and a group score is
-    computed based on the FrequencyTable stored in unique_nodes for that node name. This is repeated until the queue is
-    empty.
+    function to set up the necessary shared resources. For each node name provided a group score is computed based on
+    he FrequencyTable stored in unique_nodes for that node name. This can be performed for any node previously
+    characterized and stored in unique_nodes.
 
     Args:
-        node_name (string): The node whose group score to calculate from the characterization in the unique_nodes dict
+        node_name (str): The node whose group score to calculate from the characterization in the unique_nodes dict
         made available by init_trace_groups.
+    Returns:
+        str: The name of the node which has been scored, returned so that the proper position can be updated in
+        unique_nodes.
+        dict: The single and pair position group scores which will be added to unique_nodes under the name of the node
+        which has been scored.
     """
     # Check whether the group score has already been saved to file.
     single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
@@ -794,19 +753,13 @@ def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_me
         unique_dir (str/path): The directory where group score vectors/matrices can be loaded from and where rank
         scores can be written.
     """
-    global pos_scorer
+    global pos_scorer, single, pair, assignments, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    global single
     single = pos_specific
-    global pair
     pair = pair_specific
-    global assignments
     assignments = a_dict
-    global unique_nodes
     unique_nodes = u_dict
-    global low_mem
     low_mem = low_memory
-    global u_dir
     u_dir = unique_dir
 
 
@@ -815,14 +768,16 @@ def trace_ranks(rank):
     Trace Ranks
 
     A function which performs the rank scoring part of the trace algorithm. It depends on the init_trace_ranks
-    function to set up the necessary shared resources. A rank is pulled from the rank_queue and all group scores for
-    that rank are gathered by determining the nodes using the assignments dictionary and their group scores using the
-    unique_nodes dictionary. These scores are combined into a vector/matrix and the rank level score is computed using
-    the provided scorer.
+    function to set up the necessary shared resources. All group scores for the provided rank are gathered by
+    determining the nodes using the assignments dictionary and their group scores using the unique_nodes dictionary.
+    These scores are summed (by position) and the rank level score is computed using the provided scorer.
 
     Args:
-        rank (int): Which rank to score from the assignments dictionary to score based on group scores available in the
+        rank (int): Which rank to score from the assignments dictionary based on group scores available in the
         unique_nodes dictionary.
+    Returns:
+        int: The rank which has been scored (this will be used to update the rank_scores dictionary).
+        dict: A dictionary containing the single and pair position rank score for the specified rank.
     """
     # Check whether the group score has already been saved to file.
     single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',

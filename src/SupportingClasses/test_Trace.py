@@ -901,31 +901,36 @@ class TestTrace(TestBase):
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
         visited = {}
-        queue1 = Queue(maxsize=aln.size + 1)
-        queue2 = Queue(maxsize=aln.size)
+        # queue1 = Queue(maxsize=aln.size + 1)
+        # queue2 = Queue(maxsize=aln.size)
         components = False
+        to_characterize = []
         for r in sorted(assign.keys(), reverse=True):
             for g in assign[r]:
                 node = assign[r][g]['node']
                 if not components:
-                    queue1.put_nowait(node.name)
+                    to_characterize.append((node.name, 'component'))
+                    # queue1.put_nowait(node.name)
                 elif node.name not in visited:
-                    queue2.put_nowait(node.name)
+                    to_characterize.append((node.name, 'inner'))
+                    # queue2.put_nowait(node.name)
                 else:
                     continue
                 visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                       'descendants': assign[r][g]['descendants']}
             if not components:
                 components = True
-        queue1.put_nowait('STOP')
-        queue2.put_nowait('STOP')
+        # queue1.put_nowait('STOP')
+        # queue2.put_nowait('STOP')
         pool_manager = Manager()
         lock = Lock()
         frequency_tables = pool_manager.dict()
         init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                                   single_to_pair, aln, single, pair, queue1, queue2, visited, frequency_tables,
+                                   single_to_pair, aln, single, pair, visited, frequency_tables,
                                    lock, unique_dir, low_mem, write_sub_aln, write_freq_table, 1)
-        characterization(processor=0)
+        for to_char in to_characterize:
+            ret_name = characterization(to_char)
+            self.assertEqual(ret_name, to_char[0])
         frequency_tables = dict(frequency_tables)
         for node_name in visited:
             sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
@@ -997,8 +1002,7 @@ class TestTrace(TestBase):
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
             out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
-#######################################################################################################################
-#######################################################################################################################
+
     def evaluate_trace_pool_functions_identity_metric(self, aln, phylo_tree, assign, single, pair, metric, low_memory,
                                                       out_dir, write_out_aln, write_out_freq_table):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
