@@ -61,14 +61,6 @@ class TestSeqAlignment(TestBase):
         except OSError:
             pass
         try:
-            os.remove(self.aln_file_small)
-        except OSError:
-            pass
-        try:
-            os.remove(self.aln_file_large)
-        except OSError:
-            pass
-        try:
             rmtree(self.save_dir_small)
         except OSError:
             pass
