@@ -12,8 +12,8 @@ from Bio.Alphabet import Gapped
 from scipy.stats import rankdata
 from multiprocessing import Manager, Pool, Lock
 from FrequencyTable import FrequencyTable
-from utils import gap_characters, build_mapping
 from EvolutionaryTraceAlphabet import MultiPositionAlphabet
+from utils import gap_characters, build_mapping, compute_rank_and_coverage
 
 
 class Trace(object):
@@ -265,49 +265,10 @@ class Trace(object):
                 if freq_table.get_frequency(pos=i, char=gap_char) > gap_correction:
                     final_scores[i] = max_rank_score
         self.final_scores = final_scores
-        self.final_ranks, self.final_coverage = self._compute_rank_and_coverage(
-            scores=self.final_scores, pos_size=scorer.position_size, rank_type=scorer.rank_type)
+        self.final_ranks, self.final_coverage = compute_rank_and_coverage(
+            seq_length=self.aln.seq_length, scores=self.final_scores, pos_size=scorer.position_size,
+            rank_type=scorer.rank_type)
         return self.final_ranks, self.final_scores, self.final_coverage
-
-    def _compute_rank_and_coverage(self, scores, pos_size, rank_type):
-        """
-        Compute Rank and Coverage
-
-        This function generates rank and coverage values for a set of scores.
-
-        Args:
-            scores (np.array): A set of scores to rank and compute coverage for.
-            pos_size (int): The dimensionality of the array (whether single, 1, positions or pair, 2, positions are
-            being characterized).
-            rank_type (str): Whether the optimal value of a set of scores is its 'max' or its 'min'.
-        Returns:
-            np.array: An array of ranks for the set of scores.
-            np.array: An array of coverage scores (what percentile of values are at or below the given score).
-        """
-        if rank_type == 'max':
-            weight = -1.0
-        elif rank_type == 'min':
-            weight = 1.0
-        else:
-            raise ValueError('No support for rank types other than max or min, {} provided'.format(rank_type))
-        if pos_size == 1:
-            indices = range(self.aln.seq_length)
-            normalization = float(self.aln.seq_length)
-            to_rank = scores * weight
-            ranks = np.zeros(self.aln.seq_length)
-            coverages = np.zeros(self.aln.seq_length)
-        elif pos_size == 2:
-            indices = np.triu_indices(self.aln.seq_length, k=1)
-            normalization = float(len(indices[0]))
-            to_rank = scores[indices] * weight
-            ranks = np.zeros((self.aln.seq_length, self.aln.seq_length))
-            coverages = np.zeros((self.aln.seq_length, self.aln.seq_length))
-        else:
-            raise ValueError('Ranking not supported for position sizes other than 1 or 2, {} provided'.format(pos_size))
-        ranks[indices] = rankdata(to_rank, method='dense')
-        coverages[indices] = rankdata(to_rank, method='max')
-        coverages /= normalization
-        return ranks, coverages
 
 
 def check_freq_table(low_memory, node_name, table_type, out_dir):
