@@ -240,14 +240,13 @@ class EvolutionaryTrace(object):
                 pickle.dump((self.trace, self.ranking, self.scores, self.coverage), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
         root_freq_table = self.trace.unique_nodes[root_node_name][self.position_type.lower()]
-        root_freq_table = load_freq_table(freq_table=root_freq_table, low_memory=self.low_memory)
         # Generate descriptive file name
         rank_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
             self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
                             freq_table=root_freq_table, ranks=self.ranking, scores=self.scores, coverages=self.coverage,
-                            precision=3, processors=self.processors)
+                            precision=3, processors=self.processors, low_memory=self.low_memory)
 
 
 def init_var_pool(count_table):
@@ -282,7 +281,8 @@ def get_var_pool(pos):
     return character_str
 
 
-def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3, processors=1):
+def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3, processors=1,
+                        low_memory=False):
     """
     Write Out Evolutionary Trace Scores
 
@@ -301,12 +301,15 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         processors (int): If pairs of residues were scored in the trace being written to file, then this will be the
         size of the multiprocessing pool used to speed up the slowest step (retrieving characters at each position to
         describe its variability).
+        low_memory (bool): Whether the low memory option was used while producing these results (required for loading
+        the frequency table if necessary).
     """
     full_path = os.path.join(out_dir, file_name)
     if os.path.isfile(full_path):
         print('Evolutionary Trace analysis with the same parameters already saved to this location.')
         return
     start = time()
+    freq_table = load_freq_table(freq_table=freq_table, low_memory=low_memory)
     scoring_dict = {}
     columns = []
     if freq_table.position_size == 1:
