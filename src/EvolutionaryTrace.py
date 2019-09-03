@@ -220,6 +220,9 @@ class EvolutionaryTrace(object):
             self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         serial_fn = os.path.join(self.out_dir, serial_fn)
+        self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
+                                       pos_size=(1 if self.position_type == 'single' else 2),
+                                       metric=self.scoring_metric)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
                 self.trace, self.ranking, self.scores, self.coverage = pickle.load(handle)
@@ -231,9 +234,6 @@ class EvolutionaryTrace(object):
             self.trace.characterize_rank_groups(processes=self.processors,
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
                                                 write_out_freq_table='frequency_tables' in self.output_files)
-            self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
-                                           pos_size=(1 if self.position_type == 'single' else 2),
-                                           metric=self.scoring_metric)
             self.ranking, self.scores, self.coverage = self.trace.trace(scorer=self.scorer, processes=self.processors,
                                                                         gap_correction=self.gap_correction)
             with open(serial_fn, 'wb') as handle:
