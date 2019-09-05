@@ -6,14 +6,15 @@ Created on May 16, 2019
 import os
 import unittest
 import numpy as np
-from time import time
 from copy import deepcopy
+from time import time, sleep
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from test_Base import TestBase
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
 from EvolutionaryTraceAlphabet import FullIUPACProtein
-from AlignmentDistanceCalculator import (AlignmentDistanceCalculator, convert_array_to_distance_matrix)
+from AlignmentDistanceCalculator import (AlignmentDistanceCalculator, convert_array_to_distance_matrix, init_pairwise,
+                                         pairwise)
 
 
 class TestAlignmentDistanceCalculator(TestBase):
@@ -138,6 +139,28 @@ class TestAlignmentDistanceCalculator(TestBase):
                                                seq2=self.query_aln_fa_small.alignment[0])
             self.assertEqual(dist, expected_dist)
 
+    def test5c_pairwise(self):
+        identity_calc_current = AlignmentDistanceCalculator()
+        old_calc = DistanceCalculator(model='identity')
+        init_pairwise(identity_calc_current.mapping, identity_calc_current.alphabet_size, identity_calc_current.model,
+                      identity_calc_current.scoring_matrix)
+        for i in range(self.query_aln_fa_small.size):
+            _, _, dist = pairwise(seq1=self.query_aln_fa_small.alignment[i], seq2=self.query_aln_fa_small.alignment[0])
+            expected_dist = old_calc._pairwise(seq1=self.query_aln_fa_small.alignment[i],
+                                               seq2=self.query_aln_fa_small.alignment[0])
+            self.assertEqual(dist, expected_dist)
+
+    def test5d_pairwise(self):
+        identity_calc_current = AlignmentDistanceCalculator(model='blosum62')
+        old_calc = DistanceCalculator(model='blosum62')
+        init_pairwise(identity_calc_current.mapping, identity_calc_current.alphabet_size, identity_calc_current.model,
+                      identity_calc_current.scoring_matrix)
+        for i in range(self.query_aln_fa_small.size):
+            _, _, dist = pairwise(seq1=self.query_aln_fa_small.alignment[i], seq2=self.query_aln_fa_small.alignment[0])
+            expected_dist = old_calc._pairwise(seq1=self.query_aln_fa_small.alignment[i],
+                                               seq2=self.query_aln_fa_small.alignment[0])
+            self.assertEqual(dist, expected_dist)
+
     def test6a_get_identity_distance(self):
         identity_calc_current = AlignmentDistanceCalculator()
         start = time()
@@ -164,6 +187,34 @@ class TestAlignmentDistanceCalculator(TestBase):
         diff = np.array(identity_dist_current) - np.array(identity_dist_official)
         self.assertTrue(not diff.any())
 
+    def test6c_get_identity_distance(self):
+        identity_calc_current = AlignmentDistanceCalculator()
+        start = time()
+        identity_dist_current = identity_calc_current.get_identity_distance(self.query_aln_fa_small.alignment,
+                                                                            processes=self.max_threads)
+        print('Current implementation took {} min'.format((time() - start) / 60.0))
+        identity_calc_official = DistanceCalculator()
+        start = time()
+        identity_dist_official = identity_calc_official.get_distance(self.query_aln_fa_small.alignment)
+        print('Official implementation took {} min'.format((time() - start) / 60.0))
+        self.assertTrue(identity_dist_current.names == identity_dist_official.names)
+        diff = np.array(identity_dist_current) - np.array(identity_dist_official)
+        self.assertTrue(not diff.any())
+
+    def test6d_get_identity_distance(self):
+        identity_calc_current = AlignmentDistanceCalculator()
+        start = time()
+        identity_dist_current = identity_calc_current.get_identity_distance(self.query_aln_fa_large.alignment,
+                                                                            processes=self.max_threads)
+        print('Current implementation took {} min'.format((time() - start) / 60.0))
+        identity_calc_official = DistanceCalculator()
+        start = time()
+        identity_dist_official = identity_calc_official.get_distance(self.query_aln_fa_large.alignment)
+        print('Official implementation took {} min'.format((time() - start) / 60.0))
+        self.assertTrue(identity_dist_current.names == identity_dist_official.names)
+        diff = np.array(identity_dist_current) - np.array(identity_dist_official)
+        self.assertTrue(not diff.any())
+
     def test7a_get_scoring_matrix_distance(self):
         identity_calc_current = AlignmentDistanceCalculator(model='blosum62')
         start = time()
@@ -181,6 +232,34 @@ class TestAlignmentDistanceCalculator(TestBase):
         identity_calc_current = AlignmentDistanceCalculator(model='blosum62')
         start = time()
         identity_dist_current = identity_calc_current.get_scoring_matrix_distance(self.query_aln_fa_large.alignment)
+        print('Current implementation took {} min'.format((time() - start) / 60.0))
+        identity_calc_official = DistanceCalculator(model='blosum62')
+        start = time()
+        identity_dist_official = identity_calc_official.get_distance(self.query_aln_fa_large.alignment)
+        print('Official implementation took {} min'.format((time() - start) / 60.0))
+        self.assertTrue(identity_dist_current.names == identity_dist_official.names)
+        diff = np.array(identity_dist_current) - np.array(identity_dist_official)
+        self.assertTrue(not diff.any())
+
+    def test7c_get_scoring_matrix_distance(self):
+        identity_calc_current = AlignmentDistanceCalculator(model='blosum62')
+        start = time()
+        identity_dist_current = identity_calc_current.get_scoring_matrix_distance(self.query_aln_fa_small.alignment,
+                                                                                  processes=self.max_threads)
+        print('Current implementation took {} min'.format((time() - start) / 60.0))
+        identity_calc_official = DistanceCalculator(model='blosum62')
+        start = time()
+        identity_dist_official = identity_calc_official.get_distance(self.query_aln_fa_small.alignment)
+        print('Official implementation took {} min'.format((time() - start) / 60.0))
+        self.assertTrue(identity_dist_current.names == identity_dist_official.names)
+        diff = np.array(identity_dist_current) - np.array(identity_dist_official)
+        self.assertTrue(not diff.any())
+
+    def test7d_get_scoring_matrix_distance(self):
+        identity_calc_current = AlignmentDistanceCalculator(model='blosum62')
+        start = time()
+        identity_dist_current = identity_calc_current.get_scoring_matrix_distance(self.query_aln_fa_large.alignment,
+                                                                                  processes=self.max_threads)
         print('Current implementation took {} min'.format((time() - start) / 60.0))
         identity_calc_official = DistanceCalculator(model='blosum62')
         start = time()
@@ -283,6 +362,62 @@ class TestAlignmentDistanceCalculator(TestBase):
         id_dist_dm1 = convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
         et_calc = AlignmentDistanceCalculator(model='blosum62')
         id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(self.query_aln_fa_large.alignment)
+        diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
+        diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
+        diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
+        diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
+        joined = intermediate_df1.merge(intermediate_df2, on=['Seq1', 'Seq2'], how='inner', suffixes=('ETC', 'Python'))
+        self.assertTrue(joined['Min_Seq_LengthETC'].equals(joined['Min_Seq_LengthPython']))
+        self.assertTrue(joined['Id_CountETC'].equals(joined['Id_CountPython']))
+        self.assertTrue(joined['Threshold_CountETC'].equals(joined['Threshold_CountPython']))
+        self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
+        self.assertTrue(not diff_id_threshold.any())
+        self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
+        self.assertTrue(not diff_aln_dist_threshold.any())
+
+    def test10c_get_et_distance_small(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id, 'intET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir,
+                                                                                        prefix='etc_out_intET')
+        aln_dist_array = np.asarray(aln_dist_df, dtype=float)
+        id_dist_array = np.asarray(id_dist_df, dtype=float)
+        aln_dist_dm1 = convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
+        id_dist_dm1 = convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
+        et_calc = AlignmentDistanceCalculator(model='blosum62')
+        id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(
+            self.query_aln_fa_small.alignment, processes=self.max_threads)
+        diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
+        diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
+        diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
+        diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
+        joined = intermediate_df1.merge(intermediate_df2, on=['Seq1', 'Seq2'], how='inner', suffixes=('ETC', 'Python'))
+        self.assertTrue(joined['Min_Seq_LengthETC'].equals(joined['Min_Seq_LengthPython']))
+        self.assertTrue(joined['Id_CountETC'].equals(joined['Id_CountPython']))
+        self.assertTrue(joined['Threshold_CountETC'].equals(joined['Threshold_CountPython']))
+        self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
+        self.assertTrue(not diff_id_threshold.any())
+        self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
+        self.assertTrue(not diff_aln_dist_threshold.any())
+
+    def test10d_get_et_distance_large(self):
+        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
+        if not os.path.isdir(wetc_test_dir):
+            os.makedirs(wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(wetc_test_dir,
+                                                                                        prefix='etc_out_intET')
+        aln_dist_array = np.asarray(aln_dist_df, dtype=float)
+        id_dist_array = np.asarray(id_dist_df, dtype=float)
+        aln_dist_dm1 = convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
+        id_dist_dm1 = convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
+        et_calc = AlignmentDistanceCalculator(model='blosum62')
+        id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(
+            self.query_aln_fa_large.alignment, processes=self.max_threads)
         diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
         diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
