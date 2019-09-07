@@ -122,36 +122,14 @@ class PhylogeneticTree(object):
         if not isinstance(self.distance_matrix, DistanceMatrix):
             raise TypeError("Must provide a DistanceMatrix object.")
         dm = np.tril(np.array(self.distance_matrix))
-        dm2 = deepcopy(self.distance_matrix)
         clades = [BaseTree.Clade(None, name) for name in self.distance_matrix.names]
         inner_count = 0
         while len(dm) > 1:
-            # new
             min_dist = float(np.min(dm[np.tril_indices(dm.shape[0], k=-1)]))
             positions = np.where(dm == min_dist)
             lower_triangle_pos = positions[0] > positions[1]
             min_i = int(positions[0][lower_triangle_pos][-1])
             min_j = int(positions[1][lower_triangle_pos][-1])
-            # new
-            # old
-            #min_dist2 = dm2[1, 0]
-            #min_i2 = 1
-            #min_j2 = 0
-            #for i in range(1, len(dm2)):
-            #    for j in range(0, i):
-            #        if min_dist2 >= dm2[i, j]:
-            #            min_dist2 = dm2[i, j]
-            #            min_i2 = i
-            #            min_j2 = j
-            # old
-            # check
-            #if min_dist != min_dist2:
-            #    raise ValueError('Min distances do not match! {} vs {}'.format(min_dist, min_dist2))
-            #if min_i != min_i2:
-            #    raise ValueError('Min pos i does not match! {} vs {}'.format(min_i, min_i2))
-            #if min_j != min_j2:
-            #    raise ValueError('Min pos j does not match! {} vs {}'.format(min_j, min_j2))
-            # check
             clade1 = clades[min_i]
             clade2 = clades[min_j]
             inner_count += 1
@@ -168,27 +146,34 @@ class PhylogeneticTree(object):
                 clade2. branch_length = min_dist * 1.0 / 2 - height_of(clade2)
             clades[min_j] = inner_clade
             del clades[min_i]
-            # new
             new_dm = np.zeros((dm.shape[0] - 1, dm.shape[1] - 1))
             # Define full set of indices for new lower triangle
             new_lower_triangle_ind = np.tril_indices(new_dm.shape[0], k=-1)
             # Define the indices for the top of the new lower triangle (i.e. rows above first minimum row being joined)
             top_triangle_mask = new_lower_triangle_ind[0] < min_j
-            top_triangle_ind = (new_lower_triangle_ind[0][top_triangle_mask], new_lower_triangle_ind[1][top_triangle_mask])
-            # Fill in the values from the top of the old dm, these positions do not change since they are above the minimum values being merged)
+            top_triangle_ind = (new_lower_triangle_ind[0][top_triangle_mask],
+                                new_lower_triangle_ind[1][top_triangle_mask])
+            # Fill in the values from the top of the old dm, these positions do not change since they are above the
+            # minimum values being merged)
             if len(top_triangle_ind[0]) > 0:
                 new_dm[top_triangle_ind] = dm[top_triangle_ind]
-            # Define the indices for the new row of the new lower triangle (i.e. the ones which will be filled in by averaging the two minimum values rows)
+            # Define the indices for the new row of the new lower triangle (i.e. the ones which will be filled in by
+            # averaging the two minimum values rows)
             new_row_mask = new_lower_triangle_ind[0] == min_j
             new_row_ind = (new_lower_triangle_ind[0][new_row_mask], new_lower_triangle_ind[1][new_row_mask])
             # Compute the average of the two rows being merged and assign the result to the new row
             new_dm[new_row_ind] = np.mean(dm[[min_i, min_j], :][:, 0:min_j], axis=0)
-            # Define the indices for the lower rectangle in the new lower triangle (i.e. positions between the minimum row and column which will be filled by the averages from the merged rows/columns)
+            # Define the indices for the lower rectangle in the new lower triangle (i.e. positions between the minimum
+            # row and column which will be filled by the averages from the merged rows/columns)
             lower_rectangle_mask = (new_lower_triangle_ind[0] > min_j) & (new_lower_triangle_ind[1] < min_j)
-            lower_rectangle_ind = (new_lower_triangle_ind[0][lower_rectangle_mask], new_lower_triangle_ind[1][lower_rectangle_mask])
-            # The lower rectangle in the old dm is bounded above by min_j (not inclusive), interrupted by min_i, and bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on the right by position min_i (not inclusive)
+            lower_rectangle_ind = (new_lower_triangle_ind[0][lower_rectangle_mask],
+                                   new_lower_triangle_ind[1][lower_rectangle_mask])
+            # The lower rectangle in the old dm is bounded above by min_j (not inclusive), interrupted by min_i, and
+            # bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on
+            # the right by position min_i (not inclusive)
             new_dm[lower_rectangle_ind] = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][: , 0:min_j].reshape(-1)
-            # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from the minimum values, to note, the end of the min_i row needs to be joined at the front of the min_i column)
+            # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from
+            # the minimum values, to note, the end of the min_i row needs to be joined at the front of the min_i column)
             min_j_col = dm[np.r_[min_j + 1:min_i, min_i+1:dm.shape[0]], min_j].reshape(-1, 1)
             min_i_row = dm[min_i, :][min_j + 1: min_i].reshape(-1, 1)
             min_i_col = dm[min_i + 1:, min_i].reshape(-1, 1)
@@ -197,48 +182,22 @@ class PhylogeneticTree(object):
             new_col_mask = new_lower_triangle_ind[1] == min_j
             new_col_ind = (new_lower_triangle_ind[0][new_col_mask], new_lower_triangle_ind[1][new_col_mask])
             # Compute the average of the two columns being merged and assign the result to the new column
-            #new_dm[new_col_ind] = np.mean(dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, [min_i, min_j]], axis=1)
             new_dm[new_col_ind] = np.mean(to_average, axis=1)
-            # Define the indices for the lower triangle of the new lower triangle (i.e. the triangle outside of the new column being added)
+            # Define the indices for the lower triangle of the new lower triangle (i.e. the triangle outside of the new
+            # column being added)
             bottom_triangle_mask = (new_lower_triangle_ind[0] > min_j) & (new_lower_triangle_ind[1] > min_j)
-            bottom_triangle_ind = (new_lower_triangle_ind[0][bottom_triangle_mask], new_lower_triangle_ind[1][bottom_triangle_mask])
-            # The bottom triangle in the old dm is a subset of the bottom triangle form the original  dm bounded by the min_j column on the left and excluding the min_i column and row.
+            bottom_triangle_ind = (new_lower_triangle_ind[0][bottom_triangle_mask],
+                                   new_lower_triangle_ind[1][bottom_triangle_mask])
+            # The bottom triangle in the old dm is a subset of the bottom triangle form the original  dm bounded by the
+            # min_j column on the left and excluding the min_i column and row.
             old_bottom_triangle_ind = np.tril_indices(dm.shape[0], k=-1)
-            old_bottom_triangle_mask = (old_bottom_triangle_ind[0] > min_j) & (old_bottom_triangle_ind[0] != min_i) & (old_bottom_triangle_ind[1] > min_j) & (old_bottom_triangle_ind[1] != min_i)
-            old_bottom_triangle_ind = (old_bottom_triangle_ind[0][old_bottom_triangle_mask], old_bottom_triangle_ind[1][old_bottom_triangle_mask])
+            old_bottom_triangle_mask = (old_bottom_triangle_ind[0] > min_j) & (old_bottom_triangle_ind[0] != min_i) &\
+                                       (old_bottom_triangle_ind[1] > min_j) & (old_bottom_triangle_ind[1] != min_i)
+            old_bottom_triangle_ind = (old_bottom_triangle_ind[0][old_bottom_triangle_mask],
+                                       old_bottom_triangle_ind[1][old_bottom_triangle_mask])
             if len(old_bottom_triangle_ind[0]):
                 new_dm[bottom_triangle_ind] = dm[old_bottom_triangle_ind[0], old_bottom_triangle_ind[1]]
             dm = new_dm
-            # new
-            # old
-            #for k in range(0, len(dm2)):
-            #    if k != min_i2 and k != min_j2:
-            #        dm2[min_j2, k] = (dm2[min_i2, k] + dm2[min_j2, k]) * 1.0 / 2
-            #dm2.names[min_j2] = "Inner" + str(inner_count)
-            #del dm2[min_i2]
-            # old
-            # check
-            #num_dm2 = np.tril(np.array(dm2))
-            #diff = np.abs(num_dm2 - dm)
-            #if diff.any():
-            #    print('DM')
-            #    print(dm)
-            #    print('DM2')
-            #    print(num_dm2)
-            #    print('Diff')
-            #    print(diff)
-            #    indices = np.nonzero(diff)
-            #    print('DM restricted')
-            #    print(dm[indices])
-            #    print('DM2 restricted')
-            #    print(num_dm2[indices])
-            #    print('Diff restricted')
-            #    print(diff[indices])
-            #    print('MIN J: ', min_j)
-            #    print('MIN I: ', min_i)
-            #    print(indices)
-            #    raise ValueError('Matrices do not match after update!')
-            # check
         inner_clade.branch_length = 0
         return BaseTree.Tree(inner_clade)
 
