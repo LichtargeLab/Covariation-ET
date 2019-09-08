@@ -364,6 +364,7 @@ class PhylogeneticTree(object):
             # bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on
             # the right by position min_i (not inclusive)
             new_dm[lower_rectangle_ind] = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
+            new_counts[lower_rectangle_ind] = counts[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
             # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from
             # the minimum values, to note, the end of the min_i row needs to be joined at the front of the min_i column)
             min_j_col = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], min_j].reshape(-1, 1)
