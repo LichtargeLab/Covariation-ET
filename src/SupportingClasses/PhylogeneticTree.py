@@ -310,7 +310,7 @@ class PhylogeneticTree(object):
         clades = [BaseTree.Clade(None, name) for name in self.distance_matrix.names]
         inner_count = self.size
         dm = np.tril(np.array(self.distance_matrix))
-        counts = np.triu(np.ones(dm.shape, dtype=float))
+        counts = np.tril(np.ones(dm.shape, dtype=float))
         inner_clade = None
         # old
         original_dist_mat = np.array(self.distance_matrix)
@@ -363,7 +363,10 @@ class PhylogeneticTree(object):
             # Fill in the values from the top of the old dm, these positions do not change since they are above the
             # minimum values being merged)
             if len(top_triangle_ind[0]) > 0:
+                print('TOP TRIANGLE')
+                print(dm[top_triangle_ind])
                 new_dm[top_triangle_ind] = dm[top_triangle_ind]
+                print(counts[top_triangle_ind])
                 new_counts[top_triangle_ind] = counts[top_triangle_ind]
             # Define the indices for the new row of the new lower triangle (i.e. the ones which will be filled in by
             # averaging the two minimum values rows)
