@@ -312,12 +312,22 @@ class PhylogeneticTree(object):
         dm = np.array(self.distance_matrix)
         counts = np.triu(np.ones(dm.shape, dtype=float))
         inner_clade = None
+        # old
+        original_dist_mat = np.array(self.distance_matrix)
+        index_map = {}
+        for i in range(self.size):
+            name = self.distance_matrix.names[i]
+            index_map[name] = i
+        dm2 = deepcopy(self.distance_matrix)
+        # old
         while dm.shape[0] > 1:
             min_dist = float(np.min(dm[np.triu_indices(len(dm), k=1)]))
             positions = np.where(dm == min_dist)
             upper_triangle_pos = positions[1] > positions[0]
             min_i = int(positions[0][upper_triangle_pos][0])
             min_j = int(positions[1][upper_triangle_pos][0])
+            print('MIN I: ', min_i)
+            print('MIN J: ', min_j)
             clade1 = clades[min_i]
             clade2 = clades[min_j]
             inner_count -= 1
@@ -400,8 +410,31 @@ class PhylogeneticTree(object):
                 new_counts[bottom_triangle_ind] = counts[old_bottom_triangle_ind[0], old_bottom_triangle_ind[1]]
             dm = new_dm
             counts = new_counts
+            # old
+            for k in range(0, len(dm2)):
+                if k != min_i and k != min_j:
+                    indices_inner = [index_map[node.name] for node in inner_clade.get_terminals()]
+                    indices_k = [index_map[node.name] for node in clades[k].get_terminals()]
+                    pos_inner, pos_k = zip(*product(indices_inner, indices_k))
+                    dm2[min_i, k] = np.mean(original_dist_mat[list(pos_inner), list(pos_k)])
+            dm2.names[min_i] = "Inner" + str(inner_count)
+            del dm2[min_j]
+            # old
+            # check
+            num_dm2 = np.tril(np.array(dm2))
+            diff = num_dm2 - dm
+            if diff.any():
+                print(dm)
+                print(num_dm2)
+                print(diff)
+                indices = np.nonzero(diff)
+                print(dm[indices])
+                print(num_dm2[indices])
+                print(diff[indices])
+            # check
             # Update node list
             clades[min_i] = inner_clade
+            del clades[min_j]
         inner_clade.branch_length = 0
         return BaseTree.Tree(inner_clade)
 
