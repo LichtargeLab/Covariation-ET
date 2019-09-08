@@ -325,7 +325,7 @@ class PhylogeneticTree(object):
             positions = np.where(dm == min_dist)
             print('Positions')
             print(positions)
-            lower_triangle_pos = positions[0] < positions[1]
+            lower_triangle_pos = positions[0] > positions[1]
             print('Lower Triangle Pos')
             print(lower_triangle_pos)
             print('Sub positions')
