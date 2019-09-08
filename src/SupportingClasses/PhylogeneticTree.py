@@ -370,9 +370,13 @@ class PhylogeneticTree(object):
             lower_rectangle_mask = (new_lower_triangle_ind[0] > min_j) & (new_lower_triangle_ind[1] < min_j)
             lower_rectangle_ind = (new_lower_triangle_ind[0][lower_rectangle_mask],
                                    new_lower_triangle_ind[1][lower_rectangle_mask])
+            print(lower_rectangle_ind)
+            print((lower_rectangle_ind[0].shape, lower_rectangle_ind[1].shape))
             # The lower rectangle in the old dm is bounded above by min_j (not inclusive), interrupted by min_i, and
             # bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on
             # the right by position min_i (not inclusive)
+            print((np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], np.r_[0:min_j]))
+            print((len(np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]]), len(np.r_[0:min_j])))
             new_dm[lower_rectangle_ind] = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
             new_counts[lower_rectangle_ind] = counts[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
             # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from
