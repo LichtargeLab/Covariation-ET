@@ -349,7 +349,7 @@ class PhylogeneticTree(object):
             # Define full set of indices for new lower triangle
             new_lower_triangle_ind = np.tril_indices(new_dm.shape[0], k=-1)
             # Define the indices for the top of the new lower triangle (i.e. rows above first minimum row being joined)
-            top_triangle_mask = new_lower_triangle_ind[0] < min_j
+            top_triangle_mask = new_lower_triangle_ind[0] < min_i
             top_triangle_ind = (new_lower_triangle_ind[0][top_triangle_mask],
                                 new_lower_triangle_ind[1][top_triangle_mask])
             # Fill in the values from the top of the old dm, these positions do not change since they are above the
@@ -359,15 +359,15 @@ class PhylogeneticTree(object):
                 new_counts[top_triangle_ind] = counts[top_triangle_ind]
             # Define the indices for the new row of the new lower triangle (i.e. the ones which will be filled in by
             # averaging the two minimum values rows)
-            new_row_mask = new_lower_triangle_ind[0] == min_j
+            new_row_mask = new_lower_triangle_ind[0] == min_i
             new_row_ind = (new_lower_triangle_ind[0][new_row_mask], new_lower_triangle_ind[1][new_row_mask])
             # Compute the average of the two rows being merged and assign the result to the new row
-            new_counts[new_row_ind] = np.sum(counts[[min_i, min_j], :][:, 0:min_j], axis=0)
-            new_row_product = dm[[min_i, min_j], :][:, 0:min_j] * counts[[min_i, min_j], :][:, 0:min_j]
+            new_counts[new_row_ind] = np.sum(counts[[min_i, min_j], :][:, 0:min_i], axis=0)
+            new_row_product = dm[[min_i, min_j], :][:, 0:min_i] * counts[[min_i, min_j], :][:, 0:min_i]
             new_dm[new_row_ind] = np.sum(new_row_product, axis=0) / new_counts[new_row_ind]
             # Define the indices for the lower rectangle in the new lower triangle (i.e. positions between the minimum
             # row and column which will be filled by the averages from the merged rows/columns)
-            lower_rectangle_mask = (new_lower_triangle_ind[0] > min_j) & (new_lower_triangle_ind[1] < min_j)
+            lower_rectangle_mask = (new_lower_triangle_ind[0] > min_i) & (new_lower_triangle_ind[1] < min_i)
             lower_rectangle_ind = (new_lower_triangle_ind[0][lower_rectangle_mask],
                                    new_lower_triangle_ind[1][lower_rectangle_mask])
             print(lower_rectangle_ind)
@@ -375,23 +375,26 @@ class PhylogeneticTree(object):
             # The lower rectangle in the old dm is bounded above by min_j (not inclusive), interrupted by min_i, and
             # bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on
             # the right by position min_i (not inclusive)
-            print((np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], np.r_[0:min_j]))
-            print((len(np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]]), len(np.r_[0:min_j])))
-            new_dm[lower_rectangle_ind] = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
-            new_counts[lower_rectangle_ind] = counts[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], :][:, 0:min_j].reshape(-1)
+            print((np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], np.r_[0:min_i]))
+            print((len(np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]]), len(np.r_[0:min_i])))
+            new_dm[lower_rectangle_ind] = dm[np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], :][:, 0:min_i].reshape(-1)
+            new_counts[lower_rectangle_ind] = counts[np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], :][:, 0:min_i].reshape(-1)
             # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from
             # the minimum values, to note, the end of the min_i row needs to be joined at the front of the min_i column)
-            min_j_col = dm[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], min_j].reshape(-1, 1)
-            min_j_col_counts = counts[np.r_[min_j + 1:min_i, min_i + 1:dm.shape[0]], min_j].reshape(-1, 1)
-            min_i_row = dm[min_i, :][min_j + 1: min_i].reshape(-1, 1)
-            min_i_row_counts = counts[min_i, :][min_j + 1: min_i].reshape(-1, 1)
-            min_i_col = dm[min_i + 1:, min_i].reshape(-1, 1)
-            min_i_col_counts = counts[min_i + 1:, min_i].reshape(-1, 1)
+            min_j_col_ind = (np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], np.r_[min_i])
+            min_j_col = dm[min_j_col_ind].reshape(-1, 1)
+            min_j_col_counts = counts[min_j_col_ind].reshape(-1, 1)
+            min_i_row_ind = (np.r_[min_j], np.r_[min_i + 1: min_j])
+            min_i_row = dm[min_i_row_ind].reshape(-1, 1)
+            min_i_row_counts = counts[min_i_row_ind].reshape(-1, 1)
+            min_i_col_ind = (np.r_[min_j + 1: dm.shape[0]], np.r_[min_j])
+            min_i_col = dm[min_i_col_ind].reshape(-1, 1)
+            min_i_col_counts = counts[min_i_col_ind].reshape(-1, 1)
             min_i_col_final = np.vstack([min_i_row, min_i_col])
             min_i_col_counts_final = np.vstack([min_i_row_counts, min_i_col_counts])
             to_average = np.hstack([min_j_col, min_i_col_final])
             to_average_counts = np.hstack([min_j_col_counts, min_i_col_counts_final])
-            new_col_mask = new_lower_triangle_ind[1] == min_j
+            new_col_mask = new_lower_triangle_ind[1] == min_i
             new_col_ind = (new_lower_triangle_ind[0][new_col_mask], new_lower_triangle_ind[1][new_col_mask])
             # Compute the average of the two columns being merged and assign the result to the new column
             new_counts[new_col_ind] = np.sum(to_average_counts, axis=1)
@@ -399,14 +402,14 @@ class PhylogeneticTree(object):
             new_dm[new_col_ind] = np.sum(new_col_product, axis=1) / new_counts[new_col_ind]
             # Define the indices for the lower triangle of the new lower triangle (i.e. the triangle outside of the new
             # column being added)
-            bottom_triangle_mask = (new_lower_triangle_ind[0] > min_j) & (new_lower_triangle_ind[1] > min_j)
+            bottom_triangle_mask = (new_lower_triangle_ind[0] > min_i) & (new_lower_triangle_ind[1] > min_i)
             bottom_triangle_ind = (new_lower_triangle_ind[0][bottom_triangle_mask],
                                    new_lower_triangle_ind[1][bottom_triangle_mask])
             # The bottom triangle in the old dm is a subset of the bottom triangle form the original  dm bounded by the
             # min_j column on the left and excluding the min_i column and row.
             old_bottom_triangle_ind = np.tril_indices(dm.shape[0], k=-1)
-            old_bottom_triangle_mask = (old_bottom_triangle_ind[0] > min_j) & (old_bottom_triangle_ind[0] != min_i) & \
-                                       (old_bottom_triangle_ind[1] > min_j) & (old_bottom_triangle_ind[1] != min_i)
+            old_bottom_triangle_mask = (old_bottom_triangle_ind[0] > min_i) & (old_bottom_triangle_ind[0] != min_j) & \
+                                       (old_bottom_triangle_ind[1] > min_i) & (old_bottom_triangle_ind[1] != min_j)
             old_bottom_triangle_ind = (old_bottom_triangle_ind[0][old_bottom_triangle_mask],
                                        old_bottom_triangle_ind[1][old_bottom_triangle_mask])
             if len(old_bottom_triangle_ind[0]):
