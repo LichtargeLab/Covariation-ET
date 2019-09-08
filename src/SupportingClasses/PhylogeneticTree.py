@@ -323,19 +323,19 @@ class PhylogeneticTree(object):
         while dm.shape[0] > 1:
             min_dist = float(np.min(dm[np.tril_indices(dm.shape[0], k=-1)]))
             positions = np.where(dm == min_dist)
-            print('Positions')
-            print(positions)
+            # print('Positions')
+            # print(positions)
             lower_triangle_pos = positions[0] > positions[1]
-            print('Lower Triangle Pos')
-            print(lower_triangle_pos)
-            print('Sub positions')
-            print(positions[0][lower_triangle_pos])
-            print(positions[1][lower_triangle_pos])
+            # print('Lower Triangle Pos')
+            # print(lower_triangle_pos)
+            # print('Sub positions')
+            # print(positions[0][lower_triangle_pos])
+            # print(positions[1][lower_triangle_pos])
             min_j = int(positions[0][lower_triangle_pos][-1])
             min_i = int(positions[1][lower_triangle_pos][-1])
-            print('MIN DIST2: ', min_dist)
-            print('MIN I2: ', min_i)
-            print('MIN J2: ', min_j)
+            # print('MIN DIST2: ', min_dist)
+            # print('MIN I2: ', min_i)
+            # print('MIN J2: ', min_j)
             clade1 = clades[min_i]
             clade2 = clades[min_j]
             inner_count -= 1
@@ -363,10 +363,10 @@ class PhylogeneticTree(object):
             # Fill in the values from the top of the old dm, these positions do not change since they are above the
             # minimum values being merged)
             if len(top_triangle_ind[0]) > 0:
-                print('TOP TRIANGLE')
-                print(dm[top_triangle_ind])
+                # print('TOP TRIANGLE')
+                # print(dm[top_triangle_ind])
                 new_dm[top_triangle_ind] = dm[top_triangle_ind]
-                print(counts[top_triangle_ind])
+                # print(counts[top_triangle_ind])
                 new_counts[top_triangle_ind] = counts[top_triangle_ind]
             # Define the indices for the new row of the new lower triangle (i.e. the ones which will be filled in by
             # averaging the two minimum values rows)
@@ -383,13 +383,13 @@ class PhylogeneticTree(object):
             lower_rectangle_mask = (new_lower_triangle_ind[0] > min_i) & (new_lower_triangle_ind[1] < min_i)
             lower_rectangle_ind = (new_lower_triangle_ind[0][lower_rectangle_mask],
                                    new_lower_triangle_ind[1][lower_rectangle_mask])
-            print(lower_rectangle_ind)
-            print((lower_rectangle_ind[0].shape, lower_rectangle_ind[1].shape))
+            # print(lower_rectangle_ind)
+            # print((lower_rectangle_ind[0].shape, lower_rectangle_ind[1].shape))
             # The lower rectangle in the old dm is bounded above by min_j (not inclusive), interrupted by min_i, and
             # bounded below by the end of the matrix. On the other axis it is bounded on the left by position 0 and on
             # the right by position min_i (not inclusive)
-            print((np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], np.r_[0:min_i]))
-            print((len(np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]]), len(np.r_[0:min_i])))
+            # print((np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], np.r_[0:min_i]))
+            # print((len(np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]]), len(np.r_[0:min_i])))
             new_dm[lower_rectangle_ind] = dm[np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], :][:, 0:min_i].reshape(-1)
             new_counts[lower_rectangle_ind] = counts[np.r_[min_i + 1:min_j, min_j + 1:dm.shape[0]], :][:, 0:min_i].reshape(-1)
             # Define the indices for the new column of the new lower triangle (i.e. the columns which are merged from
@@ -444,21 +444,21 @@ class PhylogeneticTree(object):
             # check
             num_dm2 = np.tril(np.array(dm2))
             diff = num_dm2 - dm
-            if diff.any():
-                print('DIFFERENCES')
-                print('DM')
-                print(dm)
-                print('DM2')
-                print(num_dm2)
-                print('DIFF')
-                print(diff)
-                indices = np.nonzero(diff)
-                print('DM INDICES')
-                print(dm[indices])
-                print('DM2 INDICES')
-                print(num_dm2[indices])
-                print('DIFF INDICES')
-                print(diff[indices])
+            # if diff.any():
+            #     print('DIFFERENCES')
+            #     print('DM')
+            #     print(dm)
+            #     print('DM2')
+            #     print(num_dm2)
+            #     print('DIFF')
+            #     print(diff)
+            #     indices = np.nonzero(diff)
+            #     print('DM INDICES')
+            #     print(dm[indices])
+            #     print('DM2 INDICES')
+            #     print(num_dm2[indices])
+            #     print('DIFF INDICES')
+            #     print(diff[indices])
             # check
             # Update node list
             clades[min_i] = inner_clade
