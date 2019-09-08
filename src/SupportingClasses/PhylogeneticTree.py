@@ -326,8 +326,19 @@ class PhylogeneticTree(object):
             upper_triangle_pos = positions[1] > positions[0]
             min_i = int(positions[0][upper_triangle_pos][0])
             min_j = int(positions[1][upper_triangle_pos][0])
+            print('MIN DIST: ', min_dist)
             print('MIN I: ', min_i)
             print('MIN J: ', min_j)
+            # new?
+            min_dist2 = float(np.min(dm[np.tril_indices(dm.shape[0], k=-1)]))
+            positions2 = np.where(dm == min_dist2)
+            lower_triangle_pos2 = positions2[0] > positions2[1]
+            min_i2 = int(positions2[0][lower_triangle_pos2][-1])
+            min_j2 = int(positions2[1][lower_triangle_pos2][-1])
+            print('MIN DIST2: ', min_dist2)
+            print('MIN I2: ', min_i2)
+            print('MIN J2: ', min_j2)
+            # new?
             clade1 = clades[min_i]
             clade2 = clades[min_j]
             inner_count -= 1
