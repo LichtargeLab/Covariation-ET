@@ -120,11 +120,11 @@ class TestPhylogeneticTree(TestBase):
 
     def check_nodes(self, node1, node2):
         if node1.is_terminal():
-            self.assertTrue(node2.is_terminal())
+            self.assertTrue(node2.is_terminal(), 'Node1: {} vs Node2: {}'.format(node1.name, node2.name))
             self.assertEqual(node1.name, node2.name)
         else:
             self.assertTrue(node2.is_bifurcating())
-            self.assertFalse(node2.is_terminal())
+            self.assertFalse(node2.is_terminal(), 'Node1: {} vs Node2: {}'.format(node1.name, node2.name))
             self.assertEqual(set([x.name for x in node1.get_terminals()]),
                              set([x.name for x in node2.get_terminals()]))
 
@@ -1352,9 +1352,10 @@ class TestPhylogeneticTree(TestBase):
             py_nodes = None
         count = 1
         while wetc_nodes and py_nodes:
-            print('LEVEL: {}:{}'.format(count, phylo_tree.size + 1))
+            print('LEVEL: {}:{}'.format(count, phylo_tree.size))
             count += 1
             print([n.name for n in wetc_nodes])
+            print([n.name for n in py_nodes])
             if wetc_nodes is None:
                 self.assertIsNone(py_nodes)
             else:
@@ -1362,7 +1363,11 @@ class TestPhylogeneticTree(TestBase):
                 sorted_py_nodes = sorted(py_nodes, key=compare_nodes_key(compare_nodes))
                 self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
                 for i in range(len(sorted_py_nodes)):
-                    self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+                    try:
+                        self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+                    except AssertionError as e:
+                        raise AssertionError("ERRORED ON i={}\nWETC NODE:{} WITH CHILDREN {} and {}\nPY NODE:{} with CHILDREN {} and {}".format(
+                            i, sorted_wetc_nodes[i], sorted_wetc_nodes[i].clades[0], sorted_wetc_nodes[i].clades[1], sorted_py_nodes[i], sorted_py_nodes[i].clades[0], sorted_py_nodes[i].clades[1])) from e
             try:
                 wetc_nodes = next(wetc_iter)
             except StopIteration:
