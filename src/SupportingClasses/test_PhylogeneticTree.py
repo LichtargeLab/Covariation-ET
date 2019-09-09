@@ -1350,7 +1350,10 @@ class TestPhylogeneticTree(TestBase):
             py_nodes = next(py_iter)
         except StopIteration:
             py_nodes = None
+        count = 1
         while wetc_nodes and py_nodes:
+            print('LEVEL: {}:{}'.format(count, phylo_tree.size + 1))
+            count += 1
             print([n.name for n in wetc_nodes])
             if wetc_nodes is None:
                 self.assertIsNone(py_nodes)
