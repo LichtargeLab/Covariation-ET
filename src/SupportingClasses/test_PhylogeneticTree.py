@@ -1352,10 +1352,7 @@ class TestPhylogeneticTree(TestBase):
             py_nodes = None
         count = 1
         while wetc_nodes and py_nodes:
-            print('LEVEL: {}:{}'.format(count, phylo_tree.size))
             count += 1
-            print([n.name for n in wetc_nodes])
-            print([n.name for n in py_nodes])
             if wetc_nodes is None:
                 self.assertIsNone(py_nodes)
             else:
