@@ -372,6 +372,22 @@ class PhylogeneticTree(object):
                 clade2.branch_length = min_dist * 1.0 / 2
             else:
                 clade2.branch_length = min_dist * 1.0 / 2 - height_of(clade2)
+            # old
+            original_clade1 = original_clades[original_min_i]
+            original_clade2 = original_clades[original_min_j]
+            original_inner_count -= 1
+            original_inner_clade = BaseTree.Clade(None, "Inner{}".format(original_inner_count))
+            original_inner_clade.clades.append(original_clade1)
+            original_inner_clade.clades.append(original_clade2)
+            if original_clade1.is_terminal():
+                original_clade1.branch_length = original_min_dist * 1.0 / 2
+            else:
+                original_clade1.branch_length = original_min_dist * 1.0 / 2 - height_of(original_clade1)
+            if original_clade2.is_terminal():
+                original_clade2.branch_length = original_min_dist * 1.0 / 2
+            else:
+                original_clade2.branch_length = original_min_dist * 1.0 / 2 - height_of(original_clade2)
+            # old
             # Rebuild distance mat set the distances of new node at the index of min_j
             new_dm = np.zeros((dm.shape[0] - 1, dm.shape[1] - 1))
             new_counts = np.zeros((dm.shape[0] - 1, dm.shape[1] - 1), dtype=float)
