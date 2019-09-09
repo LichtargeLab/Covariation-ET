@@ -249,51 +249,51 @@ class TestPhylogeneticTree(TestBase):
     #             py_nodes = next(py_iter)
     #         except StopIteration:
     #             py_nodes = None
-
-    def test4a__et_tree_small(self):
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-        phylo_tree = PhylogeneticTree(tree_building_method='et')
-        self.assertEqual(phylo_tree.tree_method, 'et')
-        self.assertEqual(phylo_tree.tree_args, {})
-        self.assertIsNone(phylo_tree.distance_matrix)
-        self.assertIsNone(phylo_tree.tree)
-        self.assertIsNone(phylo_tree.size)
-        phylo_tree.construct_tree(dm=dm)
-        self.assertEqual(phylo_tree.tree_method, 'et')
-        self.assertEqual(phylo_tree.tree_args, {})
-        self.assertEqual(phylo_tree.distance_matrix, dm)
-        self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
-        self.assertIsNotNone(phylo_tree.tree)
-        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-        self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-        terminal_nodes = phylo_tree.tree.get_terminals()
-        self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
-        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
-
-    def test4b__et_tree_large(self):
-        calculator = AlignmentDistanceCalculator()
-        dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-        phylo_tree = PhylogeneticTree(tree_building_method='et')
-        self.assertEqual(phylo_tree.tree_method, 'et')
-        self.assertEqual(phylo_tree.tree_args, {})
-        self.assertIsNone(phylo_tree.distance_matrix)
-        self.assertIsNone(phylo_tree.tree)
-        self.assertIsNone(phylo_tree.size)
-        phylo_tree.construct_tree(dm=dm)
-        self.assertEqual(phylo_tree.tree_method, 'et')
-        self.assertEqual(phylo_tree.tree_args, {})
-        self.assertEqual(phylo_tree.distance_matrix, dm)
-        self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
-        self.assertIsNotNone(phylo_tree.tree)
-        non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-        self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-        self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-        terminal_nodes = phylo_tree.tree.get_terminals()
-        self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
-        self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
-
+    #
+    # def test4a__et_tree_small(self):
+    #     calculator = AlignmentDistanceCalculator()
+    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
+    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
+    #     self.assertEqual(phylo_tree.tree_method, 'et')
+    #     self.assertEqual(phylo_tree.tree_args, {})
+    #     self.assertIsNone(phylo_tree.distance_matrix)
+    #     self.assertIsNone(phylo_tree.tree)
+    #     self.assertIsNone(phylo_tree.size)
+    #     phylo_tree.construct_tree(dm=dm)
+    #     self.assertEqual(phylo_tree.tree_method, 'et')
+    #     self.assertEqual(phylo_tree.tree_args, {})
+    #     self.assertEqual(phylo_tree.distance_matrix, dm)
+    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
+    #     self.assertIsNotNone(phylo_tree.tree)
+    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
+    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
+    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
+    #     terminal_nodes = phylo_tree.tree.get_terminals()
+    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
+    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
+    #
+    # def test4b__et_tree_large(self):
+    #     calculator = AlignmentDistanceCalculator()
+    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
+    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
+    #     self.assertEqual(phylo_tree.tree_method, 'et')
+    #     self.assertEqual(phylo_tree.tree_args, {})
+    #     self.assertIsNone(phylo_tree.distance_matrix)
+    #     self.assertIsNone(phylo_tree.tree)
+    #     self.assertIsNone(phylo_tree.size)
+    #     phylo_tree.construct_tree(dm=dm)
+    #     self.assertEqual(phylo_tree.tree_method, 'et')
+    #     self.assertEqual(phylo_tree.tree_args, {})
+    #     self.assertEqual(phylo_tree.distance_matrix, dm)
+    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
+    #     self.assertIsNotNone(phylo_tree.tree)
+    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
+    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
+    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
+    #     terminal_nodes = phylo_tree.tree.get_terminals()
+    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
+    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
+    #
     # def test5a_agglomerative_tree_small(self):
     #     calculator = AlignmentDistanceCalculator()
     #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
@@ -1376,9 +1376,9 @@ class TestPhylogeneticTree(TestBase):
         self.compare_tree_and_wetc_tree(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small,
                                         msf_aln=self.query_aln_msf_small)
 
-    def test14b_compare_to_wetc_tree_small(self):
-        self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
-                                        msf_aln=self.query_aln_msf_large)
+    # def test14b_compare_to_wetc_tree_small(self):
+    #     self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
+    #                                     msf_aln=self.query_aln_msf_large)
 
 
 def compare_nodes_key(compare_nodes):
