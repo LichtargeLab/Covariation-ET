@@ -444,16 +444,19 @@ class PhylogeneticTree(object):
             # check
             num_dm2 = np.tril(np.array(dm2))
             diff = num_dm2 - dm
-            not_passing = diff > 1E-15
-            if not_passing.any():
+            # not_passing = diff > 1E-15
+            # if not_passing.any():
+            if diff.any():
                 print('DIFFERENCES')
+                print(dm2.names[min_i])
                 print('DM')
                 print(dm)
                 print('DM2')
                 print(num_dm2)
                 print('DIFF')
                 print(diff)
-                indices = np.nonzero(not_passing)
+                indices = np.nonzero(diff)
+                # indices = np.nonzero(not_passing)
                 print('DM INDICES')
                 print(dm[indices])
                 print('DM2 INDICES')
