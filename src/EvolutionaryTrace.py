@@ -191,14 +191,18 @@ class EvolutionaryTrace(object):
             calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'), model=self.distance_model,
                                                      skip_letters=None)
             if self.et_distance:
-                _, self.distance_matrix, _, _ = calculator.get_et_distance(self.original_aln.alignment)
+                _, self.distance_matrix, _, _ = calculator.get_et_distance(self.original_aln.alignment,
+                                                                           processes=self.processors)
             else:
-                self.distance_matrix = calculator.get_distance(self.original_aln.alignment)
+                self.distance_matrix = calculator.get_distance(self.original_aln.alignment, processes=self.processors)
+            start_tree = time()
             self.phylo_tree = PhylogeneticTree(tree_building_method=self.tree_building_method,
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
             self.phylo_tree_fn = os.path.join(self.out_dir, '{}_{}{}_dist_{}_tree.nhx'.format(
                 self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
+            end_tree = time()
+            print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.distance_matrix, self.phylo_tree, self.phylo_tree_fn, self.assignments), handle,
