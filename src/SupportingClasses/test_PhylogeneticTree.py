@@ -1381,9 +1381,9 @@ class TestPhylogeneticTree(TestBase):
         self.compare_tree_and_wetc_tree(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small,
                                         msf_aln=self.query_aln_msf_small)
 
-    # def test14b_compare_to_wetc_tree_small(self):
-    #     self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
-    #                                     msf_aln=self.query_aln_msf_large)
+    def test14b_compare_to_wetc_tree_small(self):
+        self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
+                                        msf_aln=self.query_aln_msf_large)
 
 
 def compare_nodes_key(compare_nodes):
