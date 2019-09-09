@@ -444,21 +444,21 @@ class PhylogeneticTree(object):
             # check
             num_dm2 = np.tril(np.array(dm2))
             diff = num_dm2 - dm
-            # if diff.any():
-            #     print('DIFFERENCES')
-            #     print('DM')
-            #     print(dm)
-            #     print('DM2')
-            #     print(num_dm2)
-            #     print('DIFF')
-            #     print(diff)
-            #     indices = np.nonzero(diff)
-            #     print('DM INDICES')
-            #     print(dm[indices])
-            #     print('DM2 INDICES')
-            #     print(num_dm2[indices])
-            #     print('DIFF INDICES')
-            #     print(diff[indices])
+            if diff.any():
+                print('DIFFERENCES')
+                print('DM')
+                print(dm)
+                print('DM2')
+                print(num_dm2)
+                print('DIFF')
+                print(diff)
+                indices = np.nonzero(diff)
+                print('DM INDICES')
+                print(dm[indices])
+                print('DM2 INDICES')
+                print(num_dm2[indices])
+                print('DIFF INDICES')
+                print(diff[indices])
             # check
             # Update node list
             clades[min_i] = inner_clade
