@@ -340,8 +340,9 @@ class PhylogeneticTree(object):
             # print(positions[0][lower_triangle_pos])
             # print(positions[1][lower_triangle_pos])
             min_mask = positions[1][lower_triangle_pos] == np.min(positions[1][lower_triangle_pos])
-            min_j = int(positions[0][lower_triangle_pos][min_mask])
-            min_i = int(positions[1][lower_triangle_pos][min_mask])
+            min_mask2 = positions[0][lower_triangle_pos][min_mask] == np.min(positions[0][lower_triangle_pos][min_mask])
+            min_j = int(positions[0][lower_triangle_pos][min_mask][min_mask2])
+            min_i = int(positions[1][lower_triangle_pos][min_mask][min_mask2])
             # old
             # original_dm_array = np.array(original_dm)
             # original_min_dist = float(np.min(original_dm_array[np.triu_indices(len(original_dm), k=1)]))
