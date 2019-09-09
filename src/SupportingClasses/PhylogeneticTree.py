@@ -374,10 +374,10 @@ class PhylogeneticTree(object):
             new_row_ind = (new_lower_triangle_ind[0][new_row_mask], new_lower_triangle_ind[1][new_row_mask])
             # Compute the average of the two rows being merged and assign the result to the new row
             new_counts[new_row_ind] = np.sum(counts[[min_i, min_j], :][:, 0:min_i], axis=0)
-            # new_row_product = dm[[min_i, min_j], :][:, 0:min_i] * counts[[min_i, min_j], :][:, 0:min_i]
-            # new_dm[new_row_ind] = np.sum(new_row_product, axis=0) / new_counts[new_row_ind]
-            new_dm[new_row_ind] = np.average(dm[[min_i, min_j], :][:, 0:min_i],
-                                             weights=counts[[min_i, min_j], :][:, 0:min_i], axis=0)
+            new_row_product = dm[[min_i, min_j], :][:, 0:min_i] * counts[[min_i, min_j], :][:, 0:min_i]
+            new_dm[new_row_ind] = np.sum(new_row_product, axis=0) / new_counts[new_row_ind]
+            # new_dm[new_row_ind] = np.average(dm[[min_i, min_j], :][:, 0:min_i],
+            #                                  weights=counts[[min_i, min_j], :][:, 0:min_i], axis=0)
             # Define the indices for the lower rectangle in the new lower triangle (i.e. positions between the minimum
             # row and column which will be filled by the averages from the merged rows/columns)
             lower_rectangle_mask = (new_lower_triangle_ind[0] > min_i) & (new_lower_triangle_ind[1] < min_i)
@@ -411,9 +411,9 @@ class PhylogeneticTree(object):
             new_col_ind = (new_lower_triangle_ind[0][new_col_mask], new_lower_triangle_ind[1][new_col_mask])
             # Compute the average of the two columns being merged and assign the result to the new column
             new_counts[new_col_ind] = np.sum(to_average_counts, axis=1)
-            # new_col_product = to_average * to_average_counts
-            # new_dm[new_col_ind] = np.sum(new_col_product, axis=1) / new_counts[new_col_ind]
-            new_dm[new_col_ind] = np.average(to_average, weights=to_average_counts, axis=1)
+            new_col_product = to_average * to_average_counts
+            new_dm[new_col_ind] = np.sum(new_col_product, axis=1) / new_counts[new_col_ind]
+            # new_dm[new_col_ind] = np.average(to_average, weights=to_average_counts, axis=1)
             # Define the indices for the lower triangle of the new lower triangle (i.e. the triangle outside of the new
             # column being added)
             bottom_triangle_mask = (new_lower_triangle_ind[0] > min_i) & (new_lower_triangle_ind[1] > min_i)

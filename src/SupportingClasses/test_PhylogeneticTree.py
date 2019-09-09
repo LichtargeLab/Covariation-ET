@@ -1351,6 +1351,7 @@ class TestPhylogeneticTree(TestBase):
         except StopIteration:
             py_nodes = None
         while wetc_nodes and py_nodes:
+            print([n.name for n in wetc_nodes])
             if wetc_nodes is None:
                 self.assertIsNone(py_nodes)
             else:
