@@ -490,8 +490,8 @@ class PhylogeneticTree(object):
             # del original_clades[original_min_j]
             # old
             # check
-            num_original_dm = np.tril(np.array(original_dm))
-            diff = num_original_dm - dm
+            # num_original_dm = np.tril(np.array(original_dm))
+            # diff = num_original_dm - dm
             # not_passing = diff > 1E-15
             # if not_passing.any():
             # if diff.any():
