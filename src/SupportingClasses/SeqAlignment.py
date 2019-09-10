@@ -296,7 +296,7 @@ class SeqAlignment(object):
         new_alignment.marked = deepcopy(self.marked)
         return new_alignment
 
-    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None):
+    def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None, processes=1):
         """
         Compute Effective Alignment Size
 
@@ -310,12 +310,14 @@ class SeqAlignment(object):
             distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix): A precomputed identity distance matrix for this
             alignment.
             alignment can be saved. The file created will be <model>.npz.
+            processes (int): The number of processes which can be used to compute the identity distance for determining
+            effective alignment size.
         Returns:
             float: The effective alignment size of the current alignment (must be <= SeqAlignment.size)
         """
         if distance_matrix is None:
             calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'))
-            distance_matrix = calculator.get_distance(self.alignment)
+            distance_matrix = calculator.get_distance(self.alignment, processes=processes)
         distance_matrix = np.array(distance_matrix)
         meets_threshold = (1 - distance_matrix) >= identity_threshold
         meets_threshold[range(meets_threshold.shape[0]), range(meets_threshold.shape[1])] = True
