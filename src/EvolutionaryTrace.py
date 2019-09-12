@@ -4,11 +4,12 @@ Created on August 10, 2019
 @author: Daniel Konecki
 """
 import os
+import pickle
 import argparse
 import numpy as np
 import pandas as pd
 from time import time
-import  pickle
+from tqdm import tqdm
 from multiprocessing import Pool
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace, load_freq_table
@@ -253,36 +254,52 @@ class EvolutionaryTrace(object):
                             precision=3, processors=self.processors, low_memory=self.low_memory)
 
 
-def init_var_pool(count_table):
+def init_var_pool(aln):
     """
     Initialize Variability Pool
 
-    This function shares a FrequencyTable object with a multiprocessing pool so that the variability of each position
-    can be assessed in a synchronized manner.
-
     Args:
-        count_table (FrequencyTable): The root level FrequencyTable for the trace which is being written to file.
+        aln (SeqAlignment): The root level SeqAlignment (gaps removed for the query sequence) for the trace which is
+        being written to file.
     """
-    global c_table
-    c_table = count_table
+    global var_aln
+    var_aln = aln
 
 
 def get_var_pool(pos):
     """
     Get Variability Pool
 
-    This function retrieves the characters observed at a given position in a FrequencyTable, turns them into a string
-    and returns them.
+    This function retrieves the characters observed at a given position in a query sequence, as well as across all
+    sequences in a MultipleSequenceAlignment, counts them, and turns them into a string.
 
     Args:
-        pos (tuple): A tuple of two ints specifying the position for which characters should be retrieved (1 will be
-        subtracted from each value because the values are expected to be 1, not 0, indexed).
+        pos (tuple): A tuple of one or two ints specifying the position for which characters should be retrieved.
     Returns:
+        tuple: The position(s) characterized by this return.
+        tuple: The nucleic/amino acids observed at the specified position(s).
+        int: The count of unique characters observed at the specified position in the alignment.
         str: A string listing characters observed at the specified position, separated by commas.
     """
-    character_list = c_table.get_chars(pos=(pos[0] - 1, pos[1] - 1))
-    character_str = ','.join(character_list)
-    return character_str
+    if len(pos) not in [1, 2]:
+        raise ValueError('Only single positions or pairs of positions accepted at this time.')
+    pos_i = int(pos[0])
+    col_i = list(var_aln.alignment[:, pos_i])
+    query_i = var_aln.query_sequence[pos_i]
+    if len(pos) == 1:
+        pos_final = (pos_i, )
+        query_final = (query_i, )
+        col_final = col_i
+    else:
+        pos_j = int(pos[1])
+        col_j = list(var_aln.alignment[:, pos_j])
+        query_j = var_aln.query_sequence[pos_j]
+        pos_final = (pos_i, pos_j)
+        query_final = (query_i, query_j)
+        col_final = list(set(i + j for i, j in zip(col_i, col_j)))
+    character_str = ','.join(sorted(col_final))
+    character_count = len(col_final)
+    return pos_final, query_final, character_str, character_count
 
 
 def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3, processors=1,
@@ -314,56 +331,75 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         return
     start = time()
     freq_table = load_freq_table(freq_table=freq_table, low_memory=low_memory)
-    scoring_dict = {}
-    columns = []
-    if freq_table.position_size == 1:
-        scoring_dict['Position'] = list(range(1, aln.seq_length + 1))
-        scoring_dict['Query'] = list(str(aln.query_sequence))
-        relevant_table = freq_table.get_table()
-        positions = relevant_table.nonzero()
-        scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
-        scoring_dict['Variability_Characters'] = [','.join([freq_table.reverse_mapping[x]
-                                                            for x in positions[1][positions[0] == i]])
-                                                  for i in range(relevant_table.shape[0])]
-        scoring_dict['Rank'] = list(ranks)
-        scoring_dict['Score'] = list(scores)
-        scoring_dict['Coverage'] = list(coverages)
-        columns += ['Position', 'Query']
-    elif freq_table.position_size == 2:
-        off_diagonal_indices = []
-        starting_index = 1
-        pos_i, pos_j, query_i, query_j = [], [], [], []
-        for x in range(1, aln.seq_length + 1):
-            off_diagonal_indices += list(range(starting_index, starting_index + (aln.seq_length - x)))
-            pos_i += [x] * (aln.seq_length - x)
-            query_i += [aln.query_sequence[x - 1]] * (aln.seq_length - x)
-            pos_j += list(range(x + 1, aln.seq_length + 1))
-            query_j += list(aln.query_sequence[x:])
-            starting_index = off_diagonal_indices[-1] + 2
-        scoring_dict['Position_i'] = pos_i
-        scoring_dict['Position_j'] = pos_j
-        scoring_dict['Query_i'] = query_i
-        scoring_dict['Query_j'] = query_j
-        relevant_table = freq_table.get_table()[off_diagonal_indices, :]
-        scoring_dict['Variability_Count'] = list(np.array((relevant_table > 0).sum(axis=1)).reshape(-1))
-        pool = Pool(processes=processors, initializer=init_var_pool, initargs=(freq_table,))
-        char_variability = pool.map(get_var_pool, list(zip(pos_i, pos_j)))
-        pool.close()
-        pool.join()
-        scoring_dict['Variability_Characters'] = char_variability
-        scoring_dict['Rank'] = list(ranks[np.triu_indices(aln.seq_length, k=1)])
-        scoring_dict['Score'] = list(scores[np.triu_indices(aln.seq_length, k=1)])
-        scoring_dict['Coverage'] = list(coverages[np.triu_indices(aln.seq_length, k=1)])
-        columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
-    else:
+    if freq_table.position_size not in [1, 2]:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
+    scoring_dict = {}
+    columns = []
+    # Define indices for writing
+    if freq_table.position_size == 1:
+        indices = np.r_[0:aln.seq_length]
+        total = len(indices)
+    else:
+        indices = np.triu_indices(aln.seq_length, k=1)
+        total = len(indices[0])
+    # Characterize each positions query sequence and variability.
+    var_data = []
+    var_pbar = tqdm(total=total, unit='variation')
+
+    def update_variation(return_tuple):
+        """
+        Update Variation
+
+        This function serves to update the progress bar for query and variation data. It also updates the var_data list
+        which will be used to complete the data for file writing.
+
+        Args:
+            return_tuple (tuple): A tuple consisting of a tuple defining the position characterized, a tuple containing
+            the data for the query position(s), a string of the variation at that position, and the count of that
+            variation.
+        """
+        var_data.append(return_tuple)
+        var_pbar.update(1)
+        var_pbar.refresh()
+
+    pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln,))
+    if freq_table.position_size == 1:
+        for x in indices:
+            pool.apply_async(get_var_pool, ((int(x),),), callback=update_variation)
+    else:
+        for x in range(len(indices[0])):
+            pool.apply_async(get_var_pool, ((int(indices[0][x]), int(indices[1][x])),), callback=update_variation)
+    pool.close()
+    pool.join()
+    var_pbar.close()
+    var_data = sorted(var_data)
+    positions, queries, var_strings, var_counts = zip(*var_data)
+    # Fill in the data dictionary for writing, starting with Position and Query data which differs for one and two
+    # position traces.
+    if freq_table.position_size == 1:
+        scoring_dict['Position'] = list(indices + 1)
+        scoring_dict['Query'] = [q[0] for q in queries]
+        columns += ['Position', 'Query']
+    else:
+        scoring_dict['Position_i'] = list(indices[0] + 1)
+        scoring_dict['Position_j'] = list(indices[1] + 1)
+        query_i, query_j = zip(*queries)
+        scoring_dict['Query_i'] = list(query_i)
+        scoring_dict['Query_j'] = list(query_j)
+        columns += ['Position_i', 'Position_j', 'Query_i', 'Query_j']
+    scoring_dict['Variability_Characters'] = var_strings
+    scoring_dict['Variability_Count'] = var_counts
+    scoring_dict['Rank'] = list(ranks[indices])
+    scoring_dict['Score'] = list(scores[indices])
+    scoring_dict['Coverage'] = list(coverages[indices])
     columns += ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+    # Write the data out to file using pandas.
     scoring_df = pd.DataFrame(scoring_dict)
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                       columns=columns)
     end = time()
-    print('Results written to file in {} min'.format((end - start) / 60.0))
+    print('Implementation 2 results written to file in {} min'.format((end - start) / 60.0))
 
 
 def parse_args():
