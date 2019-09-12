@@ -6,6 +6,7 @@ Created on Sep 1, 2018
 import os
 import math
 import datetime
+import warnings
 import numpy as np
 import pandas as pd
 from time import time
@@ -15,7 +16,12 @@ from multiprocessing import Pool
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.PDB.Polypeptide import one_to_three
-from sklearn.metrics import auc, roc_curve, precision_score, accuracy_score, recall_score, f1_score
+from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, accuracy_score, recall_score,
+                             f1_score, precision_recall_curve)
+from sklearn.exceptions import UndefinedMetricWarning
+from sklearn.utils import check_consistent_length, column_or_1d, assert_all_finite
+from sklearn.utils.multiclass import type_of_target
+from sklearn.utils.extmath import stable_cumsum
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -79,8 +85,6 @@ class ContactScorer(object):
             pdb_reference and the closest match will be selected.
         """
         self.query = query
-        print(type(seq_alignment))
-        print(type(seq_alignment) == SeqAlignment)
         if isinstance(seq_alignment, os.PathLike):
             self.query_alignment = os.path.abspath(seq_alignment)
         else:
@@ -156,7 +160,6 @@ class ContactScorer(object):
                     if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
                         best_alignment = curr_align
                         best_chain = ch
-                print(format_alignment(*best_alignment[0]))
                 self.best_chain = best_chain
             else:
                 best_alignment = pairwise2.align.globalxs(self.query_alignment.query_sequence,
@@ -499,6 +502,359 @@ class ContactScorer(object):
         plt.legend(loc="lower right")
         plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
         plt.close()
+
+    def score_precision_recall(self, predictions, category='Any'):
+        """
+        Score Precision Recall
+
+        This function accepts a matrix of predictions and uses it to compute an overall precision and recall when
+        compared to the distances between residues computed for the PDB structure. It uses the cutoff defined when
+        initializing the ContactScorer to determine the set of true positives and the mapping from query sequence to pdb
+        determined when the fit function is performed.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
+        Returns:
+            np.array: The list of precision values calculated at each point along the sorted predictions.
+            np.array: The list of recall values calculated at each point along the sorted predictions.
+            float: The auprc determined for the precision recall curve.
+        """
+        if self.query_structure is None:
+            print('AUPRC cannot be measured, because no PDB was provided.')
+            return None, None, '-'
+        if self.query_pdb_mapping is None:
+            self.fit()
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # AUC computation
+        if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        y_true1 = ((mapped_distances <= self.cutoff) * 1)
+        precision, recall, _thresholds = precision_recall_curve(y_true1, mapped_predictions, pos_label=1)
+        auprc = auc(precision, recall)
+        return precision, recall, auprc
+
+    def plot_auprc(self, auprc_data, title=None, file_name=None, output_dir=None):
+        """
+        Plot AUPRC
+
+        This function plots and saves the AUPRC.  The image will be stored in the eps format with dpi=1000 using a name
+        specified by the ContactScorer query name, cutoff, clustering constant, and date.
+
+        Args:
+            auprc_data (dictionary): AUPRC values stored in the ETMIPC class, used to identify the specific values for
+            the specified clustering constant (clus).
+            title (str): The title for the AUPRC plot.
+            file_name (str): The file name under which to save this figure.
+            output_dir (str): The full path to where the AUPRC plot image should be stored. If None (default) the plot
+            will be stored in the current working directory.
+        """
+        # If there is no AUC data return without plotting
+        if (auprc_data[0] is None) and (auprc_data[1] is None) and (auprc_data[2] in {None, '-', 'NA'}):
+            return
+        if file_name is None:
+            file_name = '{}_Cutoff{}A_auprc.eps'.format(self.query, self.cutoff)
+        if not file_name.endswith('.eps'):
+            file_name = file_name + '.eps'
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        # If the figure has already been plotted return
+        if os.path.isfile(file_name):
+            return
+        plt.plot(auprc_data[1], auprc_data[0], label='(AUC = {0:.2f})'.format(auprc_data[2]))
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        if title is None:
+            title = 'Ability to predict positive contacts in {}'.format(self.query)
+        plt.title(title)
+        plt.legend(loc="lower left")
+        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.close()
+
+########################################################################################################################
+    # Copied from sklern
+    @staticmethod
+    def binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
+        """Calculate true and false positives per binary classification threshold.
+        Parameters
+        ----------
+        y_true : array, shape = [n_samples]
+            True targets of binary classification
+        y_score : array, shape = [n_samples]
+            Estimated probabilities or decision function
+        pos_label : int or str, default=None
+            The label of the positive class
+        sample_weight : array-like of shape = [n_samples], optional
+            Sample weights.
+        Returns
+        -------
+        fps : array, shape = [n_thresholds]
+            A count of false positives, at index i being the number of negative
+            samples assigned a score >= thresholds[i]. The total number of
+            negative samples is equal to fps[-1] (thus true negatives are given by
+            fps[-1] - fps).
+        tps : array, shape = [n_thresholds <= len(np.unique(y_score))]
+            An increasing count of true positives, at index i being the number
+            of positive samples assigned a score >= thresholds[i]. The total
+            number of positive samples is equal to tps[-1] (thus false negatives
+            are given by tps[-1] - tps).
+        thresholds : array, shape = [n_thresholds]
+            Decreasing score values.
+        """
+        # Check to make sure y_true is valid
+        y_type = type_of_target(y_true)
+        if not (y_type == "binary" or
+                (y_type == "multiclass" and pos_label is not None)):
+            raise ValueError("{0} format is not supported".format(y_type))
+
+        check_consistent_length(y_true, y_score, sample_weight)
+        y_true = column_or_1d(y_true)
+        y_score = column_or_1d(y_score)
+        assert_all_finite(y_true)
+        assert_all_finite(y_score)
+
+        if sample_weight is not None:
+            sample_weight = column_or_1d(sample_weight)
+
+        # ensure binary classification if pos_label is not specified
+        classes = np.unique(y_true)
+        if (pos_label is None and
+                not (np.array_equal(classes, [0, 1]) or
+                     np.array_equal(classes, [-1, 1]) or
+                     np.array_equal(classes, [0]) or
+                     np.array_equal(classes, [-1]) or
+                     np.array_equal(classes, [1]))):
+            raise ValueError("Data is not binary and pos_label is not specified")
+        elif pos_label is None:
+            pos_label = 1.
+
+        # make y_true a boolean vector
+        y_true = (y_true == pos_label)
+
+        # sort scores and corresponding truth values
+        desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+        y_score = y_score[desc_score_indices]
+        y_true = y_true[desc_score_indices]
+        if sample_weight is not None:
+            weight = sample_weight[desc_score_indices]
+        else:
+            weight = 1.
+
+        # y_score typically has many tied values. Here we extract
+        # the indices associated with the distinct values. We also
+        # concatenate a value for the end of the curve.
+        distinct_value_indices = np.where(np.diff(y_score))[0]
+        threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+        # accumulate the true positives with decreasing threshold
+        tps = stable_cumsum(y_true * weight)[threshold_idxs]
+        if sample_weight is not None:
+            # express fps as a cumsum to ensure fps is increasing even in
+            # the presence of floating point errors
+            fps = stable_cumsum((1 - y_true) * weight)[threshold_idxs]
+        else:
+            fps = 1 + threshold_idxs - tps
+        return fps, tps, y_score[threshold_idxs]
+
+    @staticmethod
+    def tpr_fdr_curve(y_true, y_score, pos_label=None, sample_weight=None,
+                      drop_intermediate=True):
+        """Compute TPR/FDR Curve
+        Note: this implementation is restricted to the binary classification task.
+        Read more in the :ref:`User Guide <roc_metrics>`.
+        Parameters
+        ----------
+        y_true : array, shape = [n_samples]
+            True binary labels. If labels are not either {-1, 1} or {0, 1}, then
+            pos_label should be explicitly given.
+        y_score : array, shape = [n_samples]
+            Target scores, can either be probability estimates of the positive
+            class, confidence values, or non-thresholded measure of decisions
+            (as returned by "decision_function" on some classifiers).
+        pos_label : int or str, default=None
+            The label of the positive class.
+            When ``pos_label=None``, if y_true is in {-1, 1} or {0, 1},
+            ``pos_label`` is set to 1, otherwise an error will be raised.
+        sample_weight : array-like of shape = [n_samples], optional
+            Sample weights.
+        drop_intermediate : boolean, optional (default=True)
+            Whether to drop some suboptimal thresholds which would not appear
+            on a plotted ROC curve. This is useful in order to create lighter
+            ROC curves.
+            .. versionadded:: 0.17
+               parameter *drop_intermediate*.
+        Returns
+        -------
+        fdr : array, shape = [>2]
+            Increasing false discovery rates such that element i is the false
+            positive rate of predictions with score >= thresholds[i].
+        tpr : array, shape = [>2]
+            Increasing true positive rates such that element i is the true
+            positive rate of predictions with score >= thresholds[i].
+        thresholds : array, shape = [n_thresholds]
+            Decreasing thresholds on the decision function used to compute
+            fpr and tpr. `thresholds[0]` represents no instances being predicted
+            and is arbitrarily set to `max(y_score) + 1`.
+        See also
+        --------
+        roc_score : Compute the area under the ROC curve
+        """
+        fps, tps, thresholds = ContactScorer.binary_clf_curve(y_true, y_score, pos_label=pos_label,
+                                                              sample_weight=sample_weight)
+
+        # Attempt to drop thresholds corresponding to points in between and
+        # collinear with other points. These are always suboptimal and do not
+        # appear on a plotted ROC curve (and thus do not affect the AUC).
+        # Here np.diff(_, 2) is used as a "second derivative" to tell if there
+        # is a corner at the point. Both fps and tps must be tested to handle
+        # thresholds with multiple data points (which are combined in
+        # _binary_clf_curve). This keeps all cases where the point should be kept,
+        # but does not drop more complicated cases like fps = [1, 3, 7],
+        # tps = [1, 2, 4]; there is no harm in keeping too many thresholds.
+        desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+        y_score = y_score[desc_score_indices]
+        fdr_thresholds = np.r_[1., y_score[:-1]]
+        if sample_weight is not None:
+            weight = sample_weight[desc_score_indices]
+        else:
+            weight = np.ones(y_score.shape, dtype=float)
+        fdr_denominator = np.r_[[np.sum(y_score[:i + 1] >= fdr_thresholds[i]) * weight[i]
+                                 for i in range(fdr_thresholds.shape[0])]]
+
+        distinct_value_indices = np.where(np.diff(y_score))[0]
+        threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+        fdr_denominator = fdr_denominator[threshold_idxs]
+        if drop_intermediate and len(fps) > 2:
+            optimal_idxs = np.where(np.r_[True, np.logical_or(np.diff(fps, 2), np.diff(tps, 2)), True])[0]
+            fps = fps[optimal_idxs]
+            tps = tps[optimal_idxs]
+            thresholds = thresholds[optimal_idxs]
+            fdr_denominator = fdr_denominator[optimal_idxs]
+
+        # Add an extra threshold position
+        # to make sure that the curve starts at (0, 0)
+        tps = np.r_[0, tps]
+        fps = np.r_[0, fps]
+        thresholds = np.r_[thresholds[0] + 1, thresholds]
+        fdr_denominator = np.r_[1, fdr_denominator]
+
+        if fps[-1] <= 0:
+            warnings.warn("No negative samples in y_true, "
+                          "false positive value should be meaningless",
+                          UndefinedMetricWarning)
+            fdr = np.repeat(np.nan, fps.shape)
+        else:
+            fdr = fps / fdr_denominator
+            correction_idxs = np.isnan(fdr)
+            if correction_idxs.shape[0] > 0:
+                min_idxs = fps == 0
+                max_idxs = fps != 0
+                fdr[correction_idxs & min_idxs] = 0.0
+                fdr[correction_idxs & max_idxs] = 1.0
+
+        if tps[-1] <= 0:
+            warnings.warn("No positive samples in y_true, "
+                          "true positive value should be meaningless",
+                          UndefinedMetricWarning)
+            tpr = np.repeat(np.nan, tps.shape)
+        else:
+            tpr = tps / tps[-1]
+
+        return fdr, tpr, thresholds
+
+    def score_tpr_fdr(self, predictions, category='Any'):
+        """
+        Score TPR FPR
+
+        This function accepts a matrix of predictions and uses it to compute an overall tpr and fdr when
+        compared to the distances between residues computed for the PDB structure. It uses the cutoff defined when
+        initializing the ContactScorer to determine the set of true positives and the mapping from query sequence to pdb
+        determined when the fit function is performed.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
+        Returns:
+            np.array: The list of precision values calculated at each point along the sorted predictions.
+            np.array: The list of recall values calculated at each point along the sorted predictions.
+            float: The auprc determined for the precision recall curve.
+        """
+        if self.query_structure is None:
+            print('AUPRC cannot be measured, because no PDB was provided.')
+            return None, None, '-'
+        if self.query_pdb_mapping is None:
+            self.fit()
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # AUC computation
+        if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        y_true1 = ((mapped_distances <= self.cutoff) * 1)
+        fdr, tpr, _thresholds = ContactScorer.tpr_fdr_curve(y_true1, mapped_predictions, pos_label=1)
+        # Area under the curve must be computed in the wrong direction (i.e. transpose the curve) and must then be
+        # corrected for the possibility that the fdr did not reach 1 (here the assumption is made that tpr will always
+        # reach 1.0 by the end of a ranked set of predictions).
+        autprfdrc = auc(tpr, fdr) - (1.0 - np.max(fdr))
+        return tpr, fdr, autprfdrc
+
+    def plot_autprfdrc(self, autprfdrc_data, title=None, file_name=None, output_dir=None):
+        """
+        Plot AUTPRFDR Curve
+
+        This function plots and saves the AUTPRFDRC.  The image will be stored in the eps format with dpi=1000 using a
+        name specified by the ContactScorer query name, cutoff, clustering constant, and date.
+
+        Args:
+            autprfdrc_data (dictionary): AUPRC values stored in the ETMIPC class, used to identify the specific values
+            for the specified clustering constant (clus).
+            title (str): The title for the AUPRC plot.
+            file_name (str): The file name under which to save this figure.
+            output_dir (str): The full path to where the AUPRC plot image should be stored. If None (default) the plot
+            will be stored in the current working directory.
+        """
+        # If there is no AUC data return without plotting
+        if (autprfdrc_data[0] is None) and (autprfdrc_data[1] is None) and (autprfdrc_data[2] in {None, '-', 'NA'}):
+            return
+        if file_name is None:
+            file_name = '{}_Cutoff{}A_auprc.eps'.format(self.query, self.cutoff)
+        if not file_name.endswith('.eps'):
+            file_name = file_name + '.eps'
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        # If the figure has already been plotted return
+        if os.path.isfile(file_name):
+            return
+        plt.plot(autprfdrc_data[1], autprfdrc_data[0], label='(AUC = {0:.2f})'.format(autprfdrc_data[2]))
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        if title is None:
+            title = 'Ability to predict positive contacts in {}'.format(self.query)
+        plt.title(title)
+        plt.legend(loc="lower left")
+        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.close()
+########################################################################################################################
 
     def score_precision(self, predictions, k=None, n=None, category='Any', threshold=0.5):
         """
@@ -968,7 +1324,8 @@ class ContactScorer(object):
     #     return score_df, biased_w2_ave, unbiased_w2_ave
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None, processes=1, threshold=0.5, pos_size=1, rank_type='min'):
+                           unbiased_w2_ave=None, processes=1, threshold=0.5, pos_size=1, rank_type='min',
+                           file_prefix='Scores_'):
         """
         Evaluate Predictor
 
@@ -992,10 +1349,11 @@ class ContactScorer(object):
             computation also returned by this function.
             processes (int): The number of processes to use when computing the clustering z-score (if specified).
             threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
-            precision, recall, and f1 scores.
+            precision, recall, and f1 scores (this should be the expected coverage value).
             pos_size (int): The size of a position being scored, 1 for individual positions, 2 for pairs of positions.
             rank_type (str): Expected values are 'min' or 'max' denoting whether the optimal result/prediction is the
-            minmum or maximum score.
+            minimum or maximum score.
+            file_prefix (str): string to prepend before filenames.
         Returns:
             pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the raw
             scores provided when evaluating this predictor. Possible column headings include: 'Time',
@@ -1005,14 +1363,13 @@ class ContactScorer(object):
             dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
         """
-        score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
+        score_fn = os.path.join(out_dir, '{}_Evaluation_Dist-{}.txt'.format(file_prefix, dist))
         # If the evaluation has already been performed load the data and return it
         if os.path.isfile(score_fn):
             score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
             return score_df, None, None
-        columns = ['Time', 'Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'Precision', 'Recall',
-                   'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score', 'Max Unbiased Z-Score',
-                   'AUC Unbiased Z-Score']
+        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'Precision', 'Recall', 'F1 Score',
+                   'Max Biased Z-Score', 'AUC Biased Z-Score', 'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
         # Retrieve coverages or computes them from the scorer
         try:
             coverages = predictor.coverage
@@ -1021,21 +1378,15 @@ class ContactScorer(object):
                                                   pos_size=pos_size, rank_type=rank_type)
         converted_scores = 1 - coverages
         # Convert score threshold to coverage threshold
-        converted_threshold = np.max(converted_scores[predictor.scores <= threshold])
+        converted_threshold = np.max(converted_scores[np.triu(coverages >= threshold, k=1)])
         score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-            scores=converted_scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
+            scores=converted_scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix=file_prefix,
             biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
             threshold=converted_threshold)
         if (biased_w2_ave is None) and (b_w2_ave is not None):
             biased_w2_ave = b_w2_ave
         if (unbiased_w2_ave is None) and (u_w2_ave is not None):
             unbiased_w2_ave = u_w2_ave
-        if score_stats != {}:
-            if 'Time' not in score_stats:
-                score_stats['Time'] = []
-            diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
-            time_array = [predictor.time] * diff_len
-            score_stats['Time'] += time_array
         if score_stats == {}:
             score_df = None
         else:
@@ -1195,23 +1546,32 @@ class ContactScorer(object):
             self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                           file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
             if verbosity >= 2:
-                stats['Precision'] = []
-                stats['Recall'] = []
-                stats['F1 Score'] = []
-                stats['Top K Predictions'] = []
+                auc_prc = self.score_precision_recall(scores, category=separation)
+                self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
+                                file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                    dist, separation))
+                auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
+                self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation', output_dir=out_dir,
+                                    file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                        dist, separation))
                 duplicate = 10
+                if 'F1' not in stats:
+                    stats['AUPRC'] = []
+                    stats['AUTPRFDRC'] = []
+                    stats['F1 Score'] = []
+                    stats['Top K Predictions'] = []
                 for k in range(1, 11):
                     if k == 1:
                         top_preds_label = 'L'
                     else:
                         top_preds_label = 'L/{}'.format(k)
-                    precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
-                    recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
+                    # precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
+                    # recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
                     f1 = self.score_f1(predictions=scores, k=k, category=separation, threshold=threshold)
-                    stats['Precision'].append(precision)
-                    stats['Recall'].append(recall)
                     stats['F1 Score'].append(f1)
                     stats['Top K Predictions'].append(top_preds_label)
+                stats['AUPRC'] += [auc_prc[2]] * duplicate
+                stats['AUTPRFDRC'] += [auc_tpr_fdr_curve[2]] * duplicate
             stats['AUROC'] += [auc_roc[2]] * duplicate
             stats['Distance'] += [dist] * duplicate
             stats['Sequence_Separation'] += [separation] * duplicate
