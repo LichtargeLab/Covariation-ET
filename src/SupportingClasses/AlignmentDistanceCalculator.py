@@ -156,12 +156,18 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             dist_pbar.update(1)
             dist_pbar.refresh()
 
-        pool = Pool(processes=processes, initializer=init_identity,
-                    initargs=(numerical_alignment, ))
-        for i in range(msa_size):
-            pool.apply_async(identity, (i, ), callback=update_dm)
-        pool.close()
-        pool.join()
+        if processes == 1:
+            for i in range(msa_size):
+                init_identity(numerical_alignment)
+                res = identity(i)
+                update_dm(res)
+        else:
+            pool = Pool(processes=processes, initializer=init_identity,
+                        initargs=(numerical_alignment, ))
+            for i in range(msa_size):
+                pool.apply_async(identity, (i, ), callback=update_dm)
+            pool.close()
+            pool.join()
         dist_pbar.close()
         return dm
 
@@ -196,12 +202,18 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             dist_pbar.update(1)
             dist_pbar.refresh()
 
-        pool = Pool(processes=processes, initializer=init_pairwise,
-                    initargs=(self.mapping, self.alphabet_size, self.model, self.scoring_matrix))
-        for seq1, seq2 in seq_pairs:
-            pool.apply_async(pairwise, (seq1, seq2), callback=update_dm)
-        pool.close()
-        pool.join()
+        if processes == 1:
+            init_pairwise(self.mapping, self.alphabet_size, self.model, self.scoring_matrix)
+            for seq1, seq2 in seq_pairs:
+                res = pairwise(seq1, seq2)
+                update_dm(res)
+        else:
+            pool = Pool(processes=processes, initializer=init_pairwise,
+                        initargs=(self.mapping, self.alphabet_size, self.model, self.scoring_matrix))
+            for seq1, seq2 in seq_pairs:
+                pool.apply_async(pairwise, (seq1, seq2), callback=update_dm)
+            pool.close()
+            pool.join()
         dist_pbar.close()
         return dm
 
@@ -271,12 +283,18 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             char_bar.update(1)
             char_bar.refresh()
 
-        pool = Pool(processes=processes, initializer=init_characterize_sequence, initargs=(msa, self.mapping,
-                                                                                           self.alphabet_size))
-        for i in range(len(msa)):
-            pool.apply_async(characterize_sequence, (i,), callback=update_seq_conversion)
-        pool.close()
-        pool.join()
+        if processes == 1:
+            init_characterize_sequence(msa, self.mapping, self.alphabet_size)
+            for i in range(len(msa)):
+                res = characterize_sequence(i)
+                update_seq_conversion(res)
+        else:
+            pool = Pool(processes=processes, initializer=init_characterize_sequence, initargs=(msa, self.mapping,
+                                                                                               self.alphabet_size))
+            for i in range(len(msa)):
+                pool.apply_async(characterize_sequence, (i,), callback=update_seq_conversion)
+            pool.close()
+            pool.join()
         char_bar.close()
         # Compute similarity between sequences using the sequences characterizations just completed.
         names = [s.id for s in msa]
@@ -308,12 +326,18 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             dist_pbar.update(1)
             dist_pbar.refresh()
 
-        pool2 = Pool(processes=processes, initializer=init_similarity,
-                     initargs=(seq_conversion, threshold, self.scoring_matrix))
-        for seq_id1, seq_id2 in seq_pairs:
-            pool2.apply_async(similarity, (seq_id1, seq_id2), callback=update_distances)
-        pool2.close()
-        pool2.join()
+        if processes == 1:
+            init_similarity(seq_conversion, threshold, self.scoring_matrix)
+            for seq_id1, seq_id2 in seq_pairs:
+                res = similarity(seq_id1, seq_id2)
+                update_distances(res)
+        else:
+            pool2 = Pool(processes=processes, initializer=init_similarity,
+                         initargs=(seq_conversion, threshold, self.scoring_matrix))
+            for seq_id1, seq_id2 in seq_pairs:
+                pool2.apply_async(similarity, (seq_id1, seq_id2), callback=update_distances)
+            pool2.close()
+            pool2.join()
         dist_pbar.close()
         return plain_identity, psuedo_identity, pd.DataFrame(data_dict), threshold
 
