@@ -393,6 +393,7 @@ class TestEvoultionaryTrace(TestBase):
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def evaluate_write_out_et_scores(self, et, fn):
+
         self.assertTrue(os.path.isfile(fn))
         et_df = pd.read_csv(fn, sep='\t', header=0, index_col=None, keep_default_na=False)
         self.assertTrue('Variability_Count' in et_df.columns)
@@ -420,9 +421,9 @@ class TestEvoultionaryTrace(TestBase):
                 self.assertEqual(expected_query, et_df.loc[ind, 'Query'])
                 expected_characters = root_freq_table.get_chars(pos=position)
                 self.assertEqual(len(expected_characters),
-                                 et_df.loc[ind, 'Variability_Count'])
-                self.assertEqual(expected_characters,
-                                 et_df.loc[ind, 'Variability_Characters'].split(','))
+                                 et_df.loc[ind, 'Variability_Count'], (len(expected_characters), et_df.loc[ind, 'Variability_Count'], set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
+                self.assertEqual(set(expected_characters),
+                                 set(et_df.loc[ind, 'Variability_Characters'].split(',')))
                 expected_rank = et.ranking[position]
                 self.assertEqual(expected_rank, et_df.loc[ind, 'Rank'])
                 expected_score = et.scores[position]
@@ -441,11 +442,11 @@ class TestEvoultionaryTrace(TestBase):
                 self.assertEqual(expected_query_j, et_df.loc[ind, 'Query_j'])
                 expected_characters = root_freq_table.get_chars(pos=(pos_i, pos_j))
                 self.assertEqual(len(expected_characters),
-                                 et_df.loc[ind, 'Variability_Count'])
-                self.assertEqual(expected_characters,
-                                 et_df.loc[ind, 'Variability_Characters'].split(','))
+                                 et_df.loc[ind, 'Variability_Count'], (len(expected_characters), et_df.loc[ind, 'Variability_Count'], set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
+                self.assertEqual(set(expected_characters),
+                                 set(et_df.loc[ind, 'Variability_Characters'].split(',')))
                 expected_rank = et.ranking[pos_i, pos_j]
-                self.assertEqual(expected_rank, et_df.loc[ind, 'Rank'])
+                self.assertEqual(expected_rank, et_df.loc[ind, 'Rank'], fn)
                 expected_score = et.scores[pos_i, pos_j]
                 if et.scoring_metric == 'identity':
                     self.assertEqual(expected_score, et_df.loc[ind, 'Score'])

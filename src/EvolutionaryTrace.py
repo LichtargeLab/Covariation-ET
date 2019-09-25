@@ -289,7 +289,7 @@ def get_var_pool(pos):
     if len(pos) == 1:
         pos_final = (pos_i, )
         query_final = (query_i, )
-        col_final = col_i
+        col_final = list(set(col_i))
     else:
         pos_j = int(pos[1])
         col_j = list(var_aln.alignment[:, pos_j])
