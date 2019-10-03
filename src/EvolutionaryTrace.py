@@ -399,7 +399,7 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
     scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                       columns=columns)
     end = time()
-    print('Implementation 2 results written to file in {} min'.format((end - start) / 60.0))
+    print('Results written to file in {} min'.format((end - start) / 60.0))
 
 
 def parse_args():
