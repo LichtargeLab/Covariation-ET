@@ -13,10 +13,11 @@ from re import compile
 from urllib.error import HTTPError
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
+from Bio import Entrez
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
-from Bio.SwissProt import read
-from Bio.SeqIO import write, parse
+from Bio.SwissProt import read as spread
+from Bio.SeqIO import write, parse, read
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.ExPASy import get_sprot_raw
@@ -271,7 +272,9 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
         str: The sequence parsed from the PDB file of the specified protein id.
         int: The length of the parsed sequence.
         str: The file path to the fasta file where the sequence has been written.
-        str: The chain id for which the sequence was parsed.
+        str: The chain id for which sequence was parsed.
+        str: The accession id for the protein data which was parsed (if taken from an external source, either Uniprot or
+        GenBank).
     """
     if verbose:
         print('Parsing query sequence for: {}'.format(protein_id))
@@ -280,7 +283,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             print('Making dir: {}'.format(sequence_path))
         os.makedirs(sequence_path)
     protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
-    final_unp_id = None
+    final_external_id = None
     if os.path.isfile(protein_fasta_fn):
         if verbose:
             print('Loading query sequence from file: {}'.format(protein_fasta_fn))
@@ -288,41 +291,78 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
             sequence = next(seq_iter)
             sequence.alphabet = FullIUPACProtein()
-            match = re.match(r'.*Target Query: Chain: ([A-Z])(: From UniProt Accession: (.*))?$',
+            match = re.match(r'.*Target Query: Chain: ([A-Z])(: From ((UniProt)|(GenBank)) Accession: (.*))?$',
                              sequence.description)
             inner_chain_id = match.group(1)
             try:
-                final_unp_id = match.group(3)
+                final_external_id = match.group(6)
             except IndexError:
-                final_unp_id = None
+                final_external_id = None
     else:
+        final_unp_id = None
+        final_gb_id = None
         if verbose:
             print('Parsing query sequence from file: {}'.format(pdb_fn))
         # Parse the UniProt accession data out of the PDB file (if available)
         chain_uniprot = {}
+        chain_genbank = {}
         for record in parse(pdb_fn, 'pdb-seqres'):
-            chain_uniprot[record.annotations['chain']] = []
             for ref in record.dbxrefs:
                 xref_db, xref_acc = ref.split(':')
                 if xref_db == 'UNP':
+                    if record.annotations['chain'] not in chain_uniprot:
+                        chain_uniprot[record.annotations['chain']] = []
                     chain_uniprot[record.annotations['chain']].append(xref_acc)
+                elif xref_db == 'GB':
+                    if record.annotations['chain'] not in chain_genbank:
+                        chain_genbank[record.annotations['chain']] = []
+                    chain_genbank[record.annotations['chain']].append(xref_acc)
+                else:
+                    continue
         # Identify the UniProt id(s) for the specified chain or the first (alphabetically) available chain.
-        if chain_uniprot[chain_id]:
-            unp_ids = chain_uniprot[chain_id]
-            inner_chain_id = chain_id
-        else:
-            inner_chain_id = sorted(chain_uniprot.keys())[0]
-            unp_ids = chain_uniprot[inner_chain_id]
-        # Attempt to retrieve the identified chain's sequence from Swiss/UniProt.
         seq = None
-        for unp_id in unp_ids:
-            try:
-                handle = get_sprot_raw(unp_id)
-            except HTTPError:
-                continue
-            final_unp_id = unp_id
-            record = read(handle)
-            seq = record.sequence
+        if chain_uniprot:
+            if (chain_id in chain_uniprot) and chain_uniprot[chain_id]:
+                unp_ids = chain_uniprot[chain_id]
+                inner_chain_id = chain_id
+            else:
+                inner_chain_id = sorted(chain_uniprot.keys())[0]
+                unp_ids = chain_uniprot[inner_chain_id]
+            # Attempt to retrieve the identified chain's sequence from Swiss/UniProt.
+            for unp_id in unp_ids:
+                try:
+                    handle = get_sprot_raw(unp_id)
+                except HTTPError:
+                    continue
+                try:
+                    record = spread(handle)
+                except ValueError:
+                    continue
+                final_unp_id = unp_id
+                final_external_id = unp_id
+                seq = record.sequence
+        # If there is no UniProt id(s) for the specified chain or the first (alphabetically) available chain but there
+        # are available GenBank id(s) try to identify one for this structure.
+        if (seq is None) and chain_genbank:
+            Entrez.email = os.environ.get('EMAIL')
+            if (chain_id in chain_genbank) and chain_genbank[chain_id]:
+                gb_ids = chain_genbank[chain_id]
+                inner_chain_id = chain_id
+            else:
+                inner_chain_id = sorted(chain_genbank.keys())[0]
+                gb_ids = chain_genbank[inner_chain_id]
+            for gb_id in gb_ids:
+                try:
+                    handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=gb_id)
+                except IOError:
+                    continue
+                try:
+                    record = read(handle, format='fasta')
+                except ValueError:
+                    continue
+                final_gb_id = gb_id
+                final_external_id = gb_id
+                seq = str(record.seq)
         # If this fails, use the sequence from the PDB structure itself.
         if seq is None:
             pdb_struct = PDBReference(pdb_file=pdb_fn)
@@ -334,14 +374,15 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
                 inner_chain_id = sorted(pdb_struct.seq.keys())
                 seq = pdb_struct.seq[inner_chain_id]
         desc = ('Target Query: Chain: {}'.format(inner_chain_id) +
-                (': From UniProt Accession: {}'.format(final_unp_id) if final_unp_id else ''))
+                (': From UniProt Accession: {}'.format(final_unp_id) if final_unp_id else '') +
+                (': From GenBank Accession: {}'.format(final_gb_id) if final_gb_id else ''))
         sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
         seq_records = [sequence]
         with open(protein_fasta_fn, 'w') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     if verbose:
         print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn, inner_chain_id, final_unp_id
+    return sequence, len(sequence), protein_fasta_fn, inner_chain_id, final_external_id
 
 
 def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
@@ -393,12 +434,13 @@ def pdb_processing(in_tuple):
     pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id, verbose=verbose_out)
     fs_lock.release()
     if pdb_fn is None:
-        seq, length, seq_fn = None, None, None
+        seq, length, seq_fn, chain_id, ext_id = None, None, None, None, None
     else:
-        seq, length, seq_fn, chain_id, unp_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
+        seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
                                                                      sequence_path=sequence_dir, pdb_fn=pdb_fn,
                                                                      verbose=verbose_out)
-    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn, 'UniProt': unp_id}
+    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
+            'Accession': ext_id}
     return protein_id, data
 
 
@@ -1006,9 +1048,9 @@ def parse_arguments():
                         help='The maximum e-value for a passing hit.')
     parser.add_argument('--min_fraction', type=float, default=0.7, nargs=1,
                         help='The minimum fraction of the query sequence length for a passing hit.')
-    parser.add_argument('--min_identity', type=int, default=0.40, nargs=1,
+    parser.add_argument('--min_identity', type=float, default=0.40, nargs=1,
                         help='The absolute minimum identity for a passing hit.')
-    parser.add_argument('--max_identity', type=int, default=0.98, nargs=1,
+    parser.add_argument('--max_identity', type=float, default=0.98, nargs=1,
                         help='The absolute maximum identity for a passing hit.')
     parser.add_argument('--msf', type=bool, default=True, nargs=1,
                         help='Whether or not to create an msf version of the MUSCLE alignment.')
@@ -1020,6 +1062,12 @@ def parse_arguments():
     arguments = parser.parse_args()
     arguments = vars(arguments)
     processor_count = cpu_count()
+    arguments['num_threads'] = arguments['num_threads'][0]
+    arguments['max_target_seqs'] = arguments['max_target_seqs'][0]
+    arguments['e_value_threshold'] = arguments['e_value_threshold'][0]
+    arguments['min_fraction'] = arguments['min_fraction'][0]
+    arguments['min_identity'] = arguments['min_identity'][0]
+    arguments['max_identity'] = arguments['max_identity'][0]
     if arguments['num_threads'] > processor_count:
         arguments['num_threads'] = processor_count
     if arguments['custom_uniref']:
@@ -1059,4 +1107,4 @@ if __name__ == "__main__":
             protein_list_fn=args['protein_list_fn'], num_threads=args['num_threads'],
             max_target_seqs=args['max_target_seqs'], e_value_threshold=args['e_value_threshold'],
             min_fraction=args['min_fraction'], min_identity=args['min_identity'],
-            max_identity=args['abs_max_identity'], msf=args['msf'], fasta=args['fasta'], verbose=args['verbose'])
+            max_identity=args['max_identity'], msf=args['msf'], fasta=args['fasta'], verbose=args['verbose'])
