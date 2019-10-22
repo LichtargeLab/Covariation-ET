@@ -105,9 +105,9 @@ class DCAWrapper(object):
             end = time()
             self.time = end - start
             print('Output:')
-            print(out)
+            print(out.decode())
             print('Error:')
-            print(error)
+            print(error.decode())
             self.import_covariance_scores(out_path=out_path)
             if delete_file:
                 os.remove(out_path)
