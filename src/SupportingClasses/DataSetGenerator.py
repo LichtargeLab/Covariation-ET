@@ -138,10 +138,17 @@ class DataSetGenerator(object):
         pool1.join()
         res1 = res1.get()
         seqs_to_write = []
+        sequences = {}
+        unique_ids = set()
         for data1 in res1:
-            self.protein_data[data1[0]].update(data1[1])
-            if data1[1]['Sequence']:
+            curr_seq = str(data1[1]['Sequence'].seq)
+            if curr_seq and (curr_seq not in sequences):
+                sequences[curr_seq] = []
+                unique_ids.add(data1[0])
                 seqs_to_write.append(data1[1]['Sequence'])
+            sequences[curr_seq].append(data1[0])
+            self.protein_data[data1[0]].update(data1[1])
+        print('Unique Sequences Found: {}!'.format(len(sequences)))
         # Write out a fasta file containing all the query sequences for BLASTing
         all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
         if not os.path.isfile(all_seqs_fn):
@@ -154,33 +161,35 @@ class DataSetGenerator(object):
                                               num_threads=num_threads, max_target_seqs=max_target_seqs,
                                               database=database, remote=remote)
         for p_id in hits:
-            self.protein_data[p_id].update(hits[p_id])
-            self.protein_data[p_id]['BLAST'] = blast_fn
+            for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
+                self.protein_data[related_p_id].update(hits[p_id])
+                self.protein_data[related_p_id]['BLAST'] = blast_fn
         # Filter the BLAST hits for each query, align, filter again, and make final alignments.
         print('Filtering BLAST hits, aligning, filtering by identity, and re-aligning')
         pool2 = Pool(num_threads, initializer=init_filtering_and_alignment_pool,
-                    initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-                              max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
-                              self.filtered_alignment_path, self.final_alignment_path, verbose))
+                     initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
+                               max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
+                               self.filtered_alignment_path, self.final_alignment_path, verbose))
         res = pool2.map_async(filtering_and_alignment, [(p_id, self.protein_data[p_id]['Sequence'])
-                                                        for p_id in self.protein_data])
+                                                        for p_id in unique_ids])
         pool2.close()
         pool2.join()
         res = res.get()
         summary = {'Protein_ID': [], 'BLAST_Hits': [], 'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Time': []}
         for data in res:
             # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
-            self.protein_data[data[0]].update(data[1])
-            summary['Protein_ID'].append(data[0])
-            summary['BLAST_Hits'].append(hits[data[0]]['BLAST_Hits'])
-            summary['Filtered_BLAST'].append(data[1]['Filter_Count'])
-            summary['Filtered_Alignment'].append(data[1]['Final_Count'])
-            summary['Time'].append(data[2])
-            if verbose:
-                print('It took {} min to generate data for {}'.format(data[2], data[0]))
-                print('\t{} Sequence Returned By Blast\n\t{} Sequences After Initial Filtering\n\t{} Sequences After '
-                      'Identity Filtering'.format(hits[data[0]]['BLAST_Hits'], data[1]['Filter_Count'],
-                                                  data[1]['Final_Count']))
+            for related_p_id in sequences[str(self.protein_data[data[0]]['Sequence'].seq)]:
+                self.protein_data[related_p_id].update(data[1])
+                summary['Protein_ID'].append(related_p_id)
+                summary['BLAST_Hits'].append(hits[data[0]]['BLAST_Hits'])
+                summary['Filtered_BLAST'].append(data[1]['Filter_Count'])
+                summary['Filtered_Alignment'].append(data[1]['Final_Count'])
+                summary['Time'].append(data[2])
+                if verbose:
+                    print('It took {} min to generate data for {}'.format(data[2], data[0]))
+                    print('\t{} Sequence Returned By Blast\n\t{} Sequences After Initial Filtering\n\t{} Sequences '
+                          'After Identity Filtering'.format(hits[data[0]]['BLAST_Hits'], data[1]['Filter_Count'],
+                                                            data[1]['Final_Count']))
         df = pd.DataFrame(summary)
         return df
 
