@@ -19,8 +19,10 @@ load_dotenv(dotenv_path)
 class DCAWrapper(object):
     """
     This class is intended as a wrapper for the DCA julia code distributed through github for the following citation:
-        (GITHUB)
-        (REFERENCE)
+        https://github.com/carlobaldassi/GaussDCA.jl
+        "Fast and accurate multivariate Gaussian modeling of protein families: Predicting residue contacts and protein-
+        interaction partners" by Carlo Baldassi, Marco Zamparo, Christoph Feinauer, Andrea Procaccini, Riccardo
+        Zecchina, Martin Weigt and Andrea Pagnani, (2014) PLoS ONE 9(3): e92721. doi:10.1371/journal.pone.0092721
 
     This wrapper makes it possible to  perform covariance analysis using the DCA method on a fasta formatted alignment
     and to import the covariance scores from the analysis.
