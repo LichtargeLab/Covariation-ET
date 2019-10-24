@@ -7,6 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 from time import time
+from shutil import rmtree
 from Bio.SeqIO import write
 from evcouplings.utils import read_config_file, write_config_file
 from evcouplings.utils.pipeline import execute
@@ -19,8 +20,44 @@ load_dotenv(dotenv_path)
 
 
 class EVCouplingsWrapper(object):
+    """
+    This class is intended as a wrapper for the EVcoupulings python code distributed through github for the following
+    citation:
+        https://github.com/debbiemarkslab/EVcouplings
+        Marks D. S., Colwell, L. J., Sheridan, R., Hopf, T.A., Pagnani, A., Zecchina, R., Sander, C. Protein 3D
+        structure computed from evolutionary sequence variation. PLOS ONE 6(12), e28766 (2011)
+        Hopf T. A., Colwell, L. J., Sheridan, R., Rost, B., Sander, C., Marks, D. S. Three-dimensional structures of
+        membrane proteins from genomic sequencing. Cell 149, 1607-1621 (2012)
+        Marks, D. S., Hopf, T. A., Sander, C. Protein structure prediction from sequence variation. Nature Biotechnology
+        30, 1072–1080 (2012)
+        Hopf, T. A., Schärfe, C. P. I., Rodrigues, J. P. G. L. M., Green, A. G., Kohlbacher, O., Sander, C., Bonvin,
+        A. M. J. J., Marks, D. S. Sequence co-evolution gives 3D contacts and structures of protein complexes. eLife Sep
+        25;3 (2014)
+        Hopf, T. A., Ingraham, J. B., Poelwijk, F.J., Schärfe, C.P.I., Springer, M., Sander, C., & Marks, D. S. (2017).
+        Mutation effects predicted from sequence co-variation. Nature Biotechnology 35, 128–135 doi:10.1038/nbt.3769
+
+    This wrapper makes it possible to  perform covariance analysis using the EV Couplings method on a fasta formatted
+    alignment and to import the covariance scores from the analysis.
+
+    Attributes:
+        protocol (str): Which evcouplings pipeline protocol to use ('standard' or 'mean_field' expected).
+        alignment (SeqAlignment): The alignment for the protein of interest, from which all gaps have been removed in
+        the query sequence (performed automatically during initializiation).
+        scores (np.array): The raw covariation scores.
+        probability (np.array): The probability based on the raw score that two positions are covarying.
+        time (float): The time in seconds required to perform the predictions.
+    """
 
     def __init__(self, alignment, protocol):
+        """
+        __init__
+
+        This method instantiates the wrapper for EVCouplings.
+
+        Args:
+            alignment (SeqAlignment): The alignment for the protein of interest.
+            protocol (str): Which evcouplings pipeline protocol to use ('standard' or 'mean_field' expected).
+        """
         self.protocol = protocol
         self.alignment = alignment.remove_gaps()
         self.scores = None
@@ -28,6 +65,15 @@ class EVCouplingsWrapper(object):
         self.time = None
 
     def import_covariance_scores(self, out_path):
+        """
+        Import Covariance Scores
+
+        This method imports the predicted covariation scores into numpy arrays with the shape expected by the rest of my
+        analyses.
+
+        Args:
+            out_path (str): Path to the file from which the data should be read.
+        """
         if not os.path.isfile(out_path):
             raise ValueError('Provided file does not exist: {}!'.format(out_path))
         data = pd.read_csv(out_path, sep=',')
@@ -40,6 +86,24 @@ class EVCouplingsWrapper(object):
             self.probability[i, j] = self.scores[j, i] = data.loc[ind, 'probability']
 
     def configure_run(self, out_dir, cores):
+        """
+        Configure Run
+
+        This method reads in a template configuration file for monomer pipeline usage and then updates all relevant
+        fields. This includes 'global', 'pipeline', 'batch', 'management', 'environment', 'tools', 'databases',
+        'stages', 'align', and 'couplings' fields. Only the 'align' and 'couplings' stages are configured. The 'align'
+        stage is set to use a pre-generated alignment file and all filters are set to be compeltely permissive so that
+        the files are not edited at all before being used in the pipeline. The 'couplings' stage is configured for the
+        specified protocol with default parameters found in the example configuration file at the time this wrapper was
+        written.
+
+        Args:
+            out_dir (str): The directory to which intermediate data and final results (including serialized files)
+            should be written.
+            cores (int): The number of processors available to perform this analysis.
+        Returns:
+            dict: Configurations data structure created by evcouplings package.
+        """
         sample_config = os.environ.get('EVCOUPLINGS_CONFIG')
         config = read_config_file(sample_config)
         # Globals
@@ -130,7 +194,24 @@ class EVCouplingsWrapper(object):
         write_config_file(os.path.join(out_dir, "{}_config.txt".format(self.alignment.query_id)), config)
         return config
 
-    def calculate_scores(self, out_dir, cores=1, delete_file=True):
+    def calculate_scores(self, out_dir, cores=1, delete_files=True):
+        """
+        Calculate Scores
+
+        This function calls the specified EVCouplings pipeline for the provided protein alignment. This is achieved by
+        creating a configuration which passes the alignment through unedited and then executing the desired coupling
+        pipeline for that alignment.
+
+        Args:
+            out_dir (str): The directory to which intermediate data and final results (including serialized files)
+            should be written.
+            cores (int): The number of processors available to perform this analysis.
+            delete_files (bool): Whether or not to delete the data files generated by the EVCouplings pipeline
+            (intermediate files created by the wrapper and the serialization file will be kept).
+        Returns:
+            float: The time in seconds required to calculate the EVCouplings covariation scores for the provided protein
+            alignment.
+        """
         serialized_path = os.path.join(out_dir, 'EVCouplings.npz')
         if os.path.isfile(serialized_path):
             loaded_data = np.load(serialized_path)
@@ -145,8 +226,10 @@ class EVCouplingsWrapper(object):
             end = time()
             self.time = end - start
             self.import_covariance_scores(out_path=out_path)
-            if delete_file:
-                os.remove(out_path)
+            if delete_files:
+                rmtree(os.path.join(out_dir, 'couplings'))
+                rmtree(os.path.join(out_dir, 'align'))
+                os.remove(os.path.join(out_dir, '_final.outcfg'))
             np.savez(serialized_path, scores=self.scores, time=self.time)
         print(self.time)
         return self.time
