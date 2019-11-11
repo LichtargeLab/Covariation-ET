@@ -467,7 +467,7 @@ class ContactScorer(object):
         """
         Plot AUC
 
-        This function plots and saves the AUROC.  The image will be stored in the eps format with dpi=1000 using a name
+        This function plots and saves the AUROC.  The image will be stored in the png format with dpi=1000 using a name
         specified by the ContactScorer query name, cutoff, clustering constant, and date.
 
         Args:
@@ -482,9 +482,9 @@ class ContactScorer(object):
         if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_roc.eps'.format(self.query, self.cutoff)
-        if not file_name.endswith('.eps'):
-            file_name = file_name + '.eps'
+            file_name = '{}_Cutoff{}A_roc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         # If the figure has already been plotted return
@@ -500,7 +500,7 @@ class ContactScorer(object):
             title = 'Ability to predict positive contacts in {}'.format(self.query)
         plt.title(title)
         plt.legend(loc="lower right")
-        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.savefig(file_name, format='png', dpi=1000, fontsize=8)
         plt.close()
 
     def score_precision_recall(self, predictions, category='Any'):
@@ -546,7 +546,7 @@ class ContactScorer(object):
         """
         Plot AUPRC
 
-        This function plots and saves the AUPRC.  The image will be stored in the eps format with dpi=1000 using a name
+        This function plots and saves the AUPRC.  The image will be stored in the png format with dpi=1000 using a name
         specified by the ContactScorer query name, cutoff, clustering constant, and date.
 
         Args:
@@ -561,9 +561,9 @@ class ContactScorer(object):
         if (auprc_data[0] is None) and (auprc_data[1] is None) and (auprc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_auprc.eps'.format(self.query, self.cutoff)
-        if not file_name.endswith('.eps'):
-            file_name = file_name + '.eps'
+            file_name = '{}_Cutoff{}A_auprc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         # If the figure has already been plotted return
@@ -579,7 +579,7 @@ class ContactScorer(object):
             title = 'Ability to predict positive contacts in {}'.format(self.query)
         plt.title(title)
         plt.legend(loc="lower left")
-        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.savefig(file_name, format='png', dpi=1000, fontsize=8)
         plt.close()
 
 ########################################################################################################################
@@ -819,7 +819,7 @@ class ContactScorer(object):
         """
         Plot AUTPRFDR Curve
 
-        This function plots and saves the AUTPRFDRC.  The image will be stored in the eps format with dpi=1000 using a
+        This function plots and saves the AUTPRFDRC.  The image will be stored in the png format with dpi=1000 using a
         name specified by the ContactScorer query name, cutoff, clustering constant, and date.
 
         Args:
@@ -834,9 +834,9 @@ class ContactScorer(object):
         if (autprfdrc_data[0] is None) and (autprfdrc_data[1] is None) and (autprfdrc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_auprc.eps'.format(self.query, self.cutoff)
-        if not file_name.endswith('.eps'):
-            file_name = file_name + '.eps'
+            file_name = '{}_Cutoff{}A_auprc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         # If the figure has already been plotted return
@@ -852,7 +852,7 @@ class ContactScorer(object):
             title = 'Ability to predict positive contacts in {}'.format(self.query)
         plt.title(title)
         plt.legend(loc="lower left")
-        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.savefig(file_name, format='png', dpi=1000, fontsize=8)
         plt.close()
 ########################################################################################################################
 
@@ -1325,7 +1325,7 @@ class ContactScorer(object):
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
                            unbiased_w2_ave=None, processes=1, threshold=0.5, pos_size=1, rank_type='min',
-                           file_prefix='Scores_'):
+                           file_prefix='Scores_', plots=True):
         """
         Evaluate Predictor
 
@@ -1354,6 +1354,7 @@ class ContactScorer(object):
             rank_type (str): Expected values are 'min' or 'max' denoting whether the optimal result/prediction is the
             minimum or maximum score.
             file_prefix (str): string to prepend before filenames.
+            plots (boolean): Whether to create and save plots associated with the scores computed.
         Returns:
             pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the raw
             scores provided when evaluating this predictor. Possible column headings include: 'Time',
@@ -1368,8 +1369,9 @@ class ContactScorer(object):
         if os.path.isfile(score_fn):
             score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
             return score_df, None, None
-        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'Precision', 'Recall', 'F1 Score',
-                   'Max Biased Z-Score', 'AUC Biased Z-Score', 'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
+        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFPRC',
+                   'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
+                   'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
         # Retrieve coverages or computes them from the scorer
         try:
             coverages = predictor.coverage
@@ -1382,7 +1384,7 @@ class ContactScorer(object):
         score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
             scores=converted_scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix=file_prefix,
             biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
-            threshold=converted_threshold)
+            threshold=converted_threshold, plots=plots)
         if (biased_w2_ave is None) and (b_w2_ave is not None):
             biased_w2_ave = b_w2_ave
         if (unbiased_w2_ave is None) and (u_w2_ave is not None):
@@ -1446,7 +1448,7 @@ class ContactScorer(object):
     #     if verbosity >= 2:
     #         # Score Prediction Clustering
     #         z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
-    #         z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
+    #         z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
     #         z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
     #             scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
     #             processes=processes)
@@ -1499,7 +1501,7 @@ class ContactScorer(object):
     #     return stats, biased_w2_ave, unbiased_w2_ave
 
     def evaluate_predictions(self, verbosity, out_dir, scores, dist='Any', file_prefix='',
-                             biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5):
+                             biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
         """
         Evaluate Predictions
 
@@ -1526,6 +1528,7 @@ class ContactScorer(object):
             processes (int): The number of processes to use when computing the clustering z-score (if specified).
             threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
             precision, recall, and f1 scores.
+            plots (boolean): Whether to create and save plots associated with the scores computed.
         Returns:
             dict. The stats computed for this matrix of scores, if a dictionary of stats was passed in the current stats
             are added to the previous ones.
@@ -1543,17 +1546,21 @@ class ContactScorer(object):
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
             # AUC Evaluation
             auc_roc = self.score_auc(scores, category=separation)
-            self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
-                          file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
+            if plots:
+                self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
+                              file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
             if verbosity >= 2:
                 auc_prc = self.score_precision_recall(scores, category=separation)
-                self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
-                                file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
-                                    dist, separation))
-                auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
-                self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation', output_dir=out_dir,
-                                    file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
+                if plots:
+                    self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
+                                    file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
                                         dist, separation))
+                auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
+                if plots:
+                    self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation',
+                                        output_dir=out_dir,
+                                        file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                            dist, separation))
                 duplicate = 10
                 if 'F1' not in stats:
                     stats['AUPRC'] = []
@@ -1579,13 +1586,14 @@ class ContactScorer(object):
         if verbosity >= 3:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
-            z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
+            z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
             z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
                 scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
-            plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
+            if plots:
+                plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
             stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
@@ -1593,7 +1601,8 @@ class ContactScorer(object):
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
-            plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
+            if plots:
+                plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
             stats['Max Unbiased Z-Score'] = [np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Unbiased Z-Score'] = [u_scw_z_auc] * duplicate
         return stats, biased_w2_ave, unbiased_w2_ave
@@ -1672,7 +1681,7 @@ def plot_z_scores(df, file_path=None):
     if df.empty:
         return
     if file_path is None:
-        file_path = './zscore_plot.eps'
+        file_path = './zscore_plot.png'
     # If the figure has already been plotted return
     if os.path.isfile(file_path):
         return
@@ -1696,7 +1705,7 @@ def heatmap_plot(name, data_mat, output_dir=None):
         output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    image_name = name.replace(' ', '_') + '.eps'
+    image_name = name.replace(' ', '_') + '.png'
     if output_dir:
         image_name = os.path.join(output_dir, image_name)
     # If the figure has already been plotted return
@@ -1726,7 +1735,7 @@ def surface_plot(name, data_mat, output_dir=None):
         output_dir (str): The full path to where the surface plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    image_name = name.replace(' ', '_') + '.eps'
+    image_name = name.replace(' ', '_') + '.png'
     if output_dir:
         image_name = os.path.join(output_dir, image_name)
     # If the figure has already been plotted return
