@@ -539,7 +539,8 @@ class ContactScorer(object):
             raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
         y_true1 = ((mapped_distances <= self.cutoff) * 1)
         precision, recall, _thresholds = precision_recall_curve(y_true1, mapped_predictions, pos_label=1)
-        auprc = auc(precision, recall)
+        recall, precision = zip(*sorted(zip(recall, precision)))
+        auprc = auc(recall, precision)
         return precision, recall, auprc
 
     def plot_auprc(self, auprc_data, title=None, file_name=None, output_dir=None):
@@ -755,6 +756,16 @@ class ContactScorer(object):
                           UndefinedMetricWarning)
             fdr = np.repeat(np.nan, fps.shape)
         else:
+            # if (fdr_denominator == 0).any():
+            #     print('TPS')
+            #     print(tps)
+            #     print('FPS')
+            #     print(fps)
+            #     print('THRESHOLDS')
+            #     print(thresholds)
+            #     print('DENOMINATOR')
+            #     print(fdr_denominator)
+            #     raise ValueError('Encountered 0 divide')
             fdr = fps / fdr_denominator
             correction_idxs = np.isnan(fdr)
             if correction_idxs.shape[0] > 0:
@@ -812,7 +823,7 @@ class ContactScorer(object):
         # Area under the curve must be computed in the wrong direction (i.e. transpose the curve) and must then be
         # corrected for the possibility that the fdr did not reach 1 (here the assumption is made that tpr will always
         # reach 1.0 by the end of a ranked set of predictions).
-        autprfdrc = auc(tpr, fdr) - (1.0 - np.max(fdr))
+        autprfdrc = 1.0 - (auc(tpr, fdr) + (1.0 - np.max(fdr)))
         return tpr, fdr, autprfdrc
 
     def plot_autprfdrc(self, autprfdrc_data, title=None, file_name=None, output_dir=None):
@@ -1332,10 +1343,11 @@ class ContactScorer(object):
         Args:
             predictor (ETMIPC/ETMIPWrapper/DCAWrapper): A predictor which has already calculated its covariance scores.
             verbosity (int): What level of output to produce.
-                1. Tests the AUROC of contact prediction at different levels of sequence separation.
+                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
+                separation.
                 2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
                 separation and top prediction levels (L, L/2 ... L/10).
-                2. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
                 against residue count.
             out_dir (str/path): The path at which to save
             dist (str): Which type of distance computation to use to determine if residues are in contact, for further
@@ -1510,10 +1522,11 @@ class ContactScorer(object):
         Args:
             scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
             verbosity (int): What level of output to produce.
-                1. Tests the AUROC of contact prediction at different levels of sequence separation.
+                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
+                separation.
                 2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
                 separation and top prediction levels (L, L/2 ... L/10).
-                2. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
                 against residue count.
             out_dir (str/path): The path at which to save
             dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
@@ -1541,45 +1554,46 @@ class ContactScorer(object):
         duplicate = 1
         # Verbosity 1
         stats['AUROC'] = []
+        stats['AUPRC'] = []
+        stats['AUTPRFDRC'] = []
         stats['Distance'] = []
         stats['Sequence_Separation'] = []
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
             # AUC Evaluation
             auc_roc = self.score_auc(scores, category=separation)
+            auc_prc = self.score_precision_recall(scores, category=separation)
+            auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
             if plots:
                 self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
-            if verbosity >= 2:
-                auc_prc = self.score_precision_recall(scores, category=separation)
-                if plots:
-                    self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
-                                    file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
+                self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
+                                file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                    dist, separation))
+                self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation', output_dir=out_dir,
+                                    file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
                                         dist, separation))
-                auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
-                if plots:
-                    self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation',
-                                        output_dir=out_dir,
-                                        file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
-                                            dist, separation))
+            if verbosity >= 2:
                 duplicate = 10
-                if 'F1' not in stats:
-                    stats['AUPRC'] = []
-                    stats['AUTPRFDRC'] = []
+                if 'F1 Score' not in stats:
                     stats['F1 Score'] = []
+                    stats['Precision'] = []
+                    stats['Recall'] = []
                     stats['Top K Predictions'] = []
                 for k in range(1, 11):
                     if k == 1:
                         top_preds_label = 'L'
                     else:
                         top_preds_label = 'L/{}'.format(k)
-                    # precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
-                    # recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
                     f1 = self.score_f1(predictions=scores, k=k, category=separation, threshold=threshold)
+                    precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
+                    recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
                     stats['F1 Score'].append(f1)
+                    stats['Precision'].append(precision)
+                    stats['Recall'].append(recall)
                     stats['Top K Predictions'].append(top_preds_label)
-                stats['AUPRC'] += [auc_prc[2]] * duplicate
-                stats['AUTPRFDRC'] += [auc_tpr_fdr_curve[2]] * duplicate
             stats['AUROC'] += [auc_roc[2]] * duplicate
+            stats['AUPRC'] += [auc_prc[2]] * duplicate
+            stats['AUTPRFDRC'] += [auc_tpr_fdr_curve[2]] * duplicate
             stats['Distance'] += [dist] * duplicate
             stats['Sequence_Separation'] += [separation] * duplicate
         duplicate *= 5
