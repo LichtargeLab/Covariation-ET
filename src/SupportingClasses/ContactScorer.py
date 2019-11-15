@@ -1937,7 +1937,8 @@ def clustering_z_score(res_list):
     positions = range(distances.shape[0])
     a = distances < cutoff
     a[positions, positions] = 0
-    s_i = np.in1d(positions, res_list)
+    # s_i = np.in1d(positions, res_list)
+    s_i = np.in1d(positions, [query_pdb_mapping[r] for r in res_list])
     s_ij = np.outer(s_i, s_i)
     s_ij[positions, positions] = 0
     if bias:
@@ -1958,8 +1959,8 @@ def clustering_z_score(res_list):
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
-        return a, m, l, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, len(res_list)
+        return a, m, l, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, m
     z_score = (w - w_ave) / sigma
     # end = time()
     # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
-    return a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, len(res_list)
+    return a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, m
