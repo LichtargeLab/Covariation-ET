@@ -141,14 +141,14 @@ class ContactScorer(object):
             if self.query_alignment is None:
                 raise ValueError('Scorer cannot be fit, because no alignment was provided.')
             else:
-                if isinstance(self.query_alignment, os.PathLike):
+                if not isinstance(self.query_alignment, SeqAlignment):
                     self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
                 self.query_alignment.import_alignment()
                 self.query_alignment = self.query_alignment.remove_gaps()
             if self.query_structure is None:
                 raise ValueError('Scorer cannot be fit, because no PDB was provided.')
             else:
-                if isinstance(self.query_structure, os.PathLike):
+                if not isinstance(self.query_structure, PDBReference):
                     self.query_structure = PDBReference(pdb_file=self.query_structure)
                 self.query_structure.import_pdb(structure_id=self.query)
             if self.best_chain is None:
@@ -540,6 +540,7 @@ class ContactScorer(object):
         y_true1 = ((mapped_distances <= self.cutoff) * 1)
         precision, recall, _thresholds = precision_recall_curve(y_true1, mapped_predictions, pos_label=1)
         recall, precision = zip(*sorted(zip(recall, precision)))
+        recall, precision = np.array(recall), np.array(precision)
         auprc = auc(recall, precision)
         return precision, recall, auprc
 
@@ -810,7 +811,7 @@ class ContactScorer(object):
             float: The auprc determined for the precision recall curve.
         """
         if self.query_structure is None:
-            print('AUPRC cannot be measured, because no PDB was provided.')
+            print('AUTPRFDRC cannot be measured, because no PDB was provided.')
             return None, None, '-'
         if self.query_pdb_mapping is None:
             self.fit()
@@ -1068,7 +1069,7 @@ class ContactScorer(object):
             return df, None, au_scw_z_score_curve
         # Identify unmappable positions (do not appear in the PDB).
         unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
-        # Identify all uniqu positions in the prediction set (assuming they are square and symmetrical).
+        # Identify all unique positions in the prediction set (assuming they are square and symmetrical).
         indices = np.triu_indices(predictions.shape[0], k=1)
         # Set up dataframe for storing results.
         data = {'Res_i': [], 'Res_j': [], 'Covariance_Score': [], 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [],
@@ -1117,7 +1118,7 @@ class ContactScorer(object):
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
                      initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
-                              self.query_alignment))
+                               self.query_alignment))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
         pool2.join()
@@ -1606,8 +1607,6 @@ class ContactScorer(object):
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
-            if plots:
-                plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
             stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
@@ -1615,10 +1614,11 @@ class ContactScorer(object):
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
-            if plots:
-                plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
             stats['Max Unbiased Z-Score'] = [np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Unbiased Z-Score'] = [u_scw_z_auc] * duplicate
+            if plots:
+                plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
+                plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         return stats, biased_w2_ave, unbiased_w2_ave
 
 
@@ -1807,8 +1807,11 @@ def compute_w2_ave_sub(res_i):
         dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
         3).
     """
+    # print('res i: {}'.format(res_i))
     cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
     for res_j in range(res_i + 1, distances.shape[1]):
+        # print('res j: {}'.format(res_j))
+        # print(distances[res_i][res_j])
         if distances[res_i][res_j] >= cutoff:
             continue
         if bias:
@@ -1816,7 +1819,10 @@ def compute_w2_ave_sub(res_i):
         else:
             s_ij = 1
         for res_x in range(distances.shape[0]):
+            # print('res x: {}'.format(res_x))
             for res_y in range(res_x + 1, distances.shape[1]):
+                # print('res y: {}'.format(res_y))
+                # print(distances[res_x][res_y])
                 if distances[res_x][res_y] >= cutoff:
                     continue
                 if bias:
@@ -1830,6 +1836,7 @@ def compute_w2_ave_sub(res_i):
                 else:
                     curr_case = 'Case3'
                 cases[curr_case] += s_ij * s_xy
+    # print(cases)
     return cases
 
 
@@ -1912,7 +1919,7 @@ def clustering_z_score(res_list):
     # start = time()
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
-        return '-', None, None, None, None, len(res_list)
+        return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
     # Check that there is a valid bias values
     if bias is not True and bias is not False:
         raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
@@ -1926,7 +1933,7 @@ def clustering_z_score(res_list):
         print('At least one residue of interest is not present in the PDB provided')
         print(', '.join([str(x) for x in res_list]))
         print(', '.join([str(x) for x in query_pdb_mapping.keys()]))
-        return '-', None, None, None, None, len(res_list)
+        return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
     positions = range(distances.shape[0])
     a = distances < cutoff
     a[positions, positions] = 0
@@ -1951,8 +1958,8 @@ def clustering_z_score(res_list):
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
-        return 'NA', w, w_ave, w2_ave, sigma, len(res_list)
+        return a, m, l, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, len(res_list)
     z_score = (w - w_ave) / sigma
     # end = time()
     # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
-    return z_score, w, w_ave, w2_ave, sigma, len(res_list)
+    return a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, len(res_list)
