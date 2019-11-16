@@ -1079,14 +1079,14 @@ class ContactScorer(object):
         unmappable_y = np.isin(indices[1], list(unmappable_residues))
         unmappable_all = unmappable_x | unmappable_y
         unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
-        unmappable_pairs = zip(unmappable_indices[0], unmappable_indices[1])
+        unmappable_pairs = list(zip(unmappable_indices[0], unmappable_indices[1]))
         # Identify all mappable positions and retrieve their scores
         mappable_all = ~ unmappable_all
         mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
-        mappable_pairs = zip(mappable_indices[0], mappable_indices[1])
+        mappable_pairs = list(zip(mappable_indices[0], mappable_indices[1]))
         scores = predictions[mappable_indices]
         # Sort the scores in preparation for Z-scoring
-        sorted_scores, sorted_residues = zip(*sorted(zip(scores, mappable_pairs), reverse=True))
+        sorted_scores, sorted_residues = list(zip(*sorted(zip(scores, mappable_pairs), reverse=True)))
         # Set up structures to track unique sets of residues
         unique_sets = {}
         to_score = []
@@ -1123,24 +1123,24 @@ class ContactScorer(object):
         pool2.close()
         pool2.join()
         # Store the values in the data frame
-        sorted_mappable_indices = map(list, zip(*sorted_residues))
-        data['Res_i'] += list(sorted_mappable_indices[0])
-        data['Res_j'] += list(sorted_mappable_indices[1])
+        sorted_mappable_indices = [*map(list, zip(*sorted_residues))]
+        data['Res_i'] += sorted_mappable_indices[0]
+        data['Res_j'] += sorted_mappable_indices[1]
         data['Covariance_Score'] += list(predictions[sorted_mappable_indices])
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
         for counter, curr_res in enumerate(res):
             curr_len = len(unique_sets[counter])
-            data['Z-Score'] += [curr_res[0]] * curr_len
-            data['W'] += [curr_res[1]] * curr_len
-            data['W_Ave'] += [curr_res[2]] * curr_len
-            data['W2_Ave'] += [curr_res[3]] * curr_len
-            data['Sigma'] += [curr_res[4]] * curr_len
-            data['Num_Residues'] += [curr_res[5]] * curr_len
-            if curr_res[0] not in set([None, '-', 'NA']):
-                y_z_score.append(curr_res[0])
-                x_coverage.append(float(curr_res[5]) / self.query_alignment.seq_length)
+            data['Z-Score'] += [curr_res[6]] * curr_len
+            data['W'] += [curr_res[7]] * curr_len
+            data['W_Ave'] += [curr_res[8]] * curr_len
+            data['W2_Ave'] += [curr_res[9]] * curr_len
+            data['Sigma'] += [curr_res[10]] * curr_len
+            data['Num_Residues'] += [curr_res[11]] * curr_len
+            if curr_res[6] not in set([None, '-', 'NA']):
+                y_z_score.append(curr_res[6])
+                x_coverage.append(float(curr_res[11]) / self.query_alignment.seq_length)
         if len(x_coverage) == 0:
             au_scw_z_score_curve = None
         else:

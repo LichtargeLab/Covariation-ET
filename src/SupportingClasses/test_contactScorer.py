@@ -108,6 +108,38 @@ class TestContactScorer(TestBase):
         precision = f1_score(truth, preds)
         return precision
 
+    def comp_function(self, df, q_ind_map, q_to_s_map, seq_pdb_map, seq, scores, coverages, distances, adjacencies):
+        for i in df.index:
+            # Mapping to Structure
+            if not isinstance(df.loc[i, 'Pos1'], int) and not isinstance(df.loc[i, 'Pos2'], int):
+                continue
+            pos1 = q_to_s_map[q_ind_map[df.loc[i, 'Pos1']]]
+            pos2 = q_to_s_map[q_ind_map[df.loc[i, 'Pos2']]]
+            self.assertEqual(df.loc[i, '(AA1)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos1]])),
+                             'Positions: {}\t{}'.format(pos1, pos2))
+            self.assertEqual(df.loc[i, '(AA2)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos2]])),
+                             'Positions: {}\t{}'.format(pos1, pos2))
+            # Scores
+            self.assertLess(np.abs(df.loc[i, 'Raw_Score'] - scores[pos1, pos2]), 1e-3,
+                            'Positions: {}\t{}'.format(pos1, pos2))
+            # Coverages
+            self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
+                            'Positions: {}\t{}'.format(pos1, pos2))
+            # Distances
+            self.assertLess(np.abs(df.loc[i, 'Residue_Dist'] - distances[pos1, pos2]), 1e-4,
+                            'Positions: {}\t{}'.format(pos1, pos2))
+            # Contacts
+            if df.loc[i, 'Within_Threshold'] == 1:
+                try:
+                    self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos1][pos2],
+                                     'Positions: {}\t{}'.format(pos1, pos2))
+                except KeyError:
+                    self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos2][pos1],
+                                     'Positions: {}\t{}'.format(pos1, pos2))
+            else:
+                with self.assertRaises(KeyError):
+                    adjacencies[pos2][pos1]
+
     def _et_calcDist(self, atoms1, atoms2):
         """return smallest distance (squared) between two groups of atoms"""
         # (not distant by more than ~100 A)
@@ -330,11 +362,11 @@ class TestContactScorer(TestBase):
                 score_data = prev_score
             else:
                 score_data = self._et_calcZScore(reslist=res_list, L=L, A=A, bias=bias)
-            data['Z-Score'].append(score_data[0])
-            data['W'].append(score_data[1])
-            data['W_Ave'].append(score_data[2])
-            data['W2_Ave'].append(score_data[3])
-            data['Sigma'].append(score_data[4])
+            data['Z-Score'].append(score_data[5])
+            data['W'].append(score_data[6])
+            data['W_Ave'].append(score_data[7])
+            data['W2_Ave'].append(score_data[8])
+            data['Sigma'].append(score_data[9])
             data['Num_Residues'].append(len(res_list))
             prev_size = len(res_set)
             prev_score = score_data
@@ -394,7 +426,7 @@ class TestContactScorer(TestBase):
     #     self.assertIsNone(eval2._specific_mapping)
     #     self.assertIsNone(eval2.distances)
     #     self.assertIsNone(eval2.dist_type)
-
+    #
     # def test_2a___str(self):
     #     with self.assertRaises(ValueError):
     #         str(self.scorer1)
@@ -428,7 +460,7 @@ class TestContactScorer(TestBase):
     #     expected_str2 = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
     #         self.seq_len2, 1, self.pdb_chain2)
     #     self.assertEqual(str(eval2), expected_str2)
-
+    #
     # def test_3a_fit(self):
     #     self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))
     #     self.assertEqual(self.scorer1.query_structure, os.path.abspath(self.pdb_file1))
@@ -526,7 +558,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(eval2.best_chain, 'A')
     #     self.assertEqual(eval2.query_pdb_mapping,
     #                      {i + 16: i for i in range(len(eval2.query_structure.seq[eval2.best_chain]))})
-
+    #
     # def test_4a__get_all_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
@@ -537,7 +569,7 @@ class TestContactScorer(TestBase):
     #     diff = measured1 - expected1
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4b__get_all_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
@@ -547,7 +579,7 @@ class TestContactScorer(TestBase):
     #     diff = measured2 - expected2
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4c__get_c_alpha_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
@@ -556,7 +588,7 @@ class TestContactScorer(TestBase):
     #     diff = measured1 - expected1
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4d__get_c_alpha_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
@@ -565,7 +597,7 @@ class TestContactScorer(TestBase):
     #     diff = measured2 - expected2
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4e__get_c_beta_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
@@ -574,7 +606,7 @@ class TestContactScorer(TestBase):
     #     diff = measured1 - expected1
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4f__get_c_beta_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
@@ -583,7 +615,7 @@ class TestContactScorer(TestBase):
     #     diff = measured2 - expected2
     #     not_passing = diff > 1E-5
     #     self.assertFalse(not_passing.any())
-    # 
+    #
     # def test_4g__get_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
@@ -598,7 +630,7 @@ class TestContactScorer(TestBase):
     #     expected1c = np.vstack([[26.589, 19.508, 27.519]])
     #     measured1c = np.vstack(ContactScorer._get_coords(residue1, method='CB'))
     #     self.assertFalse(((measured1c - expected1c) > 1E-5).any())
-    # 
+    #
     # def test_4h__get_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
@@ -612,7 +644,7 @@ class TestContactScorer(TestBase):
     #     expected2c = np.vstack([[25.050, 43.281, 27.093]])
     #     measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
     #     self.assertFalse(((measured2c - expected2c) > 1E-5).any())
-
+    #
     # def test_5a_measure_distance(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
@@ -742,7 +774,7 @@ class TestContactScorer(TestBase):
     #     distance_diff2 = self.scorer2.distances - dists2
     #     self.assertEqual(np.sum(distance_diff2), 0.0)
     #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
-
+    #
     # def test_6a_find_pairs_by_separation(self):
     #     self.scorer1.fit()
     #     with self.assertRaises(ValueError):
@@ -790,7 +822,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
     #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
-
+    #
     # def test_7a__map_predictions_to_pdb(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -946,7 +978,7 @@ class TestContactScorer(TestBase):
     #                                                x[1] in self.scorer2.query_pdb_mapping]]
     #     self.assertLess(np.sum(expected_scores2e - scores_mapped2e), 1e-5)
     #     self.assertLess(np.sum(expected_dists2e - dists_mapped2e), 1e-5)
-
+    #
     # def test_8a_score_auc(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1032,7 +1064,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(fpr_expected2e - fpr2e), 0)
     #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
     #     self.assertEqual(auroc_expected2e, auroc2e)
-
+    #
     # def test_9a_plot_auc(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1060,7 +1092,7 @@ class TestContactScorer(TestBase):
     #                                                   '{}_Any_AUROC.png'.format(self.large_structure_id)))
     #     self.assertTrue(os.path.isfile(expected_path2))
     #     os.remove(expected_path2)
-
+    #
     # def test_10a_score_precision_recall(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1177,7 +1209,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(precision_expected2e - precision2e), 0)
     #     self.assertEqual(np.sum(recall_expected2e - recall2e), 0)
     #     self.assertEqual(auprc_expected2e, auprc2e)
-
+    #
     # def test_11a_plot_auprc(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1205,93 +1237,93 @@ class TestContactScorer(TestBase):
     #                                                   '{}_Any_AUPRC.png'.format(self.large_structure_id)))
     #     self.assertTrue(os.path.isfile(expected_path2))
     #     os.remove(expected_path2)
-
-#     # def test_12a_score_tpr_fdr(self):
-#     #     self.scorer1.fit()
-#     #     self.scorer1.measure_distance(method='CB')
-#     #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-#     #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-#     #     scores1 += scores1.T
-#     #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-#     #     _, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
-#     #     # autprfdrc_expected1a = auc(, )
-#     #     tpr1a, fdr1a, autprfdrc1a = self.scorer1.score_tpr_fdr(scores1, category='Any')
-#     #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected1a - fdr1a), 0)
-#     #     # self.assertEqual(autprfdrc_expected1a, autprfdrc1a)
-#     #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-#     #                                                                            category='Neighbors')
-#     #     _, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
-#     #     # autprfdrc_expected1b = auc(, )
-#     #     tpr1b, fdr1b, autprfdrc1b = self.scorer1.score_tpr_fdr(scores1, category='Neighbors')
-#     #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected1b - fdr1b), 0)
-#     #     # self.assertEqual(autprfdrc_expected1b, autprfdrc1b)
-#     #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-#     #     _, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
-#     #     # autprfdrc_expected1c = auc(, )
-#     #     tpr1c, fdr1c, autprfdrc1c = self.scorer1.score_tpr_fdr(scores1, category='Short')
-#     #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected1c - fdr1c), 0)
-#     #     # self.assertEqual(autprfdrc_expected1c, autprfdrc1c)
-#     #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-#     #     _, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
-#     #     # autprfdrc_expected1d = auc(, )
-#     #     tpr1d, fdr1d, autprfdrc1d = self.scorer1.score_tpr_fdr(scores1, category='Medium')
-#     #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected1d - fdr1d), 0)
-#     #     # self.assertEqual(autprfdrc_expected1d, autprfdrc1d)
-#     #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-#     #     _, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
-#     #     # autprfdrc_expected1e = auc(, )
-#     #     tpr1e, fdr1e, autprfdrc1e = self.scorer1.score_tpr_fdr(scores1, category='Long')
-#     #     self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected1e - fdr1e), 0)
-#     #     # self.assertEqual(autprfdrc_expected1e, autprfdrc1e)
-#     #
-#     # def test_12b_score_tpr_fdr(self):
-#     #     self.scorer2.fit()
-#     #     self.scorer2.measure_distance(method='CB')
-#     #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-#     #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-#     #     scores2 += scores2.T
-#     #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-#     #     _, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
-#     #     # autprfdrc_expected2a = auc(, )
-#     #     tpr2a, fdr2a, autprfdrc2a = self.scorer2.score_tpr_fdr(scores2, category='Any')
-#     #     self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected2a - fdr2a), 0)
-#     #     # self.assertEqual(autprfdrc_expected2a, autprfdrc2a)
-#     #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-#     #                                                                            category='Neighbors')
-#     #     _, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
-#     #     # autprfdrc_expected2b = auc(, )
-#     #     tpr2b, fdr2b, autprfdrc2b = self.scorer2.score_tpr_fdr(scores2, category='Neighbors')
-#     #     self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected2b - fdr2b), 0)
-#     #     # self.assertEqual(autprfdrc_expected2b, autprfdrc2b)
-#     #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-#     #     _, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
-#     #     # autprfdrc_expected2c = auc(, )
-#     #     tpr2c, fdr2c, autprfdrc2c = self.scorer2.score_tpr_fdr(scores2, category='Short')
-#     #     self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected2c - fdr2c), 0)
-#     #     # self.assertEqual(autprfdrc_expected2c, autprfdrc2c)
-#     #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-#     #     _, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
-#     #     # autprfdrc_expected2d = auc(, )
-#     #     tpr2d, fdr2d, autprfdrc2d = self.scorer2.score_tpr_fdr(scores2, category='Medium')
-#     #     self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected2d - fdr2d), 0)
-#     #     # self.assertEqual(autprfdrc_expected2d, autprfdrc2d)
-#     #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-#     #     _, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
-#     #     # autprfdrc_expected2e = auc(, )
-#     #     tpr2e, fdr2e, autprfdrc2e = self.scorer2.score_tpr_fdr(scores2, category='Long')
-#     #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
-#     #     # self.assertEqual(np.sum(fdr_expected2e - fdr2e), 0)
-#     #     # self.assertEqual(autprfdrc_expected2e, autprfdrc2e)
-
+    #
+    # # def test_12a_score_tpr_fdr(self):
+    # #     self.scorer1.fit()
+    # #     self.scorer1.measure_distance(method='CB')
+    # #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
+    # #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
+    # #     scores1 += scores1.T
+    # #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
+    # #     _, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
+    # #     # autprfdrc_expected1a = auc(, )
+    # #     tpr1a, fdr1a, autprfdrc1a = self.scorer1.score_tpr_fdr(scores1, category='Any')
+    # #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected1a - fdr1a), 0)
+    # #     # self.assertEqual(autprfdrc_expected1a, autprfdrc1a)
+    # #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
+    # #                                                                            category='Neighbors')
+    # #     _, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
+    # #     # autprfdrc_expected1b = auc(, )
+    # #     tpr1b, fdr1b, autprfdrc1b = self.scorer1.score_tpr_fdr(scores1, category='Neighbors')
+    # #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected1b - fdr1b), 0)
+    # #     # self.assertEqual(autprfdrc_expected1b, autprfdrc1b)
+    # #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
+    # #     _, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
+    # #     # autprfdrc_expected1c = auc(, )
+    # #     tpr1c, fdr1c, autprfdrc1c = self.scorer1.score_tpr_fdr(scores1, category='Short')
+    # #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected1c - fdr1c), 0)
+    # #     # self.assertEqual(autprfdrc_expected1c, autprfdrc1c)
+    # #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
+    # #     _, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
+    # #     # autprfdrc_expected1d = auc(, )
+    # #     tpr1d, fdr1d, autprfdrc1d = self.scorer1.score_tpr_fdr(scores1, category='Medium')
+    # #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected1d - fdr1d), 0)
+    # #     # self.assertEqual(autprfdrc_expected1d, autprfdrc1d)
+    # #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
+    # #     _, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
+    # #     # autprfdrc_expected1e = auc(, )
+    # #     tpr1e, fdr1e, autprfdrc1e = self.scorer1.score_tpr_fdr(scores1, category='Long')
+    # #     self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected1e - fdr1e), 0)
+    # #     # self.assertEqual(autprfdrc_expected1e, autprfdrc1e)
+    # #
+    # # def test_12b_score_tpr_fdr(self):
+    # #     self.scorer2.fit()
+    # #     self.scorer2.measure_distance(method='CB')
+    # #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
+    # #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
+    # #     scores2 += scores2.T
+    # #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
+    # #     _, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
+    # #     # autprfdrc_expected2a = auc(, )
+    # #     tpr2a, fdr2a, autprfdrc2a = self.scorer2.score_tpr_fdr(scores2, category='Any')
+    # #     self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected2a - fdr2a), 0)
+    # #     # self.assertEqual(autprfdrc_expected2a, autprfdrc2a)
+    # #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
+    # #                                                                            category='Neighbors')
+    # #     _, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
+    # #     # autprfdrc_expected2b = auc(, )
+    # #     tpr2b, fdr2b, autprfdrc2b = self.scorer2.score_tpr_fdr(scores2, category='Neighbors')
+    # #     self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected2b - fdr2b), 0)
+    # #     # self.assertEqual(autprfdrc_expected2b, autprfdrc2b)
+    # #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
+    # #     _, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
+    # #     # autprfdrc_expected2c = auc(, )
+    # #     tpr2c, fdr2c, autprfdrc2c = self.scorer2.score_tpr_fdr(scores2, category='Short')
+    # #     self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected2c - fdr2c), 0)
+    # #     # self.assertEqual(autprfdrc_expected2c, autprfdrc2c)
+    # #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
+    # #     _, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
+    # #     # autprfdrc_expected2d = auc(, )
+    # #     tpr2d, fdr2d, autprfdrc2d = self.scorer2.score_tpr_fdr(scores2, category='Medium')
+    # #     self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected2d - fdr2d), 0)
+    # #     # self.assertEqual(autprfdrc_expected2d, autprfdrc2d)
+    # #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
+    # #     _, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
+    # #     # autprfdrc_expected2e = auc(, )
+    # #     tpr2e, fdr2e, autprfdrc2e = self.scorer2.score_tpr_fdr(scores2, category='Long')
+    # #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
+    # #     # self.assertEqual(np.sum(fdr_expected2e - fdr2e), 0)
+    # #     # self.assertEqual(autprfdrc_expected2e, autprfdrc2e)
+    #
     # def test_13a_plot_autprfdrc(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1323,7 +1355,7 @@ class TestContactScorer(TestBase):
     #                                                   '{}_Any_AUTPRFDRC.png'.format(self.large_structure_id)))
     #     self.assertTrue(os.path.isfile(expected_path2))
     #     os.remove(expected_path2)
-
+    #
     # def test_14a_score_precision(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1479,7 +1511,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(expected_precision2e_n10, precision2e_n10)
     #     with self.assertRaises(ValueError):
     #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
-
+    #
     # def test_15a_score_recall(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1635,7 +1667,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(expected_recall2e_n10, recall2e_n10)
     #     with self.assertRaises(ValueError):
     #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Long')
-
+    #
     # def test_16a_score_f1(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
@@ -1791,7 +1823,7 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(expected_f1_2e_n10, f1_2e_n10)
     #     with self.assertRaises(ValueError):
     #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Long')
-
+    #
     # def test_17a_compute_w2_ave_sub(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
@@ -1860,256 +1892,245 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(cases_unbiased['Case1'], expected_w2_unbiased[0])
     #     self.assertEqual(cases_unbiased['Case2'], expected_w2_unbiased[1])
     #     self.assertEqual(cases_unbiased['Case3'], expected_w2_unbiased[2])
-
-    def test_18a_clustering_z_scores(self):
-        self.scorer1.fit()
-        self.scorer1.measure_distance(method='Any')
-        recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        expected_adjacency, res_atoms = self._et_computeAdjacency(
-            self.scorer1.query_structure.structure[0][self.scorer1.best_chain], mapping=final_map)
-        residue_list = list(self.scorer1.query_pdb_mapping.keys())
-        shuffle(residue_list)
-        ################################################################################################################
-        print('#' * 100)
-        init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=False)
-        cases_unbiased = {}
-        for i in range(self.scorer1.distances.shape[0]):
-            curr_cases = compute_w2_ave_sub(i)
-            for k in curr_cases:
-                if k not in cases_unbiased:
-                    cases_unbiased[k] = 0
-                cases_unbiased[k] += curr_cases[k]
-        print(cases_unbiased)
-        init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer1.query_structure,
-                                map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
-                                seq_aln=self.scorer1.query_alignment)
-        for i in range(len(residue_list)):
-            curr_residues = residue_list[:(i + 1)]
-            a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=False)
-            print(expected_cases)
-            for res_i in expected_adjacency:
-                for res_j in expected_adjacency[res_i]:
-                    self.assertEqual(a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]],
-                                     expected_adjacency[res_i][res_j])
-                    a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]] = 0
-            self.assertEqual(m, em)
-            self.assertEqual(l, el)
-            self.assertLess(np.abs(pi1 - epi1), 1E-16)
-            self.assertLess(np.abs(pi2 - epi2), 1E-16)
-            self.assertLess(np.abs(pi3 - epi3), 1E-16)
-            self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_unbiased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-6, '{} vs {}'.format(w2_ave, expected_w2_ave))
-            composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
-                               (pi3 * cases_unbiased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
-            self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-7, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
-            self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
-            if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
-            else:
-                if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
-                else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-7, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
-                self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
-        ################################################################################################################
-        print('#' * 100)
-        init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=True)
-        cases_biased = {}
-        for i in range(self.scorer1.distances.shape[0]):
-            curr_cases = compute_w2_ave_sub(i)
-            for k in curr_cases:
-                if k not in cases_biased:
-                    cases_biased[k] = 0
-                cases_biased[k] += curr_cases[k]
-        print(cases_biased)
-        init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer1.query_structure,
-                                map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
-                                seq_aln=self.scorer1.query_alignment)
-        for i in range(len(residue_list)):
-            curr_residues = residue_list[:(i + 1)]
-            a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=True)
-            print(expected_cases)
-            for res_i in expected_adjacency:
-                for res_j in expected_adjacency[res_i]:
-                    self.assertEqual(a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]],
-                                     expected_adjacency[res_i][res_j])
-                    a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]] = 0
-            self.assertEqual(m, em)
-            self.assertEqual(l, el)
-            self.assertLess(np.abs(pi1 - epi1), 1E-16)
-            self.assertLess(np.abs(pi2 - epi2), 1E-16)
-            self.assertLess(np.abs(pi3 - epi3), 1E-16)
-            self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_biased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-4, '{} vs {}'.format(w2_ave, expected_w2_ave))
-            composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
-                               (pi3 * cases_biased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
-            self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
-            self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
-            if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
-            else:
-                if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
-                else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
-                self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
-
-    def test_18b_clustering_z_scores(self):
-        self.scorer2.fit()
-        self.scorer2.measure_distance(method='Any')
-        recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in
-                         enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        expected_adjacency, res_atoms = self._et_computeAdjacency(
-            self.scorer2.query_structure.structure[0][self.scorer2.best_chain], mapping=final_map)
-        residue_list = list(self.scorer2.query_pdb_mapping.keys())
-        shuffle(residue_list)
-        ################################################################################################################
-        print('#' * 100)
-        init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=False)
-        cases_unbiased = {}
-        for i in range(self.scorer2.distances.shape[0]):
-            curr_cases = compute_w2_ave_sub(i)
-            for k in curr_cases:
-                if k not in cases_unbiased:
-                    cases_unbiased[k] = 0
-                cases_unbiased[k] += curr_cases[k]
-        print(cases_unbiased)
-        init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer2.query_structure,
-                                map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
-                                seq_aln=self.scorer2.query_alignment)
-        for i in range(len(residue_list)):
-            curr_residues = residue_list[:(i + 1)]
-            a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=False)
-            print(expected_cases)
-            for res_i in expected_adjacency:
-                for res_j in expected_adjacency[res_i]:
-                    self.assertEqual(a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]],
-                                     expected_adjacency[res_i][res_j])
-                    a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]] = 0
-            self.assertEqual(m, em)
-            self.assertEqual(l, el)
-            self.assertLess(np.abs(pi1 - epi1), 1E-16)
-            self.assertLess(np.abs(pi2 - epi2), 1E-16)
-            self.assertLess(np.abs(pi3 - epi3), 1E-16)
-            self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_unbiased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-5, '{} vs {}'.format(w2_ave, expected_w2_ave))
-            composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
-                               (pi3 * cases_unbiased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
-            self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-6, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
-            self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
-            if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
-            else:
-                if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
-                else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-6, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
-                self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
-        ################################################################################################################
-        print('#' * 100)
-        init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=True)
-        cases_biased = {}
-        for i in range(self.scorer2.distances.shape[0]):
-            curr_cases = compute_w2_ave_sub(i)
-            for k in curr_cases:
-                if k not in cases_biased:
-                    cases_biased[k] = 0
-                cases_biased[k] += curr_cases[k]
-        print(cases_biased)
-        init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer2.query_structure,
-                                map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
-                                seq_aln=self.scorer2.query_alignment)
-        for i in range(len(residue_list)):
-            curr_residues = residue_list[:(i + 1)]
-            a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=True)
-            print(expected_cases)
-            for res_i in expected_adjacency:
-                for res_j in expected_adjacency[res_i]:
-                    self.assertEqual(a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]],
-                                     expected_adjacency[res_i][res_j])
-                    a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]] = 0
-            self.assertEqual(m, em)
-            self.assertEqual(l, el)
-            self.assertLess(np.abs(pi1 - epi1), 1E-16)
-            self.assertLess(np.abs(pi2 - epi2), 1E-16)
-            self.assertLess(np.abs(pi3 - epi3), 1E-16)
-            self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_biased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-2, '{} vs {}'.format(w2_ave, expected_w2_ave))
-            composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
-                               (pi3 * cases_biased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
-            self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
-            self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
-            if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
-            else:
-                if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
-                else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
-                self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
-
-    # def test_17a_score_clustering_of_contact_predictions(self):
+    #
+    # def test_18a_clustering_z_scores(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
-    #     scores1 = np.random.RandomState(1234567890).rand(79, 79)
-    #     scores1[np.tril_indices(79, 1)] = 0
+    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+    #     struc_seq_map = {k: i for i, k in
+    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+    #     expected_adjacency, res_atoms = self._et_computeAdjacency(
+    #         self.scorer1.query_structure.structure[0][self.scorer1.best_chain], mapping=final_map)
+    #     residue_list = list(self.scorer1.query_pdb_mapping.keys())
+    #     shuffle(residue_list)
+    #     ################################################################################################################
+    #     init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=False)
+    #     cases_unbiased = {}
+    #     for i in range(self.scorer1.distances.shape[0]):
+    #         curr_cases = compute_w2_ave_sub(i)
+    #         for k in curr_cases:
+    #             if k not in cases_unbiased:
+    #                 cases_unbiased[k] = 0
+    #             cases_unbiased[k] += curr_cases[k]
+    #     init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer1.query_structure,
+    #                             map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
+    #                             seq_aln=self.scorer1.query_alignment)
+    #     for i in range(len(residue_list)):
+    #         curr_residues = residue_list[:(i + 1)]
+    #         a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
+    #         em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
+    #             reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=False)
+    #         for res_i in expected_adjacency:
+    #             for res_j in expected_adjacency[res_i]:
+    #                 self.assertEqual(a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]],
+    #                                  expected_adjacency[res_i][res_j])
+    #                 a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]] = 0
+    #         self.assertEqual(m, em)
+    #         self.assertEqual(l, el)
+    #         self.assertLess(np.abs(pi1 - epi1), 1E-16)
+    #         self.assertLess(np.abs(pi2 - epi2), 1E-16)
+    #         self.assertLess(np.abs(pi3 - epi3), 1E-16)
+    #         self.assertEqual(num_residues, len(curr_residues))
+    #         self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
+    #         self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
+    #         for case in expected_cases:
+    #             self.assertEqual(cases_unbiased[case], expected_cases[case])
+    #         self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-6, '{} vs {}'.format(w2_ave, expected_w2_ave))
+    #         composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
+    #                            (pi3 * cases_unbiased['Case3']))
+    #         expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
+    #                                     (epi3 * expected_cases['Case3']))
+    #         self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
+    #         self.assertLess(np.abs(sigma - expected_sigma), 1E-7, '{} vs {}'.format(sigma, expected_sigma))
+    #         expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+    #         self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
+    #         if isinstance(z_score, str):
+    #             self.assertTrue(isinstance(expected_z_score, str))
+    #             self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+    #         else:
+    #             if z_score < 0:
+    #                 self.assertTrue(expected_z_score < 0)
+    #             else:
+    #                 self.assertFalse(expected_z_score < 0)
+    #             self.assertLess(np.abs(z_score - expected_z_score), 1E-7, '{} vs {}'.format(z_score, expected_z_score))
+    #             expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+    #             self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
+    #     ################################################################################################################
+    #     init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=True)
+    #     cases_biased = {}
+    #     for i in range(self.scorer1.distances.shape[0]):
+    #         curr_cases = compute_w2_ave_sub(i)
+    #         for k in curr_cases:
+    #             if k not in cases_biased:
+    #                 cases_biased[k] = 0
+    #             cases_biased[k] += curr_cases[k]
+    #     init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer1.query_structure,
+    #                             map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
+    #                             seq_aln=self.scorer1.query_alignment)
+    #     for i in range(len(residue_list)):
+    #         curr_residues = residue_list[:(i + 1)]
+    #         a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
+    #         em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
+    #             reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=True)
+    #         for res_i in expected_adjacency:
+    #             for res_j in expected_adjacency[res_i]:
+    #                 self.assertEqual(a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]],
+    #                                  expected_adjacency[res_i][res_j])
+    #                 a[self.scorer1.query_pdb_mapping[res_i], self.scorer1.query_pdb_mapping[res_j]] = 0
+    #         self.assertEqual(m, em)
+    #         self.assertEqual(l, el)
+    #         self.assertLess(np.abs(pi1 - epi1), 1E-16)
+    #         self.assertLess(np.abs(pi2 - epi2), 1E-16)
+    #         self.assertLess(np.abs(pi3 - epi3), 1E-16)
+    #         self.assertEqual(num_residues, len(curr_residues))
+    #         self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
+    #         self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
+    #         for case in expected_cases:
+    #             self.assertEqual(cases_biased[case], expected_cases[case])
+    #         self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-4, '{} vs {}'.format(w2_ave, expected_w2_ave))
+    #         composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
+    #                            (pi3 * cases_biased['Case3']))
+    #         expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
+    #                                     (epi3 * expected_cases['Case3']))
+    #         self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
+    #         self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
+    #         expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+    #         self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
+    #         if isinstance(z_score, str):
+    #             self.assertTrue(isinstance(expected_z_score, str))
+    #             self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+    #         else:
+    #             if z_score < 0:
+    #                 self.assertTrue(expected_z_score < 0)
+    #             else:
+    #                 self.assertFalse(expected_z_score < 0)
+    #             self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
+    #             expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+    #             self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
+    #
+    # def test_18b_clustering_z_scores(self):
+    #     self.scorer2.fit()
+    #     self.scorer2.measure_distance(method='Any')
+    #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
+    #     struc_seq_map = {k: i for i, k in
+    #                      enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
+    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+    #     expected_adjacency, res_atoms = self._et_computeAdjacency(
+    #         self.scorer2.query_structure.structure[0][self.scorer2.best_chain], mapping=final_map)
+    #     residue_list = list(self.scorer2.query_pdb_mapping.keys())
+    #     shuffle(residue_list)
+    #     ################################################################################################################
+    #     init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=False)
+    #     cases_unbiased = {}
+    #     for i in range(self.scorer2.distances.shape[0]):
+    #         curr_cases = compute_w2_ave_sub(i)
+    #         for k in curr_cases:
+    #             if k not in cases_unbiased:
+    #                 cases_unbiased[k] = 0
+    #             cases_unbiased[k] += curr_cases[k]
+    #     init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer2.query_structure,
+    #                             map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
+    #                             seq_aln=self.scorer2.query_alignment)
+    #     for i in range(len(residue_list)):
+    #         curr_residues = residue_list[:(i + 1)]
+    #         a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
+    #         em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
+    #             reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=False)
+    #         for res_i in expected_adjacency:
+    #             for res_j in expected_adjacency[res_i]:
+    #                 self.assertEqual(a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]],
+    #                                  expected_adjacency[res_i][res_j])
+    #                 a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]] = 0
+    #         self.assertEqual(m, em)
+    #         self.assertEqual(l, el)
+    #         self.assertLess(np.abs(pi1 - epi1), 1E-16)
+    #         self.assertLess(np.abs(pi2 - epi2), 1E-16)
+    #         self.assertLess(np.abs(pi3 - epi3), 1E-16)
+    #         self.assertEqual(num_residues, len(curr_residues))
+    #         self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
+    #         self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
+    #         for case in expected_cases:
+    #             self.assertEqual(cases_unbiased[case], expected_cases[case])
+    #         self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-5, '{} vs {}'.format(w2_ave, expected_w2_ave))
+    #         composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
+    #                            (pi3 * cases_unbiased['Case3']))
+    #         expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
+    #                                     (epi3 * expected_cases['Case3']))
+    #         self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
+    #         self.assertLess(np.abs(sigma - expected_sigma), 1E-6, '{} vs {}'.format(sigma, expected_sigma))
+    #         expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+    #         self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
+    #         if isinstance(z_score, str):
+    #             self.assertTrue(isinstance(expected_z_score, str))
+    #             self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+    #         else:
+    #             if z_score < 0:
+    #                 self.assertTrue(expected_z_score < 0)
+    #             else:
+    #                 self.assertFalse(expected_z_score < 0)
+    #             self.assertLess(np.abs(z_score - expected_z_score), 1E-6, '{} vs {}'.format(z_score, expected_z_score))
+    #             expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+    #             self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
+    #     ################################################################################################################
+    #     init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=True)
+    #     cases_biased = {}
+    #     for i in range(self.scorer2.distances.shape[0]):
+    #         curr_cases = compute_w2_ave_sub(i)
+    #         for k in curr_cases:
+    #             if k not in cases_biased:
+    #                 cases_biased[k] = 0
+    #             cases_biased[k] += curr_cases[k]
+    #     init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer2.query_structure,
+    #                             map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
+    #                             seq_aln=self.scorer2.query_alignment)
+    #     for i in range(len(residue_list)):
+    #         curr_residues = residue_list[:(i + 1)]
+    #         a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
+    #         em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
+    #             reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=True)
+    #         for res_i in expected_adjacency:
+    #             for res_j in expected_adjacency[res_i]:
+    #                 self.assertEqual(a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]],
+    #                                  expected_adjacency[res_i][res_j])
+    #                 a[self.scorer2.query_pdb_mapping[res_i], self.scorer2.query_pdb_mapping[res_j]] = 0
+    #         self.assertEqual(m, em)
+    #         self.assertEqual(l, el)
+    #         self.assertLess(np.abs(pi1 - epi1), 1E-16)
+    #         self.assertLess(np.abs(pi2 - epi2), 1E-16)
+    #         self.assertLess(np.abs(pi3 - epi3), 1E-16)
+    #         self.assertEqual(num_residues, len(curr_residues))
+    #         self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
+    #         self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
+    #         for case in expected_cases:
+    #             self.assertEqual(cases_biased[case], expected_cases[case])
+    #         self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-2, '{} vs {}'.format(w2_ave, expected_w2_ave))
+    #         composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
+    #                            (pi3 * cases_biased['Case3']))
+    #         expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
+    #                                     (epi3 * expected_cases['Case3']))
+    #         self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
+    #         self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
+    #         expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+    #         self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
+    #         if isinstance(z_score, str):
+    #             self.assertTrue(isinstance(expected_z_score, str))
+    #             self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+    #         else:
+    #             if z_score < 0:
+    #                 self.assertTrue(expected_z_score < 0)
+    #             else:
+    #                 self.assertFalse(expected_z_score < 0)
+    #             self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
+    #             expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+    #             self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
+    #
+    # def test_19a_score_clustering_of_contact_predictions(self):
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='Any')
+    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
+    #                                                      self.scorer1.query_alignment.seq_length)
+    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
     #     scores1 += scores1.T
     #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
     #     struc_seq_map = {k: i for i, k in
@@ -2117,108 +2138,139 @@ class TestContactScorer(TestBase):
     #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
     #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
     #                                              mapping=final_map)
+    #     # Calculate biased Z-scores for the small structure
     #     start1 = time()
-    #     zscore_df_1b, _ = self.scorer1.score_clustering_of_contact_predictions(
-    #         predictions=scores1, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'),
-    #         w2_ave_sub=None)
+    #     output_fn_1b = os.path.join(self.testing_dir, 'z_score1b.tsv')
+    #     zscore_df_1b, _, _ = self.scorer1.score_clustering_of_contact_predictions(
+    #         predictions=scores1, bias=True, file_path=output_fn_1b, w2_ave_sub=None)
     #     end1 = time()
     #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-    #     self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv')))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1b.tsv'))
+    #     self.assertTrue(os.path.isfile(output_fn_1b))
+    #     os.remove(output_fn_1b)
     #     start2 = time()
     #     zscore_df_1be = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=1,
     #                                       res_i=list(zscore_df_1b['Res_i']), res_j=list(zscore_df_1b['Res_j']),
     #                                       scores=list(zscore_df_1b['Covariance_Score']))
     #     end2 = time()
-    #     print('Time for Rhonalds method to compute SCW: {}'.format((end2 - start2) / 60.0))
+    #     print("Time for Rhonald's method to compute SCW: {}".format((end2 - start2) / 60.0))
     #     # Covariance score comparison
     #     cov_score_diff = np.abs(np.array(zscore_df_1b['Covariance_Score']) -
     #                             np.array(zscore_df_1be['Covariance_Score']))
-    #     cov_score_diff = cov_score_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+    #     cov_score_diff = cov_score_diff > 1E-16
+    #     self.assertEqual(np.sum(cov_score_diff), 0)
     #     # Num residues comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Num_Residues']) -
-    #                                     np.array(zscore_df_1be['Num_Residues']))[0]), 0)
+    #     residue_count_diff = np.abs(np.array(zscore_df_1b['Num_Residues']) -
+    #                                 np.array(zscore_df_1be['Num_Residues']))
+    #     residue_count_diff = residue_count_diff > 1E-16
+    #     self.assertEqual(np.sum(residue_count_diff), 0)
     #     # Res I comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_i']) -
-    #                                     np.array(zscore_df_1be['Res_i']))[0]), 0)
+    #     res_i_diff = (np.array(zscore_df_1b['Res_i']) -
+    #                   np.array(zscore_df_1be['Res_i']))
+    #     res_i_diff = res_i_diff > 1E-16
+    #     self.assertEqual(np.sum(res_i_diff), 0)
     #     # Res J comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1b['Res_j']) -
-    #                                     np.array(zscore_df_1be['Res_j']))[0]), 0)
+    #     res_j_diff = (np.array(zscore_df_1b['Res_j']) -
+    #                   np.array(zscore_df_1be['Res_j']))
+    #     res_j_diff = res_j_diff > 1E-16
+    #     self.assertEqual(np.sum(res_j_diff), 0)
     #     # W Comparison
     #     w_diff = np.abs(np.array(zscore_df_1b['W']) - np.array(zscore_df_1be['W']))
-    #     w_diff = w_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-    #     # W_Ave Comaparison
+    #     w_diff = w_diff > 1e-16
+    #     self.assertEqual(np.sum(w_diff), 0)
+    #     # W_Ave Comparison
     #     w_ave_diff = np.abs(np.array(zscore_df_1b['W_Ave']) - np.array(zscore_df_1be['W_Ave']))
-    #     w_ave_diff = w_ave_diff > 1e-7
-    #     self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+    #     w_ave_diff = w_ave_diff > 1e-16
+    #     self.assertEqual(np.sum(w_ave_diff), 0)
     #     # W2_Ave Comparison
     #     w2_ave_diff = np.abs(np.array(zscore_df_1b['W2_Ave']) - np.array(zscore_df_1be['W2_Ave']))
-    #     w2_ave_diff = w2_ave_diff > 1e-3
-    #     self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+    #     w2_ave_diff = w2_ave_diff > 1e-4
+    #     self.assertEqual(np.sum(w2_ave_diff), 0)
     #     # Sigma Comparison
     #     sigma_diff = np.abs(np.array(zscore_df_1b['Sigma']) - np.array(zscore_df_1be['Sigma']))
     #     sigma_diff = sigma_diff > 1e-6
-    #     self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+    #     self.assertEqual(np.sum(sigma_diff), 0)
     #     # Z-Score Comparison
-    #     z_score_diff = np.abs(np.array(zscore_df_1b['Z-Score'].replace('NA', np.nan)) -\
-    #                    np.array(zscore_df_1be['Z-Score'].replace('NA', np.nan)))
-    #     z_score_diff = z_score_diff > 1e-7
-    #     self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-    #     start3 = time()
-    #     zscore_df_1u, _ = self.scorer1.score_clustering_of_contact_predictions(
-    #         predictions=scores1, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'),
-    #         w2_ave_sub=None)
-    #     end3 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end3 - start3) / 60.0))
-    #     self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv')))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score1u.tsv'))
-    #     start4 = time()
+    #     z_score_diff = np.abs(np.array(zscore_df_1b['Z-Score'].replace([None, '-', 'NA'], np.nan)) -
+    #                           np.array(zscore_df_1be['Z-Score'].replace([None, '-', 'NA'], np.nan)))
+    #     z_score_diff = z_score_diff > 1e-6
+    #     self.assertEqual(np.sum(z_score_diff), 0)
+    #
+    # def test_19b_score_clustering_of_contact_predictions(self):
+    #     self.scorer1.fit()
+    #     self.scorer1.measure_distance(method='Any')
+    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
+    #                                                      self.scorer1.query_alignment.seq_length)
+    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
+    #     scores1 += scores1.T
+    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
+    #     struc_seq_map = {k: i for i, k in
+    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
+    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+    #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
+    #                                              mapping=final_map)
+    #     # Calculate biased Z-scores for the small structure
+    #     start1 = time()
+    #     output_fn_1u = os.path.join(self.testing_dir, 'z_score1u.tsv')
+    #     zscore_df_1u, _, _ = self.scorer1.score_clustering_of_contact_predictions(
+    #         predictions=scores1, bias=False, file_path=output_fn_1u, w2_ave_sub=None)
+    #     end1 = time()
+    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+    #     self.assertTrue(output_fn_1u)
+    #     os.remove(output_fn_1u)
+    #     start2 = time()
     #     zscore_df_1ue = self.all_z_scores(A=A, L=self.scorer1.query_alignment.seq_length, bias=0,
     #                                       res_i=list(zscore_df_1u['Res_i']), res_j=list(zscore_df_1u['Res_j']),
     #                                       scores=list(zscore_df_1u['Covariance_Score']))
-    #     end4 = time()
-    #     print('Time for Rhonalds method to compute SCW: {}'.format((end4 - start4) / 60.0))
+    #     end2 = time()
+    #     print("Time for Rhonald's method to compute SCW: {}".format((end2 - start2) / 60.0))
     #     # Covariance score comparison
     #     cov_score_diff = np.abs(np.array(zscore_df_1u['Covariance_Score']) -
     #                             np.array(zscore_df_1ue['Covariance_Score']))
-    #     cov_score_diff = cov_score_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+    #     cov_score_diff = cov_score_diff > 1E-16
+    #     self.assertEqual(np.sum(cov_score_diff), 0)
     #     # Num residues comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Num_Residues']) -
-    #                                     np.array(zscore_df_1ue['Num_Residues']))[0]), 0)
+    #     residue_count_diff = np.abs(np.array(zscore_df_1u['Num_Residues']) -
+    #                                 np.array(zscore_df_1ue['Num_Residues']))
+    #     residue_count_diff = residue_count_diff > 1E-16
+    #     self.assertEqual(np.sum(residue_count_diff), 0)
     #     # Res I comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_i']) -
-    #                                     np.array(zscore_df_1ue['Res_i']))[0]), 0)
+    #     res_i_diff = (np.array(zscore_df_1u['Res_i']) -
+    #                   np.array(zscore_df_1ue['Res_i']))
+    #     res_i_diff = res_i_diff > 1E-16
+    #     self.assertEqual(np.sum(res_i_diff), 0)
     #     # Res J comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_1u['Res_j']) -
-    #                                     np.array(zscore_df_1ue['Res_j']))[0]), 0)
+    #     res_j_diff = (np.array(zscore_df_1u['Res_j']) -
+    #                   np.array(zscore_df_1ue['Res_j']))
+    #     res_j_diff = res_j_diff > 1E-16
+    #     self.assertEqual(np.sum(res_j_diff), 0)
     #     # W Comparison
     #     w_diff = np.abs(np.array(zscore_df_1u['W']) - np.array(zscore_df_1ue['W']))
-    #     w_diff = w_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-    #     # W_Ave Comaparison
+    #     w_diff = w_diff > 1e-16
+    #     self.assertEqual(np.sum(w_diff), 0)
+    #     # W_Ave Comparison
     #     w_ave_diff = np.abs(np.array(zscore_df_1u['W_Ave']) - np.array(zscore_df_1ue['W_Ave']))
-    #     w_ave_diff = w_ave_diff > 1e-7
-    #     self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+    #     w_ave_diff = w_ave_diff > 1e-16
+    #     self.assertEqual(np.sum(w_ave_diff), 0)
     #     # W2_Ave Comparison
     #     w2_ave_diff = np.abs(np.array(zscore_df_1u['W2_Ave']) - np.array(zscore_df_1ue['W2_Ave']))
-    #     w2_ave_diff = w2_ave_diff > 1e-3
-    #     self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+    #     w2_ave_diff = w2_ave_diff > 1e-6
+    #     self.assertEqual(np.sum(w2_ave_diff), 0)
     #     # Sigma Comparison
     #     sigma_diff = np.abs(np.array(zscore_df_1u['Sigma']) - np.array(zscore_df_1ue['Sigma']))
-    #     sigma_diff = sigma_diff > 1e-6
-    #     self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+    #     sigma_diff = sigma_diff > 1e-7
+    #     self.assertEqual(np.sum(sigma_diff), 0)
     #     # Z-Score Comparison
-    #     z_score_diff = np.abs(np.array(zscore_df_1u['Z-Score'].replace('NA', np.nan)) -\
-    #                    np.array(zscore_df_1ue['Z-Score'].replace('NA', np.nan)))
+    #     z_score_diff = np.abs(np.array(zscore_df_1u['Z-Score'].replace([None, '-', 'NA'], np.nan)) -
+    #                           np.array(zscore_df_1ue['Z-Score'].replace([None, '-', 'NA'], np.nan)))
     #     z_score_diff = z_score_diff > 1e-7
-    #     self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
+    #     self.assertEqual(np.sum(z_score_diff), 0)
+    #
+    # def test_19c_score_clustering_of_contact_predictions(self):
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='Any')
-    #     scores2 = np.random.RandomState(1234567890).rand(368, 368)
-    #     scores2[np.tril_indices(368, 1)] = 0
+    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
+    #                                                      self.scorer2.query_alignment.seq_length)
+    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
     #     scores2 += scores2.T
     #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
     #     struc_seq_map = {k: i for i, k in
@@ -2226,213 +2278,136 @@ class TestContactScorer(TestBase):
     #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
     #     A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
     #                                              mapping=final_map)
-    #     start5 = time()
-    #     zscore_df_2b, _ = self.scorer2.score_clustering_of_contact_predictions(
-    #         predictions=scores2, bias=True, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'),
-    #         w2_ave_sub=None)
-    #     end5 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end5 - start5) / 60.0))
-    #     self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv')))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2b.tsv'))
-    #     start6 = time()
+    #     # Calculate biased Z-scores for the small structure
+    #     start1 = time()
+    #     output_fn_2b = os.path.join(self.testing_dir, 'z_score2b.tsv')
+    #     zscore_df_2b, _, _ = self.scorer2.score_clustering_of_contact_predictions(
+    #         predictions=scores2, bias=True, file_path=output_fn_2b, w2_ave_sub=None)
+    #     end1 = time()
+    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+    #     self.assertTrue(os.path.isfile(output_fn_2b))
+    #     os.remove(output_fn_2b)
+    #     start2 = time()
     #     zscore_df_2be = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=1,
     #                                       res_i=list(zscore_df_2b['Res_i']), res_j=list(zscore_df_2b['Res_j']),
     #                                       scores=list(zscore_df_2b['Covariance_Score']))
-    #     end6 = time()
-    #     print('Time for Rhonalds method to compute SCW: {}'.format((end6 - start6) / 60.0))
+    #     end2 = time()
+    #     print("Time for Rhonald's method to compute SCW: {}".format((end2 - start2) / 60.0))
     #     # Covariance score comparison
     #     cov_score_diff = np.abs(np.array(zscore_df_2b['Covariance_Score']) -
     #                             np.array(zscore_df_2be['Covariance_Score']))
-    #     cov_score_diff = cov_score_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
+    #     cov_score_diff = cov_score_diff > 1E-16
+    #     self.assertEqual(np.sum(cov_score_diff), 0)
     #     # Num residues comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Num_Residues']) -
-    #                                     np.array(zscore_df_2be['Num_Residues']))[0]), 0)
+    #     residue_count_diff = np.abs(np.array(zscore_df_2b['Num_Residues']) -
+    #                                 np.array(zscore_df_2be['Num_Residues']))
+    #     residue_count_diff = residue_count_diff > 1E-16
+    #     self.assertEqual(np.sum(residue_count_diff), 0)
     #     # Res I comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_i']) -
-    #                                     np.array(zscore_df_2be['Res_i']))[0]), 0)
+    #     res_i_diff = (np.array(zscore_df_2b['Res_i']) -
+    #                   np.array(zscore_df_2be['Res_i']))
+    #     res_i_diff = res_i_diff > 1E-16
+    #     self.assertEqual(np.sum(res_i_diff), 0)
     #     # Res J comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2b['Res_j']) -
-    #                                     np.array(zscore_df_2be['Res_j']))[0]), 0)
+    #     res_j_diff = (np.array(zscore_df_2b['Res_j']) -
+    #                   np.array(zscore_df_2be['Res_j']))
+    #     res_j_diff = res_j_diff > 1E-16
+    #     self.assertEqual(np.sum(res_j_diff), 0)
     #     # W Comparison
     #     w_diff = np.abs(np.array(zscore_df_2b['W']) - np.array(zscore_df_2be['W']))
-    #     w_diff = w_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-    #     # W_Ave Comaparison
+    #     w_diff = w_diff > 1e-16
+    #     self.assertEqual(np.sum(w_diff), 0)
+    #     # W_Ave Comparison
     #     w_ave_diff = np.abs(np.array(zscore_df_2b['W_Ave']) - np.array(zscore_df_2be['W_Ave']))
-    #     w_ave_diff = w_ave_diff > 1e-6
-    #     self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
+    #     w_ave_diff = w_ave_diff > 1e-16
+    #     self.assertEqual(np.sum(w_ave_diff), 0)
     #     # W2_Ave Comparison
     #     w2_ave_diff = np.abs(np.array(zscore_df_2b['W2_Ave']) - np.array(zscore_df_2be['W2_Ave']))
-    #     w2_ave_diff = w2_ave_diff > 5
-    #     self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
+    #     w2_ave_diff = w2_ave_diff > 1e-2
+    #     self.assertEqual(np.sum(w2_ave_diff), 0)
     #     # Sigma Comparison
     #     sigma_diff = np.abs(np.array(zscore_df_2b['Sigma']) - np.array(zscore_df_2be['Sigma']))
-    #     sigma_diff = sigma_diff > 1e-3
-    #     self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
+    #     sigma_diff = sigma_diff > 1e-6
+    #     self.assertEqual(np.sum(sigma_diff), 0)
     #     # Z-Score Comparison
-    #     z_score_diff = np.abs(np.array(zscore_df_2b['Z-Score'].replace('NA', np.nan)) -\
-    #                           np.array(zscore_df_2be['Z-Score'].replace('NA', np.nan)))
-    #     z_score_diff = z_score_diff > 1e-1
-    #     self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-    #     start7 = time()
-    #     zscore_df_2u, _ = self.scorer2.score_clustering_of_contact_predictions(
-    #         predictions=scores2, bias=False, file_path=os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'),
-    #         w2_ave_sub=None)
-    #     end7 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end7 - start7) / 60.0))
-    #     self.assertTrue(os.path.isfile(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv')))
-    #     os.remove(os.path.join(os.path.abspath('../Test/'), 'z_score2u.tsv'))
-    #     start8 = time()
-    #     zscore_df_2ue = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
-    #                                       res_i=list(zscore_df_2u['Res_i']), res_j=list(zscore_df_2u['Res_j']),
-    #                                       scores=list(zscore_df_2u['Covariance_Score']))
-    #     end8 = time()
-    #     print('Time for Rhonalds method to compute SCW: {}'.format((end8 - start8) / 60.0))
-    #     # Covariance score comparison
-    #     cov_score_diff = np.abs(np.array(zscore_df_2u['Covariance_Score']) -
-    #                             np.array(zscore_df_2ue['Covariance_Score']))
-    #     cov_score_diff = cov_score_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(cov_score_diff)[0]), 0)
-    #     # Num residues comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Num_Residues']) -
-    #                                     np.array(zscore_df_2ue['Num_Residues']))[0]), 0)
-    #     # Res I comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_i']) -
-    #                                     np.array(zscore_df_2ue['Res_i']))[0]), 0)
-    #     # Res J comparison
-    #     self.assertEqual(len(np.nonzero(np.array(zscore_df_2u['Res_j']) -
-    #                                     np.array(zscore_df_2ue['Res_j']))[0]), 0)
-    #     # W Comparison
-    #     w_diff = np.abs(np.array(zscore_df_2u['W']) - np.array(zscore_df_2ue['W']))
-    #     w_diff = w_diff > 1e-10
-    #     self.assertEqual(len(np.nonzero(w_diff)[0]), 0)
-    #     # W_Ave Comaparison
-    #     w_ave_diff = np.abs(np.array(zscore_df_2u['W_Ave']) - np.array(zscore_df_2ue['W_Ave']))
-    #     w_ave_diff = w_ave_diff > 1e-7
-    #     self.assertEqual(len(np.nonzero(w_ave_diff)[0]), 0)
-    #     # W2_Ave Comparison
-    #     w2_ave_diff = np.abs(np.array(zscore_df_2u['W2_Ave']) - np.array(zscore_df_2ue['W2_Ave']))
-    #     w2_ave_diff = w2_ave_diff > 1e-1
-    #     self.assertEqual(len(np.nonzero(w2_ave_diff)[0]), 0)
-    #     # Sigma Comparison
-    #     sigma_diff = np.abs(np.array(zscore_df_2u['Sigma']) - np.array(zscore_df_2ue['Sigma']))
-    #     sigma_diff = sigma_diff > 1e-3
-    #     self.assertEqual(len(np.nonzero(sigma_diff)[0]), 0)
-    #     # Z-Score Comparison
-    #     z_score_diff = np.abs(np.array(zscore_df_2u['Z-Score'].replace('NA', np.nan)) - \
-    #                           np.array(zscore_df_2ue['Z-Score'].replace('NA', np.nan)))
-    #     z_score_diff = z_score_diff > 1e-3
-    #     self.assertEqual(len(np.nonzero(z_score_diff)[0]), 0)
-    # 
-    # def test__clustering_z_score(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-    #                                              mapping=final_map)
-    #     z_scores_e1b, w_e1b, w_ave_e1b, w2_ave_e1b, sigma_e1b = self._et_calcZScore(
-    #         reslist=range(self.scorer1.query_alignment.seq_length), L=self.scorer1.query_alignment.seq_length, A=A,
-    #         bias=1)
-    #     z_scores_1b, w_1b, w_ave_1b, w2_ave_1b, sigma_1b, _ = self.scorer1._clustering_z_score(
-    #         res_list=range(self.scorer1.query_alignment.seq_length), bias=True, w2_ave_sub=None)
-    #     if isinstance(z_scores_1b, str):
-    #         self.assertEqual(z_scores_1b, 'NA')
-    #         self.assertEqual(z_scores_e1b, 'NA')
-    #     else:
-    #         self.assertEqual(z_scores_1b, z_scores_e1b)
-    #     self.assertEqual(w_1b, w_e1b)
-    #     self.assertEqual(w_ave_1b, w_ave_e1b)
-    #     self.assertEqual(w2_ave_1b, w2_ave_e1b)
-    #     self.assertEqual(sigma_1b, sigma_e1b)
-    #     z_scores_e1u, w_e1u, w_ave_e1u, w2_ave_e1u, sigma_e1u = self._et_calcZScore(
-    #         reslist=range(self.scorer1.query_alignment.seq_length), L=self.scorer1.query_alignment.seq_length, A=A,
-    #         bias=0)
-    #     z_scores_1u, w_1u, w_ave_1u, w2_ave_1u, sigma_1u, _ = self.scorer1._clustering_z_score(
-    #         res_list=range(self.scorer1.query_alignment.seq_length), bias=False, w2_ave_sub=None)
-    #     if isinstance(z_scores_1u, str):
-    #         self.assertEqual(z_scores_1u, 'NA')
-    #         self.assertEqual(z_scores_e1u, 'NA')
-    #     else:
-    #         self.assertEqual(z_scores_1u, z_scores_e1u)
-    #     self.assertEqual(w_1u, w_e1u)
-    #     self.assertEqual(w_ave_1u, w_ave_e1u)
-    #     self.assertEqual(w2_ave_1u, w2_ave_e1u)
-    #     self.assertEqual(sigma_1u, sigma_e1u)
+    #     z_score_diff = np.abs(np.array(zscore_df_2b['Z-Score'].replace([None, '-', 'NA'], np.nan)) -
+    #                           np.array(zscore_df_2be['Z-Score'].replace([None, '-', 'NA'], np.nan)))
+    #     z_score_diff = z_score_diff > 1e-6
+    #     self.assertEqual(np.sum(z_score_diff), 0)
+    #
+    # def test_19d_score_clustering_of_contact_predictions(self):
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='Any')
+    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
+    #                                                      self.scorer2.query_alignment.seq_length)
+    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
+    #     scores2 += scores2.T
     #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
     #     struc_seq_map = {k: i for i, k in
     #                      enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
     #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
     #     A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
     #                                              mapping=final_map)
-    #     z_scores_e2b, w_e2b, w_ave_e2b, w2_ave_e2b, sigma_e2b = self._et_calcZScore(
-    #         reslist=range(self.scorer2.query_alignment.seq_length), L=self.scorer2.query_alignment.seq_length, A=A,
-    #         bias=1)
-    #     z_scores_2b, w_2b, w_ave_2b, w2_ave_2b, sigma_2b, _ = self.scorer2._clustering_z_score(
-    #         res_list=range(self.scorer2.query_alignment.seq_length), bias=True, w2_ave_sub=None)
-    #     if isinstance(z_scores_2b, str):
-    #         self.assertEqual(z_scores_2b, 'NA')
-    #         self.assertEqual(z_scores_e2b, 'NA')
-    #     else:
-    #         self.assertEqual(z_scores_2b, z_scores_e2b)
-    #     self.assertEqual(w_2b, w_e2b)
-    #     self.assertEqual(w_ave_2b, w_ave_e2b)
-    #     self.assertEqual(w2_ave_2b, w2_ave_e2b)
-    #     self.assertEqual(sigma_2b, sigma_e2b)
-    #     z_scores_e2u, w_e2u, w_ave_e2u, w2_ave_e2u, sigma_e2u = self._et_calcZScore(
-    #         reslist=range(self.scorer2.query_alignment.seq_length), L=self.scorer2.query_alignment.seq_length, A=A,
-    #         bias=0)
-    #     z_scores_2u, w_2u, w_ave_2u, w2_ave_2u, sigma_2u, _ = self.scorer2._clustering_z_score(
-    #         res_list=range(self.scorer2.query_alignment.seq_length), bias=False, w2_ave_sub=None)
-    #     if isinstance(z_scores_2u, str):
-    #         self.assertEqual(z_scores_2u, 'NA')
-    #         self.assertEqual(z_scores_e2u, 'NA')
-    #     else:
-    #         self.assertEqual(z_scores_2u, z_scores_e2u)
-    #     self.assertEqual(w_2u, w_e2u)
-    #     self.assertEqual(w_ave_2u, w_ave_e2u)
-    #     self.assertEqual(w2_ave_2u, w2_ave_e2u)
-    #     self.assertEqual(sigma_2u, sigma_e2u)
-    # 
-    # def test_write_out_clustering_results(self):
-    #     def comp_function(df, q_ind_map, q_to_s_map, seq_pdb_map, seq, scores, coverages, distances, adjacencies):
-    #         for i in df.index:
-    #             # Mapping to Structure
-    #             pos1 = q_to_s_map[q_ind_map[df.loc[i, 'Pos1']]]
-    #             pos2 = q_to_s_map[q_ind_map[df.loc[i, 'Pos2']]]
-    #             self.assertEqual(df.loc[i, '(AA1)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos1]])),
-    #                              'Positions: {}\t{}'.format(pos1, pos2))
-    #             self.assertEqual(df.loc[i, '(AA2)'], '({})'.format(one_to_three(seq[seq_pdb_map[pos2]])),
-    #                              'Positions: {}\t{}'.format(pos1, pos2))
-    #             # Scores
-    #             self.assertLess(np.abs(df.loc[i, 'Raw_Score'] - scores[pos1, pos2]), 1e-3,
-    #                             'Positions: {}\t{}'.format(pos1, pos2))
-    #             # Coverages
-    #             self.assertLess(np.abs(df.loc[i, 'Coverage_Score'] - coverages[pos1, pos2]), 1e-4,
-    #                             'Positions: {}\t{}'.format(pos1, pos2))
-    #             # Distances
-    #             self.assertLess(np.abs(df.loc[i, 'Residue_Dist'] - distances[pos1, pos2]), 1e-4,
-    #                             'Positions: {}\t{}'.format(pos1, pos2))
-    #             # Contacts
-    #             if df.loc[i, 'Within_Threshold'] == 1:
-    #                 try:
-    #                     self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos1][pos2],
-    #                                      'Positions: {}\t{}'.format(pos1, pos2))
-    #                 except KeyError:
-    #                     self.assertEqual(df.loc[i, 'Within_Threshold'], adjacencies[pos2][pos1],
-    #                                      'Positions: {}\t{}'.format(pos1, pos2))
-    #             else:
-    #                 with self.assertRaises(KeyError):
-    #                     adjacencies[pos2][pos1]
-    # 
+    #     # Calculate biased Z-scores for the small structure
+    #     start1 = time()
+    #     output_fn_2u = os.path.join(self.testing_dir, 'z_score2u.tsv')
+    #     zscore_df_2u, _, _ = self.scorer2.score_clustering_of_contact_predictions(
+    #         predictions=scores2, bias=False, file_path=output_fn_2u, w2_ave_sub=None)
+    #     end1 = time()
+    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+    #     self.assertTrue(output_fn_2u)
+    #     os.remove(output_fn_2u)
+    #     start2 = time()
+    #     zscore_df_2ue = self.all_z_scores(A=A, L=self.scorer2.query_alignment.seq_length, bias=0,
+    #                                       res_i=list(zscore_df_2u['Res_i']), res_j=list(zscore_df_2u['Res_j']),
+    #                                       scores=list(zscore_df_2u['Covariance_Score']))
+    #     end2 = time()
+    #     print("Time for Rhonald's method to compute SCW: {}".format((end2 - start2) / 60.0))
+    #     # Covariance score comparison
+    #     cov_score_diff = np.abs(np.array(zscore_df_2u['Covariance_Score']) -
+    #                             np.array(zscore_df_2ue['Covariance_Score']))
+    #     cov_score_diff = cov_score_diff > 1E-16
+    #     self.assertEqual(np.sum(cov_score_diff), 0)
+    #     # Num residues comparison
+    #     residue_count_diff = np.abs(np.array(zscore_df_2u['Num_Residues']) -
+    #                                 np.array(zscore_df_2ue['Num_Residues']))
+    #     residue_count_diff = residue_count_diff > 1E-16
+    #     self.assertEqual(np.sum(residue_count_diff), 0)
+    #     # Res I comparison
+    #     res_i_diff = (np.array(zscore_df_2u['Res_i']) -
+    #                   np.array(zscore_df_2ue['Res_i']))
+    #     res_i_diff = res_i_diff > 1E-16
+    #     self.assertEqual(np.sum(res_i_diff), 0)
+    #     # Res J comparison
+    #     res_j_diff = (np.array(zscore_df_2u['Res_j']) -
+    #                   np.array(zscore_df_2ue['Res_j']))
+    #     res_j_diff = res_j_diff > 1E-16
+    #     self.assertEqual(np.sum(res_j_diff), 0)
+    #     # W Comparison
+    #     w_diff = np.abs(np.array(zscore_df_2u['W']) - np.array(zscore_df_2ue['W']))
+    #     w_diff = w_diff > 1e-16
+    #     self.assertEqual(np.sum(w_diff), 0)
+    #     # W_Ave Comparison
+    #     w_ave_diff = np.abs(np.array(zscore_df_2u['W_Ave']) - np.array(zscore_df_2ue['W_Ave']))
+    #     w_ave_diff = w_ave_diff > 1e-16
+    #     self.assertEqual(np.sum(w_ave_diff), 0)
+    #     # W2_Ave Comparison
+    #     w2_ave_diff = np.abs(np.array(zscore_df_2u['W2_Ave']) - np.array(zscore_df_2ue['W2_Ave']))
+    #     w2_ave_diff = w2_ave_diff > 1e-5
+    #     self.assertEqual(np.sum(w2_ave_diff), 0)
+    #     # Sigma Comparison
+    #     sigma_diff = np.abs(np.array(zscore_df_2u['Sigma']) - np.array(zscore_df_2ue['Sigma']))
+    #     sigma_diff = sigma_diff > 1e-6
+    #     self.assertEqual(np.sum(sigma_diff), 0)
+    #     # Z-Score Comparison
+    #     z_score_diff = np.abs(np.array(zscore_df_2u['Z-Score'].replace([None, '-', 'NA'], np.nan)) -
+    #                           np.array(zscore_df_2ue['Z-Score'].replace([None, '-', 'NA'], np.nan)))
+    #     z_score_diff = z_score_diff > 1e-6
+    #     self.assertEqual(np.sum(z_score_diff), 0)
+
+    # def test_20a_write_out_clustering_results(self):
     #     today = str(datetime.date.today())
     #     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-    #     save_dir = os.path.abspath('../Test')
     #     #
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
@@ -2444,46 +2419,52 @@ class TestContactScorer(TestBase):
     #                                              mapping=final_map)
     #     pdb_query_mapping = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
     #     pdb_index_mapping = {k: i for i, k in enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     scores1 = np.random.RandomState(1234567890).rand(79, 79)
-    #     scores1[np.tril_indices(79, 1)] = 0
+    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
+    #                                                      self.scorer1.query_alignment.seq_length)
+    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
     #     scores1 += scores1.T
-    #     coverages1 = np.random.RandomState(179424691).rand(79, 79)
-    #     coverages1[np.tril_indices(79, 1)] = 0
+    #     coverages1 = np.random.RandomState(179424691).rand(self.scorer1.query_alignment.seq_length,
+    #                                                        self.scorer1.query_alignment.seq_length)
+    #     coverages1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
     #     coverages1 += coverages1.T
     #     self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name='Contact_1a_Scores.tsv', output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, 'Contact_1a_Scores.tsv')
+    #                                               file_name='Contact_1a_Scores.tsv', output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                   seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
-    #                   distances=self.scorer1.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
+    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
+    #                        distances=self.scorer1.distances, adjacencies=A)
     #     os.remove(curr_path)
     #     self.scorer1.write_out_clustering_results(today=None, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name='Contact_1b_Scores.tsv', output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, 'Contact_1b_Scores.tsv')
+    #                                               file_name='Contact_1b_Scores.tsv', output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                   seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
-    #                   distances=self.scorer1.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
+    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
+    #                        distances=self.scorer1.distances, adjacencies=A)
     #     os.remove(curr_path)
-    # 
+    #
     #     self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name=None, output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer1.query))
+    #                                               file_name=None, output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer1.query))
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                   seq=self.scorer1.query_alignment.query_sequence, scores=scores1,coverages=coverages1,
-    #                   distances=self.scorer1.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
+    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1,coverages=coverages1,
+    #                        distances=self.scorer1.distances, adjacencies=A)
     #     os.remove(curr_path)
+    #
+    # def test_20b_write_out_clustering_results(self):
+    #     today = str(datetime.date.today())
+    #     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
     #     #
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='Any')
@@ -2496,549 +2477,343 @@ class TestContactScorer(TestBase):
     #     pdb_query_mapping = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
     #     pdb_index_mapping = {k: i for i, k in
     #                          enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-    #     scores2 = np.random.RandomState(1234567890).rand(368, 368)
-    #     scores2[np.tril_indices(368, 1)] = 0
+    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
+    #                                                      self.scorer2.query_alignment.seq_length)
+    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
     #     scores2 += scores2.T
-    #     coverages2 = np.random.RandomState(179424691).rand(368, 368)
-    #     coverages2[np.tril_indices(368, 1)] = 0
+    #     coverages2 = np.random.RandomState(179424691).rand(self.scorer2.query_alignment.seq_length,
+    #                                                        self.scorer2.query_alignment.seq_length)
+    #     coverages2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
     #     coverages2 += coverages2.T
     #     self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name='Contact_2a_Scores.tsv', output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, 'Contact_2a_Scores.tsv')
+    #                                               file_name='Contact_2a_Scores.tsv', output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_2a_Scores.tsv')
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                   seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                   distances=self.scorer2.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
+    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+    #                        distances=self.scorer2.distances, adjacencies=A)
     #     os.remove(curr_path)
     #     self.scorer2.write_out_clustering_results(today=None, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name='Contact_2b_Scores.tsv', output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, 'Contact_2b_Scores.tsv')
+    #                                               file_name='Contact_2b_Scores.tsv', output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_2b_Scores.tsv')
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                   seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                   distances=self.scorer2.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
+    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+    #                        distances=self.scorer2.distances, adjacencies=A)
     #     os.remove(curr_path)
     #     self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name=None, output_dir=save_dir)
-    #     curr_path = os.path.join(save_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer2.query))
+    #                                               file_name=None, output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer2.query))
     #     self.assertTrue(os.path.isfile(curr_path))
     #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
     #     self.assertEqual(list(test_df.columns), header)
-    #     comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                   seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                   seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                   distances=self.scorer2.distances, adjacencies=A)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
+    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
+    #                        distances=self.scorer2.distances, adjacencies=A)
     #     os.remove(curr_path)
-    # 
-    # def test_evaluate_predictor(self):
-    #     out_dir = os.path.abspath('../Test')
-    #     today = str(datetime.date.today())
-    #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-    #                '-']
-    #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-    #     #
-    #     path1 = os.path.join(out_dir, '{}.fa'.format(self.query1))
-    #     etmipc1 = ETMIPC(path1)
-    #     time1 = etmipc1.calculate_scores(curr_date=today, query=self.query1, tree_depth=(2, 5),
-    #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
-    #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-    #                                                                                   'linkage': 'ward'},
-    #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
-    #                                      del_intermediate=False, low_mem=False)
-    #     print(time1)
+
+    # def test_21a_evaluate_predictions(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
-    #     score_df = None
-    #     coverage_df = None
-    #     for v in range(1, 6):
-    #         self.scorer1.evaluate_predictor(predictor=etmipc1, verbosity=v, out_dir=out_dir, dist='Any',
-    #                                         biased_w2_ave=None, unbiased_w2_ave=None, today=today)
-    #         for c in etmipc1.tree_depth:
-    #             c_out_dir = os.path.join(out_dir, str(c))
-    #             self.assertTrue(os.path.isdir(c_out_dir))
-    #             if v >= 1:
-    #                 fn1 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    "{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
-    #                 self.assertTrue(os.path.isfile(fn1))
-    #                 os.remove(fn1)
-    #             if v >= 2:
-    #                 fn2 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.tsv')
-    #                 self.assertTrue(os.path.isfile(fn2))
-    #                 os.remove(fn2)
-    #                 fn3 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.eps')
-    #                 self.assertTrue(os.path.isfile(fn3))
-    #                 os.remove(fn3)
-    #                 fn4 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.tsv')
-    #                 self.assertTrue(os.path.isfile(fn4))
-    #                 os.remove(fn4)
-    #                 fn5 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.eps')
-    #                 self.assertTrue(os.path.isfile(fn5))
-    #                 os.remove(fn5)
-    #             if v >= 3:
-    #                 fn6 = os.path.join(out_dir, 'Score_Evaluation_Dist-Any.txt')
-    #                 self.assertTrue(os.path.isfile(fn6))
-    #                 score_df = pd.read_csv(fn6, delimiter='\t', header=0, index_col=False)
-    #                 self.assertTrue('K' in score_df.columns)
-    #                 self.assertTrue('Time' in score_df.columns)
-    #                 self.assertTrue('AUROC' in score_df.columns)
-    #                 self.assertTrue('Distance' in score_df.columns)
-    #                 self.assertTrue('Sequence_Separation' in score_df.columns)
-    #                 fn7 = os.path.join(out_dir, 'Coverage_Evaluation_Dist-Any.txt')
-    #                 self.assertTrue(os.path.isfile(fn7))
-    #                 coverage_df = pd.read_csv(fn7, delimiter='\t', header=0, index_col=False)
-    #                 self.assertTrue('K' in coverage_df.columns)
-    #                 self.assertTrue('Time' in coverage_df.columns)
-    #                 self.assertTrue('AUROC' in coverage_df.columns)
-    #                 self.assertTrue('Distance' in coverage_df.columns)
-    #                 self.assertTrue('Sequence_Separation' in coverage_df.columns)
-    #                 fn8 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Any'))
-    #                 self.assertTrue(os.path.isfile(fn8))
-    #                 os.remove(fn8)
-    #                 fn9 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Neighbors'))
-    #                 self.assertTrue(os.path.isfile(fn9))
-    #                 os.remove(fn9)
-    #                 fn10 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Short'))
-    #                 self.assertTrue(os.path.isfile(fn10))
-    #                 os.remove(fn10)
-    #                 fn11 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Medium'))
-    #                 self.assertTrue(os.path.isfile(fn11))
-    #                 os.remove(fn11)
-    #                 fn12 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Long'))
-    #                 self.assertTrue(os.path.isfile(fn12))
-    #                 os.remove(fn12)
-    #             else:
-    #                 self.assertTrue(score_df is None or 'K' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Time' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'AUROC' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Distance' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Sequence_Separation' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'K' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Time' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'AUROC' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Distance' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Sequence_Separation' not in coverage_df.columns)
-    #             if v >= 4:
-    #                 self.assertTrue('Precision (L)' in score_df.columns)
-    #                 self.assertTrue('Precision (L)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/2)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/2)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/3)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/3)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/4)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/4)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/5)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/5)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/6)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/6)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/7)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/7)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/8)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/8)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/9)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/9)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/10)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/10)' in coverage_df.columns)
-    #             else:
-    #                 self.assertTrue(score_df is None or 'Precision (L)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/2)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/2)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/3)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/3)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/4)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/4)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/5)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/5)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/6)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/6)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/7)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/7)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/8)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/8)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/9)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/9)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/10)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/10)' not in coverage_df.columns or score_df is None)
-    #             if v == 5:
-    #                 fn13 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Heatmap.eps')
-    #                 self.assertTrue(os.path.isfile(fn13))
-    #                 os.remove(fn13)
-    #                 fn14 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Surface.eps')
-    #                 self.assertTrue(os.path.isfile(fn14))
-    #                 os.remove(fn14)
-    #         if v >= 3:
-    #             os.remove(fn6)
-    #             os.remove(fn7)
-    #     os.remove(os.path.join(out_dir, 'alignment.pkl'))
-    #     os.remove(os.path.join(out_dir, 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(out_dir, 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(out_dir, 'X.npz'))
-    #     os.remove(os.path.join(out_dir, '1c17A_cET-MIp.npz'))
-    #     os.remove(os.path.join(out_dir, '1c17A_cET-MIp.pkl'))
-    #     rmtree(os.path.join(out_dir, 'joblib'))
-    #     rmtree(os.path.join(out_dir, str(1)))
-    #     rmtree(os.path.join(out_dir, str(2)))
-    #     rmtree(os.path.join(out_dir, str(3)))
-    #     rmtree(os.path.join(out_dir, str(4)))
-    #     #
-    #     path2 = os.path.join(out_dir, '{}.fa'.format(self.query2))
-    #     etmipc2 = ETMIPC(path2)
-    #     time2 = etmipc2.calculate_scores(curr_date=today, query=self.query2, tree_depth=(2, 5),
-    #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
-    #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-    #                                                                                   'linkage': 'ward'},
-    #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
-    #                                      del_intermediate=False, low_mem=False)
-    #     print(time2)
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     score_df = None
-    #     coverage_df = None
-    #     for v in range(1, 6):
-    #         self.scorer2.evaluate_predictor(predictor=etmipc2, verbosity=v, out_dir=out_dir, dist='Any',
-    #                                         biased_w2_ave=None, unbiased_w2_ave=None, today=today)
-    #         for c in etmipc2.tree_depth:
-    #             c_out_dir = os.path.join(out_dir, str(c))
-    #             self.assertTrue(os.path.isdir(c_out_dir))
-    #             if v >= 1:
-    #                 fn1 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    "{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
-    #                 self.assertTrue(os.path.isfile(fn1))
-    #                 os.remove(fn1)
-    #             if v >= 2:
-    #                 fn2 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.tsv')
-    #                 self.assertTrue(os.path.isfile(fn2))
-    #                 os.remove(fn2)
-    #                 fn3 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Biased_ZScores.eps')
-    #                 self.assertTrue(os.path.isfile(fn3))
-    #                 os.remove(fn3)
-    #                 fn4 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.tsv')
-    #                 self.assertTrue(os.path.isfile(fn4))
-    #                 os.remove(fn4)
-    #                 fn5 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Unbiased_ZScores.eps')
-    #                 self.assertTrue(os.path.isfile(fn5))
-    #                 os.remove(fn5)
-    #             if v >= 3:
-    #                 fn6 = os.path.join(out_dir, 'Score_Evaluation_Dist-Any.txt')
-    #                 self.assertTrue(os.path.isfile(fn6))
-    #                 score_df = pd.read_csv(fn6, delimiter='\t', header=0, index_col=False)
-    #                 self.assertTrue('K' in score_df.columns)
-    #                 self.assertTrue('Time' in score_df.columns)
-    #                 self.assertTrue('AUROC' in score_df.columns)
-    #                 self.assertTrue('Distance' in score_df.columns)
-    #                 self.assertTrue('Sequence_Separation' in score_df.columns)
-    #                 fn7 = os.path.join(out_dir, 'Coverage_Evaluation_Dist-Any.txt')
-    #                 self.assertTrue(os.path.isfile(fn7))
-    #                 coverage_df = pd.read_csv(fn7, delimiter='\t', header=0, index_col=False)
-    #                 self.assertTrue('K' in coverage_df.columns)
-    #                 self.assertTrue('Time' in coverage_df.columns)
-    #                 self.assertTrue('AUROC' in coverage_df.columns)
-    #                 self.assertTrue('Distance' in coverage_df.columns)
-    #                 self.assertTrue('Sequence_Separation' in coverage_df.columns)
-    #                 fn8 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Any'))
-    #                 self.assertTrue(os.path.isfile(fn8))
-    #                 os.remove(fn8)
-    #                 fn9 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                    'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Neighbors'))
-    #                 self.assertTrue(os.path.isfile(fn9))
-    #                 os.remove(fn9)
-    #                 fn10 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Short'))
-    #                 self.assertTrue(os.path.isfile(fn10))
-    #                 os.remove(fn10)
-    #                 fn11 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Medium'))
-    #                 self.assertTrue(os.path.isfile(fn11))
-    #                 os.remove(fn11)
-    #                 fn12 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) +
-    #                                     'AUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('Any', 'Long'))
-    #                 self.assertTrue(os.path.isfile(fn12))
-    #                 os.remove(fn12)
-    #             else:
-    #                 self.assertTrue(score_df is None or 'K' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Time' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'AUROC' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Distance' not in score_df.columns)
-    #                 self.assertTrue(score_df is None or 'Sequence_Separation' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'K' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Time' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'AUROC' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Distance' not in coverage_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Sequence_Separation' not in coverage_df.columns)
-    #             if v >= 4:
-    #                 self.assertTrue('Precision (L)' in score_df.columns)
-    #                 self.assertTrue('Precision (L)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/2)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/2)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/3)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/3)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/4)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/4)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/5)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/5)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/6)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/6)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/7)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/7)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/8)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/8)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/9)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/9)' in coverage_df.columns)
-    #                 self.assertTrue('Precision (L/10)' in score_df.columns)
-    #                 self.assertTrue('Precision (L/10)' in coverage_df.columns)
-    #             else:
-    #                 self.assertTrue(score_df is None or 'Precision (L)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/2)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/2)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/3)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/3)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/4)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/4)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/5)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/5)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/6)' not in score_df.columns)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/6)' not in coverage_df.columns)
-    #                 self.assertTrue(score_df is None or 'Precision (L/7)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/7)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/8)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/8)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/9)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/9)' not in coverage_df.columns or score_df is None)
-    #                 self.assertTrue(score_df is None or 'Precision (L/10)' not in score_df.columns or score_df is None)
-    #                 self.assertTrue(coverage_df is None or 'Precision (L/10)' not in coverage_df.columns or score_df is None)
-    #             if v == 5:
-    #                 fn13 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Heatmap.eps')
-    #                 self.assertTrue(os.path.isfile(fn13))
-    #                 os.remove(fn13)
-    #                 fn14 = os.path.join(c_out_dir, 'Scores_K-{}_'.format(c) + 'Dist-Any_Surface.eps')
-    #                 self.assertTrue(os.path.isfile(fn14))
-    #                 os.remove(fn14)
-    #         if v >= 3:
-    #             os.remove(fn6)
-    #             os.remove(fn7)
-    #     os.remove(os.path.join(out_dir, 'alignment.pkl'))
-    #     os.remove(os.path.join(out_dir, 'ungapped_alignment.pkl'))
-    #     os.remove(os.path.join(out_dir, 'UngappedAlignment.fa'))
-    #     os.remove(os.path.join(out_dir, 'X.npz'))
-    #     os.remove(os.path.join(out_dir, '1h1vA_cET-MIp.npz'))
-    #     os.remove(os.path.join(out_dir, '1h1vA_cET-MIp.pkl'))
-    #     rmtree(os.path.join(out_dir, 'joblib'))
-    #     rmtree(os.path.join(out_dir, str(1)))
-    #     rmtree(os.path.join(out_dir, str(2)))
-    #     rmtree(os.path.join(out_dir, str(3)))
-    #     rmtree(os.path.join(out_dir, str(4)))
-    # 
-    # def test_evaluate_predictions(self):
-    #     out_dir = os.path.abspath('../Test')
-    #     today = str(datetime.date.today())
-    #     #
-    #     scores1 = np.random.RandomState(1234567890).rand(79, 79)
-    #     scores1[np.tril_indices(79, 1)] = 0
+    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
+    #                                                      self.scorer1.query_alignment.seq_length)
+    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
     #     scores1 += scores1.T
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
     #     #
-    #     prev_stats = None
     #     prev_b_w2_ave = None
     #     prev_u_w2_ave = None
-    #     full_len = None
-    #     for v in range(1, 6):
-    #         curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(verbosity=v, out_dir=out_dir,
-    #                                                                                      scores=scores1,  dist='CB',
-    #                                                                                      file_prefix='SCORER1_TEST',
-    #                                                                                      stats=prev_stats,
-    #                                                                                      biased_w2_ave=prev_b_w2_ave,
-    #                                                                                      unbiased_w2_ave=prev_u_w2_ave,
-    #                                                                                      today=today)
+    #     for v in range(1, 4):
+    #         curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictions(
+    #             verbosity=v, out_dir=self.testing_dir, scores=scores1, dist='CB', file_prefix='SCORER1_TEST',
+    #             biased_w2_ave=prev_b_w2_ave, unbiased_w2_ave=prev_u_w2_ave, processes=1, threshold=0.5, plots=True)
     #         # Tests
     #         # Check that the correct data is in the dataframe according to the verbosity
+    #         column_length = None
+    #         for key in curr_stats:
+    #             if column_length is None:
+    #                 column_length = len(curr_stats[key])
+    #             else:
+    #                 self.assertEqual(len(curr_stats[key]), column_length)
     #         if v >= 1:
-    #             fn1 = os.path.join(out_dir, "SCORER1_TEST{}_{}.Covariance_vs_Structure.txt".format(today, self.query1))
-    #             self.assertTrue(os.path.isfile(fn1))
-    #             os.remove(fn1)
+    #             self.assertTrue('Distance' in curr_stats)
+    #             self.assertTrue('Sequence_Separation' in curr_stats)
+    #             self.assertTrue('AUROC' in curr_stats)
+    #             self.assertTrue('AUPRC' in curr_stats)
+    #             self.assertTrue('AUTPRFDRC' in curr_stats)
+    #             for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+    #                 fn1 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
+    #                     'CB', sep))
+    #                 self.assertTrue(os.path.isfile(fn1))
+    #                 os.remove(fn1)
+    #                 fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+    #                                 'CB', sep))
+    #                 print(fn2)
+    #                 self.assertTrue(os.path.isfile(fn2))
+    #                 os.remove(fn2)
+    #                 fn3 = os.path.join(self.testing_dir,
+    #                                    'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('CB', sep))
+    #                 self.assertTrue(os.path.isfile(fn3))
+    #                 os.remove(fn3)
     #             if v == 1:
-    #                 self.assertTrue(curr_stats == {})
     #                 self.assertTrue(curr_b_w2_ave is None)
     #                 self.assertTrue(curr_u_w2_ave is None)
     #         if v >= 2:
-    #             fn2 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
-    #             self.assertTrue(os.path.isfile(fn2))
-    #             os.remove(fn2)
-    #             fn3 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.eps')
-    #             self.assertTrue(os.path.isfile(fn3))
-    #             os.remove(fn3)
-    #             fn4 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+    #             self.assertTrue('Top K Predictions' in curr_stats)
+    #             self.assertTrue('F1 Score' in curr_stats)
+    #             self.assertTrue('Precision' in curr_stats)
+    #             self.assertTrue('Recall' in curr_stats)
+    #             if v == 2:
+    #                 self.assertTrue(curr_b_w2_ave is None)
+    #                 self.assertTrue(curr_u_w2_ave is None)
+    #         if v >= 3:
+    #             self.assertTrue('Max Biased Z-Score' in curr_stats)
+    #             self.assertTrue('AUC Biased Z-Score' in curr_stats)
+    #             self.assertTrue('Max Unbiased Z-Score' in curr_stats)
+    #             self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
+    #             fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
     #             self.assertTrue(os.path.isfile(fn4))
     #             os.remove(fn4)
-    #             fn5 = os.path.join(out_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+    #             fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
     #             self.assertTrue(os.path.isfile(fn5))
     #             os.remove(fn5)
-    #             if v == 2:
-    #                 self.assertTrue(curr_stats == {})
-    #             self.assertTrue(curr_b_w2_ave is not None)
-    #             self.assertTrue(curr_u_w2_ave is not None)
-    #         if v >= 3:
-    #             self.assertTrue('AUROC' in curr_stats)
-    #             self.assertTrue('Distance' in curr_stats)
-    #             self.assertTrue('Sequence_Separation' in curr_stats)
-    #             # Check that lengths are even multiples of previous runs
-    #             if full_len is None and curr_stats != {}:
-    #                 full_len = len(curr_stats['AUROC'])
-    #             self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
-    #             for key in curr_stats:
-    #                 # print(curr_stats['AUROC'])
-    #                 # print(curr_stats[key])
-    #                 self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
-    #                                  '{} does not match AUROC length'.format(key))
-    #             fn6 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Any'))
+    #             fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
     #             self.assertTrue(os.path.isfile(fn6))
     #             os.remove(fn6)
-    #             fn7 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Neighbors'))
+    #             fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
     #             self.assertTrue(os.path.isfile(fn7))
     #             os.remove(fn7)
-    #             fn8 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Short'))
-    #             self.assertTrue(os.path.isfile(fn8))
-    #             os.remove(fn8)
-    #             fn9 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Medium'))
-    #             self.assertTrue(os.path.isfile(fn9))
-    #             os.remove(fn9)
-    #             fn10 = os.path.join(out_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Long'))
-    #             self.assertTrue(os.path.isfile(fn10))
-    #             os.remove(fn10)
-    #         if v >= 4:
-    #             precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
-    #                                 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
-    #                                 'Precision (L/9)', 'Precision (L/10)']
-    #             for l in precision_labels:
-    #                 self.assertTrue(l in curr_stats)
-    #                 self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
-    #         if v == 5:
-    #             fn11 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Heatmap.eps')
-    #             self.assertTrue(os.path.isfile(fn11))
-    #             os.remove(fn11)
-    #             fn12 = os.path.join(out_dir, 'SCORER1_TESTDist-CB_Surface.eps')
-    #             self.assertTrue(os.path.isfile(fn12))
-    #             os.remove(fn12)
+    #             self.assertTrue(curr_b_w2_ave is not None)
+    #             self.assertTrue(curr_u_w2_ave is not None)
     #         # Update
-    #         prev_stats = curr_stats
     #         prev_b_w2_ave = curr_b_w2_ave
     #         prev_u_w2_ave = curr_u_w2_ave
-    #     #
-    #     scores2 = np.random.RandomState(1234567890).rand(368, 368)
-    #     scores2[np.tril_indices(368, 1)] = 0
-    #     scores2 += scores2.T
+    #
+    # def test_21b_evaluate_predictions(self):
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='Any')
+    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
+    #                                                      self.scorer2.query_alignment.seq_length)
+    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
+    #     scores2 += scores2.T
     #     #
-    #     prev_stats = None
     #     prev_b_w2_ave = None
     #     prev_u_w2_ave = None
-    #     full_len = None
-    #     for v in range(1, 6):
-    #         curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictions(verbosity=v, out_dir=out_dir,
-    #                                                                                      scores=scores2, dist='CB',
-    #                                                                                      file_prefix='SCORER2_TEST',
-    #                                                                                      stats=prev_stats,
-    #                                                                                      biased_w2_ave=prev_b_w2_ave,
-    #                                                                                      unbiased_w2_ave=prev_u_w2_ave,
-    #                                                                                      today=today)
+    #     for v in range(1, 4):
+    #         curr_stats, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictions(
+    #             verbosity=v, out_dir=self.testing_dir, scores=scores2, dist='CB', file_prefix='SCORER2_TEST',
+    #             biased_w2_ave=prev_b_w2_ave, unbiased_w2_ave=prev_u_w2_ave, processes=1, threshold=0.5, plots=True)
     #         # Tests
     #         # Check that the correct data is in the dataframe according to the verbosity
+    #         column_length = None
+    #         for key in curr_stats:
+    #             if column_length is None:
+    #                 column_length = len(curr_stats[key])
+    #             else:
+    #                 self.assertEqual(len(curr_stats[key]), column_length)
     #         if v >= 1:
-    #             fn1 = os.path.join(out_dir, "SCORER2_TEST{}_{}.Covariance_vs_Structure.txt".format(today, self.query2))
-    #             self.assertTrue(os.path.isfile(fn1))
-    #             os.remove(fn1)
+    #             self.assertTrue('Distance' in curr_stats)
+    #             self.assertTrue('Sequence_Separation' in curr_stats)
+    #             self.assertTrue('AUROC' in curr_stats)
+    #             self.assertTrue('AUPRC' in curr_stats)
+    #             self.assertTrue('AUTPRFDRC' in curr_stats)
+    #             for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+    #                 fn1 = os.path.join(self.testing_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
+    #                     'CB', sep))
+    #                 self.assertTrue(os.path.isfile(fn1))
+    #                 os.remove(fn1)
+    #                 fn2 = os.path.join(self.testing_dir, 'SCORER2_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+    #                     'CB', sep))
+    #                 self.assertTrue(os.path.isfile(fn2))
+    #                 os.remove(fn2)
+    #                 fn3 = os.path.join(self.testing_dir,
+    #                                    'SCORER2_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('CB', sep))
+    #                 self.assertTrue(os.path.isfile(fn3))
+    #                 os.remove(fn3)
     #             if v == 1:
-    #                 self.assertTrue(curr_stats == {})
     #                 self.assertTrue(curr_b_w2_ave is None)
     #                 self.assertTrue(curr_u_w2_ave is None)
     #         if v >= 2:
-    #             fn2 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.tsv')
-    #             self.assertTrue(os.path.isfile(fn2))
-    #             os.remove(fn2)
-    #             fn3 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.eps')
-    #             self.assertTrue(os.path.isfile(fn3))
-    #             os.remove(fn3)
-    #             fn4 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+    #             self.assertTrue('Top K Predictions' in curr_stats)
+    #             self.assertTrue('F1 Score' in curr_stats)
+    #             self.assertTrue('Precision' in curr_stats)
+    #             self.assertTrue('Recall' in curr_stats)
+    #             if v == 2:
+    #                 self.assertTrue(curr_b_w2_ave is None)
+    #                 self.assertTrue(curr_u_w2_ave is None)
+    #         if v >= 3:
+    #             self.assertTrue('Max Biased Z-Score' in curr_stats)
+    #             self.assertTrue('AUC Biased Z-Score' in curr_stats)
+    #             self.assertTrue('Max Unbiased Z-Score' in curr_stats)
+    #             self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
+    #             fn4 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.tsv')
     #             self.assertTrue(os.path.isfile(fn4))
     #             os.remove(fn4)
-    #             fn5 = os.path.join(out_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.eps')
+    #             fn5 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-CB_Biased_ZScores.png')
     #             self.assertTrue(os.path.isfile(fn5))
     #             os.remove(fn5)
-    #             if v == 2:
-    #                 self.assertTrue(curr_stats == {})
-    #             self.assertTrue(curr_b_w2_ave is not None)
-    #             self.assertTrue(curr_u_w2_ave is not None)
-    #         if v >= 3:
-    #             self.assertTrue('AUROC' in curr_stats)
-    #             self.assertTrue('Distance' in curr_stats)
-    #             self.assertTrue('Sequence_Separation' in curr_stats)
-    #             # Check that lengths are even multiples of previous runs
-    #             if full_len is None and curr_stats != {}:
-    #                 full_len = len(curr_stats['AUROC'])
-    #             self.assertTrue(len(curr_stats['AUROC']) % full_len == 0)
-    #             for key in curr_stats:
-    #                 # print(curr_stats['AUROC'])
-    #                 # print(curr_stats[key])
-    #                 self.assertEqual(len(curr_stats[key]), len(curr_stats['AUROC']),
-    #                                  '{} does not match AUROC length'.format(key))
-    #             fn6 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Any'))
+    #             fn6 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
     #             self.assertTrue(os.path.isfile(fn6))
     #             os.remove(fn6)
-    #             fn7 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Neighbors'))
+    #             fn7 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-CB_Unbiased_ZScores.png')
     #             self.assertTrue(os.path.isfile(fn7))
     #             os.remove(fn7)
-    #             fn8 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Short'))
-    #             self.assertTrue(os.path.isfile(fn8))
-    #             os.remove(fn8)
-    #             fn9 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                         'Medium'))
-    #             self.assertTrue(os.path.isfile(fn9))
-    #             os.remove(fn9)
-    #             fn10 = os.path.join(out_dir, 'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.eps'.format('CB',
-    #                                                                                                          'Long'))
-    #             self.assertTrue(os.path.isfile(fn10))
-    #             os.remove(fn10)
-    #         if v >= 4:
-    #             precision_labels = ['Precision (L)', 'Precision (L/2)', 'Precision (L/3)', 'Precision (L/4)',
-    #                                 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
-    #                                 'Precision (L/9)', 'Precision (L/10)']
-    #             for l in precision_labels:
-    #                 self.assertTrue(l in curr_stats)
-    #                 self.assertEqual(len(curr_stats[l]), len(curr_stats['AUROC']))
-    #         if v == 5:
-    #             fn11 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Heatmap.eps')
-    #             self.assertTrue(os.path.isfile(fn11))
-    #             os.remove(fn11)
-    #             fn12 = os.path.join(out_dir, 'SCORER2_TESTDist-CB_Surface.eps')
-    #             self.assertTrue(os.path.isfile(fn12))
-    #             os.remove(fn12)
+    #             self.assertTrue(curr_b_w2_ave is not None)
+    #             self.assertTrue(curr_u_w2_ave is not None)
     #         # Update
-    #         prev_stats = curr_stats
     #         prev_b_w2_ave = curr_b_w2_ave
     #         prev_u_w2_ave = curr_u_w2_ave
-    # 
+
+    def test_22a_evaluate_predictor(self):
+        etmipc1 = EvolutionaryTrace(query_id=self.query1, aln_fn=self.aln_file1, polymer_type='Protein',
+                                    et_distance=False, distance_model='identity', tree_building_method='upgma',
+                                    tree_building_options={}, ranks=list(range(1, 6)), position_type='pair',
+                                    scoring_metric='identity', gap_correction=False,
+                                    out_dir=os.path.join(self.testing_dir, self.query1), output_files=['scores'],
+                                    processors=self.max_threads, low_memory=False)
+        etmipc1.import_and_process_aln()
+        etmipc1.compute_distance_matrix_tree_and_assignments()
+        etmipc1.perform_trace()
+        self.scorer1.fit()
+        self.scorer1.measure_distance(method='Any')
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        for v in range(1, 4):
+            score_df, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictor(
+                predictor=etmipc1, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
+                unbiased_w2_ave=prev_u_w2_ave, processes=self.max_threads, threshold=0.5, pos_size=2, rank_type='min',
+                file_prefix='SCORER1_TEST', plots=True)
+            if v >= 1:
+                self.assertTrue('Distance' in score_df.columns)
+                self.assertTrue('Sequence_Separation' in score_df.columns)
+                self.assertTrue('AUROC' in score_df.columns)
+                self.assertTrue('AUPRC' in score_df.columns)
+                self.assertTrue('AUTPRFDRC' in score_df.columns)
+                for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                    fn1 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                        'Any', sep))
+                    self.assertTrue(os.path.isfile(fn1))
+                    os.remove(fn1)
+                    fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                        'Any', sep))
+                    self.assertTrue(os.path.isfile(fn2))
+                    os.remove(fn2)
+                    fn3 = os.path.join(self.testing_dir,
+                                       'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                    self.assertTrue(os.path.isfile(fn3))
+                    os.remove(fn3)
+                if v == 1:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                self.assertTrue('Top K Predictions' in score_df.columns)
+                self.assertTrue('F1 Score' in score_df.columns)
+                self.assertTrue('Precision' in score_df.columns)
+                self.assertTrue('Recall' in score_df.columns)
+                if v == 2:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 3:
+                self.assertTrue('Max Biased Z-Score' in score_df.columns)
+                self.assertTrue('AUC Biased Z-Score' in score_df.columns)
+                self.assertTrue('Max Unbiased Z-Score' in score_df.columns)
+                self.assertTrue('AUC Unbiased Z-Score' in score_df.columns)
+                fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
+
+    def test_22b_evaluate_predictor(self):
+        etmipc2 = EvolutionaryTrace(query_id=self.query2, aln_fn=self.aln_file2, polymer_type='Protein',
+                                    et_distance=False, distance_model='identity', tree_building_method='upgma',
+                                    tree_building_options={}, ranks=list(range(1, 6)), position_type='pair',
+                                    scoring_metric='identity', gap_correction=False,
+                                    out_dir=os.path.join(self.testing_dir, self.query2), output_files=['scores'],
+                                    processors=self.max_threads, low_memory=False)
+        etmipc2.import_and_process_aln()
+        etmipc2.compute_distance_matrix_tree_and_assignments()
+        etmipc2.perform_trace()
+        self.scorer2.fit()
+        self.scorer2.measure_distance(method='Any')
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        for v in range(1, 4):
+            score_df, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictor(
+                predictor=etmipc2, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
+                unbiased_w2_ave=prev_u_w2_ave, processes=self.max_threads, threshold=0.5, pos_size=2, rank_type='min',
+                file_prefix='SCORER1_TEST', plots=True)
+            if v >= 1:
+                self.assertTrue('Distance' in score_df.columns)
+                self.assertTrue('Sequence_Separation' in score_df.columns)
+                self.assertTrue('AUROC' in score_df.columns)
+                self.assertTrue('AUPRC' in score_df.columns)
+                self.assertTrue('AUTPRFDRC' in score_df.columns)
+                for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                    fn1 = os.path.join(self.testing_dir,
+                                       'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                                           'Any', sep))
+                    self.assertTrue(os.path.isfile(fn1))
+                    os.remove(fn1)
+                    fn2 = os.path.join(self.testing_dir,
+                                       'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                                           'Any', sep))
+                    self.assertTrue(os.path.isfile(fn2))
+                    os.remove(fn2)
+                    fn3 = os.path.join(self.testing_dir,
+                                       'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                    self.assertTrue(os.path.isfile(fn3))
+                    os.remove(fn3)
+                if v == 1:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                self.assertTrue('Top K Predictions' in score_df.columns)
+                self.assertTrue('F1 Score' in score_df.columns)
+                self.assertTrue('Precision' in score_df.columns)
+                self.assertTrue('Recall' in score_df.columns)
+                if v == 2:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 3:
+                self.assertTrue('Max Biased Z-Score' in score_df.columns)
+                self.assertTrue('AUC Biased Z-Score' in score_df.columns)
+                self.assertTrue('Max Unbiased Z-Score' in score_df.columns)
+                self.assertTrue('AUC Unbiased Z-Score' in score_df.columns)
+                fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
+
     # def test_write_out_contact_scoring(self):
     #     def comp_function(df, seq, clusters, branches, scores, coverages):
     #         for i in df.index:
