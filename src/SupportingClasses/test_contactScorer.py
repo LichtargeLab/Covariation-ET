@@ -2583,7 +2583,6 @@ class TestContactScorer(TestBase):
                     os.remove(fn1)
                     fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
                                     'CB', sep))
-                    print(fn2)
                     self.assertTrue(os.path.isfile(fn2))
                     os.remove(fn2)
                     fn3 = os.path.join(self.testing_dir,
