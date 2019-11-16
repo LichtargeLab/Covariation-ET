@@ -89,18 +89,10 @@ class ContactScorer(object):
             self.query_alignment = os.path.abspath(seq_alignment)
         else:
             self.query_alignment = seq_alignment
-        # if isinstance(seq_alignment, SeqAlignment):
-        #     self.query_alignment = seq_alignment
-        # else:
-        #     self.query_alignment = os.path.abspath(seq_alignment)
         if isinstance(pdb_reference, os.PathLike):
             self.query_structure = os.path.abspath(pdb_reference)
         else:
             self.query_structure = pdb_reference
-        # if isinstance(pdb_reference, PDBReference):
-        #     self.query_structure = pdb_reference
-        # else:
-        #     self.query_structure = os.path.abspath(pdb_reference)
         self.cutoff = cutoff
         self.best_chain = chain
         self.query_pdb_mapping = None
@@ -662,7 +654,7 @@ class ContactScorer(object):
         # accumulate the true positives with decreasing threshold
         tps = stable_cumsum(y_true * weight)[threshold_idxs]
         if sample_weight is not None:
-            # express fps as a cumsum to ensure fps is increasing even in
+            # express fps as a cumulative sum to ensure fps is increasing even in
             # the presence of floating point errors
             fps = stable_cumsum((1 - y_true) * weight)[threshold_idxs]
         else:
@@ -757,16 +749,6 @@ class ContactScorer(object):
                           UndefinedMetricWarning)
             fdr = np.repeat(np.nan, fps.shape)
         else:
-            # if (fdr_denominator == 0).any():
-            #     print('TPS')
-            #     print(tps)
-            #     print('FPS')
-            #     print(fps)
-            #     print('THRESHOLDS')
-            #     print(thresholds)
-            #     print('DENOMINATOR')
-            #     print(fdr_denominator)
-            #     raise ValueError('Encountered 0 divide')
             fdr = fps / fdr_denominator
             correction_idxs = np.isnan(fdr)
             if correction_idxs.shape[0] > 0:
@@ -1815,11 +1797,8 @@ def compute_w2_ave_sub(res_i):
         dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
         3).
     """
-    # print('res i: {}'.format(res_i))
     cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
     for res_j in range(res_i + 1, distances.shape[1]):
-        # print('res j: {}'.format(res_j))
-        # print(distances[res_i][res_j])
         if distances[res_i][res_j] >= cutoff:
             continue
         if bias:
@@ -1827,10 +1806,7 @@ def compute_w2_ave_sub(res_i):
         else:
             s_ij = 1
         for res_x in range(distances.shape[0]):
-            # print('res x: {}'.format(res_x))
             for res_y in range(res_x + 1, distances.shape[1]):
-                # print('res y: {}'.format(res_y))
-                # print(distances[res_x][res_y])
                 if distances[res_x][res_y] >= cutoff:
                     continue
                 if bias:
@@ -1844,7 +1820,6 @@ def compute_w2_ave_sub(res_i):
                 else:
                     curr_case = 'Case3'
                 cases[curr_case] += s_ij * s_xy
-    # print(cases)
     return cases
 
 
@@ -1924,7 +1899,6 @@ def clustering_z_score(res_list):
         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
     """
-    # start = time()
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
         return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
@@ -1933,7 +1907,6 @@ def clustering_z_score(res_list):
         raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
     # Make sure a query_pdb_mapping exists
     if query_pdb_mapping is None:
-        # self.fit()
         raise ValueError('ContactScorer instance must be fit before attempting to perform structural clustering'
                          'weighted z-scoring.')
     # Make sure all residues in res_list are mapped to the PDB structure in use
@@ -1945,7 +1918,6 @@ def clustering_z_score(res_list):
     positions = range(distances.shape[0])
     a = distances < cutoff
     a[positions, positions] = 0
-    # s_i = np.in1d(positions, res_list)
     s_i = np.in1d(positions, [query_pdb_mapping[r] for r in res_list])
     s_ij = np.outer(s_i, s_i)
     s_ij[positions, positions] = 0
@@ -1969,6 +1941,4 @@ def clustering_z_score(res_list):
     if sigma == 0:
         return a, m, l, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, m
     z_score = (w - w_ave) / sigma
-    # end = time()
-    # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
     return a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, m
