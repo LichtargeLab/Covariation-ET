@@ -1058,14 +1058,22 @@ class ContactScorer(object):
             # If data has already been computed load and return it without recomputing.
         if os.path.isfile(file_path):
             df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
-            df_sub = df.dropna()[['Num_Residues', 'Z-Score']]
+            df_sub = df.replace([None, '-', 'NA'], np.nan)
+            df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
             df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_alignment.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
             else:
-                au_scw_z_score_curve = auc(df_sub['Coverage'], df_sub['Z-Score'])
+                for x in df_sub['Coverage'].astype(float):
+                    print('{} : {} : {}'.format(x, isinstance(x, (int, float, complex)) and not isinstance(x, bool),
+                                                type(x)))
+                for x in df_sub['Z-Score'].astype(float):
+                    print('{} : {} : {}'.format(x, isinstance(x, (int, float, complex)) and not isinstance(x, bool),
+                                                type(x)))
+                au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
+                                           df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
         # Identify unmappable positions (do not appear in the PDB).
         unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
@@ -1382,7 +1390,7 @@ class ContactScorer(object):
         if os.path.isfile(score_fn):
             score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
             return score_df, None, None
-        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFPRC',
+        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFDRC',
                    'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
                    'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
         # Retrieve coverages or computes them from the scorer

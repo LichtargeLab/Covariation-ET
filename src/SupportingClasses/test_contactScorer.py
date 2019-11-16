@@ -2671,22 +2671,22 @@ class TestContactScorer(TestBase):
     #         prev_u_w2_ave = curr_u_w2_ave
 
     def test_22a_evaluate_predictor(self):
-        etmipc1 = EvolutionaryTrace(query_id=self.query1, aln_fn=self.aln_file1, polymer_type='Protein',
-                                    et_distance=False, distance_model='identity', tree_building_method='upgma',
-                                    tree_building_options={}, ranks=list(range(1, 6)), position_type='pair',
-                                    scoring_metric='identity', gap_correction=False,
-                                    out_dir=os.path.join(self.testing_dir, self.query1), output_files=['scores'],
-                                    processors=self.max_threads, low_memory=False)
-        etmipc1.import_and_process_aln()
-        etmipc1.compute_distance_matrix_tree_and_assignments()
-        etmipc1.perform_trace()
+        etmip1 = EvolutionaryTrace(query_id=self.query1, polymer_type='Protein', aln_fn=self.aln_file1,
+                                   et_distance=True, distance_model='blosum62', tree_building_method='et',
+                                   tree_building_options={}, ranks=None, position_type='pair',
+                                   scoring_metric='filtered_average_product_corrected_mutual_information',
+                                   gap_correction=None, out_dir=os.path.join(self.testing_dir, self.query1),
+                                   output_files=set(), processors=self.max_threads, low_memory=True)
+        etmip1.import_and_process_aln()
+        etmip1.compute_distance_matrix_tree_and_assignments()
+        etmip1.perform_trace()
         self.scorer1.fit()
         self.scorer1.measure_distance(method='Any')
         prev_b_w2_ave = None
         prev_u_w2_ave = None
         for v in range(1, 4):
             score_df, curr_b_w2_ave, curr_u_w2_ave = self.scorer1.evaluate_predictor(
-                predictor=etmipc1, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
+                predictor=etmip1, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
                 unbiased_w2_ave=prev_u_w2_ave, processes=self.max_threads, threshold=0.5, pos_size=2, rank_type='min',
                 file_prefix='SCORER1_TEST', plots=True)
             if v >= 1:
@@ -2695,19 +2695,22 @@ class TestContactScorer(TestBase):
                 self.assertTrue('AUROC' in score_df.columns)
                 self.assertTrue('AUPRC' in score_df.columns)
                 self.assertTrue('AUTPRFDRC' in score_df.columns)
+                fn1 = os.path.join(self.testing_dir, '{}_Evaluation_Dist-{}.txt'.format('SCORER1_TEST', 'Any'))
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
                 for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-                    fn1 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
-                        'Any', sep))
-                    self.assertTrue(os.path.isfile(fn1))
-                    os.remove(fn1)
-                    fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                    fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
                         'Any', sep))
                     self.assertTrue(os.path.isfile(fn2))
                     os.remove(fn2)
-                    fn3 = os.path.join(self.testing_dir,
-                                       'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                    fn3 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                        'Any', sep))
                     self.assertTrue(os.path.isfile(fn3))
                     os.remove(fn3)
+                    fn4 = os.path.join(self.testing_dir,
+                                       'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                    self.assertTrue(os.path.isfile(fn4))
+                    os.remove(fn4)
                 if v == 1:
                     self.assertTrue(curr_b_w2_ave is None)
                     self.assertTrue(curr_u_w2_ave is None)
@@ -2724,63 +2727,66 @@ class TestContactScorer(TestBase):
                 self.assertTrue('AUC Biased Z-Score' in score_df.columns)
                 self.assertTrue('Max Unbiased Z-Score' in score_df.columns)
                 self.assertTrue('AUC Unbiased Z-Score' in score_df.columns)
-                fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
-                self.assertTrue(os.path.isfile(fn4))
-                os.remove(fn4)
-                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
+                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Biased_ZScores.tsv'.format('Any'))
                 self.assertTrue(os.path.isfile(fn5))
                 os.remove(fn5)
-                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Biased_ZScores.png'.format('Any'))
                 self.assertTrue(os.path.isfile(fn6))
                 os.remove(fn6)
-                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Unbiased_ZScores.tsv'.format('Any'))
                 self.assertTrue(os.path.isfile(fn7))
                 os.remove(fn7)
+                fn8 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Unbiased_ZScores.png'.format('Any'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
                 self.assertTrue(curr_b_w2_ave is not None)
                 self.assertTrue(curr_u_w2_ave is not None)
             prev_b_w2_ave = curr_b_w2_ave
             prev_u_w2_ave = curr_u_w2_ave
 
     def test_22b_evaluate_predictor(self):
-        etmipc2 = EvolutionaryTrace(query_id=self.query2, aln_fn=self.aln_file2, polymer_type='Protein',
-                                    et_distance=False, distance_model='identity', tree_building_method='upgma',
-                                    tree_building_options={}, ranks=list(range(1, 6)), position_type='pair',
-                                    scoring_metric='identity', gap_correction=False,
-                                    out_dir=os.path.join(self.testing_dir, self.query2), output_files=['scores'],
-                                    processors=self.max_threads, low_memory=False)
-        etmipc2.import_and_process_aln()
-        etmipc2.compute_distance_matrix_tree_and_assignments()
-        etmipc2.perform_trace()
+        etmip2 = EvolutionaryTrace(query_id=self.query2, polymer_type='Protein', aln_fn=self.aln_file2,
+                                   et_distance=True, distance_model='blosum62', tree_building_method='et',
+                                   tree_building_options={}, ranks=None, position_type='pair',
+                                   scoring_metric='filtered_average_product_corrected_mutual_information',
+                                   gap_correction=None, out_dir=os.path.join(self.testing_dir, self.query2),
+                                   output_files=set(), processors=self.max_threads, low_memory=True)
+        etmip2.import_and_process_aln()
+        etmip2.compute_distance_matrix_tree_and_assignments()
+        etmip2.perform_trace()
         self.scorer2.fit()
         self.scorer2.measure_distance(method='Any')
         prev_b_w2_ave = None
         prev_u_w2_ave = None
         for v in range(1, 4):
             score_df, curr_b_w2_ave, curr_u_w2_ave = self.scorer2.evaluate_predictor(
-                predictor=etmipc2, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
+                predictor=etmip2, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
                 unbiased_w2_ave=prev_u_w2_ave, processes=self.max_threads, threshold=0.5, pos_size=2, rank_type='min',
-                file_prefix='SCORER1_TEST', plots=True)
+                file_prefix='SCORER2_TEST', plots=True)
             if v >= 1:
                 self.assertTrue('Distance' in score_df.columns)
                 self.assertTrue('Sequence_Separation' in score_df.columns)
                 self.assertTrue('AUROC' in score_df.columns)
                 self.assertTrue('AUPRC' in score_df.columns)
                 self.assertTrue('AUTPRFDRC' in score_df.columns)
+                fn1 = os.path.join(self.testing_dir, '{}_Evaluation_Dist-{}.txt'.format('SCORER2_TEST', 'Any'))
+                self.assertTrue(os.path.isfile(fn1))
+                os.remove(fn1)
                 for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-                    fn1 = os.path.join(self.testing_dir,
-                                       'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
-                                           'Any', sep))
-                    self.assertTrue(os.path.isfile(fn1))
-                    os.remove(fn1)
                     fn2 = os.path.join(self.testing_dir,
-                                       'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                                       'SCORER2_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
                                            'Any', sep))
                     self.assertTrue(os.path.isfile(fn2))
                     os.remove(fn2)
                     fn3 = os.path.join(self.testing_dir,
-                                       'SCORER1_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                                       'SCORER2_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                                           'Any', sep))
                     self.assertTrue(os.path.isfile(fn3))
                     os.remove(fn3)
+                    fn4 = os.path.join(self.testing_dir,
+                                       'SCORER2_TESTAUTPRFDRC_Evaluation_Dist-{}_Separation-{}.png'.format('Any', sep))
+                    self.assertTrue(os.path.isfile(fn4))
+                    os.remove(fn4)
                 if v == 1:
                     self.assertTrue(curr_b_w2_ave is None)
                     self.assertTrue(curr_u_w2_ave is None)
@@ -2797,18 +2803,18 @@ class TestContactScorer(TestBase):
                 self.assertTrue('AUC Biased Z-Score' in score_df.columns)
                 self.assertTrue('Max Unbiased Z-Score' in score_df.columns)
                 self.assertTrue('AUC Unbiased Z-Score' in score_df.columns)
-                fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
-                self.assertTrue(os.path.isfile(fn4))
-                os.remove(fn4)
-                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
+                fn5 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-{}_Biased_ZScores.tsv'.format('Any'))
                 self.assertTrue(os.path.isfile(fn5))
                 os.remove(fn5)
-                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                fn6 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-{}_Biased_ZScores.png'.format('Any'))
                 self.assertTrue(os.path.isfile(fn6))
                 os.remove(fn6)
-                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                fn7 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-{}_Unbiased_ZScores.tsv'.format('Any'))
                 self.assertTrue(os.path.isfile(fn7))
                 os.remove(fn7)
+                fn8 = os.path.join(self.testing_dir, 'SCORER2_TEST' + 'Dist-{}_Unbiased_ZScores.png'.format('Any'))
+                self.assertTrue(os.path.isfile(fn8))
+                os.remove(fn8)
                 self.assertTrue(curr_b_w2_ave is not None)
                 self.assertTrue(curr_u_w2_ave is not None)
             prev_b_w2_ave = curr_b_w2_ave
