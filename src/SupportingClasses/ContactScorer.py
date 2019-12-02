@@ -1053,12 +1053,6 @@ class ContactScorer(object):
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
             else:
-                # for x in df_sub['Coverage'].astype(float):
-                #     print('{} : {} : {}'.format(x, isinstance(x, (int, float, complex)) and not isinstance(x, bool),
-                #                                 type(x)))
-                # for x in df_sub['Z-Score'].astype(float):
-                #     print('{} : {} : {}'.format(x, isinstance(x, (int, float, complex)) and not isinstance(x, bool),
-                #                                 type(x)))
                 au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
                                            df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
@@ -1845,7 +1839,6 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
         sequence for those positions which match according to a pairwise global alignment.
         residue_dists (np.array): The distances between residues, used for determining those which are in contact in
         order to assess predictions.
-        seq_aln (SeqAlignment): SeqAlignment object being evaluated in this contact scoring prediction task.
         best_chain (str): The chain being considered during this analysis.
     """
     global bias
@@ -1863,8 +1856,6 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
     # versions of the code and paper descriptions, it had previously been set as a variable but this changes the meaning
     # of the result and makes it impossible to compare to previous work.
     cutoff = 4.0
-    # global query_alignment
-    # query_alignment = seq_aln
     global query_chain
     query_chain = best_chain
 
@@ -1944,18 +1935,6 @@ def clustering_z_score(res_list):
     pi3 = pi2 * (m - 3.0) / (l - 3.0)
     w_ave = np.sum(np.tril(a * bias_ij)) * pi1
     w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
-    if m != len(set(res_list)):
-        print(sorted(res_list))
-        print('M: ', m)
-        print('UNIQUE M: ', len(set(res_list)))
-        print('L: ', l)
-        print('W: ', w)
-        print('RES LIST: ', res_list)
-        print('W_AVE: ', w_ave)
-        print('W_AVE^2: ', (w_ave * w_ave))
-        print('W^2_AVE: ', w2_ave)
-        print('DIFF: ', w2_ave - w_ave * w_ave)
-        print('DIFF2: ', w2_ave - (w_ave * w_ave))
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:

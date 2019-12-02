@@ -1889,7 +1889,7 @@ class TestContactScorer(TestBase):
         self.assertEqual(cases_biased['Case1'], expected_w2_biased[0])
         self.assertEqual(cases_biased['Case2'], expected_w2_biased[1])
         self.assertEqual(cases_biased['Case3'], expected_w2_biased[2])
-
+        ################################################################################################################
         init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=False)
         cases_unbiased = {}
         for i in range(self.scorer1.distances.shape[0]):
@@ -1924,6 +1924,7 @@ class TestContactScorer(TestBase):
         self.assertEqual(cases_biased['Case1'], expected_w2_biased[0])
         self.assertEqual(cases_biased['Case2'], expected_w2_biased[1])
         self.assertEqual(cases_biased['Case3'], expected_w2_biased[2])
+        ################################################################################################################
         init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=False)
         cases_unbiased = {}
         for i in range(self.scorer2.distances.shape[0]):
@@ -1959,13 +1960,11 @@ class TestContactScorer(TestBase):
                 cases_unbiased[k] += curr_cases[k]
         init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer1.query_structure,
                                 map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
-                                # seq_aln=self.scorer1.query_alignment)
                                 best_chain=self.scorer1.best_chain)
         for i in range(len(residue_list)):
             curr_residues = residue_list[:(i + 1)]
             a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                # reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=False)
+            em, el, epi1, epi2, epi3, e_z_score, e_w, e_w_ave, e_w2_ave, e_sigma, e_cases = self._et_calcZScore(
                 reslist=curr_residues, L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]),
                 A=expected_adjacency, bias=False)
             for res_i in expected_adjacency:
@@ -1979,29 +1978,29 @@ class TestContactScorer(TestBase):
             self.assertLess(np.abs(pi2 - epi2), 1E-16)
             self.assertLess(np.abs(pi3 - epi3), 1E-16)
             self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_unbiased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-5, '{} vs {}'.format(w2_ave, expected_w2_ave))
+            self.assertLess(np.abs(w - e_w), 1E-16, '{} vs {}'.format(w, e_w))
+            self.assertLess(np.abs(w_ave - e_w_ave), 1E-16, '{} vs {}'.format(w_ave, e_w_ave))
+            for case in e_cases:
+                self.assertEqual(cases_unbiased[case], e_cases[case])
+            self.assertLess(np.abs(w2_ave - e_w2_ave), 1E-5, '{} vs {}'.format(w2_ave, e_w2_ave))
             composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
                                (pi3 * cases_unbiased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
+            expected_composed_w2_ave = ((epi1 * e_cases['Case1']) + (epi2 * e_cases['Case2']) +
+                                        (epi3 * e_cases['Case3']))
             self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-6, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+            self.assertLess(np.abs(sigma - e_sigma), 1E-6, '{} vs {}'.format(sigma, e_sigma))
+            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - e_w_ave * e_w_ave)
             self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
             if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+                self.assertTrue(isinstance(e_z_score, str))
+                self.assertEqual(z_score, e_z_score, '{} vs {}'.format(z_score, e_z_score))
             else:
                 if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
+                    self.assertTrue(e_z_score < 0)
                 else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-6, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+                    self.assertFalse(e_z_score < 0)
+                self.assertLess(np.abs(z_score - e_z_score), 1E-6, '{} vs {}'.format(z_score, e_z_score))
+                expected_composed_z_score = (e_w - e_w_ave) / expected_composed_sigma
                 self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
         ################################################################################################################
         init_compute_w2_ave_sub(dists=self.scorer1.distances, bias_bool=True)
@@ -2014,13 +2013,11 @@ class TestContactScorer(TestBase):
                 cases_biased[k] += curr_cases[k]
         init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer1.query_structure,
                                 map_to_structure=self.scorer1.query_pdb_mapping, residue_dists=self.scorer1.distances,
-                                # seq_aln=self.scorer1.query_alignment)
                                 best_chain=self.scorer1.best_chain)
         for i in range(len(residue_list)):
             curr_residues = residue_list[:(i + 1)]
             a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                # reslist=curr_residues, L=self.scorer1.query_alignment.seq_length, A=expected_adjacency, bias=True)
+            em, el, epi1, epi2, epi3, e_z_score, e_w, e_w_ave, e_w2_ave, e_sigma, e_cases = self._et_calcZScore(
                 reslist=curr_residues, L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]),
                 A=expected_adjacency, bias=True)
             for res_i in expected_adjacency:
@@ -2034,29 +2031,29 @@ class TestContactScorer(TestBase):
             self.assertLess(np.abs(pi2 - epi2), 1E-16)
             self.assertLess(np.abs(pi3 - epi3), 1E-16)
             self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_biased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-3, '{} vs {}'.format(w2_ave, expected_w2_ave))
+            self.assertLess(np.abs(w - e_w), 1E-16, '{} vs {}'.format(w, e_w))
+            self.assertLess(np.abs(w_ave - e_w_ave), 1E-16, '{} vs {}'.format(w_ave, e_w_ave))
+            for case in e_cases:
+                self.assertEqual(cases_biased[case], e_cases[case])
+            self.assertLess(np.abs(w2_ave - e_w2_ave), 1E-3, '{} vs {}'.format(w2_ave, e_w2_ave))
             composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
                                (pi3 * cases_biased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
+            expected_composed_w2_ave = ((epi1 * e_cases['Case1']) + (epi2 * e_cases['Case2']) +
+                                        (epi3 * e_cases['Case3']))
             self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-4, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+            self.assertLess(np.abs(sigma - e_sigma), 1E-4, '{} vs {}'.format(sigma, e_sigma))
+            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - e_w_ave * e_w_ave)
             self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
             if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+                self.assertTrue(isinstance(e_z_score, str))
+                self.assertEqual(z_score, e_z_score, '{} vs {}'.format(z_score, e_z_score))
             else:
                 if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
+                    self.assertTrue(e_z_score < 0)
                 else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-4, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+                    self.assertFalse(e_z_score < 0)
+                self.assertLess(np.abs(z_score - e_z_score), 1E-4, '{} vs {}'.format(z_score, e_z_score))
+                expected_composed_z_score = (e_w - e_w_ave) / expected_composed_sigma
                 self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
 
     def test_18b_clustering_z_scores(self):
@@ -2081,13 +2078,11 @@ class TestContactScorer(TestBase):
                 cases_unbiased[k] += curr_cases[k]
         init_clustering_z_score(bias_bool=False, w2_ave_sub_dict=cases_unbiased, curr_pdb=self.scorer2.query_structure,
                                 map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
-                                # seq_aln=self.scorer2.query_alignment)
                                 best_chain=self.scorer2.best_chain)
         for i in range(len(residue_list)):
             curr_residues = residue_list[:(i + 1)]
             a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                # reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=False)
+            em, el, epi1, epi2, epi3, e_z_score, e_w, e_w_ave, e_w2_ave, e_sigma, e_cases = self._et_calcZScore(
                 reslist=curr_residues, L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]),
                 A=expected_adjacency, bias=False)
             for res_i in expected_adjacency:
@@ -2101,29 +2096,29 @@ class TestContactScorer(TestBase):
             self.assertLess(np.abs(pi2 - epi2), 1E-16)
             self.assertLess(np.abs(pi3 - epi3), 1E-16)
             self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_unbiased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-4, '{} vs {}'.format(w2_ave, expected_w2_ave))
+            self.assertLess(np.abs(w - e_w), 1E-16, '{} vs {}'.format(w, e_w))
+            self.assertLess(np.abs(w_ave - e_w_ave), 1E-16, '{} vs {}'.format(w_ave, e_w_ave))
+            for case in e_cases:
+                self.assertEqual(cases_unbiased[case], e_cases[case])
+            self.assertLess(np.abs(w2_ave - e_w2_ave), 1E-4, '{} vs {}'.format(w2_ave, e_w2_ave))
             composed_w2_ave = ((pi1 * cases_unbiased['Case1']) + (pi2 * cases_unbiased['Case2']) +
                                (pi3 * cases_unbiased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
+            expected_composed_w2_ave = ((epi1 * e_cases['Case1']) + (epi2 * e_cases['Case2']) +
+                                        (epi3 * e_cases['Case3']))
             self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+            self.assertLess(np.abs(sigma - e_sigma), 1E-5, '{} vs {}'.format(sigma, e_sigma))
+            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - e_w_ave * e_w_ave)
             self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
             if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+                self.assertTrue(isinstance(e_z_score, str))
+                self.assertEqual(z_score, e_z_score, '{} vs {}'.format(z_score, e_z_score))
             else:
                 if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
+                    self.assertTrue(e_z_score < 0)
                 else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+                    self.assertFalse(e_z_score < 0)
+                self.assertLess(np.abs(z_score - e_z_score), 1E-5, '{} vs {}'.format(z_score, e_z_score))
+                expected_composed_z_score = (e_w - e_w_ave) / expected_composed_sigma
                 self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
         ################################################################################################################
         init_compute_w2_ave_sub(dists=self.scorer2.distances, bias_bool=True)
@@ -2136,13 +2131,11 @@ class TestContactScorer(TestBase):
                 cases_biased[k] += curr_cases[k]
         init_clustering_z_score(bias_bool=True, w2_ave_sub_dict=cases_biased, curr_pdb=self.scorer2.query_structure,
                                 map_to_structure=self.scorer2.query_pdb_mapping, residue_dists=self.scorer2.distances,
-                                # seq_aln=self.scorer2.query_alignment)
                                 best_chain=self.scorer2.best_chain)
         for i in range(len(residue_list)):
             curr_residues = residue_list[:(i + 1)]
             a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, num_residues = clustering_z_score(curr_residues)
-            em, el, epi1, epi2, epi3, expected_z_score, expected_w, expected_w_ave, expected_w2_ave, expected_sigma, expected_cases = self._et_calcZScore(
-                # reslist=curr_residues, L=self.scorer2.query_alignment.seq_length, A=expected_adjacency, bias=True)
+            em, el, epi1, epi2, epi3, e_z_score, e_w, e_w_ave, e_w2_ave, e_sigma, e_cases = self._et_calcZScore(
                 reslist=curr_residues, L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]),
                 A=expected_adjacency, bias=True)
             for res_i in expected_adjacency:
@@ -2156,29 +2149,29 @@ class TestContactScorer(TestBase):
             self.assertLess(np.abs(pi2 - epi2), 1E-16)
             self.assertLess(np.abs(pi3 - epi3), 1E-16)
             self.assertEqual(num_residues, len(curr_residues))
-            self.assertLess(np.abs(w - expected_w), 1E-16, '{} vs {}'.format(w, expected_w))
-            self.assertLess(np.abs(w_ave - expected_w_ave), 1E-16, '{} vs {}'.format(w_ave, expected_w_ave))
-            for case in expected_cases:
-                self.assertEqual(cases_biased[case], expected_cases[case])
-            self.assertLess(np.abs(w2_ave - expected_w2_ave), 1E-2, '{} vs {}'.format(w2_ave, expected_w2_ave))
+            self.assertLess(np.abs(w - e_w), 1E-16, '{} vs {}'.format(w, e_w))
+            self.assertLess(np.abs(w_ave - e_w_ave), 1E-16, '{} vs {}'.format(w_ave, e_w_ave))
+            for case in e_cases:
+                self.assertEqual(cases_biased[case], e_cases[case])
+            self.assertLess(np.abs(w2_ave - e_w2_ave), 1E-2, '{} vs {}'.format(w2_ave, e_w2_ave))
             composed_w2_ave = ((pi1 * cases_biased['Case1']) + (pi2 * cases_biased['Case2']) +
                                (pi3 * cases_biased['Case3']))
-            expected_composed_w2_ave = ((epi1 * expected_cases['Case1']) + (epi2 * expected_cases['Case2']) +
-                                        (epi3 * expected_cases['Case3']))
+            expected_composed_w2_ave = ((epi1 * e_cases['Case1']) + (epi2 * e_cases['Case2']) +
+                                        (epi3 * e_cases['Case3']))
             self.assertLess(np.abs(composed_w2_ave - expected_composed_w2_ave), 1E-16)
-            self.assertLess(np.abs(sigma - expected_sigma), 1E-5, '{} vs {}'.format(sigma, expected_sigma))
-            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - expected_w_ave * expected_w_ave)
+            self.assertLess(np.abs(sigma - e_sigma), 1E-5, '{} vs {}'.format(sigma, e_sigma))
+            expected_composed_sigma = math.sqrt(expected_composed_w2_ave - e_w_ave * e_w_ave)
             self.assertLess(np.abs(sigma - expected_composed_sigma), 1E-16)
             if isinstance(z_score, str):
-                self.assertTrue(isinstance(expected_z_score, str))
-                self.assertEqual(z_score, expected_z_score, '{} vs {}'.format(z_score, expected_z_score))
+                self.assertTrue(isinstance(e_z_score, str))
+                self.assertEqual(z_score, e_z_score, '{} vs {}'.format(z_score, e_z_score))
             else:
                 if z_score < 0:
-                    self.assertTrue(expected_z_score < 0)
+                    self.assertTrue(e_z_score < 0)
                 else:
-                    self.assertFalse(expected_z_score < 0)
-                self.assertLess(np.abs(z_score - expected_z_score), 1E-5, '{} vs {}'.format(z_score, expected_z_score))
-                expected_composed_z_score = (expected_w - expected_w_ave) / expected_composed_sigma
+                    self.assertFalse(e_z_score < 0)
+                self.assertLess(np.abs(z_score - e_z_score), 1E-5, '{} vs {}'.format(z_score, e_z_score))
+                expected_composed_z_score = (e_w - e_w_ave) / expected_composed_sigma
                 self.assertLess(np.abs(z_score - expected_composed_z_score), 1E-16)
 
     def test_19a_score_clustering_of_contact_predictions(self):
@@ -2221,8 +2214,6 @@ class TestContactScorer(TestBase):
                 visited_scorable_residues.add(res_i)
                 visited_scorable_residues.add(res_j)
                 if len(visited_scorable_residues) > prev_len:
-                    # (0)em, (1)el, (2)epi1, (3)epi2, (4)epi3, (5)e_scwz, (6)e_w, (7)e_w_ave, (8)e_w2_ave, (9)e_sigma,
-                    # (10)e_cases
                     curr_stats = self._et_calcZScore(
                         reslist=sorted(visited_scorable_residues),
                         L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]), A=A, bias=True)
@@ -2244,7 +2235,9 @@ class TestContactScorer(TestBase):
                     expected_composed_w2_ave = prev_composed_w2_ave
                     expected_composed_sigma = prev_composed_sigma
                     expected_composed_z_score = prev_composed_z_score
-                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: {}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
+                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
+                                '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
+                                'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
                     zscore_df_1b.loc[ind, 'W'], curr_stats[6], zscore_df_1b.loc[ind, 'W_Ave'], curr_stats[7],
                     zscore_df_1b.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
                     zscore_df_1b.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
@@ -2252,15 +2245,18 @@ class TestContactScorer(TestBase):
                 self.assertEqual(zscore_df_1b.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-                self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
+                                     error_message)
                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-3, error_message)
-                self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
+                                     error_message)
                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
                 if expected_composed_sigma == 0.0:
                     self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], expected_composed_z_score)
                     self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], curr_stats[5])
                 else:
-                    self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16, error_message)
+                    self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
+                                         error_message)
                     self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
             else:
                 self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], '-')
@@ -2311,8 +2307,6 @@ class TestContactScorer(TestBase):
                 visited_scorable_residues.add(res_i)
                 visited_scorable_residues.add(res_j)
                 if len(visited_scorable_residues) > prev_len:
-                    # (0)em, (1)el, (2)epi1, (3)epi2, (4)epi3, (5)e_scwz, (6)e_w, (7)e_w_ave, (8)e_w2_ave, (9)e_sigma,
-                    # (10)e_cases
                     curr_stats = self._et_calcZScore(
                         reslist=sorted(visited_scorable_residues),
                         L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]), A=A, bias=False)
@@ -2334,7 +2328,9 @@ class TestContactScorer(TestBase):
                     expected_composed_w2_ave = prev_composed_w2_ave
                     expected_composed_sigma = prev_composed_sigma
                     expected_composed_z_score = prev_composed_z_score
-                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: {}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
+                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
+                                '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
+                                'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
                     zscore_df_1u.loc[ind, 'W'], curr_stats[6], zscore_df_1u.loc[ind, 'W_Ave'], curr_stats[7],
                     zscore_df_1u.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
                     zscore_df_1u.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
@@ -2404,8 +2400,6 @@ class TestContactScorer(TestBase):
                 visited_scorable_residues.add(res_i)
                 visited_scorable_residues.add(res_j)
                 if len(visited_scorable_residues) > prev_len:
-                    # (0)em, (1)el, (2)epi1, (3)epi2, (4)epi3, (5)e_scwz, (6)e_w, (7)e_w_ave, (8)e_w2_ave, (9)e_sigma,
-                    # (10)e_cases
                     curr_stats = self._et_calcZScore(
                         reslist=sorted(visited_scorable_residues),
                         L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]), A=A, bias=True)
@@ -2427,7 +2421,9 @@ class TestContactScorer(TestBase):
                     expected_composed_w2_ave = prev_composed_w2_ave
                     expected_composed_sigma = prev_composed_sigma
                     expected_composed_z_score = prev_composed_z_score
-                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: {}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
+                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
+                                '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
+                                'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
                     zscore_df_2b.loc[ind, 'W'], curr_stats[6], zscore_df_2b.loc[ind, 'W_Ave'], curr_stats[7],
                     zscore_df_2b.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
                     zscore_df_2b.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
@@ -2435,15 +2431,18 @@ class TestContactScorer(TestBase):
                 self.assertEqual(zscore_df_2b.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-                self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
+                                     error_message)
                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-2, error_message)
-                self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
+                                     error_message)
                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
                 if expected_composed_sigma == 0.0:
                     self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], expected_composed_z_score)
                     self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], curr_stats[5])
                 else:
-                    self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16, error_message)
+                    self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
+                                         error_message)
                     self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
             else:
                 self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], '-')
@@ -2494,8 +2493,6 @@ class TestContactScorer(TestBase):
                 visited_scorable_residues.add(res_i)
                 visited_scorable_residues.add(res_j)
                 if len(visited_scorable_residues) > prev_len:
-                    # (0)em, (1)el, (2)epi1, (3)epi2, (4)epi3, (5)e_scwz, (6)e_w, (7)e_w_ave, (8)e_w2_ave, (9)e_sigma,
-                    # (10)e_cases
                     curr_stats = self._et_calcZScore(
                         reslist=sorted(visited_scorable_residues),
                         L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]), A=A, bias=False)
@@ -2517,7 +2514,9 @@ class TestContactScorer(TestBase):
                     expected_composed_w2_ave = prev_composed_w2_ave
                     expected_composed_sigma = prev_composed_sigma
                     expected_composed_z_score = prev_composed_z_score
-                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: {}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
+                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
+                                '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
+                                'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
                     zscore_df_2u.loc[ind, 'W'], curr_stats[6], zscore_df_2u.loc[ind, 'W_Ave'], curr_stats[7],
                     zscore_df_2u.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
                     zscore_df_2u.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
