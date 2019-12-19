@@ -1378,8 +1378,8 @@ class ContactScorer(object):
         try:
             coverages = predictor.coverage
         except AttributeError:
-            coverages = compute_rank_and_coverage(seq_length=self.query_alignment.seq_length, scores=predictor.scores,
-                                                  pos_size=pos_size, rank_type=rank_type)
+            _, coverages = compute_rank_and_coverage(seq_length=self.query_alignment.seq_length,
+                                                     scores=predictor.scores, pos_size=pos_size, rank_type=rank_type)
         converted_scores = 1 - coverages
         # Convert score threshold to coverage threshold
         converted_threshold = np.max(converted_scores[np.triu(coverages >= threshold, k=1)])
