@@ -1071,12 +1071,19 @@ def parse_arguments():
     arguments = parser.parse_args()
     arguments = vars(arguments)
     processor_count = cpu_count()
-    arguments['num_threads'] = arguments['num_threads'][0]
-    arguments['max_target_seqs'] = arguments['max_target_seqs'][0]
-    arguments['e_value_threshold'] = arguments['e_value_threshold'][0]
-    arguments['min_fraction'] = arguments['min_fraction'][0]
-    arguments['min_identity'] = arguments['min_identity'][0]
-    arguments['max_identity'] = arguments['max_identity'][0]
+    arguments['num_threads'] = (arguments['num_threads'][0] if isinstance(arguments['num_threads'], list)
+                                else arguments['num_threads'])
+    arguments['max_target_seqs'] = (arguments['max_target_seqs'][0] if isinstance(arguments['max_target_seqs'], list)
+                                    else arguments['max_target_seqs'])
+    arguments['e_value_threshold'] = (arguments['e_value_threshold'][0]
+                                      if isinstance(arguments['e_value_threshold'], list)
+                                      else arguments['e_value_threshold'])
+    arguments['min_fraction'] = (arguments['min_fraction'][0] if isinstance(arguments['min_fraction'], list)
+                                 else arguments['min_fraction'])
+    arguments['min_identity'] = (arguments['min_identity'][0] if isinstance(arguments['min_identity'], list)
+                                 else arguments['min_identity'])
+    arguments['max_identity'] = (arguments['max_identity'][0] if isinstance(arguments['max_identity'], list)
+                                 else arguments['max_identity'])
     if arguments['num_threads'] > processor_count:
         arguments['num_threads'] = processor_count
     if arguments['custom_uniref']:
