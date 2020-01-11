@@ -14,7 +14,7 @@ from Bio.PDB.Polypeptide import is_aa
 class PDBReference(object):
     """
     This class contains the data for a single PDB entry which can be loaded from a specified .pdb file. Each instance is
-    meant to serve as a reference for sequence based analyses performed within the lab.
+    meant to serve as a reference for sequence based analyses.
 
     Attributes:
         file_name (str): The file name or path to the desired PDB file.
@@ -35,7 +35,7 @@ class PDBReference(object):
         """
         __init__
 
-        Initiates an instance of the PDBReference class which stores structural data for reference.
+        Initiates an instance of the PDBReference class which stores structural data for a structure reference.
 
         Args:
             pdb_file (str): Path to the pdb file being represented by this instance.
