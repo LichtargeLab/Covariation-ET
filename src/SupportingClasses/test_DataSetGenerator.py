@@ -126,7 +126,7 @@ class TestDataSetGenerator(TestCase):
             if fn != os.path.basename(self.protein_list_path):
                 rmtree(os.path.join(self.input_path, fn))
         test_generator = DataSetGenerator(input_path=self.input_path)
-        test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, num_threads=self.max_threads,
+        test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, processes=self.max_threads,
                                                    max_target_seqs=self.max_target_seqs)
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Chain'], 'A')
@@ -284,7 +284,7 @@ class TestDataSetGenerator(TestCase):
             os.remove(self.expected_blast_fn)
         blast_fn_all, count_all = blast_query_sequence(
             protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
-            evalue=self.max_e_value, num_threads=1, max_target_seqs=self.max_target_seqs,
+            evalue=self.max_e_value, processes=1, max_target_seqs=self.max_target_seqs,
             database=self.local_database, remote=False)
         self.assertTrue(os.path.isdir(self.blast_path))
         self.assertEqual(blast_fn_all, self.expected_blast_fn)
@@ -304,7 +304,7 @@ class TestDataSetGenerator(TestCase):
             os.remove(self.expected_blast_fn)
         blast_fn_all, count_all = blast_query_sequence(
             protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
-            evalue=self.max_e_value, num_threads=self.max_threads, max_target_seqs=self.max_target_seqs,
+            evalue=self.max_e_value, processes=self.max_threads, max_target_seqs=self.max_target_seqs,
             database=self.local_database, remote=False)
         self.assertTrue(os.path.isdir(self.blast_path))
         self.assertEqual(blast_fn_all, self.expected_blast_fn)
@@ -324,7 +324,7 @@ class TestDataSetGenerator(TestCase):
             os.remove(self.expected_blast_fn)
         blast_fn_all, count_all = blast_query_sequence(
             protein_id='Test_Set_All_Seqs', blast_path=self.blast_path, sequence_fn=self.expected_seq_fn,
-            evalue=self.max_e_value, num_threads=1, max_target_seqs=self.max_target_seqs, database=self.remote_database,
+            evalue=self.max_e_value, processes=1, max_target_seqs=self.max_target_seqs, database=self.remote_database,
             remote=True)
         self.assertTrue(os.path.isdir(self.blast_path))
         self.assertEqual(blast_fn_all, self.expected_blast_fn)
