@@ -27,23 +27,23 @@ from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPosit
 
 class SeqAlignment(object):
     """
-    This class is meant to represent the type of alignment which is usually used within our lab. The sequence of
-    interest is represented by an ID passed in by the user.
+    This class represents an alignment as expected by Evolutionary Trace methods. The sequence of interest is
+    represented by an ID passed in by the user.
 
     Attributes:
         file_name (str): The path to the file from which the alignment can be parsed.
-        query_id (str): A sequence identifier , which should be the identifier for query sequence in the alignment file.
-        alignment (Bio.Align.MultipleSeqAlignment): A biopython representation for a multiple sequence alignment and its
+        query_id (str): A sequence identifier, which should be the identifier for query sequence in the alignment file.
+        alignment (Bio.Align.MultipleSeqAlignment): A biopython representation of a multiple sequence alignment and its
         sequences.
-        seq_order (list): List of sequence ids in the order in which they were parsed from the alignment file.
+        seq_order (list): List of sequence identifiers in the order in which they were parsed from the alignment file.
         query_sequence (Bio.Seq.Seq): The sequence matching the sequence identifier given by the query_id attribute.
         seq_length (int): The length of the query sequence (including gaps and ambiguity characters).
         size (int): The number of sequences in the alignment represented by this object.
         marked (list): List of boolean values tracking whether a sequence has been marked or not (this is generally used
-        to track which sequences should be skipped during an analysis (for instance in the zoom version of Evolutionary
+        to track which sequences should be skipped during an analysis, for instance in the zoom version of Evolutionary
         Trace).
         polymer_type (str): Whether the represented alignment is a 'Protein' or 'DNA' alignment (these are currently the
-        only two options.
+        only two options).
         alphabet (EvolutionaryTraceAlphabet): The protein or DNA alphabet to use for this alignment (used by default if
         calculating sequence distances).
     """
@@ -53,7 +53,7 @@ class SeqAlignment(object):
         __init__
 
         Initiates an instance of the SeqAlignment class represents a multiple sequence alignment such that common
-        actions taken on an alignment in the lab are simple to perform.
+        actions taken on an alignment during Evolutionary Trace analyses are simple to perform.
 
         Args:
             file_name (str or path): The path to the file from which the alignment can be parsed. If a relative path is
@@ -81,13 +81,13 @@ class SeqAlignment(object):
 
     def import_alignment(self, save_file=None, verbose=False):
         """
-        Import alignments:
+        Import Alignment
 
         This method imports the alignments using the AlignIO.read method expecting the 'fasta' format. It then updates
         the alignment, seq_order, query_sequence, seq_length, size, and marked class attributes.
 
         Args:
-            save_file (str, optional): Path to file in which the desired alignment was should be stored, or was stored
+            save_file (str, optional): Path to file in which the desired alignment should be stored, or was stored
             previously. If the alignment was previously imported and stored at this location it will be loaded via
             pickle instead of reprocessing the the file in the file_name attribute.
             verbose (bool, optional): Whether or not to print the time spent while importing the alignment or not.
@@ -122,8 +122,10 @@ class SeqAlignment(object):
 
     def write_out_alignment(self, file_name):
         """
-        This method writes out the alignment in the standard fa format.  Any sequence which is longer than 60 positions
-        will be split over multiple lines with 60 characters per line.
+        Write Out Alignment
+
+        This method writes out the alignment in the standard fasta format.  Any sequence which is longer than 60
+        positions will be split over multiple lines with 60 characters per line.
 
         Args:
             file_name (str): Path to file where the alignment should be written.
@@ -137,20 +139,20 @@ class SeqAlignment(object):
 
     def generate_sub_alignment(self, sequence_ids):
         """
-        Initializes a new alignment which is a subset of the current alignment.
+        Generate Sub Alignment
 
-        This method creates a new alignment which contains only sequences relating to a set of provided sequence ids.
+        Initializes a new alignment which is a subset of the current alignment.
 
         Args:
             sequence_ids (list): A list of strings which are sequence identifiers for sequences in the current
             alignment. Other sequence ids will be skipped.
         Returns:
             SeqAlignment: A new SeqAlignment object containing the same file_name, query_id, seq_length, and query
-            sequence.  The seq_order will be updated to only those passed in ids which are also in the current
+            sequence.  The seq_order will be updated to only the passed in identifiers which are also in the current
             alignment, preserving their ordering from the current SeqAlignment object. The alignment will contain only
-            the subset of sequences represented by ids which are present in the new seq_order.  The size is set to the
-            length of the new seq_order. The marked attribute for all sequences in the sub alignment will be transferred
-            from the current alignment.
+            the subset of sequences represented by identifiers which are present in the new seq_order.  The size is set
+            to the length of the new seq_order. The marked attribute for all sequences in the sub alignment will be
+            transferred from the current alignment.
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
@@ -216,12 +218,16 @@ class SeqAlignment(object):
         Remove Gaps
 
         Removes all gaps from the query sequence and removes characters at the corresponding positions in all other
-        sequences. This method updates the class variables alignment, query_sequence, and seq_length.
+        sequences. Instead of updating the current object a new object is returned with updated alignment and
+        seq_length fields.
 
         Args:
             save_file (str): Path to a file where the alignment with gaps in the query sequence removed should be stored
             or was stored previously. If the updated alignment was stored previously it will be loaded from the
             specified save_file instead of processing the current alignment.
+        Returns:
+            Bio.Align.MultipleSeqAlignment: A new alignment which is a subset of self.alignment, with only columns in
+            the alignment which were not gaps in the query sequence.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
@@ -282,7 +288,7 @@ class SeqAlignment(object):
             i (int): The first position to consider when making a sub alignment of two specific positions.
             j (int): The first position to consider when making a sub alignment of two specific positions.
         Returns:
-            SeqAlignment: A new subalignment containing all sequences from the current SeqAlignment object but with
+            SeqAlignment: A new sub-alignment containing all sequences from the current SeqAlignment object but with
             only the two sequence positions (columns) specified.
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
@@ -374,13 +380,13 @@ class SeqAlignment(object):
         """
         Consensus Sequence
 
-        This method builds a consensus sequence from the alignment using one of several methods.
-            'majority' = To use the member of the alphabet which covers the majority of sequences at that position. If
-            multiple characters have the same, highest, count the first one in the alphabet is used.
+        This method builds a consensus sequence from the alignment.
 
         Args:
             method (str): Which method to use for consensus sequence construction. The only current option is 'majority'
             though there are other possible options which may be added in the future to reflect the previous ETC tool.
+                'majority' = To use the member of the alphabet which covers the majority of sequences at that position.
+                If multiple characters have the same, highest, count the first one in the alphabet is used.
         Returns:
             Bio.Seq.SeqRecord: A sequence record containing the consensus sequence for this alignment.
         """
@@ -495,7 +501,7 @@ class SeqAlignment(object):
             size_cutoff (int): The number of sequences above which to use a z-score when evaluating gap outliers and
             below which to use a percentage of the consensus sequence.
             z_score_cutoff (int/float): The z-score below which to pass a sequence.
-            percentile_cutoff (float): The percentage (expressed as a decimal; e.g. 15% = 0.15), of gaps differeing from
+            percentile_cutoff (float): The percentage (expressed as a decimal; e.g. 15% = 0.15), of gaps differing from
             the consensus, above which a sequence does not pass the filter.
         Return:
             list: A list of the sequence IDs which pass the gap cut off used for this alignment.
@@ -524,7 +530,7 @@ class SeqAlignment(object):
 
         This method creates a heatmap of the alignment so it can be easily visualized. A numerical representation of the
         amino acids is used so that cells can be colored differently for each amino acid. The ordering along the y-axis
-        reflects the tree_order attribute, while the ordering along the x-axis represents the sequence positions from
+        reflects the seq_order attribute, while the ordering along the x-axis represents the sequence positions from
         0 to seq_length.
 
         Args:
@@ -668,106 +674,3 @@ class SeqAlignment(object):
                     single_to_pair[key] = pair_letter_mapping[char]
             pair_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         return pos_specific, pair_specific
-
-    # def _random_assignment(self, n_cluster, cache_dir=None):
-    #     """
-    #     random_assignment
-    #
-    #     Randomly assigns sequence IDs to groups totaling the specified n_clusters. Sequences are split as evenly as
-    #     possible with all clusters getting the same number of sequences if self.size % n_clusters = 0 and with
-    #     self.size % n_clusters groups getting one additional sequence otherwise.
-    #
-    #     Args:
-    #         n_cluster (int): The number of clusters to produce by random assignment.
-    #         cache_dir (str): The path to the directory where the clustering model can be stored for access later when
-    #         identifying different numbers of clusters.
-    #     Returns:
-    #         list: The cluster assignments for each sequence in the alignment.
-    #     """
-    #     if cache_dir is not None:
-    #         save_dir = os.path.join(cache_dir, 'joblib')
-    #         save_file = os.path.join(save_dir, 'K_{}.pkl'.format(n_cluster))
-    #     else:
-    #         save_dir = None
-    #         save_file = None
-    #     if save_dir is not None:
-    #         if not os.path.isdir(save_dir):
-    #             os.mkdir(save_dir)
-    #         else:
-    #             if os.path.isfile(save_file):
-    #                 with open(save_file, 'rb') as save_handle:
-    #                     return pickle.load(save_handle)
-    #     cluster_sizes = np.ones(n_cluster, dtype=np.int64)
-    #     min_size = self.size // n_cluster
-    #     cluster_sizes *= min_size
-    #     larger_clusters = self.size % n_cluster
-    #     if larger_clusters > 0:
-    #         cluster_sizes[(-1 * larger_clusters):] += 1
-    #     cluster_list = [0] * self.size
-    #     choices = range(self.size)
-    #     for i in range(n_cluster):
-    #         curr_assignment = np.random.choice(choices, size=cluster_sizes[i])
-    #         for j in curr_assignment:
-    #             cluster_list[j] = i
-    #         choices = list(set(choices) - set(curr_assignment))
-    #     if save_dir is not None:
-    #         with open(save_file, 'wb') as save_handle:
-    #             pickle.dump(cluster_list, save_handle, pickle.HIGHEST_PROTOCOL)
-    #     return cluster_list
-    #
-    # def visualize_tree(self, out_dir=None):
-    #     """
-    #     Visualize Tree
-    #
-    #     This method takes the sequence_assignments attribute and visualizes them as a heatmap so that the way clusters
-    #     change throughout the tree can be easily seen.
-    #
-    #     Args:
-    #         out_dir (str): The location to which the tree visualization should be saved.
-    #     Returns:
-    #         pd.Dataframe: The data used for generating the heatmap, with sequence IDs as the index and tree level/branch
-    #         as the columns.
-    #     """
-    #     if out_dir is None:
-    #         out_dir = os.getcwd()
-    #     if self.sequence_assignments is None:
-    #         raise ValueError('SeqAlignment.sequence_assignments not initialized, run set_tree_ordering prior to this '
-    #                          'method being run.')
-    #     check = {'SeqID': self.tree_order, 1: [0] * self.size}
-    #     for k in self.sequence_assignments:
-    #         curr_order = []
-    #         for i in range(self.size):
-    #             for c in self.sequence_assignments[k]:
-    #                 if self.tree_order[i] in self.sequence_assignments[k][c]:
-    #                     curr_order.append(c)
-    #         check[k] = curr_order
-    #     branches = sorted(self.sequence_assignments.keys())
-    #     df = pd.DataFrame(check).set_index('SeqID').sort_values(by=branches[::-1])[branches]
-    #     df.to_csv(os.path.join(out_dir, '{}_Sequence_Assignment.csv'.format(self.query_id)), sep='\t', header=True,
-    #               index=True)
-    #     heatmap(df, cmap='tab10', square=True)
-    #     plt.savefig(os.path.join(out_dir, '{}_Sequence_Assignment.eps'.format(self.query_id)))
-    #     plt.close()
-    #     return df
-    #
-    # def get_branch_cluster(self, k, c):
-    #     """
-    #     Get Branch Cluster
-    #
-    #     Thus method generates a sub alignment based on a specific level/branch of the tree being analyzed and a specific
-    #     node/cluster within that level/branch.
-    #
-    #     Args:
-    #         k (int): The branching level (root <= k <= leaves where root = 1, leaves = size) to which the desired
-    #         set of sequences belongs.
-    #         c (int): The cluster/node in the specified branching level (1 <= c <= k) to which the desired set of
-    #         sequences belongs.
-    #     Returns:
-    #         SeqAlignment: A new SeqAlignment object which is a subset of the current SeqAlignment corresponding to the
-    #         sequences in a specific branching level and cluster of the phylogenetic tree based on this multiple sequence
-    #         alignment.
-    #     """
-    #     if self.sequence_assignments is None:
-    #         self.set_tree_ordering()
-    #     cluster_seq_ids = [s for s in self.tree_order if s in self.sequence_assignments[k][c]]
-    #     return self.generate_sub_alignment(sequence_ids=cluster_seq_ids)
