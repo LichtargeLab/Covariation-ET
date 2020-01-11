@@ -279,7 +279,8 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 sequence.
             """
             seq_id, non_gap_length, non_gap_pos, num_repr = res
-            seq_conversion[seq_id] = {'non_gap_length': non_gap_length, 'non_gap_pos': non_gap_pos, 'num_repr': num_repr}
+            seq_conversion[seq_id] = {'non_gap_length': non_gap_length, 'non_gap_pos': non_gap_pos,
+                                      'num_repr': num_repr}
             char_bar.update(1)
             char_bar.refresh()
 
@@ -534,7 +535,6 @@ def similarity(id1, id2):
     identity_score = identity_count / float(seq_length)
     similarity_score = 1 - (scoring_matrix_count / float(seq_length))
     return id1, id2, identity_score, similarity_score, seq_length, identity_count, scoring_matrix_count
-
 
 
 def convert_array_to_distance_matrix(array, names):
