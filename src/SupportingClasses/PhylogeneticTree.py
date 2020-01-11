@@ -61,6 +61,15 @@ class PhylogeneticTree(object):
     """
 
     def __init__(self, tree_building_method='upgma', tree_building_args={}):
+        """
+        Initialization for a PhylogeneticTree object
+
+        Arguments:
+            tree_building_method (str): Which method to use in construction the phylogenetic tree (expected values are:
+            et, upgma, agglomerative, or custom).
+            tree_building_args (dict): A dictionary of values needed for constructing the tree using the given method,
+            for more information on these options please see the class description.
+        """
         self.distance_matrix = None
         self.tree_method = tree_building_method
         self.tree_args = tree_building_args
@@ -200,83 +209,6 @@ class PhylogeneticTree(object):
             dm = new_dm
         inner_clade.branch_length = 0
         return BaseTree.Tree(inner_clade)
-
-    # def _et_tree(self):
-    #     """
-    #     ET Tree
-    #
-    #     This method reproduces the tree used by the Evolutionary Trace method in the past.This is a variant on the UPGMA
-    #     tree construction method which joins nodes, not based on their minimum distance to each other but on the minimum
-    #     average distance between their terminal descendants.
-    #     """
-    #
-    #     def height_of(clade):
-    #         """
-    #         Height Of
-    #
-    #         Calculate clade height -- the longest path to any terminal (PRIVATE).
-    #
-    #         Copied verbatim from Bio.Phylo.DistanceTreeConstructor
-    #
-    #         Args:
-    #             clade (Bio.Phylo.BaseTree.Clade): Clade object for which to determine the height.
-    #         Returns:
-    #             int: The height of the provided clade.
-    #         """
-    #         height = 0
-    #         if clade.is_terminal():
-    #             height = clade.branch_length
-    #         else:
-    #             height = height + max(height_of(c) for c in clade.clades)
-    #         return height
-    #
-    #     original_dist_mat = np.array(self.distance_matrix)
-    #     index_map = {}
-    #     clades = []
-    #     for i in range(self.size):
-    #         name = self.distance_matrix.names[i]
-    #         index_map[name] = i
-    #         clade = BaseTree.Clade(None, name)
-    #         clades.append(clade)
-    #     inner_count = self.size
-    #     dm = deepcopy(self.distance_matrix)
-    #     inner_clade = None
-    #     while len(dm) > 1:
-    #         dm_array = np.array(dm)
-    #         min_dist = float(np.min(dm_array[np.triu_indices(len(dm), k=1)]))
-    #         positions = np.where(dm_array == min_dist)
-    #         upper_triangle_pos = positions[1] > positions[0]
-    #         min_i = int(positions[0][upper_triangle_pos][0])
-    #         min_j = int(positions[1][upper_triangle_pos][0])
-    #         clade1 = clades[min_i]
-    #         clade2 = clades[min_j]
-    #         inner_count -= 1
-    #         inner_clade = BaseTree.Clade(None, "Inner{}".format(inner_count))
-    #         inner_clade.clades.append(clade1)
-    #         inner_clade.clades.append(clade2)
-    #         # Assign branch length
-    #         if clade1.is_terminal():
-    #             clade1.branch_length = min_dist * 1.0 / 2
-    #         else:
-    #             clade1.branch_length = min_dist * 1.0 / 2 - height_of(clade1)
-    #         if clade2.is_terminal():
-    #             clade2.branch_length = min_dist * 1.0 / 2
-    #         else:
-    #             clade2.branch_length = min_dist * 1.0 / 2 - height_of(clade2)
-    #         # Rebuild distance mat set the distances of new node at the index of min_j
-    #         for k in range(0, len(dm)):
-    #             if k != min_i and k != min_j:
-    #                 indices_inner = [index_map[node.name] for node in inner_clade.get_terminals()]
-    #                 indices_k = [index_map[node.name] for node in clades[k].get_terminals()]
-    #                 pos_inner, pos_k = zip(*product(indices_inner, indices_k))
-    #                 dm[min_i, k] = np.mean(original_dist_mat[list(pos_inner), list(pos_k)])
-    #         dm.names[min_i] = "Inner" + str(inner_count)
-    #         del dm[min_j]
-    #         # Update node list
-    #         clades[min_i] = inner_clade
-    #         del clades[min_j]
-    #     inner_clade.branch_length = 0
-    #     return BaseTree.Tree(inner_clade)
 
     def _et_tree(self):
         """
@@ -419,7 +351,7 @@ class PhylogeneticTree(object):
         Agglomerative Clustering
 
         Constructs a tree using agglomerative/hierarchical clustering (this requires significant conversion from the
-        formatted provided by sklearn).
+        format provided by sklearn).
 
         Args:
             cache_dir (str): The path to the directory where the agglomerative clustering data can be saved and loaded
@@ -468,12 +400,12 @@ class PhylogeneticTree(object):
         """
         Construct Tree
 
-        Construct the specified type of phylogenetic tree using the provided distance matrix.
+        Construct the specified type of phylogenetic tree using the provided distance matrix. This method updates the
+        __distance_matrix and tree attributes of the PhylogeneticTree instance.
 
         Args:
             dm (Bio.Phylo.TreeConstruction.DistanceMatrix): The distance matrix for an alignment of interest. If the
-            tree building method is custom dm maybe be set to None. This method updates the __distance_matrix and tree
-            attributes of the PhylogeneticTree instance.
+            tree building method is custom, dm maybe be set to None.
         """
         method_dict = {'agglomerative': self._agglomerative_clustering, 'upgma': self._upgma_tree,
                        'custom': self._custom_tree, 'et': self._et_tree}
@@ -610,7 +542,7 @@ class PhylogeneticTree(object):
 
         Args:
             ranks (set/list): If this is set to None all ranks will be evaluated (default behavior for EvolutionaryTrace
-            variants). If a set or list is passed only the ranks specified there will be have ranks and groups assigned.
+            variants). If a set or list is passed only the ranks specified there will have ranks and groups assigned.
             The lowest possible rank is 1 and the highest possible rank is the size of the alignment used to generate
             this tree (i.e. the number of leaf nodes/sequences). A rank and group will always be assigned for rank 1,
             even if it is not specified.
@@ -619,7 +551,8 @@ class PhylogeneticTree(object):
             maps a group value to another dictionary. This third level of the dictionary maps the key 'node' to the node
             which is the root of the group at the given rank, 'terminals' to a list of node names for the leaf/
             terminal nodes which are ancestors of the root node, and 'descendants' to a list of nodes which are
-            descendants of 'node' from the closest assigned rank (at the lowest rank this will be None).
+            descendants of 'node' from the closest assigned rank (.i.e. the nodes children, at the lowest rank this will
+            be None).
         """
         # Create a set of the ranks for which to create assignments.
         if ranks is None:
@@ -667,9 +600,9 @@ class PhylogeneticTree(object):
 
 def get_path_length(path):
     """
-    Get Parent
+    Get Path Length
 
-    Get the parent of the passed in node.
+    Get the length of a path in the tree.
 
     Args:
         path (list): A list of Bio.Phylo.BaseTree.Clade objects which constitute a path between the root and a target
@@ -746,10 +679,10 @@ def get_cluster_spanner(agg_clusterer):
 
 def go_down_tree(children, n_leaves, x, leaf_labels, nodename, spanner, inner):
     """
-    go_down_tree(children,n_leaves,X,leaf_labels,nodename,spanner)
+    Go Down Tree
 
-    Iterative function that traverses the subtree that descends from
-    nodename and returns the Newick representation of the subtree.
+    Iterative function that traverses the subtree that descends from nodename and returns the Newick representation of
+    the subtree.
 
     Args:
         children (list): sklearn.cluster.AgglomerativeClustering.children_
