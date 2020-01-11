@@ -56,7 +56,7 @@ class EvolutionaryTrace(object):
         usage is constricted based on position type.
         gap_correction (float): Whether to correct final scores for gap content. If a value other than None is provided,
         columns whose gap content is greater than the specified float (should be between 0.0 and 1.0) will have their
-        score replaced with the worse observed score during the trace (down weighting all highly gapped columns). The
+        score replaced with the worst observed score during the trace (down weighting all highly gapped columns). The
         default value for this has traditionally been set to 0.6 for rvET but has not been used for intET or ET-MIp.
         trace (Trace): A Trace object used to organize data required for performing a trace and the methods to do so.
         scorer (PositionalScorer): A PositionalScorer object which uses the specified scoring metric to score groups and
@@ -64,8 +64,8 @@ class EvolutionaryTrace(object):
         ranking (np.array): The rank (lowest being best, highest being worst) of each single or paired position in the
         provided alignment as determined from the calculated scores.
         scores (np.array): The raw scores calculated for each single or paired position in the provided alignment while
-        performing the trace. For some method (identity, plain_entropy) the lower the score the better, while for others
-        (mutual_information, normalized_mutual_information, average_product_corrected_mutual_information, and
+        performing the trace. For some methods (identity, plain_entropy) the lower the score the better, while for
+        others (mutual_information, normalized_mutual_information, average_product_corrected_mutual_information, and
         filtered_average_product_corrected_mutual_information) the higher the score the better.
         coverage (np.array): The percentage of scores at or better than the score for this single or paired position
         (i.e. the percentile rank).
