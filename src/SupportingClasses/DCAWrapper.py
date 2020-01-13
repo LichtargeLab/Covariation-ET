@@ -26,26 +26,28 @@ class DCAWrapper(object):
 
     This wrapper makes it possible to  perform covariance analysis using the DCA method on a fasta formatted alignment
     and to import the covariance scores from the analysis.
+
+    Attributes:
+        alignment (SeqAlignment): This variable holds a SeqAlignment object. This is mainly used to provide the path
+        the to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
+        advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed
+        to ETMIPWrapper.
+        scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without
+        gaps). This matrix contains the covariance scores computed by the DCA method.
+        time (float): The number of seconds it took for the DCA code to load the alignment file and calculate
+        covariance scores.
     """
 
     def __init__(self, alignment):
         """
-        This method instantiates an instance of the DCAWrapper class. It takes in an alignment and instantiates the
-        following variables:
-            alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the
-            path the to the alignment used, but is also used to determine the length of the query sequence. Because of
-            this it is advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment
-            instance is passed to ETMIPWrapper.
-            scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without
-            gaps). This matrix contains the covariance scores computed by the DCA method.
-            time (float): The number of seconds it took for the DCA code to load the alignment file and calculate
-            covariance scores.
+        This method instantiates an instance of the DCAWrapper class.
 
         Args:
-            alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the
-            path the to the alignment used, but is also used to determine the length of the query sequence. Because of
-            this it is advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment
-            instance is passed to ETMIPWrapper.
+            alignment (SeqAlignment): This variable holds a SeqAlignment object. This is mainly used to provide the
+            path the to the alignment used, but is also used to determine the length of the query sequence. The DCA code
+            does not focus its analysis on the query sequence and remove gaps, so it is advised that the
+            import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed to
+            ETMIPWrapper.
         """
         self.alignment = alignment
         self.scores = None
@@ -53,7 +55,7 @@ class DCAWrapper(object):
 
     def import_covariance_scores(self, out_path):
         """
-        Import Covaraince Scores
+        Import Covariance Scores
 
         This method looks for the specified file where the DCA scores were written. This file is then imported using
         Pandas and is then used to fill in the scores matrix.
@@ -78,7 +80,7 @@ class DCAWrapper(object):
 
         This method uses the DCA julia code to compute covariance scores on a fasta formatted multiple sequence
         alignment. The code requires a .env at the project level which has a variable 'PROJECT_PATH' that describes the
-        location of the project so that the julia code to run DCA can be called.. The method makes use of
+        location of the project so that the julia code to run DCA can be called. The method makes use of
         import_covariance_scores() to load the data produced by the run.
 
         Args:

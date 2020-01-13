@@ -10,6 +10,6 @@ catch
 	using GaussDCA
 end
 
-FNR = gDCA(ARGS[1]);
+DIR = gDCA(ARGS[1], pseudocount=0.2, score=:DI, min_separation=1);
 
-printrank(ARGS[2], FNR)
+printrank(ARGS[2], DIR)
