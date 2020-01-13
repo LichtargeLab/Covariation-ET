@@ -1,22 +1,79 @@
-This project contains code for the ETMIP work started by Benu Atri and Dr. Angela Wilkins.  Daniel Konecki is joining this project in a support role for programming purposes.
+# Evolutionary Trace and Covariation Prediction
 
-Below is information on code ussage, inputs, and outputs.
+This project re-implements in Python3 a large existing code base built for the Evolutionary Trace algorithm (see [citations](##References)) in C with a significant amount of documentation. This new project focuses on Evolutionary Trace in the context of covariation predictions and makes different distance matrice, tree construction method, and many more metrics of covariation prediction available. The project seeks to make this code base accessible in Python as well as increase hardware usage/throughput through the use of vectorization and multiprocessing.
 
-A new file is being created called etmipCollab.py which will have updated code.
+## Getting Started
 
-Usage: python etmip10ForOptimization.py <fastafile> <pdbfilename> <cutoff> <proteinid>
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-E.g. 
-python etmip10ForOptimization.py 1c17A.fa query_1c17A.pdb 8 1c17A
-python etmip10ForOptimization.py 1h1vA.fa query_1h1vA.pdb 8 1h1vA
+### Prerequisites
 
-Inputs: fastafile in .fa, pdbfile, a cutoff and the name of the protein. 8 is a cutoff I use to define contacts in the PDB to be used as the criteria to generate AUCs. If the nearest ATOM distance between 2 residues is >8.0, I consider it as a non-contact. 
+There is one main pre-requisites for using this code: Anaconda
 
-The zipped folders have the following output files:
+1. Anaconda
+    * To install Anaconda (on Ubuntu 18.04) please follow the link from DigitalOcean in the [Acknowledgements](##Acknowledgements).
 
-1. ETMIP predictions text files for clusters 2, 3, 5, 7, 10 and 25
-2. ROC curves for the above
-3. A text results file with AUCs for each cluster and Run times in seconds
+*Caveats* If you are installing this code base on a different version of Ubuntu or a different operating system altogether these steps will not be the same.
 
-Nomenclature:
-The output files are named by date, cutoff, cluster number and filetype.
+### Installing
+
+1. Create the Anaconda environment for this project by navigating to the project directory and running:
+    ```
+    conda env create -f environment.yml
+    ```
+    *Caveats* * Using Anaconda environments allows for greater portability but some operating systems use different channels meaning it may not be possible to set up the environment as described in this step, consider using other channels or looking for different versions of the same packages.
+2. Activate the environment
+    ```
+    source activate ET
+    ```
+3. Use commandline calls to EvolutionaryTrace.py or DataSetGenerator.py to generate predictions and datasets:
+* Generate Evolutionary Trace predictions (please run ```python EvolutionaryTrace.py --help``` for more details on each parameter):
+```
+python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --polymer_type <DNA or Protein> --alignment <Path to a fasta alignment> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_dir <Directory to which results will be written.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
+```
+* Generate input for BLAST databases, full datasets, or evaluate alignments with DataSetGenerator.py (please run ```python DataSetGenerator.py --help``` for more details on each parameter):
+    - To generate the custom Uniref data for building BLAST databases, please download and extract the fasta file for the Uniref database of interest then run
+    ```python DataSetGenerator.py --custom_uniref --original_uniref_fasta <Path to the extracted fasta file of the Uniref database.> --filtered_uniref_fasta <Path to where the filtered fasta file should be written>```
+    - To generate a dataset based on a set of PDB identifiers and chains, please create a directory, with a sub-directory named ProteinLists and create a file there with each five letter code on its own line (4 letter PDB identifier, and one letter for chain specification). Then run:
+    ```python DataSetGenerator.py --create_data_set --input_dir <The path to the top level directory where input data can be stored (this should be the parent to the ProteinLists directory).> --protein_list_fn <The name of the protein list file.> --processes <The number of processes available for data set generation.> --max_target_seqs <The maximum number of sequences to return from a BLAST search.> --e_value_threshold <The maximum e-value to allow in a BLAST search return.> --min_fraction <The minimum fraction of the length between the query sequence and a BLAST hit.> --min_identity <The minimum identity between the query sequence and a BLAST hit.> --max_identity <The maximum identity between the query sequence and a BLAST hit.> --msf <Optional flag for creating MSF formatted alignments.> --fasta <Optional flag for creating Fasta formatted alignments.> --verbose <What level of print outs to provide during processing.>```
+    - To characterize a fasta formatted alignment, please run:
+    ```python DataSetGenerator.py --characterize_alignment --file_name <The path to the alignment to characterize.> --query_id <The sequence identifier for sequence of interest.> --min_fraction <The minimum fraction that a sequence can be of the query sequence length.> --max_identity <The maximum identity that a sequence can be relative to the query sequence.> --min_identity <The mminimum identity that a sequence can be relative to the query sequence.>```
+Or incorporate the code in your own pipelines, using the activate environment, for examples of how to use the code base, please see the Jupyter notebooks in the notebooks directory.
+
+## Authors
+* **Daniel Konecki** - *Python Libraries and adaptation of C code base. Further development of ET-MIp method. Optimization of algorithm implementation and evaluation.* - [dkonecki](https://github.com/dkonecki)
+* **Benu Atri** - *Original work on ET-MIp continuation, identification of the fact that a limited traversal could achieve the same, and sometimes better covariation predictions*
+* **Jonathan Gallion** - *Assessment of covariation by structural clustering and enrichment methods and frequent discussion of important factors for the improvement of covariation prediction.*
+* **Angela Wilkins** - *Original developer of the ET-MIp method, who made original suggestion on how it might be possible to improve the method.*
+
+## References
+1. [An evolutionary trace method defines binding surfaces common to protein families.](https://www.ncbi.nlm.nih.gov/pubmed/8609628)
+2. [A family of evolution-entropy hybrid methods for ranking protein residues by importance.](https://www.ncbi.nlm.nih.gov/pubmed/15037084)
+3. [Evolutionary and Structural Feedback on Selection of Sequences for Comparative Analysis of Proteins](https://www.ncbi.nlm.nih.gov/pubmed/16397893)
+4. [Accounting for epistatic interactions improves the functional analysis of protein structures](https://www.ncbi.nlm.nih.gov/pubmed/24021383)
+5. [Combining Inference from Evolution and Geometric Probability in Protein Structure Evaluation](https://www.ncbi.nlm.nih.gov/pubmed/12875851)
+6. [Sequence and structure continuity of evolutionary importance improves protein functional site discovery and annotation](https://www.ncbi.nlm.nih.gov/pubmed/20506260)
+
+## License
+WE HAVN'T DECIDED ON A LICENSE YET [LICENSE.md](LICENSE.md)
+
+## Acknowledgments
+
+Thanks to:
+* **Angela Wilkins** - *Original development of C libraries adopted in this project. Additional development of the ET (pair interaction ET) method and methods for evaluating residue ranking (structural clustering weighting z-score).*
+* **Benu Atri** - *Additional development of the ET (pair interaction ET) method and contributions to ET-MIp development.*
+* **Rhonald Lua** - *Additional development of the ET (real valued ET) method and methods for evaluating residue ranking (structural clustering weighting z-score).*
+* **David Marciano** - *Additional development of the ET (pair interaction ET) method.*
+* **Eric Venner** - *Additional development of the ET (pair interaction ET) method.*
+* **Serkan Erdin** - *Additional development of the ET (pair interaction ET) method and methods for evaluating residue ranking (structural clustering weighting z-score).*
+* **Ivana Mihalek** - *Additional development of the ET (real valued ET) method and methods for evaluating residue ranking (structural clustering weighting z-score).*
+* **Ivica Res** - *Additional development of the ET (real valued ET) method and methods for evaluating residue ranking (structural clustering weighting z-score).*
+* **Hui Yao** - *Development of methods for evaluating residue ranking (structural clustering weighting z-score)*
+* **R. Mathew Ward** - *Development of methods for evaluating residue ranking (structural clustering weighting z-score)*
+* **Olivier Lichtarge** - *Creator of original Evolutionary Trace (integer valued ET) method*
+* [theskumar](https://github.com/theskumar/python-dotenv) for creating and maintaining the python-dotenv package
+* [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file) for the tools to manage environments like the one in this project.
+* Sphinx and Google for their description [stylesheet](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html).
+* [Billie Thompson](https://gist.github.com/PurpleBooth/109311bb0361f32d87a2) for this readme template.
+* [DigitalOcean](https://www.digitalocean.com) for tutorials on:
+    * [Installing Anaconda3](https://www.digitalocean.com/community/tutorials/how-to-install-anaconda-on-ubuntu-18-04-quickstart)
