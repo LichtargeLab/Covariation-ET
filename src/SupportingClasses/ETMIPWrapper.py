@@ -28,7 +28,7 @@ class ETMIPWrapper(object):
         D2 receptor revealed by evolutionary amino acid covariation. Proceedings of the National Academy of Sciences of
         the United States of America. 2016;113(13):3539-3544. doi:10.1073/pnas.1516579113.
     It requires the use of a .env file at the project level, which describes the location of the WETC binary as well as
-    the muscle alignment binary.
+    the ClustalW alignment binary.
 
     This wrapper makes it possible to convert alignments (in fa format) to msf format, perform covariance analysis using
     the ET-MIp method on an msf formatted alignment, and to import the covariance raw and coverage scores from the
@@ -36,22 +36,33 @@ class ETMIPWrapper(object):
 
     Attributes:
         alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the path
-        the to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
+        to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
         advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed
         to ETMIPWrapper.
-        msf_path (str): The file path to the location at which the msf formatted alignment to be analyzed is located. If
-        the SeqAlignment object was created using an msf formatted alignments its filename variable will be the same as
+        msf_path (str): The path to the location at which the msf formatted alignment to be analyzed is located. If the
+        SeqAlignment object was created using an msf formatted alignments its filename variable will be the same as
         msf_path, other wise a different path will be found here.
         scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
         This matrix contains the raw covariance scores computed by the ET-MIp method.
         coverage (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
-        This matrix contains the processed coverage covariance scores computed by the ET-MIp method.
-        distance_matrix
-        tree
-        rank_group_assignments
-        rank_scores
-        rho
-        entropy
+        This matrix contains the coverage covariance scores computed by the ET-MIp method.
+        distance_matrix - (Bio.Phylo.TreeConstruction.DistanceMatrix): A triangular matrix whose length on either axis
+        is the number of sequences in the alignment. The matrix contains the distance computed between sequences of the
+        alignment.
+        tree - (PhylogeneticTree): The tree structure computed from the distance matrix during the ET computation.
+        rank_group_assignments - (dict): First level of the dictionary maps a rank to another dictionary. The second
+        level of the dictionary maps a group value to another dictionary. This third level of the dictionary maps the
+        key 'node' to the node which is the root of the group at the given rank, 'terminals' to a list of node names for
+        the leaf/terminal nodes which are ancestors of the root node, and 'descendants' to a list of nodes which are
+        descendants of 'node' from the closest assigned rank (.i.e. the nodes children, at the lowest rank this will be
+        None).
+        rank_scores - (numpy.array): A square matrix whose length on either axis is the query sequence length (without
+        gaps). The contents of the matrix are scores from specific ranks in the prediction computation.
+        rho - (numpy.array): A square matrix whose length on either axis is the query sequence length (without
+        gaps). The contents of the matrix are rho scores from the EvolutionaryTrace analysis.
+        entropy - (dict): A dictionary where the key is a rank in the tree (int) and the values is a square matrix whose
+        length on either axis is the query sequence length (without gaps). The contents of the matrix are entropy scores
+        at that rank/level in the tree.
         time (float): The number of seconds it took for the ET-MIp code to load the msf formatted file and calculate
         covariance scores.
     """
@@ -82,14 +93,16 @@ class ETMIPWrapper(object):
         Check Alignment
 
         This method checks whether the alignment currently associated with the ETMIPWrapper object ends with '.msf'. If
-        it does not the clustalw tool is used to convert the initial alignment (assumed to be in .fa format) to an .msf
-        formatted alignment at the same location as the .fa alignment. The file path to this .msf alignment is stored in
-        the msf_path variable. This function is dependent on the .env file at the project level containing the
-        'CLUSTALW_PATH' variable describing the path to the muscle binary.
+        it does not the clustalw tool is used to convert the initial alignment (assumed to be in fasta format) to an
+        .msf formatted alignment at the specified target_dir, or the same location as the fasta alignment if not
+        specified. The file path to this .msf alignment is stored in the msf_path variable. This function is dependent
+        on the .env file at the project level containing the 'CLUSTALW_PATH' variable describing the path to the
+        clustalw binary.
 
         Args:
             target_dir (str): The path to a directory where the msf alignment should be written if the passed in
-            alignment is not an msf alignment.
+            alignment is not an msf alignment. If not specified the directory where the fasta alignment is stored will
+            be used.
         """
         if not self.alignment.file_name.endswith('.msf'):
             clustalw_path = os.environ.get('CLUSTALW_PATH')
@@ -112,7 +125,7 @@ class ETMIPWrapper(object):
         This function imports intermediate ranks files (ending in .tsv) to the self.rank_scores attribute.
 
         Args:
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            out_dir (str): The path to the directory where the ET scores have been written.
             file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
             rank_type (str): The rank type ('identity', 'weak', etc.) for which to import scores.
         Return:
@@ -133,7 +146,7 @@ class ETMIPWrapper(object):
         This function imports intermediate ranks files (ending in .tsv) to the self.rho and self.entropy attributes.
 
         Args:
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            out_dir (str): The path to the directory where the ET scores have been written.
             file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
             rank_type (str): The rank type ('plain', etc.) for which to import scores.
         Return:
@@ -159,11 +172,11 @@ class ETMIPWrapper(object):
         be raised.
 
         Args:
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the distance files (WETC -o option).
         Returns:
-            pd.DataFrame: Values computed by ET-MIp for the alignment (scoring matrix based) distance between sequences.
-            pd.DataFrame: Values computed by ET-MIp for the identity distance between sequences.
+            pd.DataFrame: Values computed by ET for the alignment (scoring matrix based) distance between sequences.
+            pd.DataFrame: Values computed by ET for the identity distance between sequences.
             pd.DataFrame: Intermediate values used to compute the distances in the prior DataFrames. These values
             include the identity counts generated by the two different methods as well as the sequence lengths used for
             normalization.
@@ -210,11 +223,17 @@ class ETMIPWrapper(object):
         tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
 
-    def import_assignments(self, prefix, out_dir):
+    def import_assignments(self, out_dir, prefix='etc_out'):
         """
         Import Assignments
+
+        This function imports the rank and group assignments for all nodes/sequences in the alignment and therefore in
+        the tree attribute. Not all versions of that code base produce the necessary files, if this is the case an
+        exception will be raised.
+
         Args:
             out_dir (str): The path to the directory where the ETC group and rank assignments have been written.
+            prefix (str): The file prefix to prepend to the nhx tree file (WETC -o option).
         """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
@@ -261,8 +280,6 @@ class ETMIPWrapper(object):
         rank_group_nodes.drop(index=rank_group_nodes.index[0], inplace=True)
         rank_group_nodes = rank_group_nodes.astype(int)
         rank_group_nodes.set_index(['Rank', 'Group'], inplace=True)
-        # print(rank_group_nodes)
-        # raise ValueError('just checking')
         for rank in rank_group_nodes.index.get_level_values('Rank'):
             for group in rank_group_nodes.index.get_level_values('Group'):
                 node_index = int(rank_group_nodes.at[(rank, group), 'Root_Node'])
@@ -281,7 +298,18 @@ class ETMIPWrapper(object):
         print('Importing table 2 took {} min'.format((end - inter3) / 60.0))
         self.rank_group_assignments = rank_group_assignments
 
-    def import_intermediate_covariance_scores(self, prefix, out_dir):
+    def import_intermediate_covariance_scores(self, out_dir, prefix='etc_out'):
+        """
+        Import Intermediate Covariance Scores
+
+        This function imports the intermediate covariance scores computed for ranks and groups while computing
+        covariance with ET. Not all versions of that code base produce the necessary files, if this is the case an
+        exception will be raised.
+
+        Args:
+            out_dir (str): The path to the directory where the ETC group and rank assignments have been written.
+            prefix (str): The file prefix to prepend to the nhx tree file (WETC -o option).
+        """
         if not os.path.isdir(out_dir):
             raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
         file_path1 = os.path.join(out_dir, '{}.all_rank_and_group_mip.tsv'.format(prefix))
@@ -420,7 +448,7 @@ class ETMIPWrapper(object):
         return (intermediate_mi_arrays, intermediate_amii_arrays, intermediate_amij_arrays, intermediate_ami_arrays,
                 intermediate_mip_arrays)
 
-    def import_covariance_scores(self, prefix, out_dir):
+    def import_covariance_scores(self, out_dir, prefix='etc_out'):
         """
         Import Covariance Scores
 
@@ -429,8 +457,8 @@ class ETMIPWrapper(object):
         coverage matrices.
 
         Args:
+            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the covariance score files (WETC -o option).
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
         """
@@ -452,23 +480,20 @@ class ETMIPWrapper(object):
                 str1 = 'Switching i: {} and j: {}'.format(i, j)
                 j, i = i, j
                 print(str1 + ' to i: {} and j:{}'.format(i, j))
-            # self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'Raw_Scores']
             self.scores[i, j] = data.loc[ind, 'Raw_Scores']
-            # self.coverage[i, j] = self.coverage[j, i] = data.loc[ind, 'Coverage_Scores']
             self.coverage[i, j] = data.loc[ind, 'Coverage_Scores']
 
-    def import_et_ranks(self, method, prefix, out_dir):
+    def import_et_ranks(self, method, out_dir, prefix='etc_out'):
         """
         Import ET ranks
 
-        This method looks for the etc_out.tree_mip_sorted file in the directory where the ET-MIp scores were calculated
-        and written to file. This file is then imported using Pandas and is then used to fill in the scores and
-        coverage matrices.
+        This method looks for the etc_out.ranks file in the directory where the ET scores were calculated and written to
+        file. This file is then imported using Pandas and is then used to fill in the scores and coverage matrices.
 
         Args:
             method (str): Which method (rvET or intET) was used to generate the scores.
+            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the rank files (WETC -o option).
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
         """
@@ -490,7 +515,20 @@ class ETMIPWrapper(object):
             self.scores[i] = data.loc[ind, 'rank']
             self.coverage[i] = data.loc[ind, 'coverage']
 
-    def import_scores(self, method, prefix, out_dir):
+    def import_scores(self, method, out_dir, prefix='etc_out'):
+        """
+        Import Scores
+
+        This method acts as a switch statement for importing scores and coverage data from ET predictions. Single
+        position ET predictions (intET or rvET) are written to file in a slightly different format than the paired
+        position predictions (ET-MIp), this method calls the proper import statement for the method specified.
+
+        Args:
+            method (str): Which method was used to generate results, current expected inputs are intET, rvET, or ET-MIp.
+            out_dir (str): The path to the directory where the ET scores have been written.
+            prefix (str): The file prefix to prepend to the rank files (WETC -o option).
+        """
+
         if method == 'ET-MIp':
             self.import_covariance_scores(prefix=prefix, out_dir=out_dir)
         elif method == 'intET' or method == 'rvET':
@@ -500,14 +538,17 @@ class ETMIPWrapper(object):
 
     def calculate_scores(self, out_dir, method='ET-MIp', delete_files=True):
         """
-        Calculated ET-MIp Scores
+        Calculated Scores
 
-        This method uses the ET-MIp binary to compute covariance scores on an msf formatted multiple sequence alignment.
-        The code requires a .env at the project level which has a variable 'WEC_PATH' that describes the location of the
-        WETC binary. The method makes use of import_covariance_scores() to load the data produced by the run.
+        This method uses the wetc binary (with options to run ET-MIp) to compute single position importance or
+        covariance scores on an msf formatted multiple sequence alignment. The code requires a .env at the project level
+        which has a variable 'WEC_PATH' that describes the location of the WETC binary. The method makes use of
+        import_phylogenetic_tree, import_assignments, and import_scores() to load the data produced by the run (some of
+        these data are only available for certain version of the binary, so if they cannot be imported placeholders are
+        used or the python implementation is used to fill in the missing values).
 
         Args:
-            out_dir (str): The path to the directory where the ET-MIp scores should be written.
+            out_dir (str): The path to the directory where the wetc scores should be written.
             method (str): Which method (intET, rvET, or ET-MIp) to use to generate scores.
             delete_files (boolean): If True all of the files written out by calling this method will be deleted after
             importing the relevant data, if False all files will be left in the specified out_dir.
@@ -558,7 +599,7 @@ class ETMIPWrapper(object):
                 self.rank_group_assignments = self.tree.assign_group_rank()
             self.import_scores(prefix=prefix, out_dir=out_dir, method=method)
             if delete_files:
-                self.remove_ouptut(out_dir=out_dir)
+                self.remove_ouptut(out_dir=out_dir, prefix=prefix)
             np.savez(serialized_path1, time=self.time, scores=self.scores, coverage=self.coverage)
             with open(serialized_path2, 'wb') as handle:
                 pickle.dump((self.distance_matrix, self.tree, self.rank_group_assignments), handle,
@@ -567,7 +608,7 @@ class ETMIPWrapper(object):
         return self.time
 
     @staticmethod
-    def remove_ouptut(out_dir):
+    def remove_ouptut(out_dir, prefix='etc_out'):
         """
         Remove Output
 
@@ -575,11 +616,11 @@ class ETMIPWrapper(object):
         generated by the code.
 
         Args:
-            out_dir (str): The path to the directory where the ET-MIp scores have been written.
+            out_dir (str): The path to the directory where the ET scores have been written.
+            prefix (str): The file prefix to prepend to the rank files (WETC -o option).
         Raises:
             ValueError: If the directory does not exist.
         """
-        prefix = 'etc_out'
         suffixes = ['aa_freqs', 'allpair_ranks', 'allpair_ranks_sorted', 'auc', 'average_ranks_sorted',
                     'covariation_matrix', 'entro.heatmap', 'entroMI.heatmap', 'mip_sorted', 'MI_sorted', 'nhx',
                     'pairs_allpair_ranks_sorted', 'pairs_average_ranks_sorted', 'pairs_mip_sorted',
