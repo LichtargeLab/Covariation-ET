@@ -28,7 +28,7 @@ class TestBase(TestCase):
             for structure_id in structure_ids:
                 test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
         cls.data_set = DataSetGenerator(input_path=cls.input_path)
-        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
+        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', processes=cls.max_threads,
                                                  max_target_seqs=cls.max_target_seqs)
 
     @classmethod
