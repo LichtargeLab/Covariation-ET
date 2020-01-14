@@ -23,7 +23,7 @@ pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
 min_metrics = {'identity', 'plain_entropy'}
 
 max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
-              'filtered_average_product_corrected_mutual_information'}
+               'filtered_average_product_corrected_mutual_information'}
 
 
 class PositionalScorer(object):
