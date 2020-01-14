@@ -1053,8 +1053,8 @@ def parse_arguments():
     parser.add_argument('--protein_list_fn', type=str, nargs='?',
                         help='The name of the file where the list of PDB ids (four letter codes) of which the data set '
                              'consists can be found. Each id is expected to be on its own line.')
-    parser.add_argument('--num_threads', type=int, default=1, nargs=1,
-                        help='The number of threads to use when performing the BLAST search.')
+    parser.add_argument('--processes', type=int, default=1, nargs=1,
+                        help='The number of processes to use when performing the BLAST search.')
     parser.add_argument('--max_target_seqs', type=int, default=20000, nargs=1,
                         help='The maximum number of hits to look for in the BLAST database.')
     parser.add_argument('--e_value_threshold', type=float, default=0.05, nargs=1,
@@ -1088,8 +1088,8 @@ def parse_arguments():
                                  else arguments['min_identity'])
     arguments['max_identity'] = (arguments['max_identity'][0] if isinstance(arguments['max_identity'], list)
                                  else arguments['max_identity'])
-    if arguments['num_threads'] > processor_count:
-        arguments['num_threads'] = processor_count
+    if arguments['processes'] > processor_count:
+        arguments['processes'] = processor_count
     if arguments['custom_uniref']:
         if (not 'original_uniref_fasta' in arguments) or (not 'filtered_uniref_fasta'):
             raise ValueError('When custom_uniref is selected original_uniref_fasta and filtered_uniref_fasta must be '
@@ -1124,7 +1124,7 @@ if __name__ == "__main__":
     if args['create_data_set']:
         generator = DataSetGenerator(input_path=args['input_dir'])
         generator.build_pdb_alignment_dataset(
-            protein_list_fn=args['protein_list_fn'], processes=args['num_threads'],
+            protein_list_fn=args['protein_list_fn'], processes=args['processes'],
             max_target_seqs=args['max_target_seqs'], e_value_threshold=args['e_value_threshold'],
             min_fraction=args['min_fraction'], min_identity=args['min_identity'],
             max_identity=args['max_identity'], msf=args['msf'], fasta=args['fasta'], verbose=args['verbose'])
