@@ -56,7 +56,6 @@ class Trace(object):
         self.phylo_tree = phylo_tree
         self.assignments = group_assignments
         self.unique_nodes = None
-        self.disjoint_sets = None
         self.rank_scores = None
         self.final_scores = None
         self.final_ranks = None
@@ -71,7 +70,7 @@ class Trace(object):
             self.out_dir = output_dir
         self.low_memory = low_memory
 
-    def characterize_rank_groups(self, sets=False, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
         """
         Characterize Rank Group
 
@@ -81,9 +80,6 @@ class Trace(object):
         FrequencyTables for pairs of positions are added under the key 'pair').
 
         Args:
-            sets (bool): If pair_specific was set to true upon initialization of the Trace object, and sets is also True
-            the disjoint set covering the pairs of nucleic/amino acids observed at each position is computed. This is
-            done to enable the hueristic scoring method provided by the PositionalScorer class.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
@@ -151,49 +147,6 @@ class Trace(object):
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         self.unique_nodes = frequency_tables
-        if self.pair_specific and sets:
-            print('Debug 1')
-            positional_sets = []
-            print('Debug 2')
-            indices = np.triu_indices(self.aln.seq_length, k=1)
-            print('Debug 3')
-            sets_pbar = tqdm(total=len(indices[0]), unit='sets')
-
-            def update_sets(set_return):
-                """
-                Update Characterization
-
-                This function serves to update the progress bar for characterization.
-
-                Args:
-                    set_return (tuple): A tuple consisting of the position for which the disjoint sets covering that
-                    position have been computed, and a list of those sets.
-                """
-                print('Debug 4')
-                positional_sets.append(set_return)
-                print('Debug 5')
-                sets_pbar.update(1)
-                print('Debug 6')
-                sets_pbar.refresh()
-
-            print('Debug 7')
-            pool2 = Pool(processes=processes, initializer=init_define_disjoint_sets_pool,
-                         initargs=(self.aln, pair_size, gaps, pair_mapping))
-            print('Debug 8')
-            for i in len(indices[0]):
-                print('Debug 9')
-                pool2.apply_async(func=define_disjoint_sets, args=(i, indices[0][i], indices[1][i]),
-                                  callback=update_sets)
-            print('Debug 10')
-            pool2.close()
-            print('Debug 11')
-            pool2.join()
-            print('Debug 12')
-            sets_pbar.close()
-            print('Debug 13')
-            positional_sets = sorted(positional_sets)
-            print('Debug 14')
-            _, self.disjoint_sets = zip(*positional_sets)
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
@@ -585,106 +538,6 @@ def characterization(node_name, node_type):
     freq_tables[node_name] = tables
     freq_lock.release()
     return node_name
-
-
-def init_define_disjoint_sets_pool(alignment, alphabet_size, gap_characters, pair_mapping):
-    """
-    Initialize Define Disjoint Sets Pool
-
-    This function initializes global variables so that they are available to the define_disjoint_sets method.
-
-    Args:
-        alignment (SeqAlignment): The full alignment being characterized and computed over by the Trace class.
-        alphabet_size (int): The size of the two position alphabet for the alignment.
-        gap_characters (set): The gap characters which may appear in the provided alignment.
-        pair_mapping (dict): Dictionary mapping two position alphabet members to their positions in scoring and counting
-        matrices.
-    """
-    global whole_aln, alpha_size, gap_chars, pair_to_pos
-    whole_aln = alignment
-    alpha_size = alphabet_size
-    gap_chars = gap_characters
-    pair_to_pos = pair_mapping
-
-
-def define_disjoint_sets(pos, i, j):
-    """
-    Define Disjoint Sets
-
-    This function takes a pair of positions in the alignment provided by init_define_disjoint_sets_pool and identifies
-    the unique pairs of characters observed in the alignment for that pair of positions. These are then used to create a
-    graph connecting pairs which start or end with the same character. This graph is used to identify connected
-    components, which is the minimum disjoint set which covers the observations based on the provided alphabet. An
-    important caveat: pairs which include a gap character are only connected to other pairs with a gap character if
-    the other character in the pair does not appear in any other observed character pairs. This is done to avoid forming
-    a large connected component which is driven entirely by positions with gaps.
-
-    Args:
-        pos (int): The position which is being characterized (when i, j positions are arranged in a 1D array).
-        i (int): The alignment column of the first character in the pair.
-        j (int): The alignment column of the second character in the pair.
-    Returns:
-        int: The pos variable passed in, returned so that the disjoint sets can be mapped to the correct positions once
-        they are returned.
-        list: A list of lists where each list contains the indices of the pairs of characters in a given disjoint set.
-    """
-    pos_i = int(i)
-    col_i = list(whole_aln.alignment[:, pos_i])
-    pos_j = int(j)
-    col_j = list(whole_aln.alignment[:, pos_j])
-    col_final = list(set(i + j for i, j in zip(col_i, col_j)))
-    #
-    graph = nx.Graph()
-    graph.add_nodes_from(list(range(alpha_size)))
-    gap_obs = []
-    observed = {}
-    for obs in col_final:
-        if obs[0] in gap_chars or obs[1] in gap_chars:
-            gap_obs.append(obs)
-            continue
-        num_obs = pair_to_pos[obs]
-        starts_with = '{}*'.format(obs[0])
-        ends_with = '*{}'.format(obs[1])
-        if starts_with in observed:
-            for num_obs2 in observed[starts_with]:
-                graph.add_edge(num_obs, num_obs2)
-            observed[starts_with].append(num_obs)
-        else:
-            observed[starts_with] = [num_obs]
-        if ends_with in observed:
-            for num_obs2 in observed[ends_with]:
-                graph.add_edge(num_obs, num_obs2)
-            observed[ends_with].append(num_obs)
-        else:
-            observed[ends_with] = [num_obs]
-    for obs in gap_obs:
-        num_obs = pair_to_pos[obs]
-        if obs[0] in gap_chars:
-            starts_with = '-*'
-            ends_with = '*{}'.format(obs[1])
-            if ends_with in observed:
-                for num_obs2 in observed[ends_with]:
-                    graph.add_edge(num_obs, num_obs2)
-            else:
-                if starts_with in observed:
-                    for num_obs2 in observed[starts_with]:
-                        graph.add_edge(num_obs, num_obs2)
-                else:
-                    observed[starts_with] = [num_obs]
-        if obs[1] in gap_chars:
-            starts_with = '{}*'.format(obs[0])
-            ends_with = '*-'
-            if starts_with in observed:
-                for num_obs2 in observed[starts_with]:
-                    graph.add_edge(num_obs, num_obs2)
-            else:
-                if ends_with in observed:
-                    for num_obs2 in observed[ends_with]:
-                        graph.add_edge(num_obs, num_obs2)
-                else:
-                    observed[ends_with] = [num_obs]
-    connected_components = nx.connected_components(graph)
-    return pos, [list(x) for x in connected_components]
 
 
 def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
