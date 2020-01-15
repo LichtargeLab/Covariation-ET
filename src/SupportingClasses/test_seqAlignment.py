@@ -4,6 +4,7 @@ Created on Nov 9, 2018
 @author: daniel
 """
 import os
+import unittest
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
@@ -11,11 +12,11 @@ from Bio.Seq import Seq
 from Bio.Alphabet import  Gapped
 from Bio.SeqRecord import  SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from utils import build_mapping
 from test_Base import TestBase
+from utils import build_mapping
 from SeqAlignment import SeqAlignment
-from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 
 
 class TestSeqAlignment(TestBase):
@@ -57,14 +58,6 @@ class TestSeqAlignment(TestBase):
             pass
         try:
             os.remove(self.save_file_large)
-        except OSError:
-            pass
-        try:
-            os.remove(self.aln_file_small)
-        except OSError:
-            pass
-        try:
-            os.remove(self.aln_file_large)
         except OSError:
             pass
         try:
@@ -328,15 +321,16 @@ class TestSeqAlignment(TestBase):
             aln_small._subset_columns([0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
         aln_small.import_alignment()
         # Mixed Range and Single Position - Start and Middle
-        eta_pos = [0] + range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5)
+        eta_pos = [0] + list(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5))
         aln_small_eta = aln_small._subset_columns(eta_pos)
         self.assertEqual(len(aln_small_eta), aln_small.size)
         # Mixed Range and Single Position - Middle and End
-        theta_pos = range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5) + [aln_small.seq_length - 1]
+        theta_pos = list(range(aln_small.seq_length // 2, aln_small.seq_length // 2 + 5)) + [aln_small.seq_length - 1]
         aln_small_theta = aln_small._subset_columns(theta_pos)
         self.assertEqual(len(aln_small_theta), aln_small.size)
         # Mixed Range and Single Position - Start, Middle, and End
-        iota_pos = range(5) + [aln_small.seq_length // 2] + range(aln_small.seq_length - 5, aln_small.seq_length)
+        iota_pos = (list(range(5)) + [aln_small.seq_length // 2] +
+                    list(range(aln_small.seq_length - 5, aln_small.seq_length)))
         aln_small_iota = aln_small._subset_columns(iota_pos)
         self.assertEqual(len(aln_small_iota), aln_small.size)
         for i in range(aln_small.size):
@@ -419,15 +413,16 @@ class TestSeqAlignment(TestBase):
             aln_large._subset_columns([0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
         aln_large.import_alignment()
         # Mixed Range and Single Position - Start and Middle
-        eta_pos = [0] + range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5)
+        eta_pos = [0] + list(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5))
         aln_large_eta = aln_large._subset_columns(eta_pos)
         self.assertEqual(len(aln_large_eta), aln_large.size)
         # Mixed Range and Single Position - Middle and End
-        theta_pos = range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5) + [aln_large.seq_length - 1]
+        theta_pos = list(range(aln_large.seq_length // 2, aln_large.seq_length // 2 + 5)) + [aln_large.seq_length - 1]
         aln_large_theta = aln_large._subset_columns(theta_pos)
         self.assertEqual(len(aln_large_theta), aln_large.size)
         # Mixed Range and Single Position - Start, Middle, and End
-        iota_pos = range(5) + [aln_large.seq_length // 2] + range(aln_large.seq_length - 5, aln_large.seq_length)
+        iota_pos = (list(range(5)) + [aln_large.seq_length // 2] +
+                    list(range(aln_large.seq_length - 5, aln_large.seq_length)))
         aln_large_iota = aln_large._subset_columns(iota_pos)
         self.assertEqual(len(aln_large_iota), aln_large.size)
         for i in range(aln_large.size):
@@ -598,7 +593,6 @@ class TestSeqAlignment(TestBase):
         with self.assertRaises(TypeError):
             aln_small.compute_effective_alignment_size()
         aln_small.import_alignment()
-        print('Alphabet: {}'.format(aln_small.alignment._alphabet))
         calc = AlignmentDistanceCalculator()
         distance_mat = np.array(calc.get_distance(aln_small.alignment))
         identity_mat = 1 - np.array(distance_mat)
@@ -726,7 +720,10 @@ class TestSeqAlignment(TestBase):
                     best_count = counts[aa]
                     best_aa = aa
                 elif counts[aa] == best_count and aa < best_aa:
-                    best_aa = aa
+                    if aa == '-':
+                        pass
+                    else:
+                        best_aa = aa
             self.assertEqual(consensus.seq[i], best_aa)
 
     def test12b_consensus_sequences(self):
@@ -748,7 +745,10 @@ class TestSeqAlignment(TestBase):
                     best_count = counts[aa]
                     best_aa = aa
                 elif counts[aa] == best_count and aa < best_aa:
-                    best_aa = aa
+                    if aa == '-':
+                        pass
+                    else:
+                        best_aa = aa
             self.assertEqual(consensus.seq[i], best_aa)
 
     def test13a__alignment_to_num(self):
@@ -1338,119 +1338,13 @@ class TestSeqAlignment(TestBase):
         self.assertEqual(pair_table3b.get_depth(), pair_combinedb.get_depth())
         self.assertEqual(pair_table3b.get_positions(), pair_combinedb.get_positions())
 
-    # def test_visualize_tree(self):
-    #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj1.set_tree_ordering()
-    #     aln_obj1.import_alignment()
-    #     with self.assertRaises(ValueError):
-    #         aln_obj1.visualize_tree(out_dir=self.save_dir1)
-    #     aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1,
-    #                                clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     aln_obj1_df = aln_obj1.visualize_tree(out_dir=self.save_dir1)
-    #     self.assertEqual(aln_obj1.tree_order, list(aln_obj1_df.index))
-    #     for i in range(1, 5):
-    #         for j in aln_obj1_df.index:
-    #             self.assertIn(j,  aln_obj1.sequence_assignments[i][aln_obj1_df.loc[j, i]])
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir1, 'query_1c17A_Sequence_Assignment.csv')))
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir1, 'query_1c17A_Sequence_Assignment.eps')))
-    #     aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj2._random_assignment(n_cluster=2)
-    #     aln_obj2.import_alignment()
-    #     with self.assertRaises(ValueError):
-    #         aln_obj2.visualize_tree(out_dir=self.save_dir2)
-    #     aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2,
-    #                        clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     aln_obj2_df = aln_obj2.visualize_tree(out_dir=self.save_dir2)
-    #     self.assertEqual(aln_obj2.tree_order, list(aln_obj2_df.index))
-    #     for i in range(1, 5):
-    #         for j in aln_obj2_df.index:
-    #             self.assertIn(j,  aln_obj2.sequence_assignments[i][aln_obj2_df.loc[j, i]])
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'query_1h1vA_Sequence_Assignment.csv')))
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'query_1h1vA_Sequence_Assignment.eps')))
-    #
-    # def test_get_branch_cluster(self):
-    #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj1.set_tree_ordering()
-    #     aln_obj1.import_alignment()
-    #     aln_obj1.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir1,
-    #                                clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     for k in aln_obj1.sequence_assignments:
-    #         for c in aln_obj1.sequence_assignments[k]:
-    #             aln_obj1_sub = aln_obj1.get_branch_cluster(k, c)
-    #             aln_obj1_sub_prime = aln_obj1.generate_sub_alignment(aln_obj1.sequence_assignments[k][c])
-    #             self.assertEqual(aln_obj1_sub.file_name, aln_obj1_sub_prime.file_name)
-    #             self.assertEqual(aln_obj1_sub.query_id, aln_obj1_sub_prime.query_id)
-    #             self.assertEqual(aln_obj1.query_sequence, aln_obj1_sub.query_sequence)
-    #             self.assertEqual(aln_obj1_sub.distance_matrix, aln_obj1_sub_prime.distance_matrix)
-    #             self.assertEqual(aln_obj1_sub.sequence_assignments, aln_obj1_sub_prime.sequence_assignments)
-    #             self.assertEqual(aln_obj1_sub.size, aln_obj1_sub_prime.size)
-    #             self.assertEqual(aln_obj1_sub.seq_order, aln_obj1_sub_prime.seq_order)
-    #             self.assertEqual(aln_obj1_sub.tree_order, aln_obj1_sub_prime.tree_order)
-    #     aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj2._random_assignment(n_cluster=2)
-    #     aln_obj2.import_alignment()
-    #     aln_obj2.set_tree_ordering(tree_depth=(2, 5), cache_dir=self.save_dir2,
-    #                                clustering_args={'affinity': 'euclidean', 'linkage': 'ward', 'model': 'identity'})
-    #     for k in aln_obj2.sequence_assignments:
-    #         for c in aln_obj2.sequence_assignments[k]:
-    #             aln_obj2_sub = aln_obj2.get_branch_cluster(k, c)
-    #             aln_obj2_sub_prime = aln_obj2.generate_sub_alignment(aln_obj2.sequence_assignments[k][c])
-    #             self.assertEqual(aln_obj2_sub.file_name, aln_obj2_sub_prime.file_name)
-    #             self.assertEqual(aln_obj2_sub.query_id, aln_obj2_sub_prime.query_id)
-    #             self.assertEqual(aln_obj2.query_sequence, aln_obj2_sub.query_sequence)
-    #             self.assertEqual(aln_obj2_sub.distance_matrix, aln_obj2_sub_prime.distance_matrix)
-    #             self.assertEqual(aln_obj2_sub.sequence_assignments, aln_obj2_sub_prime.sequence_assignments)
-    #             self.assertEqual(aln_obj2_sub.size, aln_obj2_sub_prime.size)
-    #             self.assertEqual(aln_obj2_sub.seq_order, aln_obj2_sub_prime.seq_order)
-    #             self.assertEqual(aln_obj2_sub.tree_order, aln_obj2_sub_prime.tree_order)
-
-    # def test_random_assignment(self):
-    #     aln_obj1 = SeqAlignment(self.aln_fn1, self.query1)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj1._random_assignment(n_cluster=2)
-    #     aln_obj1.import_alignment()
-    #     aln_obj1_clusters1 = aln_obj1._random_assignment(n_cluster=2)
-    #     self.assertEqual(len(set(aln_obj1_clusters1)), 2)
-    #     self.assertTrue(0 in set(aln_obj1_clusters1))
-    #     self.assertTrue(1 in set(aln_obj1_clusters1))
-    #     aln_obj1_clusters2 = aln_obj1._random_assignment(n_cluster=2)
-    #     self.assertEqual(len(set(aln_obj1_clusters2)), 2)
-    #     self.assertTrue(0 in set(aln_obj1_clusters2))
-    #     self.assertTrue(1 in set(aln_obj1_clusters2))
-    #     self.assertNotEqual(aln_obj1_clusters1, aln_obj1_clusters2)
-    #     aln_obj1_clusters3 = aln_obj1._random_assignment(n_cluster=3, cache_dir=self.save_dir1)
-    #     self.assertEqual(len(set(aln_obj1_clusters3)), 3)
-    #     self.assertTrue(0 in set(aln_obj1_clusters3))
-    #     self.assertTrue(1 in set(aln_obj1_clusters3))
-    #     self.assertTrue(2 in set(aln_obj1_clusters3))
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir1, 'joblib', 'K_3.pkl')))
-    #     aln_obj2 = SeqAlignment(self.aln_fn2, self.query2)
-    #     with self.assertRaises(TypeError):
-    #         aln_obj2._random_assignment(n_cluster=2)
-    #     aln_obj2.import_alignment()
-    #     aln_obj2_clusters1 = aln_obj2._random_assignment(n_cluster=2)
-    #     self.assertEqual(len(set(aln_obj2_clusters1)), 2)
-    #     self.assertTrue(0 in set(aln_obj2_clusters1))
-    #     self.assertTrue(1 in set(aln_obj2_clusters1))
-    #     aln_obj2_clusters2 = aln_obj2._random_assignment(n_cluster=2)
-    #     self.assertEqual(len(set(aln_obj2_clusters2)), 2)
-    #     self.assertTrue(0 in set(aln_obj2_clusters2))
-    #     self.assertTrue(1 in set(aln_obj2_clusters2))
-    #     self.assertNotEqual(aln_obj2_clusters1, aln_obj2_clusters2)
-    #     aln_obj2_clusters3 = aln_obj2._random_assignment(n_cluster=3, cache_dir=self.save_dir2)
-    #     self.assertEqual(len(set(aln_obj2_clusters3)), 3)
-    #     self.assertTrue(0 in set(aln_obj2_clusters3))
-    #     self.assertTrue(1 in set(aln_obj2_clusters3))
-    #     self.assertTrue(2 in set(aln_obj2_clusters3))
-    #     self.assertTrue(os.path.isfile(os.path.join(self.save_dir2, 'joblib', 'K_3.pkl')))
-
 
 def subset_string(in_str, positions):
     new_str = ''
     for i in positions:
         new_str += in_str[i]
     return new_str
+
+
+if __name__ == '__main__':
+    unittest.main()

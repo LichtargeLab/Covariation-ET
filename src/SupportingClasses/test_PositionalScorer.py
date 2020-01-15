@@ -3,6 +3,7 @@ Created on July 12, 2019
 
 @author: Daniel Konecki
 """
+import unittest
 import numpy as np
 from Bio.Alphabet import Gapped
 from test_Base import TestBase
@@ -263,7 +264,7 @@ class TestPositionalScorer(TestBase):
                     expected_apc[pos[0]][pos[1]] = mi_matrix[pos[0]][pos[1]] - apc_correction
             apc = pos_scorer.score_group(freq_table=freq_table)
             diff = apc - expected_apc
-            not_passing = diff > 1E-14
+            not_passing = diff > 1E-13
             if not_passing.any():
                 print(apc)
                 print(expected_apc)
@@ -616,7 +617,7 @@ class TestPositionalScorer(TestBase):
                             expected_apc_matrix[i, j] = mi_matrix[i, j] - correction_factor
             apc_matrix = average_product_correction(mutual_information_matrix=mi_matrix)
             diff = apc_matrix - expected_apc_matrix
-            not_passing = diff > 1E-14
+            not_passing = diff > 1E-13
             self.assertTrue(not not_passing.any())
 
     def test11a_average_product_correction(self):
@@ -655,7 +656,7 @@ class TestPositionalScorer(TestBase):
                                 expected_apc_matrix[i, j] = mi_matrix[i, j] - correction_factor
             apc_matrix = filtered_average_product_correction(mutual_information_matrix=mi_matrix)
             diff = apc_matrix - expected_apc_matrix
-            not_passing = diff > 1E-14
+            not_passing = diff > 1E-13
             self.assertTrue(not not_passing.any())
 
     def test11c_heuristic_average_product_correction(self):
@@ -663,3 +664,7 @@ class TestPositionalScorer(TestBase):
 
     def test11d_heuristic_average_product_correction(self):
         self.evaluate_filtered_average_product_correction(node_dict=self.first_parents)
+
+
+if __name__ == '__main__':
+    unittest.main()

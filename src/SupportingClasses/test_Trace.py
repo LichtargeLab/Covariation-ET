@@ -4,6 +4,7 @@ Created on July 11, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
@@ -11,7 +12,7 @@ from Bio.Alphabet import Gapped
 from multiprocessing import Lock, Manager, Queue
 from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import TestBase
-from utils import build_mapping
+from utils import build_mapping, gap_characters
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
 from PhylogeneticTree import PhylogeneticTree
@@ -161,8 +162,18 @@ class TestTrace(TestBase):
                         single_table = trace.unique_nodes[node_name]['single']
                         if low_mem:
                             single_table = load_freq_table(freq_table=single_table, low_memory=low_mem)
-                        diff = single_table.get_table() - expected_single_table.get_table()
-                        self.assertFalse(diff.toarray().any())
+                        diff = (single_table.get_table() - expected_single_table.get_table()).toarray()
+                        if diff.any():
+                            print(single_table.get_table().toarray())
+                            print(expected_single_table.get_table().toarray())
+                            print(diff)
+                            indices = np.nonzero(diff)
+                            print(single_table.get_table().toarray()[indices])
+                            print(expected_single_table.get_table().toarray()[indices])
+                            print(diff[indices])
+                            print(node_name)
+                            print(sub_aln.alignment)
+                        self.assertFalse(diff.any())
                         if write_freq_table:
                             self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}_position_freq_table.tsv'.format(
                                 node_name))))
@@ -186,7 +197,7 @@ class TestTrace(TestBase):
         # Test characterizing both single and pair positions, small alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_small, single=True, pair=True, processors=1,
-                                               low_mem=False, write_aln=True, write_freq_table=True)
+                                               low_mem=False, write_aln=False, write_freq_table=False)
 
     def test2b_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, single processed
@@ -198,13 +209,13 @@ class TestTrace(TestBase):
         # Test characterizing both single and pair positions, small alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_custom_small, single=True, pair=True,
-                                               processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+                                               processors=1, low_mem=False, write_aln=False, write_freq_table=False)
 
     def test2d_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, single processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                                               assign=self.assignments_custom_large, single=True, pair=True, processors=1,
-                                               low_mem=True, write_aln=False, write_freq_table=False)
+                                               assign=self.assignments_custom_large, single=True, pair=True,
+                                               processors=1, low_mem=True, write_aln=False, write_freq_table=False)
 
     def test2e_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, small alignment, multi-processed
@@ -224,8 +235,8 @@ class TestTrace(TestBase):
         # Test characterizing both single and pair positions, small alignment, multi-processed
         self.evaluate_characterize_rank_groups(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                                                assign=self.assignments_custom_small, single=True, pair=True,
-                                               processors=self.max_threads, low_mem=False, write_aln=True,
-                                               write_freq_table=True)
+                                               processors=self.max_threads, low_mem=False, write_aln=False,
+                                               write_freq_table=False)
 
     def test2h_characterize_rank_groups(self):
         # Test characterizing both single and pair positions, large alignment, multi-processed
@@ -290,7 +301,7 @@ class TestTrace(TestBase):
             self.assertFalse(diff_min_cov.any())
             max_mask = score_array == max_score
             rank_mask2 = rank_array == max_rank
-            diff_max_ranks = max_mask - rank_mask2
+            diff_max_ranks = max_mask ^ rank_mask2
             if diff_max_ranks.any():
                 print(max_score)
                 print(max_rank)
@@ -298,7 +309,7 @@ class TestTrace(TestBase):
                 print(np.sum(rank_mask2))
             self.assertFalse(diff_max_ranks.any())
             cov_mask2 = coverage_array == max_coverage
-            diff_max_cov = max_mask - cov_mask2
+            diff_max_cov = max_mask ^ cov_mask2
             if diff_max_cov.any():
                 print(max_score)
                 print(max_coverage)
@@ -332,28 +343,28 @@ class TestTrace(TestBase):
                 max_mask = np.triu(score_array == max_score, k=1)
                 rank_mask2 = np.triu(rank_array == min_rank, k=1)
                 cov_mask2 = np.triu(coverage_array == min_coverage, k=1)
-            diff_min_ranks = min_mask - rank_mask
+            diff_min_ranks = min_mask ^ rank_mask
             if diff_min_ranks.any():
                 print(min_score)
                 print(min_rank)
                 print(np.sum(min_mask))
                 print(np.sum(rank_mask))
             self.assertFalse(diff_min_ranks.any())
-            diff_min_cov = min_mask - cov_mask
+            diff_min_cov = min_mask ^ cov_mask
             if diff_min_cov.any():
                 print(min_score)
                 print(max_coverage)
                 print(np.sum(min_mask))
                 print(np.sum(cov_mask))
             self.assertFalse(diff_min_cov.any())
-            diff_max_ranks = max_mask - rank_mask2
+            diff_max_ranks = max_mask ^ rank_mask2
             if diff_max_ranks.any():
                 print(max_score)
                 print(max_rank)
                 print(np.sum(max_mask))
                 print(np.sum(rank_mask2))
             self.assertFalse(diff_max_ranks.any())
-            diff_max_cov = max_mask - cov_mask2
+            diff_max_cov = max_mask ^ cov_mask2
             if diff_max_cov.any():
                 print(max_score)
                 print(max_coverage)
@@ -890,31 +901,30 @@ class TestTrace(TestBase):
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
         visited = {}
-        queue1 = Queue(maxsize=aln.size + 1)
-        queue2 = Queue(maxsize=aln.size)
         components = False
+        to_characterize = []
         for r in sorted(assign.keys(), reverse=True):
             for g in assign[r]:
                 node = assign[r][g]['node']
                 if not components:
-                    queue1.put_nowait(node.name)
+                    to_characterize.append((node.name, 'component'))
                 elif node.name not in visited:
-                    queue2.put_nowait(node.name)
+                    to_characterize.append((node.name, 'inner'))
                 else:
                     continue
                 visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                       'descendants': assign[r][g]['descendants']}
             if not components:
                 components = True
-        queue1.put_nowait('STOP')
-        queue2.put_nowait('STOP')
         pool_manager = Manager()
         lock = Lock()
         frequency_tables = pool_manager.dict()
         init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                                   single_to_pair, aln, single, pair, queue1, queue2, visited, frequency_tables,
+                                   single_to_pair, aln, single, pair, visited, frequency_tables,
                                    lock, unique_dir, low_mem, write_sub_aln, write_freq_table, 1)
-        characterization(processor=0)
+        for to_char in to_characterize:
+            ret_name = characterization(*to_char)
+            self.assertEqual(ret_name, to_char[0])
         frequency_tables = dict(frequency_tables)
         for node_name in visited:
             sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
@@ -1002,17 +1012,13 @@ class TestTrace(TestBase):
         else:
             raise ValueError('Cannot evaluate if both single and pair are False.')
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
-        manager = Manager()
-        group_queue = Queue(maxsize=(aln.size * 2) - 1 + 1)
+        init_trace_groups(scorer=scorer, pos_specific=single, pair_specific=pair, u_dict=trace.unique_nodes,
+                          low_memory=low_memory, unique_dir=unique_dir)
+        group_dict = {}
         for node_name in trace.unique_nodes:
-            group_queue.put_nowait(node_name)
-        group_queue.put_nowait('STOP')
-        group_dict = manager.dict()
-        init_trace_groups(group_queue=group_queue, scorer=scorer, group_dict=group_dict, pos_specific=single,
-                          pair_specific=pair, u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
-        trace_groups(processor=0)
+            ret_node_name, ret_components = trace_groups(node_name=node_name)
+            group_dict[ret_node_name] = ret_components
         self.assertEqual(len(group_dict.keys()), len(trace.unique_nodes.keys()))
-        group_dict = dict(group_dict)
         for node_name in group_dict:
             self.assertTrue('single_scores' in group_dict[node_name])
             if single:
@@ -1051,16 +1057,12 @@ class TestTrace(TestBase):
             else:
                 self.assertIsNone(group_dict[node_name]['pair_scores'])
             trace.unique_nodes[node_name].update(group_dict[node_name])
-        rank_queue = Queue(maxsize=aln.size + 1)
+        rank_dict = {}
+        init_trace_ranks(scorer=scorer, pos_specific=single, pair_specific=pair, a_dict=assign,
+                         u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
         for rank in assign:
-            rank_queue.put_nowait(rank)
-        rank_queue.put_nowait('STOP')
-        rank_dict = manager.dict()
-        init_trace_ranks(rank_queue=rank_queue, scorer=scorer, rank_dict=rank_dict, pos_specific=single,
-                         pair_specific=pair, a_dict=assign, u_dict=trace.unique_nodes, low_memory=low_memory,
-                         unique_dir=unique_dir)
-        trace_ranks(processor=0)
-        rank_dict = dict(rank_dict)
+            ret_rank, ret_components = trace_ranks(rank=rank)
+            rank_dict[ret_rank] = ret_components
         for rank in assign.keys():
             group_scores = []
             for group in sorted(assign[rank].keys(), reverse=True):
@@ -1373,3 +1375,7 @@ class TestTrace(TestBase):
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
             single=False, pair=True, metric='filtered_average_product_corrected_mutual_information', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -4,6 +4,7 @@ Created on June 16, 2019
 @author: Daniel Konecki
 """
 import numpy as np
+from scipy.stats import rankdata
 from Bio.Alphabet import Alphabet, Gapped
 
 # Common gap characters
@@ -69,3 +70,46 @@ def convert_seq_to_numeric(seq, mapping):
     """
     numeric = [mapping[char] for char in seq]
     return np.array(numeric)
+
+
+def compute_rank_and_coverage(seq_length, scores, pos_size, rank_type):
+    """
+    Compute Rank and Coverage
+
+    This function generates rank and coverage values for a set of scores.
+
+    Args:
+        seq_length (int): The length of the sequences used to generate the scores for which rank and coverage are being
+        computed.
+        scores (np.array): A set of scores to rank and compute coverage for.
+        pos_size (int): The dimensionality of the array (whether single, 1, positions or pair, 2, positions are
+        being characterized).
+        rank_type (str): Whether the optimal value of a set of scores is its 'max' or its 'min'.
+    Returns:
+        np.array: An array of ranks for the set of scores.
+        np.array: An array of coverage scores (what percentile of values are at or below the given score).
+    """
+    if rank_type == 'max':
+        weight = -1.0
+    elif rank_type == 'min':
+        weight = 1.0
+    else:
+        raise ValueError('No support for rank types other than max or min, {} provided'.format(rank_type))
+    if pos_size == 1:
+        indices = range(seq_length)
+        normalization = float(seq_length)
+        to_rank = scores * weight
+        ranks = np.zeros(seq_length)
+        coverages = np.zeros(seq_length)
+    elif pos_size == 2:
+        indices = np.triu_indices(seq_length, k=1)
+        normalization = float(len(indices[0]))
+        to_rank = scores[indices] * weight
+        ranks = np.zeros((seq_length, seq_length))
+        coverages = np.zeros((seq_length, seq_length))
+    else:
+        raise ValueError('Ranking not supported for position sizes other than 1 or 2, {} provided'.format(pos_size))
+    ranks[indices] = rankdata(to_rank, method='dense')
+    coverages[indices] = rankdata(to_rank, method='max')
+    coverages /= normalization
+    return ranks, coverages

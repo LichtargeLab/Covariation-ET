@@ -3,11 +3,12 @@ Created on June 17, 2019
 
 @author: daniel
 """
+import unittest
 import numpy as np
 from unittest import TestCase
 from Bio.Alphabet import  Gapped
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
-from utils import build_mapping, convert_seq_to_numeric
+from utils import build_mapping, convert_seq_to_numeric, compute_rank_and_coverage
 
 
 class TestUtils(TestCase):
@@ -86,3 +87,239 @@ class TestUtils(TestCase):
         diff_in_conversion = expected_array - numeric_seq_7hvp
         self.assertEqual(numeric_seq_7hvp.shape, expected_array.shape)
         self.assertFalse(np.any(diff_in_conversion))
+
+    def test3a_compute_rank_and_coverage(self):
+        """
+        Testing rank_type error.
+        """
+        scores = np.random.rand(100, 100)
+        scores[np.tril_indices(100, 1)] = 0
+        scores += scores.T
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=1, rank_type='middle')
+
+    def test3b_compute_rank_and_coverage(self):
+        """
+        Testing pos_size error.
+        """
+        scores = np.random.rand(100, 100)
+        scores[np.tril_indices(100, 1)] = 0
+        scores += scores.T
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=3, rank_type='min')
+
+    def test3c_compute_rank_and_coverage(self):
+        """
+        Testing single position min.
+        """
+        scores = np.random.rand(100)
+        rank, coverage = compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=1, rank_type='min')
+        unique_scores = np.unique(scores)
+        unique_rank = np.unique(rank)
+        unique_covearge = np.unique(coverage)
+        self.assertEqual(unique_scores.shape, unique_rank.shape)
+        self.assertEqual(unique_scores.shape, unique_covearge.shape)
+        min_score = np.min(scores)
+        min_rank = np.min(rank)
+        max_coverage = np.max(coverage)
+        max_score = np.max(scores)
+        max_rank = np.max(rank)
+        min_coverage = np.min(coverage)
+        min_mask = (scores == min_score) * 1
+        rank_mask = (rank == min_rank) * 1
+        diff_min_ranks = min_mask - rank_mask
+        if diff_min_ranks.any():
+            print(min_score)
+            print(min_rank)
+            print(np.sum(min_mask))
+            print(np.sum(rank_mask))
+        self.assertFalse(diff_min_ranks.any())
+        cov_mask = coverage == min_coverage
+        diff_min_cov = min_mask - cov_mask
+        if diff_min_cov.any():
+            print(min_score)
+            print(min_coverage)
+            print(np.sum(min_mask))
+            print(np.sum(cov_mask))
+        self.assertFalse(diff_min_cov.any())
+        max_mask = scores == max_score
+        rank_mask2 = rank == max_rank
+        diff_max_ranks = max_mask ^ rank_mask2
+        if diff_max_ranks.any():
+            print(max_score)
+            print(max_rank)
+            print(np.sum(max_mask))
+            print(np.sum(rank_mask2))
+        self.assertFalse(diff_max_ranks.any())
+        cov_mask2 = coverage == max_coverage
+        diff_max_cov = max_mask ^ cov_mask2
+        if diff_max_cov.any():
+            print(max_score)
+            print(max_coverage)
+            print(np.sum(max_mask))
+            print(np.sum(cov_mask2))
+        self.assertFalse(diff_min_cov.any())
+
+    def test3d_compute_rank_and_coverage(self):
+        """
+        Testing single positions max.
+        """
+        scores = np.random.rand(100)
+        rank, coverage = compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=1, rank_type='max')
+        unique_scores = np.unique(scores)
+        unique_rank = np.unique(rank)
+        unique_covearge = np.unique(coverage)
+        self.assertEqual(unique_scores.shape, unique_rank.shape)
+        self.assertEqual(unique_scores.shape, unique_covearge.shape)
+        max_score = np.max(scores)
+        max_rank = np.max(rank)
+        max_coverage = np.max(coverage)
+        min_score = np.min(scores)
+        min_rank = np.min(rank)
+        min_coverage = np.min(coverage)
+        min_mask = scores == min_score
+        rank_mask = rank == max_rank
+        cov_mask = coverage == max_coverage
+        max_mask = scores == max_score
+        rank_mask2 = rank == min_rank
+        cov_mask2 = coverage == min_coverage
+        diff_min_ranks = min_mask ^ rank_mask
+        if diff_min_ranks.any():
+            print(min_score)
+            print(min_rank)
+            print(np.sum(min_mask))
+            print(np.sum(rank_mask))
+        self.assertFalse(diff_min_ranks.any())
+        diff_min_cov = min_mask ^ cov_mask
+        if diff_min_cov.any():
+            print(min_score)
+            print(max_coverage)
+            print(np.sum(min_mask))
+            print(np.sum(cov_mask))
+        self.assertFalse(diff_min_cov.any())
+        diff_max_ranks = max_mask ^ rank_mask2
+        if diff_max_ranks.any():
+            print(max_score)
+            print(max_rank)
+            print(np.sum(max_mask))
+            print(np.sum(rank_mask2))
+        self.assertFalse(diff_max_ranks.any())
+        diff_max_cov = max_mask ^ cov_mask2
+        if diff_max_cov.any():
+            print(max_score)
+            print(max_coverage)
+            print(np.sum(max_mask))
+            print(np.sum(cov_mask2))
+        self.assertFalse(diff_min_cov.any())
+
+    def test3e_compute_rank_and_coverage(self):
+        """
+        Testing pair position min.
+        """
+        scores = np.random.rand(100, 100)
+        scores[np.tril_indices(100, 1)] = 0
+        scores += scores.T
+        rank, coverage = compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=2, rank_type='min')
+        unique_scores = np.unique(scores[np.triu_indices(100, k=1)])
+        unique_rank = np.unique(rank[np.triu_indices(100, k=1)])
+        unique_covearge = np.unique(coverage[np.triu_indices(100, k=1)])
+        self.assertEqual(unique_scores.shape, unique_rank.shape)
+        self.assertEqual(unique_scores.shape, unique_covearge.shape)
+        min_score = np.min(scores[np.triu_indices(100, k=1)])
+        min_rank = np.min(rank[np.triu_indices(100, k=1)])
+        max_coverage = np.max(coverage[np.triu_indices(100, k=1)])
+        max_score = np.max(scores[np.triu_indices(100, k=1)])
+        max_rank = np.max(rank[np.triu_indices(100, k=1)])
+        min_coverage = np.min(coverage[np.triu_indices(100, k=1)])
+        min_mask = np.triu((scores == min_score) * 1, k=1)
+        rank_mask = np.triu((rank == min_rank) * 1, k=1)
+        cov_mask = np.triu((coverage == min_coverage) * 1, k=1)
+        max_mask = np.triu((scores == max_score) * 1, k=1)
+        rank_mask2 = np.triu((rank == max_rank) * 1, k=1)
+        cov_mask2 = np.triu((coverage == max_coverage) * 1, k=1)
+        diff_min_ranks = min_mask - rank_mask
+        if diff_min_ranks.any():
+            print(min_score)
+            print(min_rank)
+            print(np.sum(min_mask))
+            print(np.sum(rank_mask))
+        self.assertFalse(diff_min_ranks.any())
+        diff_min_cov = min_mask - cov_mask
+        if diff_min_cov.any():
+            print(min_score)
+            print(min_coverage)
+            print(np.sum(min_mask))
+            print(np.sum(cov_mask))
+        self.assertFalse(diff_min_cov.any())
+        diff_max_ranks = max_mask ^ rank_mask2
+        if diff_max_ranks.any():
+            print(max_score)
+            print(max_rank)
+            print(np.sum(max_mask))
+            print(np.sum(rank_mask2))
+        self.assertFalse(diff_max_ranks.any())
+        diff_max_cov = max_mask ^ cov_mask2
+        if diff_max_cov.any():
+            print(max_score)
+            print(max_coverage)
+            print(np.sum(max_mask))
+            print(np.sum(cov_mask2))
+        self.assertFalse(diff_min_cov.any())
+
+    def test3f_compute_rank_and_coverage(self):
+        """
+        Testing pair position max.
+        """
+        scores = np.random.rand(100, 100)
+        scores[np.tril_indices(100, 1)] = 0
+        scores += scores.T
+        rank, coverage = compute_rank_and_coverage(seq_length=100, scores=scores, pos_size=2, rank_type='max')
+        unique_scores = np.unique(scores[np.triu_indices(100, k=1)])
+        unique_rank = np.unique(rank[np.triu_indices(100, k=1)])
+        unique_covearge = np.unique(coverage[np.triu_indices(100, k=1)])
+        self.assertEqual(unique_scores.shape, unique_rank.shape)
+        self.assertEqual(unique_scores.shape, unique_covearge.shape)
+        max_score = np.max(scores[np.triu_indices(100, k=1)])
+        max_rank = np.max(rank[np.triu_indices(100, k=1)])
+        max_coverage = np.max(coverage[np.triu_indices(100, k=1)])
+        min_score = np.min(scores[np.triu_indices(100, k=1)])
+        min_rank = np.min(rank[np.triu_indices(100, k=1)])
+        min_coverage = np.min(coverage[np.triu_indices(100, k=1)])
+        min_mask = np.triu(scores == min_score, k=1)
+        rank_mask = np.triu(rank == max_rank, k=1)
+        cov_mask = np.triu(coverage == max_coverage, k=1)
+        max_mask = np.triu(scores == max_score, k=1)
+        rank_mask2 = np.triu(rank == min_rank, k=1)
+        cov_mask2 = np.triu(coverage == min_coverage, k=1)
+        diff_min_ranks = min_mask ^ rank_mask
+        if diff_min_ranks.any():
+            print(min_score)
+            print(min_rank)
+            print(np.sum(min_mask))
+            print(np.sum(rank_mask))
+        self.assertFalse(diff_min_ranks.any())
+        diff_min_cov = min_mask ^ cov_mask
+        if diff_min_cov.any():
+            print(min_score)
+            print(max_coverage)
+            print(np.sum(min_mask))
+            print(np.sum(cov_mask))
+        self.assertFalse(diff_min_cov.any())
+        diff_max_ranks = max_mask ^ rank_mask2
+        if diff_max_ranks.any():
+            print(max_score)
+            print(max_rank)
+            print(np.sum(max_mask))
+            print(np.sum(rank_mask2))
+        self.assertFalse(diff_max_ranks.any())
+        diff_max_cov = max_mask ^ cov_mask2
+        if diff_max_cov.any():
+            print(max_score)
+            print(max_coverage)
+            print(np.sum(max_mask))
+            print(np.sum(cov_mask2))
+        self.assertFalse(diff_min_cov.any())
+
+
+if __name__ == '__main__':
+    unittest.main()

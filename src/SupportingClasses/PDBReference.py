@@ -3,10 +3,9 @@ Created on Aug 17, 2017
 
 @author: daniel
 """
-import cPickle as pickle
 import os
+import pickle
 from time import time
-
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Polypeptide import three_to_one
 from Bio.PDB.Polypeptide import is_aa
@@ -15,7 +14,7 @@ from Bio.PDB.Polypeptide import is_aa
 class PDBReference(object):
     """
     This class contains the data for a single PDB entry which can be loaded from a specified .pdb file. Each instance is
-    meant to serve as a reference for sequence based analyses performed within the lab.
+    meant to serve as a reference for sequence based analyses.
 
     Attributes:
         file_name (str): The file name or path to the desired PDB file.
@@ -36,7 +35,7 @@ class PDBReference(object):
         """
         __init__
 
-        Initiates an instance of the PDBReference class which stores structural data for reference.
+        Initiates an instance of the PDBReference class which stores structural data for a structure reference.
 
         Args:
             pdb_file (str): Path to the pdb file being represented by this instance.
@@ -64,7 +63,7 @@ class PDBReference(object):
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
-            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'rb'))
+            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'r'))
         else:
             # parser = PDBParser(PERMISSIVE=0)  # strict
             parser = PDBParser(PERMISSIVE=1)  # corrective
@@ -80,14 +79,14 @@ class PDBReference(object):
                     seq[chain.id] = ''
                     residue_pos[chain.id] = {}
                     for residue in chain:
-                        if is_aa(residue.get_resname(), standard=True):
+                        if is_aa(residue.get_resname(), standard=True) and not residue.id[0].startswith('H_'):
                             res_name = three_to_one(residue.get_resname())
                             seq[chain.id] += res_name
                             res_num = residue.get_id()[1]
                             residue_pos[chain.id][res_num] = res_name
                             pdb_residue_list[chain.id].append(res_num)
             if save_file is not None:
-                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'wb'),
+                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'w'),
                             protocol=pickle.HIGHEST_PROTOCOL)
         self.structure = structure
         self.chains = chains

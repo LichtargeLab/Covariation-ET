@@ -6,6 +6,7 @@ Created on Sep 1, 2018
 import os
 import math
 import datetime
+import warnings
 import numpy as np
 import pandas as pd
 from time import time
@@ -15,7 +16,12 @@ from multiprocessing import Pool
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.PDB.Polypeptide import one_to_three
-from sklearn.metrics import auc, roc_curve, precision_score
+from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, accuracy_score, recall_score,
+                             f1_score, precision_recall_curve)
+from sklearn.exceptions import UndefinedMetricWarning
+from sklearn.utils import check_consistent_length, column_or_1d, assert_all_finite
+from sklearn.utils.multiclass import type_of_target
+from sklearn.utils.extmath import stable_cumsum
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -23,7 +29,13 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
 from SeqAlignment import SeqAlignment
+try:
+    from SupportingClasses.SeqAlignment import SeqAlignment as UpperSeqAlignment
+    seq_aln_classes = (SeqAlignment, UpperSeqAlignment)
+except ImportError:
+    seq_aln_classes = (SeqAlignment, )
 from PDBReference import PDBReference
+from utils import compute_rank_and_coverage
 
 
 class ContactScorer(object):
@@ -31,23 +43,21 @@ class ContactScorer(object):
     ContactScorer
 
     This class is meant to abstract the process of scoring a set of contact predictions away from the actual method
-    (previously it was included in the ETMIPC class).  This is being done for two main reasons. First, contact
+    (previously it was included in the prediction class).  This is being done for two main reasons. First, contact
     predictions are being made with several different methods and so their scoring should be performed consistently by
-    an other object or function. Second, there are many ways to score contact predictions and at the moment only
-    overall AUROC is being used. This class will support several other scoring methods such as the Precision at L/K
+    another object or function. Second, this class will support several scoring methods such as the Precision at L/K
     found commonly in the literature as well as methods internal to the lab like the clustering Z-score derived from
     prior ET work.
 
     Attributes:
-        query (str): The name of the query structure. When '>query_' is prepended, this should be the name of the query
-        in the provided alignment.
+        query (str): The name of the query sequence/structure.
         query_alignment (str/SeqAlignment): Path to the alignment being evaluated in this contact scoring prediction
         task. This is eventually updated to a SeqAlignment object, after the alignment has been imported.
         query_structure (str/PDBReference): Path to the pdb file to use for evaluating the contact predictions made.
         This is eventually updated to a PDBReference once the pdb file has been imported.
         cutoff (float): Value to use as a distance cutoff for contact prediction.
-        best_chain (str): The chain in the provided pdb which most closely matches the query sequence as determined by
-        pairwise global alignment.
+        best_chain (str): The chain in the provided pdb which most closely matches the query sequence as specified by
+        in the "chain" option of the __init__ function or determined by pairwise global alignment.
         query_pdb_mapping (dict): A mapping from the index of the query sequence to the index of the pdb chain's
         sequence for those positions which match according to a pairwise global alignment.
         _specific_mapping (dict): A mapping for the indices of the distance matrix used to determine residue contacts.
@@ -57,34 +67,37 @@ class ContactScorer(object):
         alpha carbon.
     """
 
-    def __init__(self, query, seq_alignment, pdb_reference, cutoff):
+    def __init__(self, query, seq_alignment, pdb_reference, cutoff, chain=None):
         """
         __init__
 
-        This function initializes a new ContactScorer, it accepts paths to an alignment and if available a pdb file to be
-        used in the assessment of contact predictions for a given query. It also requires a cutoff which is used to
+        This function initializes a new ContactScorer, it accepts paths to an alignment and if available a pdb file to
+        be used in the assessment of contact predictions for a given query. It also requires a cutoff which is used to
         denote which residues are actually in contact, based on their distance to one another.
 
         Args:
-            query (str): The name of the query structure. When '>query_' is prepended, this should be the name of the
-            query in the provided alignment.
+            query (str): The name of the query sequence/structure.
             seq_alignment (str/path, SeqAlignment): Path to the alignment being evaluated in this contact scoring
             prediction task or an already initialized SeqAlignment object.
-            pdb_reference (str/path, PDBReference): The object containing the PDB structure of interest, or an already
-            initialized PDBReference object.
-            cutoff (int or float): The distance between two residues at which a true contact is said to be occurring.
+            pdb_reference (str/path, PDBReference): The path to a PDB structure file, or an already initialized
+            PDBReference object.
+            cutoff (int or float): The distance between two residues at or below which a true contact is said to be
+            occurring.
+            chain (str): Which chain in the PDB structure to use for comparison and evaluation. If left blank the best
+            chain will be identified by aligning the query sequence from seq_alignment against the chains in
+            pdb_reference and the closest match will be selected.
         """
         self.query = query
-        if type(seq_alignment) is SeqAlignment:
-            self.query_alignment = seq_alignment
-        else:
+        if isinstance(seq_alignment, os.PathLike):
             self.query_alignment = os.path.abspath(seq_alignment)
-        if type(pdb_reference) is PDBReference:
-            self.query_structure = pdb_reference
         else:
+            self.query_alignment = seq_alignment
+        if isinstance(pdb_reference, os.PathLike):
             self.query_structure = os.path.abspath(pdb_reference)
+        else:
+            self.query_structure = pdb_reference
         self.cutoff = cutoff
-        self.best_chain = None
+        self.best_chain = chain
         self.query_pdb_mapping = None
         self._specific_mapping = None
         self.distances = None
@@ -123,14 +136,14 @@ class ContactScorer(object):
             if self.query_alignment is None:
                 raise ValueError('Scorer cannot be fit, because no alignment was provided.')
             else:
-                if isinstance(self.query_alignment, str):
+                if not isinstance(self.query_alignment, seq_aln_classes):
                     self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
                 self.query_alignment.import_alignment()
-                self.query_alignment.remove_gaps()
+                self.query_alignment = self.query_alignment.remove_gaps()
             if self.query_structure is None:
                 raise ValueError('Scorer cannot be fit, because no PDB was provided.')
             else:
-                if isinstance(self.query_structure, str):
+                if not isinstance(self.query_structure, PDBReference):
                     self.query_structure = PDBReference(pdb_file=self.query_structure)
                 self.query_structure.import_pdb(structure_id=self.query)
             if self.best_chain is None:
@@ -142,7 +155,6 @@ class ContactScorer(object):
                     if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
                         best_alignment = curr_align
                         best_chain = ch
-                print(format_alignment(*best_alignment[0]))
                 self.best_chain = best_chain
             else:
                 best_alignment = pairwise2.align.globalxs(self.query_alignment.query_sequence,
@@ -264,7 +276,7 @@ class ContactScorer(object):
                 carbon of a given residue is not available in the PDB structure the alpha carbon is used, or all atoms
                 in the residue if the alpha carbon is also not annotated.
             save_file (str or os.path): The path to a file where the computed distances can be stored, or may have been
-            stored on a previous run.
+            stored on a previous run (optional).
     """
         start = time()
         if self.query_structure is None:
@@ -282,7 +294,8 @@ class ContactScorer(object):
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for residue in self.query_structure.structure[0][self.best_chain]:
+            for res_num in self.query_structure.residue_pos[self.best_chain]:
+                residue = self.query_structure.structure[0][self.best_chain][res_num]
                 # Loop over residues to calculate distance between all residues i and j
                 key1 = residue.get_id()[1]
                 if key1 not in coords:
@@ -374,20 +387,19 @@ class ContactScorer(object):
             if predictions.shape[0] != self.query_alignment.seq_length:
                 raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
             indices = np.triu_indices(self.query_alignment.seq_length, 1)
-            mappable_pos = np.array(self.query_pdb_mapping.keys())
+            mappable_pos = np.array(list(self.query_pdb_mapping.keys()))
             x_mappable = np.in1d(indices[0], mappable_pos)
             y_mappable = np.in1d(indices[1], mappable_pos)
             final_mappable = x_mappable & y_mappable
             indices = (indices[0][final_mappable], indices[1][final_mappable])
             # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
             # distances matrix.
-            keys = sorted(self.query_pdb_mapping.keys())
-            values = [self.query_pdb_mapping[k] for k in keys]
-            replace = np.array([keys, values])
-            mask1 = np.in1d(indices[0], replace[0, :])
-            indices[0][mask1] = replace[1, np.searchsorted(replace[0, :], indices[0][mask1])]
-            mask2 = np.in1d(indices[1], replace[0, :])
-            indices[1][mask2] = replace[1, np.searchsorted(replace[0, :], indices[1][mask2])]
+            dist_indices = np.triu_indices(self.distances.shape[0], 1)
+            dist_mappable_pos = np.array(list(self.query_pdb_mapping.values()))
+            dist_x_mappable = np.in1d(dist_indices[0], dist_mappable_pos)
+            dist_y_mappable = np.in1d(dist_indices[1], dist_mappable_pos)
+            final_dist_mappable = dist_x_mappable & dist_y_mappable
+            dist_indices = (dist_indices[0][final_dist_mappable], dist_indices[1][final_dist_mappable])
             # Keep only data for the specified category
             pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
             indices_to_keep = []
@@ -396,16 +408,14 @@ class ContactScorer(object):
                 pair_j = np.where(indices[1] == pair[1])
                 overlap = np.intersect1d(pair_i, pair_j)
                 if len(overlap) != 1:
-                    # from IPython import embed
-                    # embed()
                     raise ValueError('Something went wrong while computing overlaps.')
                 indices_to_keep.append(overlap[0])
-            self._specific_mapping[category] = (indices, indices_to_keep)
+            self._specific_mapping[category] = (indices, dist_indices, indices_to_keep)
         else:
-            indices, indices_to_keep = self._specific_mapping[category]
+            indices, dist_indices, indices_to_keep = self._specific_mapping[category]
         mapped_predictions = predictions[indices]
         mapped_predictions = np.array(mapped_predictions[indices_to_keep])
-        mapped_distances = self.distances[indices]
+        mapped_distances = self.distances[dist_indices]
         mapped_distances = np.array(mapped_distances[indices_to_keep])
         return mapped_predictions, mapped_distances
 
@@ -420,7 +430,9 @@ class ContactScorer(object):
 
         Args:
             predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer.
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors : Residues 1 to 5 sequence positions apart.
                 Short : Residues 6 to 12 sequences positions apart.
@@ -450,12 +462,11 @@ class ContactScorer(object):
         """
         Plot AUC
 
-        This function plots and saves the AUROC.  The image will be stored in the eps format with dpi=1000 using a name
+        This function plots and saves the AUROC.  The image will be stored in the png format with dpi=300 using a name
         specified by the ContactScorer query name, cutoff, clustering constant, and date.
 
         Args:
-            auc_data (dictionary): AUC values stored in the ETMIPC class, used to identify the specific values for the
-            specified clustering constant (clus).
+            auc_data (dictionary): AUC values generated by score_auc.
             title (str): The title for the AUC plot.
             file_name (str): The file name under which to save this figure.
             output_dir (str): The full path to where the AUC plot image should be stored. If None (default) the plot
@@ -465,9 +476,9 @@ class ContactScorer(object):
         if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_roc.eps'.format(self.query, self.cutoff)
-        if not file_name.endswith('.eps'):
-            file_name = file_name + '.eps'
+            file_name = '{}_Cutoff{}A_roc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         # If the figure has already been plotted return
@@ -483,25 +494,386 @@ class ContactScorer(object):
             title = 'Ability to predict positive contacts in {}'.format(self.query)
         plt.title(title)
         plt.legend(loc="lower right")
-        plt.savefig(file_name, format='eps', dpi=1000, fontsize=8)
+        plt.savefig(file_name, format='png', dpi=300, fontsize=8)
         plt.close()
 
-    def score_precision(self, predictions, k=None, n=None, category='Any'):
+    def score_precision_recall(self, predictions, category='Any'):
+        """
+        Score Precision Recall
+
+        This function accepts a matrix of predictions and uses it to compute an overall precision and recall when
+        compared to the distances between residues computed for the PDB structure. It uses the cutoff defined when
+        initializing the ContactScorer to determine the set of true positives and the mapping from query sequence to pdb
+        determined when the fit function is performed.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
+        Returns:
+            np.array: The list of precision values calculated at each point along the sorted predictions.
+            np.array: The list of recall values calculated at each point along the sorted predictions.
+            float: The auprc determined for the precision recall curve.
+        """
+        if self.query_structure is None:
+            print('AUPRC cannot be measured, because no PDB was provided.')
+            return None, None, '-'
+        if self.query_pdb_mapping is None:
+            self.fit()
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # AUC computation
+        if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        y_true1 = ((mapped_distances <= self.cutoff) * 1)
+        precision, recall, _thresholds = precision_recall_curve(y_true1, mapped_predictions, pos_label=1)
+        recall, precision = zip(*sorted(zip(recall, precision)))
+        recall, precision = np.array(recall), np.array(precision)
+        auprc = auc(recall, precision)
+        return precision, recall, auprc
+
+    def plot_auprc(self, auprc_data, title=None, file_name=None, output_dir=None):
+        """
+        Plot AUPRC
+
+        This function plots and saves the AUPRC.  The image will be stored in the png format with dpi=300 using a name
+        specified by the ContactScorer query name, cutoff, clustering constant, and date.
+
+        Args:
+            auprc_data (dictionary): AUPRC values generated by the score_precision_recall method.
+            title (str): The title for the AUPRC plot.
+            file_name (str): The file name under which to save this figure.
+            output_dir (str): The full path to where the AUPRC plot image should be stored. If None (default) the plot
+            will be stored in the current working directory.
+        """
+        # If there is no AUC data return without plotting
+        if (auprc_data[0] is None) and (auprc_data[1] is None) and (auprc_data[2] in {None, '-', 'NA'}):
+            return
+        if file_name is None:
+            file_name = '{}_Cutoff{}A_auprc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        # If the figure has already been plotted return
+        if os.path.isfile(file_name):
+            return
+        plt.plot(auprc_data[1], auprc_data[0], label='(AUC = {0:.2f})'.format(auprc_data[2]))
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        if title is None:
+            title = 'Ability to predict positive contacts in {}'.format(self.query)
+        plt.title(title)
+        plt.legend(loc="lower left")
+        plt.savefig(file_name, format='png', dpi=300, fontsize=8)
+        plt.close()
+
+    # Copied from sklearn
+    @staticmethod
+    def binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
+        """
+        Binary Classification Curve
+
+        Calculate true and false positives per binary classification threshold.
+
+        Parameters
+        ----------
+        y_true : array, shape = [n_samples]
+            True targets of binary classification
+        y_score : array, shape = [n_samples]
+            Estimated probabilities or decision function
+        pos_label : int or str, default=None
+            The label of the positive class
+        sample_weight : array-like of shape = [n_samples], optional
+            Sample weights.
+        Returns
+        -------
+        fps : array, shape = [n_thresholds]
+            A count of false positives, at index i being the number of negative
+            samples assigned a score >= thresholds[i]. The total number of
+            negative samples is equal to fps[-1] (thus true negatives are given by
+            fps[-1] - fps).
+        tps : array, shape = [n_thresholds <= len(np.unique(y_score))]
+            An increasing count of true positives, at index i being the number
+            of positive samples assigned a score >= thresholds[i]. The total
+            number of positive samples is equal to tps[-1] (thus false negatives
+            are given by tps[-1] - tps).
+        thresholds : array, shape = [n_thresholds]
+            Decreasing score values.
+        """
+        # Check to make sure y_true is valid
+        y_type = type_of_target(y_true)
+        if not (y_type == "binary" or
+                (y_type == "multiclass" and pos_label is not None)):
+            raise ValueError("{0} format is not supported".format(y_type))
+
+        check_consistent_length(y_true, y_score, sample_weight)
+        y_true = column_or_1d(y_true)
+        y_score = column_or_1d(y_score)
+        assert_all_finite(y_true)
+        assert_all_finite(y_score)
+
+        if sample_weight is not None:
+            sample_weight = column_or_1d(sample_weight)
+
+        # ensure binary classification if pos_label is not specified
+        classes = np.unique(y_true)
+        if (pos_label is None and
+                not (np.array_equal(classes, [0, 1]) or
+                     np.array_equal(classes, [-1, 1]) or
+                     np.array_equal(classes, [0]) or
+                     np.array_equal(classes, [-1]) or
+                     np.array_equal(classes, [1]))):
+            raise ValueError("Data is not binary and pos_label is not specified")
+        elif pos_label is None:
+            pos_label = 1.
+
+        # make y_true a boolean vector
+        y_true = (y_true == pos_label)
+
+        # sort scores and corresponding truth values
+        desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+        y_score = y_score[desc_score_indices]
+        y_true = y_true[desc_score_indices]
+        if sample_weight is not None:
+            weight = sample_weight[desc_score_indices]
+        else:
+            weight = 1.
+
+        # y_score typically has many tied values. Here we extract
+        # the indices associated with the distinct values. We also
+        # concatenate a value for the end of the curve.
+        distinct_value_indices = np.where(np.diff(y_score))[0]
+        threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+        # accumulate the true positives with decreasing threshold
+        tps = stable_cumsum(y_true * weight)[threshold_idxs]
+        if sample_weight is not None:
+            # express fps as a cumulative sum to ensure fps is increasing even in
+            # the presence of floating point errors
+            fps = stable_cumsum((1 - y_true) * weight)[threshold_idxs]
+        else:
+            fps = 1 + threshold_idxs - tps
+        return fps, tps, y_score[threshold_idxs]
+
+    @staticmethod
+    def tpr_fdr_curve(y_true, y_score, pos_label=None, sample_weight=None,
+                      drop_intermediate=True):
+        """
+        True Positive Rate vs False Discovery Rate Curve
+
+        Compute TPR/FDR Curve, this method is a non-standard assessement to perform at scale and its calculation here
+        is attempted using methods originally written by the sklearn developers for other binary classification tasks.
+        Note: this implementation is restricted to the binary classification task.
+        Read more in the :ref:`User Guide <roc_metrics>`.
+        Parameters
+        ----------
+        y_true : array, shape = [n_samples]
+            True binary labels. If labels are not either {-1, 1} or {0, 1}, then
+            pos_label should be explicitly given.
+        y_score : array, shape = [n_samples]
+            Target scores, can either be probability estimates of the positive
+            class, confidence values, or non-thresholded measure of decisions
+            (as returned by "decision_function" on some classifiers).
+        pos_label : int or str, default=None
+            The label of the positive class.
+            When ``pos_label=None``, if y_true is in {-1, 1} or {0, 1},
+            ``pos_label`` is set to 1, otherwise an error will be raised.
+        sample_weight : array-like of shape = [n_samples], optional
+            Sample weights.
+        drop_intermediate : boolean, optional (default=True)
+            Whether to drop some suboptimal thresholds which would not appear
+            on a plotted ROC curve. This is useful in order to create lighter
+            ROC curves.
+            .. versionadded:: 0.17
+               parameter *drop_intermediate*.
+        Returns
+        -------
+        fdr : array, shape = [>2]
+            Increasing false discovery rates such that element i is the false
+            positive rate of predictions with score >= thresholds[i].
+        tpr : array, shape = [>2]
+            Increasing true positive rates such that element i is the true
+            positive rate of predictions with score >= thresholds[i].
+        thresholds : array, shape = [n_thresholds]
+            Decreasing thresholds on the decision function used to compute
+            fpr and tpr. `thresholds[0]` represents no instances being predicted
+            and is arbitrarily set to `max(y_score) + 1`.
+        See also
+        --------
+        roc_score : Compute the area under the ROC curve
+        """
+        fps, tps, thresholds = ContactScorer.binary_clf_curve(y_true, y_score, pos_label=pos_label,
+                                                              sample_weight=sample_weight)
+
+        # Attempt to drop thresholds corresponding to points in between and
+        # collinear with other points. These are always suboptimal and do not
+        # appear on a plotted ROC curve (and thus do not affect the AUC).
+        # Here np.diff(_, 2) is used as a "second derivative" to tell if there
+        # is a corner at the point. Both fps and tps must be tested to handle
+        # thresholds with multiple data points (which are combined in
+        # _binary_clf_curve). This keeps all cases where the point should be kept,
+        # but does not drop more complicated cases like fps = [1, 3, 7],
+        # tps = [1, 2, 4]; there is no harm in keeping too many thresholds.
+        desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+        y_score = y_score[desc_score_indices]
+        fdr_thresholds = np.r_[1., y_score[:-1]]
+        if sample_weight is not None:
+            weight = sample_weight[desc_score_indices]
+        else:
+            weight = np.ones(y_score.shape, dtype=float)
+        fdr_denominator = np.r_[[np.sum(y_score[:i + 1] >= fdr_thresholds[i]) * weight[i]
+                                 for i in range(fdr_thresholds.shape[0])]]
+
+        distinct_value_indices = np.where(np.diff(y_score))[0]
+        threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+        fdr_denominator = fdr_denominator[threshold_idxs]
+        if drop_intermediate and len(fps) > 2:
+            optimal_idxs = np.where(np.r_[True, np.logical_or(np.diff(fps, 2), np.diff(tps, 2)), True])[0]
+            fps = fps[optimal_idxs]
+            tps = tps[optimal_idxs]
+            thresholds = thresholds[optimal_idxs]
+            fdr_denominator = fdr_denominator[optimal_idxs]
+
+        # Add an extra threshold position
+        # to make sure that the curve starts at (0, 0)
+        tps = np.r_[0, tps]
+        fps = np.r_[0, fps]
+        thresholds = np.r_[thresholds[0] + 1, thresholds]
+        fdr_denominator = np.r_[1, fdr_denominator]
+
+        if fps[-1] <= 0:
+            warnings.warn("No negative samples in y_true, "
+                          "false positive value should be meaningless",
+                          UndefinedMetricWarning)
+            fdr = np.repeat(np.nan, fps.shape)
+        else:
+            fdr = fps / fdr_denominator
+            correction_idxs = np.isnan(fdr)
+            if correction_idxs.shape[0] > 0:
+                min_idxs = fps == 0
+                max_idxs = fps != 0
+                fdr[correction_idxs & min_idxs] = 0.0
+                fdr[correction_idxs & max_idxs] = 1.0
+
+        if tps[-1] <= 0:
+            warnings.warn("No positive samples in y_true, "
+                          "true positive value should be meaningless",
+                          UndefinedMetricWarning)
+            tpr = np.repeat(np.nan, tps.shape)
+        else:
+            tpr = tps / tps[-1]
+
+        return fdr, tpr, thresholds
+
+    def score_tpr_fdr(self, predictions, category='Any'):
+        """
+        Score TPR FPR
+
+        This function accepts a matrix of predictions and uses it to compute an overall tpr and fdr when
+        compared to the distances between residues computed for the PDB structure. It uses the cutoff defined when
+        initializing the ContactScorer to determine the set of true positives and the mapping from query sequence to pdb
+        determined when the fit function is performed.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors : Residues 1 to 5 sequence positions apart.
+                Short : Residues 6 to 12 sequences positions apart.
+                Medium : Residues 13 to 24 sequences positions apart.
+                Long : Residues more than 24 sequence positions apart.
+                Any : Any/All pairs of residues.
+        Returns:
+            np.array: The list of true positive rate values calculated at each point along the sorted predictions.
+            np.array: The list of false discovery rate values calculated at each point along the sorted predictions.
+            float: The auprc determined for the precision recall curve.
+        """
+        if self.query_structure is None:
+            print('AUTPRFDRC cannot be measured, because no PDB was provided.')
+            return None, None, '-'
+        if self.query_pdb_mapping is None:
+            self.fit()
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # AUC computation
+        if (mapped_distances is not None) and (len(mapped_predictions) != len(mapped_distances)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        y_true1 = ((mapped_distances <= self.cutoff) * 1)
+        fdr, tpr, _thresholds = ContactScorer.tpr_fdr_curve(y_true1, mapped_predictions, pos_label=1)
+        # Area under the curve must be computed in the wrong direction (i.e. transpose the curve) and must then be
+        # corrected for the possibility that the fdr did not reach 1 (here the assumption is made that tpr will always
+        # reach 1.0 by the end of a ranked set of predictions).
+        autprfdrc = 1.0 - (auc(tpr, fdr) + (1.0 - np.max(fdr)))
+        return tpr, fdr, autprfdrc
+
+    def plot_autprfdrc(self, autprfdrc_data, title=None, file_name=None, output_dir=None):
+        """
+        Plot AUTPRFDR Curve
+
+        This function plots and saves the AUTPRFDRC.  The image will be stored in the png format with dpi=1000 using a
+        name specified by the ContactScorer query name, cutoff, clustering constant, and date.
+
+        Args:
+            autprfdrc_data (dictionary): AUPRC values generated by the score_tpr_fdr method.
+            title (str): The title for the AUPRC plot.
+            file_name (str): The file name under which to save this figure.
+            output_dir (str): The full path to where the AUTPRFDRC plot image should be stored. If None (default) the
+            plot will be stored in the current working directory.
+        """
+        # If there is no AUC data return without plotting
+        if (autprfdrc_data[0] is None) and (autprfdrc_data[1] is None) and (autprfdrc_data[2] in {None, '-', 'NA'}):
+            return
+        if file_name is None:
+            file_name = '{}_Cutoff{}A_autprfdrc.png'.format(self.query, self.cutoff)
+        if not file_name.endswith('.png'):
+            file_name = file_name + '.png'
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+        # If the figure has already been plotted return
+        if os.path.isfile(file_name):
+            return
+        plt.plot(autprfdrc_data[1], autprfdrc_data[0], label='(AUC = {0:.2f})'.format(autprfdrc_data[2]))
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('FDR')
+        plt.ylabel('TPR')
+        if title is None:
+            title = 'Ability to predict positive contacts in {}'.format(self.query)
+        plt.title(title)
+        plt.legend(loc="lower left")
+        plt.savefig(file_name, format='png', dpi=1000, fontsize=8)
+        plt.close()
+
+    def score_precision(self, predictions, k=None, n=None, category='Any', threshold=0.5):
         """
         Score Precision
 
         This method can be used to calculate the precision of the predictions. The intention is that this method be used
         to compute precision for the top L/k or top n residue pairs, where L is the length of the query sequence and k
         is a number less than or equal to L and n is a specific number of predictions to test. Predictions in the top
-        L/k or n are given a label of 1 if they are >0 and are given a label of 0 otherwise. The true positive set is
-        determined by taking the PDB measured distances for the top L/k or n residue pairs and setting them to 1 if they
-        are <= the cutoff provided when initializing this ContactScorer, and 0 otherwise. Precision tests that the
-        ranking of residues correctly predicts structural contacts, it is given by tp / (tp + fp) as implemented by
+        L/k or n are given a label of 1 if they are > threshold and are given a label of 0 otherwise. The true positive
+        set is determined by taking the PDB measured distances for the top L/k or n residue pairs and setting them to 1
+        if they are <= the cutoff provided when initializing this ContactScorer, and 0 otherwise. Precision tests that
+        the ranking of residues correctly predicts structural contacts, it is given by tp / (tp + fp) as implemented by
         sklearn.
 
         Args:
             predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer.
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
             k (int): This value should only be specified if n is not specified. This is the number that L, the length of
             the query sequence, will be divided by to give the number of predictions to test.
             n (int): This value should only be specified if k is not specified. This is the number of predictions to
@@ -512,6 +884,7 @@ class ContactScorer(object):
                 Medium - Residues 13 to 24 sequences positions apart.
                 Long - Residues more than 24 sequence positions apart.
                 Any - Any/All pairs of residues.
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
         Returns:
             float: The precision value computed for the predictions provided.
         """
@@ -530,11 +903,115 @@ class ContactScorer(object):
             pass
         ind = np.where(ranks <= n)
         top_predictions = mapped_predictions[ind]
-        y_pred1 = ((top_predictions > 0.0) * 1)
+        y_pred1 = ((top_predictions > threshold) * 1)
         top_distances = mapped_distances[ind]
         y_true1 = ((top_distances <= self.cutoff) * 1)
         precision = precision_score(y_true1, y_pred1)
         return precision
+
+    def score_recall(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+        """
+        Score Recall
+
+        This method can be used to calculate the recall of the predictions. The intention is that this method be used
+        to compute recall for the top L/k or top n residue pairs, where L is the length of the query sequence and k
+        is a number less than or equal to L and n is a specific number of predictions to test. Predictions in the top
+        L/k or n are given a label of 1 if they are >0 and are given a label of 0 otherwise. The true positive set is
+        determined by taking the PDB measured distances for the top L/k or n residue pairs and setting them to 1 if they
+        are <= the cutoff provided when initializing this ContactScorer, and 0 otherwise. Recall tests that the ranking
+        of residues to predict all structural contacts, it is given by tp / (tp + fn) as implemented by sklearn.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
+        Returns:
+            float: The recall value computed for the predictions provided.
+        """
+        if self.query_structure is None:
+            print('Recall cannot be measured, because no PDB was provided.')
+            return '-'
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        if (k is not None) and (n is not None):
+            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
+        elif k:
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        elif n is None:
+            n = mapped_distances.shape[0]
+        else:
+            pass
+        ind = np.where(ranks <= n)
+        top_predictions = mapped_predictions[ind]
+        y_pred1 = ((top_predictions > threshold) * 1)
+        top_distances = mapped_distances[ind]
+        y_true1 = ((top_distances <= self.cutoff) * 1)
+        recall = recall_score(y_true1, y_pred1)
+        return recall
+
+    def score_f1(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+        """
+        Score F1
+
+        This method can be used to calculate the f1 score of the predictions. The intention is that this method be used
+        to compute the f1 score for the top L/k or top n residue pairs, where L is the length of the query sequence and
+        k is a number less than or equal to L and n is a specific number of predictions to test. Predictions in the top
+        L/k or n are given a label of 1 if they are >0 and are given a label of 0 otherwise. The true positive set is
+        determined by taking the PDB measured distances for the top L/k or n residue pairs and setting them to 1 if they
+        are <= the cutoff provided when initializing this ContactScorer, and 0 otherwise. F1 score is the weighted
+        average of precision and recall (2 * (precision * recall) / (precision + recall)) as implemented by sklearn.
+
+        Args:
+            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
+            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
+            the least confident.)
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
+            category (str): The sequence separation category to score, the options are as follows:
+                 Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
+        Returns:
+            float: The F1 score value computed for the predictions provided.
+        """
+        if self.query_structure is None:
+            print('Recall cannot be measured, because no PDB was provided.')
+            return '-'
+        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        if (k is not None) and (n is not None):
+            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
+        elif k:
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        elif n is None:
+            n = mapped_distances.shape[0]
+        else:
+            pass
+        ind = np.where(ranks <= n)
+        top_predictions = mapped_predictions[ind]
+        y_pred1 = ((top_predictions > threshold) * 1)
+        top_distances = mapped_distances[ind]
+        y_true1 = ((top_distances <= self.cutoff) * 1)
+        recall = f1_score(y_true1, y_pred1)
+        return recall
 
     def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
                                                 w2_ave_sub=None, processes=1):
@@ -558,8 +1035,8 @@ class ContactScorer(object):
             pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
             the clustering Z-Score, the w score, E[w], E[w^2], sigma, and the number of residues of interest up to that
             point.
-            dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
-            3).
+            dict: The parts of E[w^2] which can be pre-calculated and reused for later computations (i.e. cases 1, 2,
+            and 3).
             float: The area under the curve defined by the z-scores and the protein coverage.
         """
         start = time()
@@ -569,18 +1046,20 @@ class ContactScorer(object):
             # If data has already been computed load and return it without recomputing.
         if os.path.isfile(file_path):
             df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
-            df_sub = df.dropna()[['Num_Residues', 'Z-Score']]
+            df_sub = df.replace([None, '-', 'NA'], np.nan)
+            df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
             df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_alignment.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
             else:
-                au_scw_z_score_curve = auc(df_sub['Coverage'], df_sub['Z-Score'])
+                au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
+                                           df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
         # Identify unmappable positions (do not appear in the PDB).
         unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
-        # Identify all uniqu positions in the prediction set (assuming they are square and symmetrical).
+        # Identify all unique positions in the prediction set (assuming they are square and symmetrical).
         indices = np.triu_indices(predictions.shape[0], k=1)
         # Set up dataframe for storing results.
         data = {'Res_i': [], 'Res_j': [], 'Covariance_Score': [], 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [],
@@ -590,14 +1069,14 @@ class ContactScorer(object):
         unmappable_y = np.isin(indices[1], list(unmappable_residues))
         unmappable_all = unmappable_x | unmappable_y
         unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
-        unmappable_pairs = zip(unmappable_indices[0], unmappable_indices[1])
+        unmappable_pairs = list(zip(unmappable_indices[0], unmappable_indices[1]))
         # Identify all mappable positions and retrieve their scores
         mappable_all = ~ unmappable_all
         mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
-        mappable_pairs = zip(mappable_indices[0], mappable_indices[1])
+        mappable_pairs = list(zip(mappable_indices[0], mappable_indices[1]))
         scores = predictions[mappable_indices]
         # Sort the scores in preparation for Z-scoring
-        sorted_scores, sorted_residues = zip(*sorted(zip(scores, mappable_pairs), reverse=True))
+        sorted_scores, sorted_residues = list(zip(*sorted(zip(scores, mappable_pairs), reverse=True)))
         # Set up structures to track unique sets of residues
         unique_sets = {}
         to_score = []
@@ -629,29 +1108,29 @@ class ContactScorer(object):
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
                      initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
-                              self.query_alignment))
+                               self.best_chain)) # self.query_alignment))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
         pool2.join()
         # Store the values in the data frame
-        sorted_mappable_indices = map(list, zip(*sorted_residues))
-        data['Res_i'] += list(sorted_mappable_indices[0])
-        data['Res_j'] += list(sorted_mappable_indices[1])
+        sorted_mappable_indices = [*map(list, zip(*sorted_residues))]
+        data['Res_i'] += sorted_mappable_indices[0]
+        data['Res_j'] += sorted_mappable_indices[1]
         data['Covariance_Score'] += list(predictions[sorted_mappable_indices])
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
         for counter, curr_res in enumerate(res):
             curr_len = len(unique_sets[counter])
-            data['Z-Score'] += [curr_res[0]] * curr_len
-            data['W'] += [curr_res[1]] * curr_len
-            data['W_Ave'] += [curr_res[2]] * curr_len
-            data['W2_Ave'] += [curr_res[3]] * curr_len
-            data['Sigma'] += [curr_res[4]] * curr_len
-            data['Num_Residues'] += [curr_res[5]] * curr_len
-            if curr_res[0] not in set([None, '-', 'NA']):
-                y_z_score.append(curr_res[0])
-                x_coverage.append(float(curr_res[5]) / self.query_alignment.seq_length)
+            data['Z-Score'] += [curr_res[6]] * curr_len
+            data['W'] += [curr_res[7]] * curr_len
+            data['W_Ave'] += [curr_res[8]] * curr_len
+            data['W2_Ave'] += [curr_res[9]] * curr_len
+            data['Sigma'] += [curr_res[10]] * curr_len
+            data['Num_Residues'] += [curr_res[11]] * curr_len
+            if curr_res[6] not in set([None, '-', 'NA']):
+                y_z_score.append(curr_res[6])
+                x_coverage.append(float(curr_res[11]) / self.query_alignment.seq_length)
         if len(x_coverage) == 0:
             au_scw_z_score_curve = None
         else:
@@ -676,7 +1155,7 @@ class ContactScorer(object):
 
     def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
         """
-        Write out clustering results
+        Write Out Clustering Results
 
         This method writes the covariation scores to file along with the structural validation data if available.
 
@@ -684,9 +1163,10 @@ class ContactScorer(object):
             today (date/str): Today's date.
             raw_scores (np.array): A matrix  the raw values from the covariance/contact prediction process.
             coverage_scores (dict): A matrix of the coverage_scores computed based on the raw_scores matrices.
-            file_name (str): The filename under which to save the results.
-            output_dir (str): The full path to where the output file should be stored. If None (default) the plot will
+            output_dir (str): The full path to where the output file should be stored. If None (default) the file will
             be stored in the current working directory.
+            file_name (str): The filename under which to save the results.
+            prefix (str): A string to prepend to the specified file_name.
         """
         start = time()
         if file_name is None:
@@ -752,23 +1232,24 @@ class ContactScorer(object):
             (end - start) / 60.0))
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None, today=None, processes=1):
+                           unbiased_w2_ave=None, processes=1, threshold=0.5, pos_size=1, rank_type='min',
+                           file_prefix='Scores_', plots=True):
         """
         Evaluate Predictor
 
+        This method can be used to perform a number of validations at once for the predictions made by a given
+        predictor.
+
         Args:
-            predictor (ETMIPC/ETMIPWrapper/DCAWrapper): A predictor which has already calculated its covariance scores.
+            predictor (ETMIPC/ETMIPWrapper/DCAWrapper/EVCouplingsWrapper): A predictor which has already calculated its
+            covariance scores.
             verbosity (int): What level of output to produce.
-                1. Writes scores for all tested clustering constants.
-                2. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
+                separation.
+                2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
+                separation and top prediction levels (L, L/2 ... L/10).
+                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
                 against residue count.
-                3. Tests the AUROC of contact prediction at different levels of sequence separation and plots the
-                resulting curves to file.
-                4. Tests the precision of  contact prediction at different levels of sequence separation and list
-                lengths (L, L/2 ... L/10).
-                5. Produces heatmaps and surface plots of scores.
-                In all cases a file is written out with the final evaluation of the scores, if no PDB is provided, this
-                means only times will be recorded.'
             out_dir (str/path): The path at which to save
             dist (str): Which type of distance computation to use to determine if residues are in contact, for further
             details see the measure_distance method. Current choices are:
@@ -779,6 +1260,14 @@ class ContactScorer(object):
             returned by this function.
             unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
             computation also returned by this function.
+            processes (int): The number of processes to use when computing the clustering z-score (if specified).
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
+            precision, recall, and f1 scores (this should be the expected coverage value).
+            pos_size (int): The size of a position being scored, 1 for individual positions, 2 for pairs of positions.
+            rank_type (str): Expected values are 'min' or 'max' denoting whether the optimal result/prediction is the
+            minimum or maximum score.
+            file_prefix (str): string to prepend before filenames.
+            plots (boolean): Whether to create and save plots associated with the scores computed.
         Returns:
             pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the raw
             scores provided when evaluating this predictor. Possible column headings include: 'Time',
@@ -788,56 +1277,31 @@ class ContactScorer(object):
             dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
         """
-        if today is None:
-            today = str(datetime.date.today())
-        score_fn = os.path.join(out_dir, 'Score_Evaluation_Dist-{}.txt'.format(dist))
+        score_fn = os.path.join(out_dir, '{}_Evaluation_Dist-{}.txt'.format(file_prefix, dist))
         # If the evaluation has already been performed load the data and return it
         if os.path.isfile(score_fn):
             score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
             return score_df, None, None
-        score_stats = None
-        columns = ['Time', 'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)',
-                   'Precision (L/3)', 'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)',
-                   'Precision (L/8)', 'Precision (L/9)', 'Precision (L/10)', 'Max Biased Z-Score', 'AUC Biased Z-Score',
+        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFDRC',
+                   'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
                    'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
-        if isinstance(predictor.scores, dict):
-            columns = ['K'] + columns
-            for c in predictor.scores:
-                c_out_dir = os.path.join(out_dir, str(c))
-                if not os.path.isdir(c_out_dir):
-                    os.mkdir(c_out_dir)
-                score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                    scores=predictor.get_scores(branch=c), verbosity=verbosity, out_dir=c_out_dir, dist=dist,
-                    file_prefix='Scores_K-{}_'.format(c), stats=score_stats, biased_w2_ave=biased_w2_ave,
-                    unbiased_w2_ave=unbiased_w2_ave, today=today, processes=processes)
-                if (biased_w2_ave is None) and (b_w2_ave is not None):
-                    biased_w2_ave = b_w2_ave
-                if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-                    unbiased_w2_ave = u_w2_ave
-                if score_stats != {}:
-                    if 'K' not in score_stats:
-                        score_stats['K'] = []
-                        score_stats['Time'] = []
-                    diff_len = len(score_stats['AUROC']) - len(score_stats['K'])
-                    c_array = [c] * diff_len
-                    time_array = [predictor.time[c]] * diff_len
-                    score_stats['K'] += c_array
-                    score_stats['Time'] += time_array
-        else:
-            score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-                scores=predictor.scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix='Scores_',
-                stats=score_stats, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, today=today,
-                processes=processes)
-            if (biased_w2_ave is None) and (b_w2_ave is not None):
-                biased_w2_ave = b_w2_ave
-            if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-                unbiased_w2_ave = u_w2_ave
-            if score_stats != {}:
-                if 'Time' not in score_stats:
-                    score_stats['Time'] = []
-                diff_len = len(score_stats['AUROC']) - len(score_stats['Time'])
-                time_array = [predictor.time] * diff_len
-                score_stats['Time'] += time_array
+        # Retrieve coverages or computes them from the scorer
+        try:
+            coverages = predictor.coverage
+        except AttributeError:
+            _, coverages = compute_rank_and_coverage(seq_length=self.query_alignment.seq_length,
+                                                     scores=predictor.scores, pos_size=pos_size, rank_type=rank_type)
+        converted_scores = 1 - coverages
+        # Convert score threshold to coverage threshold
+        converted_threshold = np.max(converted_scores[np.triu(coverages >= threshold, k=1)])
+        score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+            scores=converted_scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix=file_prefix,
+            biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
+            threshold=converted_threshold, plots=plots)
+        if (biased_w2_ave is None) and (b_w2_ave is not None):
+            biased_w2_ave = b_w2_ave
+        if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+            unbiased_w2_ave = u_w2_ave
         if score_stats == {}:
             score_df = None
         else:
@@ -846,8 +1310,8 @@ class ContactScorer(object):
                             header=True, index=False)
         return score_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, verbosity, out_dir, scores, coverages=None, dist='Any', file_prefix='', stats=None,
-                             biased_w2_ave=None, unbiased_w2_ave=None, today=None, processes=1):
+    def evaluate_predictions(self, verbosity, out_dir, scores, dist='Any', file_prefix='',
+                             biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
         """
         Evaluate Predictions
 
@@ -855,98 +1319,103 @@ class ContactScorer(object):
 
         Args:
             scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
-            coverages (np.array): The coverage adjusted scores for predictions on pairs of residues in a sequence
-            alignment.
             verbosity (int): What level of output to produce.
-                1. Writes scores for all tested clustering constants.
-                2. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
+                separation.
+                2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
+                separation and top prediction levels (L, L/2 ... L/10).
+                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
                 against residue count.
-                3. Tests the AUROC of contact prediction at different levels of sequence separation and plots the
-                resulting curves to file.
-                4. Tests the precision of  contact prediction at different levels of sequence separation and list
-                lengths (L, L/2 ... L/10).
-                5. Produces heatmaps and surface plots of scores.
-                In all cases a file is written out with the final evaluation of the scores, if no PDB is provided, this
-                means only times will be recorded.'
             out_dir (str/path): The path at which to save
             dist (str): Which type of distance computation to use to determine if residues are in contact, choices are:
                 Any - Measures the minimum distance between two residues considering all of their atoms.
                 CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
                 CA - Measures the distance between two residues using their Alpha Carbons as the measuring point.
             file_prefix (str): string to prepend before filenames.
-            stats (dict): A dictionary of previously computed statistics and scores from a predictor.
             biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
             returned by this function.
             unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
             computation also returned by this function.
+            processes (int): The number of processes to use when computing the clustering z-score (if specified).
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
+            precision, recall, and f1 scores.
+            plots (boolean): Whether to create and save plots associated with the scores computed.
         Returns:
             dict. The stats computed for this matrix of scores, if a dictionary of stats was passed in the current stats
             are added to the previous ones.
             dict. A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict. A dictionary of the precomputed scores for E[w^2] for unbaised z-score computation.
         """
-        if stats is None:
-            stats = {}
-        if today is None:
-            today = str(datetime.date.today())
+        stats = {}
         self.fit()
         self.measure_distance(method=dist)
+        duplicate = 1
         # Verbosity 1
-        self.write_out_clustering_results(today=today, raw_scores=scores, coverage_scores=coverages,
-                                          output_dir=out_dir, prefix=file_prefix)
-        if verbosity >= 2:
+        stats['AUROC'] = []
+        stats['AUPRC'] = []
+        stats['AUTPRFDRC'] = []
+        stats['Distance'] = []
+        stats['Sequence_Separation'] = []
+        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+            # AUC Evaluation
+            auc_roc = self.score_auc(scores, category=separation)
+            auc_prc = self.score_precision_recall(scores, category=separation)
+            auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
+            if plots:
+                self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
+                              file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
+                self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
+                                file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                    dist, separation))
+                self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation', output_dir=out_dir,
+                                    file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
+                                        dist, separation))
+            if verbosity >= 2:
+                duplicate = 10
+                if 'F1 Score' not in stats:
+                    stats['F1 Score'] = []
+                    stats['Precision'] = []
+                    stats['Recall'] = []
+                    stats['Top K Predictions'] = []
+                for k in range(1, 11):
+                    if k == 1:
+                        top_preds_label = 'L'
+                    else:
+                        top_preds_label = 'L/{}'.format(k)
+                    f1 = self.score_f1(predictions=scores, k=k, category=separation, threshold=threshold)
+                    precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
+                    recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
+                    stats['F1 Score'].append(f1)
+                    stats['Precision'].append(precision)
+                    stats['Recall'].append(recall)
+                    stats['Top K Predictions'].append(top_preds_label)
+            stats['AUROC'] += [auc_roc[2]] * duplicate
+            stats['AUPRC'] += [auc_prc[2]] * duplicate
+            stats['AUTPRFDRC'] += [auc_tpr_fdr_curve[2]] * duplicate
+            stats['Distance'] += [dist] * duplicate
+            stats['Sequence_Separation'] += [separation] * duplicate
+        duplicate *= 5
+        if verbosity >= 3:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
-            z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.eps')
+            z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
             z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
                 scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
-            plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
-            stats['Max Biased Z-Score'] = np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))
-            stats['AUC Biased Z-Score'] = b_scw_z_auc
+            stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
+            stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
                 scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
-            plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
-            stats['Max Unbiased Z-Score'] = np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))
-            stats['AUC Unbiased Z-Score'] = u_scw_z_auc
-        # Evaluating scores
-        if verbosity >= 3:
-            if 'AUROC' not in stats:
-                stats['AUROC'] = []
-                stats['Distance'] = []
-                stats['Sequence_Separation'] = []
-            for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-                # AUC Evaluation
-                auc_roc = self.score_auc(scores, category=separation)
-                self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
-                              file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
-                stats['AUROC'].append(auc_roc[2])
-                stats['Distance'].append(dist)
-                stats['Sequence_Separation'].append(separation)
-                # Precision Evaluation
-                if verbosity >= 4:
-                    for k in range(1, 11):
-                        if k == 1:
-                            precision_label = 'Precision (L)'
-                        else:
-                            precision_label = 'Precision (L/{})'.format(k)
-                        if precision_label not in stats:
-                            if len(stats['AUROC']) > 1:
-                                stats[precision_label] = ['-'] * (len(stats['AUROC']) - 1)
-                            else:
-                                stats[precision_label] = []
-                        precision = self.score_precision(predictions=scores, k=k, category=separation)
-                        stats[precision_label].append(precision)
-        if verbosity >= 5:
-            heatmap_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Heatmap'.format(dist), data_mat=scores,
-                         output_dir=out_dir)
-            surface_plot(name=file_prefix.replace('_', ' ') + 'Dist-{} Surface'.format(dist), data_mat=scores,
-                         output_dir=out_dir)
+            stats['Max Unbiased Z-Score'] = [np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))] * duplicate
+            stats['AUC Unbiased Z-Score'] = [u_scw_z_auc] * duplicate
+            if plots:
+                plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
+                plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         return stats, biased_w2_ave, unbiased_w2_ave
 
 
@@ -1011,8 +1480,8 @@ def plot_z_scores(df, file_path=None):
     """
     Plot Z-Scores
 
-    This method accepts a DataFrame residue positions and z-scores produced by score_clustering_of_contact_predictions
-    to plot a scatter plot.
+    This method accepts a DataFrame of residue positions and z-scores produced by
+    score_clustering_of_contact_predictions to plot a scatter plot.
 
     Args:
         df (pd.DataFrame): DataFrame containing at least the 'Num_Residues' and 'Z-Score' columns produced after
@@ -1023,7 +1492,7 @@ def plot_z_scores(df, file_path=None):
     if df.empty:
         return
     if file_path is None:
-        file_path = './zscore_plot.eps'
+        file_path = './zscore_plot.png'
     # If the figure has already been plotted return
     if os.path.isfile(file_path):
         return
@@ -1042,12 +1511,12 @@ def heatmap_plot(name, data_mat, output_dir=None):
 
     Args:
         name (str): Name used as the title of the plot and the filename for the saved figure.
-        data_mat (np.array): A matrix of scores. This input should either be the score or coveragematrices from a
+        data_mat (np.array): A matrix of scores. This input should either be the score or coverage matrices from a
         predictor like the ETMIPC/ETMIPWrapper/DCAWrapper classes.
         output_dir (str): The full path to where the heatmap plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    image_name = name.replace(' ', '_') + '.eps'
+    image_name = name.replace(' ', '_') + '.png'
     if output_dir:
         image_name = os.path.join(output_dir, image_name)
     # If the figure has already been plotted return
@@ -1077,7 +1546,7 @@ def surface_plot(name, data_mat, output_dir=None):
         output_dir (str): The full path to where the surface plot image should be stored. If None (default) the plot
         will be stored in the current working directory.
     """
-    image_name = name.replace(' ', '_') + '.eps'
+    image_name = name.replace(' ', '_') + '.png'
     if output_dir:
         image_name = os.path.join(output_dir, image_name)
     # If the figure has already been plotted return
@@ -1132,7 +1601,7 @@ def compute_w2_ave_sub(res_i):
     Args:
         res_i (int): The position in the protein for which to compute the parts of the w^2 average sub-problems.
     Returns:
-        dict: The parts of E[w^2] which can be precalculated and reused for later computations (i.e. cases 1, 2, and
+        dict: The parts of E[w^2] which can be pre-calculated and reused for later computations (i.e. cases 1, 2, and
         3).
     """
     cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
@@ -1161,7 +1630,7 @@ def compute_w2_ave_sub(res_i):
     return cases
 
 
-def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, seq_aln):
+def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, best_chain):
     """
     Init Clustering Z-Score
 
@@ -1178,7 +1647,7 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
         sequence for those positions which match according to a pairwise global alignment.
         residue_dists (np.array): The distances between residues, used for determining those which are in contact in
         order to assess predictions.
-        seq_aln (SeqAlignment): SeqAlignment object being evaluated in this contact scoring prediction task.
+        best_chain (str): The chain being considered during this analysis.
     """
     global bias
     bias = bias_bool
@@ -1195,8 +1664,8 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
     # versions of the code and paper descriptions, it had previously been set as a variable but this changes the meaning
     # of the result and makes it impossible to compare to previous work.
     cutoff = 4.0
-    global query_alignment
-    query_alignment = seq_aln
+    global query_chain
+    query_chain = best_chain
 
 
 def clustering_z_score(res_list):
@@ -1237,16 +1706,14 @@ def clustering_z_score(res_list):
         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
     """
-    # start = time()
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
-        return '-', None, None, None, None, len(res_list)
+        return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
     # Check that there is a valid bias values
     if bias is not True and bias is not False:
         raise ValueError('Bias term may be True or False, but {} was provided'.format(bias))
     # Make sure a query_pdb_mapping exists
     if query_pdb_mapping is None:
-        # self.fit()
         raise ValueError('ContactScorer instance must be fit before attempting to perform structural clustering'
                          'weighted z-scoring.')
     # Make sure all residues in res_list are mapped to the PDB structure in use
@@ -1254,11 +1721,11 @@ def clustering_z_score(res_list):
         print('At least one residue of interest is not present in the PDB provided')
         print(', '.join([str(x) for x in res_list]))
         print(', '.join([str(x) for x in query_pdb_mapping.keys()]))
-        return '-', None, None, None, None, len(res_list)
+        return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
     positions = range(distances.shape[0])
     a = distances < cutoff
     a[positions, positions] = 0
-    s_i = np.in1d(positions, res_list)
+    s_i = np.in1d(positions, [query_pdb_mapping[r] for r in res_list])
     s_ij = np.outer(s_i, s_i)
     s_ij[positions, positions] = 0
     if bias:
@@ -1270,7 +1737,7 @@ def clustering_z_score(res_list):
     # Calculate w, <w>_S, and <w^2>_S.
     # Use expressions (3),(4),(5),(6) in Reference.
     m = len(res_list)
-    l = query_alignment.seq_length
+    l = len(query_structure.seq[query_chain])
     pi1 = m * (m - 1.0) / (l * (l - 1.0))
     pi2 = pi1 * (m - 2.0) / (l - 2.0)
     pi3 = pi2 * (m - 3.0) / (l - 3.0)
@@ -1279,8 +1746,6 @@ def clustering_z_score(res_list):
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
-        return 'NA', w, w_ave, w2_ave, sigma, len(res_list)
+        return a, m, l, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, m
     z_score = (w - w_ave) / sigma
-    # end = time()
-    # print('Clustering Z-Score took {} min to compute'.format((end - start) / 60.0))
-    return z_score, w, w_ave, w2_ave, sigma, len(res_list)
+    return a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, m

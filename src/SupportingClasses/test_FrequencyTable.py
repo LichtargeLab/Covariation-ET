@@ -4,13 +4,11 @@ Created on July 10, 2019
 @author: Daniel Konecki
 """
 import os
+import unittest
 import numpy as np
 import pandas as pd
 from scipy.sparse import lil_matrix, csc_matrix
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import Alphabet, Gapped
-from Bio.Align import MultipleSeqAlignment
+from Bio.Alphabet import Gapped
 from test_Base import TestBase
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
@@ -647,3 +645,7 @@ class TestFrequencyTable(TestBase):
         self.assertFalse(diff.toarray().any())
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
+
+
+if __name__ == '__main__':
+    unittest.main()

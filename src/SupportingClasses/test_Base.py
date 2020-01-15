@@ -6,13 +6,7 @@ Created onJune 19, 2019
 import os
 from unittest import TestCase
 from multiprocessing import cpu_count
-from dotenv import find_dotenv, load_dotenv
 from DataSetGenerator import DataSetGenerator
-try:
-    dotenv_path = find_dotenv(raise_error_if_not_found=True)
-except IOError:
-    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
-load_dotenv(dotenv_path)
 
 
 class TestBase(TestCase):
@@ -26,15 +20,15 @@ class TestBase(TestCase):
         cls.protein_list_path = os.path.join(cls.input_path, 'ProteinLists')
         if not os.path.isdir(cls.protein_list_path):
             os.makedirs(cls.protein_list_path)
-        cls.small_structure_id = '7hvp'
-        cls.large_structure_id = '2zxe'
+        cls.small_structure_id = '135l'
+        cls.large_structure_id = '1bol'
         cls.protein_list_fn = os.path.join(cls.protein_list_path, 'Test_Set.txt')
         structure_ids = [cls.small_structure_id, cls.large_structure_id]
-        with open(cls.protein_list_fn, 'wb') as test_list_handle:
+        with open(cls.protein_list_fn, 'w') as test_list_handle:
             for structure_id in structure_ids:
                 test_list_handle.write('{}{}\n'.format(structure_id, 'A'))
         cls.data_set = DataSetGenerator(input_path=cls.input_path)
-        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', num_threads=cls.max_threads,
+        cls.data_set.build_pdb_alignment_dataset(protein_list_fn='Test_Set.txt', processes=cls.max_threads,
                                                  max_target_seqs=cls.max_target_seqs)
 
     @classmethod
