@@ -148,7 +148,7 @@ class Trace(object):
         frequency_tables = dict(frequency_tables)
         self.unique_nodes = frequency_tables
 
-    def trace(self, scorer, gap_correction=0.6, processes=1):
+    def trace(self, scorer, gap_correction=0.6, processes=1, maximize=False):
         """
         Trace
 
@@ -160,11 +160,13 @@ class Trace(object):
 
         Args:
             scorer (PositionalScorer): The scoring object to use when computing the group and rank scores.
-            processes (int): The maximum number of sequences to use when performing this characterization.
             gap_correction (float): If this value is set then after the trace has been performed positions in the
             alignment where the gap / alignment size ratio is greater than the gap_correction will have their final
             scores set to the highest (least important) value computed up to that point. If you do not want to perform
             this correction please set gap_correction to None.
+            processes (int): The maximum number of sequences to use when performing this characterization.
+            maximize (bool): Whether or not to enforce that the better score is kept when moving from parent node to
+            child nodes during the group scoring step.
         Returns:
             np.array: A properly dimensioned vector/matrix/tensor of importance scores for each position in the
             alignment being traced.
@@ -207,6 +209,44 @@ class Trace(object):
         pool1.close()
         pool1.join()
         group_pbar.close()
+        # If specified enforce that the score preserves the quality that it improves or stays the same as the tree is
+        # traversed.
+        if maximize:
+            start = time()
+            for rank in sorted(self.assignments.keys()):
+                for group in self.assignments[rank]:
+                    curr_node = self.assignments[rank][group]['node']
+                    if self.assignments[rank][group]['descendants'] is None:
+                        continue
+                    for child in self.assignments[rank][group]['descendants']:
+                        if self.pos_specific:
+                            curr_pos_mat = load_numpy_array(self.unique_nodes[curr_node.name]['single_scores'],
+                                                            low_memory=self.low_memory)
+                            child_pos_mat = load_numpy_array(self.unique_nodes[child.name]['single_scores'],
+                                                             low_memory=self.low_memory)
+                            if scorer.rank_type == 'max':
+                                maximized_pos_scores = np.maximum(curr_pos_mat, child_pos_mat)
+                            else:
+                                maximized_pos_scores = np.minimum(curr_pos_mat, child_pos_mat)
+                            self.unique_nodes[child.name]['single_scores'] = save_numpy_array(
+                                mat=maximized_pos_scores, out_dir=unique_dir, low_memory=self.low_memory,
+                                node_name=child.name, pos_type='single', metric=scorer.metric + '_MAX',
+                                score_type='group')
+                        if self.pair_specific:
+                            curr_pair_mat = load_numpy_array(self.unique_nodes[curr_node.name]['pair_scores'],
+                                                             low_memory=self.low_memory)
+                            child_pair_mat = load_numpy_array(self.unique_nodes[child.name]['pair_scores'],
+                                                              low_memory=self.low_memory)
+                            if scorer.rank_type == 'max':
+                                maximized_pair_scores = np.maximum(curr_pair_mat, child_pair_mat)
+                            else:
+                                maximized_pair_scores = np.minimum(curr_pair_mat, child_pair_mat)
+                            self.unique_nodes[child.name]['pair_scores'] = save_numpy_array(
+                                mat=maximized_pair_scores, out_dir=unique_dir, low_memory=self.low_memory,
+                                node_name=child.name, pos_type='pair', metric=scorer.metric + '_MAX',
+                                score_type='group')
+            end = time()
+            print('Group Score MAXIMIZATION Took: {} min'.format((end - start) / 60.0))
         # For each rank collect all group scores and compute a final rank score
         self.rank_scores = {}
         rank_pbar = tqdm(total=len(self.assignments), unit='rank')

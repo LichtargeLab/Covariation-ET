@@ -78,8 +78,8 @@ class EvolutionaryTrace(object):
     """
 
     def __init__(self, query_id, polymer_type, aln_fn, et_distance, distance_model, tree_building_method,
-                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, out_dir, output_files,
-                 processors, low_memory):
+                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
+                 output_files, processors, low_memory):
         """
         Initialization for EvolutionaryTrace class:
 
@@ -107,6 +107,8 @@ class EvolutionaryTrace(object):
             have their score replaced with the worse observed score during the trace (down weighting all highly gapped
             columns). The default value for this has traditionally been set to 0.6 for rvET but has not been used for
             intET or ET-MIp.
+            maximize (bool): Whether or not to enforce that the better score is kept when moving from parent node to
+            child nodes during the group scoring step.
             out_dir (str): The path where results of this analysis should be written to.
             output_files (set): Which files to write out, possible values include: 'original_aln', 'non-gap_aln',
             'tree', 'sub-alignment', 'frequency_tables', and 'scores'.
@@ -132,6 +134,7 @@ class EvolutionaryTrace(object):
         self.position_type = position_type
         self.scoring_metric = scoring_metric
         self.gap_correction = gap_correction
+        self.maximize = maximize
         self.trace = None
         self.ranking = None
         self.scorer = None
@@ -240,7 +243,8 @@ class EvolutionaryTrace(object):
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
                                                 write_out_freq_table='frequency_tables' in self.output_files)
             self.ranking, self.scores, self.coverage = self.trace.trace(scorer=self.scorer, processes=self.processors,
-                                                                        gap_correction=self.gap_correction)
+                                                                        gap_correction=self.gap_correction,
+                                                                        maximize=self.maximize)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.trace, self.ranking, self.scores, self.coverage), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
