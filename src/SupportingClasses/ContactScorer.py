@@ -65,6 +65,9 @@ class ContactScorer(object):
         to assess predictions.
         dist_type (str): The type of distance computed for assessement (expecting 'Any', 'CB' - Beta Carbon, 'CA' -
         alpha carbon.
+        data (panda.DataFrame): A data frame containing a mapping of the sequence, structure, and predictions as well as
+        labels to indicate which sequence separation category and top prediction category specific scores belong to.
+        This is used for most evaluation methods.
     """
 
     def __init__(self, query, seq_alignment, pdb_reference, cutoff, chain=None):
@@ -102,6 +105,7 @@ class ContactScorer(object):
         self._specific_mapping = None
         self.distances = None
         self.dist_type = None
+        self.data = None
 
     def __str__(self):
         """
@@ -173,6 +177,59 @@ class ContactScorer(object):
                 self.query_pdb_mapping = f_to_p_map
             end = time()
             print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
+        if (self.data is None) or (not self.data.columns.isin(
+                ['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Seq Separation', 'Seq Separation Category',
+                 'Struct Pos 1', 'Struct AA 1', 'Struct Pos 2', 'Struct AA 2']).all()):
+            data_dict = {'Seq Pos 1': [], 'Seq AA 1': [], 'Seq Pos 2': [], 'Seq AA 2': [], 'Struct Pos 1': [],
+                         'Struct AA 1': [], 'Struct Pos 2': [], 'Struct AA 2': []}
+            for pos1 in range(self.query_alignment.seq_length):
+                char1 = self.query_alignment.query_sequence[pos1]
+                pos_other = list(range(pos1 + 1, self.query_alignment.seq_length))
+                char_other = list(self.query_alignment.query_sequence[pos1+1:])
+                if pos1 in self.query_pdb_mapping:
+                    struct_pos1 = self.query_structure.pdb_residue_list[self.best_chain][self.query_pdb_mapping[pos1]]
+                    struct_char1 = self.query_structure.residue_pos[self.best_chain][struct_pos1]
+                else:
+                    struct_pos1 = '-'
+                    struct_char1 = '-'
+                struct_pos_other = []
+                struct_char_other = []
+                for pos2 in pos_other:
+                    if pos2 in self.query_pdb_mapping:
+                        struct_pos2 = self.query_structure.pdb_residue_list[self.best_chain][self.query_pdb_mapping[pos2]]
+                        struct_char2 = self.query_structure.residue_pos[self.best_chain][struct_pos2]
+                    else:
+                        struct_pos2 = '-'
+                        struct_char2 = '-'
+                    struct_pos_other.append(struct_pos2)
+                    struct_char_other.append(struct_char2)
+                data_dict['Seq Pos 1'] += [pos1] * len(pos_other)
+                data_dict['Seq AA 1'] += [char1] * len(pos_other)
+                data_dict['Seq Pos 2'] += pos_other
+                data_dict['Seq AA 2'] += char_other
+                data_dict['Struct Pos 1'] += [struct_pos1] * len(pos_other)
+                data_dict['Struct AA 1'] += [struct_char1] * len(pos_other)
+                data_dict['Struct Pos 2'] += struct_pos_other
+                data_dict['Struct AA 2'] += struct_char_other
+            data_df = pd.DataFrame(data_dict)
+
+            def determine_sequence_separation_category(sep):
+                if sep < 6:
+                    category = 'Neighbors'
+                elif sep < 13:
+                    category = 'Short'
+                elif sep <= 24:
+                    category = 'Medium'
+                else:
+                    category = 'Long'
+                return category
+
+            data_df['Seq Separation'] = data_df['Seq Pos 2'] - data_df['Seq Pos 1']
+            data_df['Seq Separation Category'] = data_df['Seq Separation'].apply(
+                lambda x: determine_sequence_separation_category(x))
+            self.data = data_df
+
+
 
     @staticmethod
     def _get_all_coords(residue):
