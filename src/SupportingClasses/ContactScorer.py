@@ -216,9 +216,9 @@ class ContactScorer(object):
             def determine_sequence_separation_category(sep):
                 if sep < 6:
                     category = 'Neighbors'
-                elif sep < 13:
+                elif sep < 12:
                     category = 'Short'
-                elif sep <= 24:
+                elif sep < 24:
                     category = 'Medium'
                 else:
                     category = 'Long'
@@ -338,13 +338,16 @@ class ContactScorer(object):
         start = time()
         if self.query_structure is None:
             raise ValueError('Distance cannot be measured, because no PDB was provided.')
-        elif (self.distances is not None) and (self.dist_type == method):
+        elif (self.distances is not None) and (self.dist_type == method) and\
+                (pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns)):
             return
         elif (save_file is not None) and os.path.exists(save_file):
             dists = np.load(save_file + '.npz')['dists']
         else:
             if self.best_chain is None:
                 self.fit()
+            self.data['Distance'] = '-'
+            self.data['Contact (within {}A cutoff)'.format(self.cutoff)] = '-'
             dists = np.zeros((self.query_structure.size[self.best_chain], self.query_structure.size[self.best_chain]))
             coords = {}
             counter = 0
@@ -368,7 +371,10 @@ class ContactScorer(object):
                     # iterating over all pairs to find all distances
                     res1 = (coords[key1] - coords[key2][:, np.newaxis])
                     norms = np.linalg.norm(res1, axis=2)
-                    dists[pos[key1], pos[key2]] = dists[pos[key2], pos[key1]] = np.min(norms)
+                    distance = np.min(norms)
+                    dists[pos[key1], pos[key2]] = dists[pos[key2], pos[key1]] = distance
+                    self.data.loc[(self.data['Struct Pos 1'] == key2) &
+                                  (self.data['Struct Pos 2'] == key1), 'Distance'] = distance
             if save_file is not None:
                 np.savez(save_file, dists=dists)
         end = time()
@@ -398,28 +404,23 @@ class ContactScorer(object):
         if category not in {'Neighbors', 'Short', 'Medium', 'Long', 'Any'}:
             raise ValueError("Category was {} must be one of the following 'Neighbors', 'Short', 'Medium', 'Long', "
                              "'Any'".format(category))
-        pairs = []
-        for i in range(self.query_alignment.seq_length):
-            if mappable_only and (i not in self.query_pdb_mapping):
-                continue
-            for j in range(i + 1, self.query_alignment.seq_length):
-                if mappable_only and (j not in self.query_pdb_mapping):
-                    continue
-                separation = j - i
-                if category == 'Neighbors' and (separation < 1 or separation >= 6):
-                    continue
-                elif category == 'Short' and (separation < 6 or separation >=13):
-                    continue
-                elif category == 'Medium' and (separation < 13 or separation >= 24):
-                    continue
-                elif category == 'Long' and separation < 24:
-                    continue
-                else:
-                    pass
-                pairs.append((i, j))
+        if self.data is None:
+            self.fit()
+        if category == 'Any':
+            category_subset = self.data
+        else:
+            category_subset = self.data.loc[self.data['Seq Separation Category'] == category, :]
+        if mappable_only:
+            unmappable_index = category_subset.index[(category_subset['Struct Pos 1'] == '-') |
+                                                     (category_subset['Struct Pos 2'] == '-')]
+            final_subset = category_subset.drop(unmappable_index)
+        else:
+            final_subset = category_subset
+        final_df = final_subset[['Seq Pos 1', 'Seq Pos 2']]
+        pairs = final_df.to_records(index=False).tolist()
         return pairs
 
-    def _map_predictions_to_pdb(self, predictions, category='Any'):
+    def map_predictions_to_pdb(self, ranks, predictions, coverages, threshold=0.5): # , category='Any'):
         """
         Map Predictions To PDB
 
@@ -427,8 +428,42 @@ class ContactScorer(object):
         to extract the comparable predictions and distances.
 
         Args:
-            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
+            ranks (np.array): An array of ranks for predicted contacts between protein residues with size nxn where n
             is the length of the query sequence used when initializing the ContactScorer.
+            predictions (np.array): An array of prediction scores for contacts between protein residues with size nxn
+            where n is the length of the query sequence used when initializing the ContactScorer.
+            coverages (np.array): An array of coverage scores for predicted contacts between protein residues with size
+            nxn where n is the length of the query sequence used when initializing the ContactScorer.
+            threshold (float): The cutoff for coverage scores up to which scores (inclusive) are considered true.
+        """
+        # Add predictions to the internal data representation, simultaneously mapping them to the structural data.
+        if self.data is None:
+            self.fit()
+        indices = np.triu_indices(n=self.query_alignment.seq_length, k=1)
+        self.data['Rank'] = ranks[indices]
+        self.data['Score'] = predictions[indices]
+        self.data['Coverage'] = coverages[indices]
+        self.data['True Prediction'] = self.data['Coverage'].apply(lambda x: x <= threshold)
+
+    def _identify_relevant_data(self, category='Any', n=None, k=None):
+        """
+        Map Predictions To PDB
+
+        This method accepts a set of predictions and uses the mapping between the query sequence and the best PDB chain
+        to extract the comparable predictions and distances.
+
+        Args:
+            category (str): The category for which to return residue pairs. At the moment the following categories are
+            supported:
+                Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
         Returns:
             np.array: A set of predictions which can be scored because they map successfully to the PDB.
             np.array: A set of distances which can be used for scoring because they map successfully to the query
@@ -436,45 +471,78 @@ class ContactScorer(object):
         """
         # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
         # the PDB Structure.
-        if self.distances is None:
-            raise ValueError('Distances not yet measured!')
-        if self._specific_mapping is None:
-            self._specific_mapping = {}
-        if category not in self._specific_mapping:
-            if predictions.shape[0] != self.query_alignment.seq_length:
-                raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
-            indices = np.triu_indices(self.query_alignment.seq_length, 1)
-            mappable_pos = np.array(list(self.query_pdb_mapping.keys()))
-            x_mappable = np.in1d(indices[0], mappable_pos)
-            y_mappable = np.in1d(indices[1], mappable_pos)
-            final_mappable = x_mappable & y_mappable
-            indices = (indices[0][final_mappable], indices[1][final_mappable])
-            # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
-            # distances matrix.
-            dist_indices = np.triu_indices(self.distances.shape[0], 1)
-            dist_mappable_pos = np.array(list(self.query_pdb_mapping.values()))
-            dist_x_mappable = np.in1d(dist_indices[0], dist_mappable_pos)
-            dist_y_mappable = np.in1d(dist_indices[1], dist_mappable_pos)
-            final_dist_mappable = dist_x_mappable & dist_y_mappable
-            dist_indices = (dist_indices[0][final_dist_mappable], dist_indices[1][final_dist_mappable])
-            # Keep only data for the specified category
-            pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
-            indices_to_keep = []
-            for pair in pairs:
-                pair_i = np.where(indices[0] == pair[0])
-                pair_j = np.where(indices[1] == pair[1])
-                overlap = np.intersect1d(pair_i, pair_j)
-                if len(overlap) != 1:
-                    raise ValueError('Something went wrong while computing overlaps.')
-                indices_to_keep.append(overlap[0])
-            self._specific_mapping[category] = (indices, dist_indices, indices_to_keep)
+        if self.data is None:
+            self.fit()
+        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]))
+        print(self.data.columns)
+        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns))
+        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all())
+        if not pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all():
+            raise ValueError('measure_distance must be called before a specific evaluation is performed so that'
+                             'contacts can be identified to compare to the predictions.')
+        if not pd.Series(['Rank', 'Score', 'Coverage']).isin(self.data.columns).all():
+            raise ValueError('Ranks, Scores, and Coverage values must be provided through map_predictions_to_pdb,'
+                             'before a specific evaluation can be made.')
+        if (k is not None) and (n is not None):
+            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
+        if category == 'Any':
+            category_subset = self.data
         else:
-            indices, dist_indices, indices_to_keep = self._specific_mapping[category]
-        mapped_predictions = predictions[indices]
-        mapped_predictions = np.array(mapped_predictions[indices_to_keep])
-        mapped_distances = self.distances[dist_indices]
-        mapped_distances = np.array(mapped_distances[indices_to_keep])
-        return mapped_predictions, mapped_distances
+            category_subset = self.data.loc[self.data['Seq Separation Category'] == category, :]
+        unmappable_index = category_subset.index[(category_subset['Struct Pos 1'] == '-') |
+                                                 (category_subset['Struct Pos 2'] == '-')]
+        final_subset = category_subset.drop(unmappable_index)
+        final_df = final_subset.sort_values(by='Coverage')
+        final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
+        if k:
+            n = int(floor(self.query_alignment.seq_length / float(k)))
+        elif n is None:
+            n = self.data.shape[0]
+        else:
+            pass
+        ind = final_df['Top Predictions'] <= n
+        final_df = final_df.loc[ind, ['Distance', 'Contact', 'Rank', 'Score', 'Coverage', 'True Prediction']]
+        return (list(final_df['Distance']), list(final_df['Contact']), list(final_df['Rank']), list(final_df['Score']),
+                list(final_df['Coverage']), list(final_df['True Prediction']))
+        # if self.distances is None:
+        #     raise ValueError('Distances not yet measured!')
+        # if self._specific_mapping is None:
+        #     self._specific_mapping = {}
+        # if category not in self._specific_mapping:
+        #     if predictions.shape[0] != self.query_alignment.seq_length:
+        #         raise ValueError('Size of predictions ({}) does not match expectations based on query sequence ({})!'.format(predictions.shape[0], self.query_alignment.seq_length))
+        #     indices = np.triu_indices(self.query_alignment.seq_length, 1)
+        #     mappable_pos = np.array(list(self.query_pdb_mapping.keys()))
+        #     x_mappable = np.in1d(indices[0], mappable_pos)
+        #     y_mappable = np.in1d(indices[1], mappable_pos)
+        #     final_mappable = x_mappable & y_mappable
+        #     indices = (indices[0][final_mappable], indices[1][final_mappable])
+        #     # Mapping indices used for predictions so that they can be used to retrieve correct distances from PDB
+        #     # distances matrix.
+        #     dist_indices = np.triu_indices(self.distances.shape[0], 1)
+        #     dist_mappable_pos = np.array(list(self.query_pdb_mapping.values()))
+        #     dist_x_mappable = np.in1d(dist_indices[0], dist_mappable_pos)
+        #     dist_y_mappable = np.in1d(dist_indices[1], dist_mappable_pos)
+        #     final_dist_mappable = dist_x_mappable & dist_y_mappable
+        #     dist_indices = (dist_indices[0][final_dist_mappable], dist_indices[1][final_dist_mappable])
+        #     # Keep only data for the specified category
+        #     pairs = self.find_pairs_by_separation(category=category, mappable_only=True)
+        #     indices_to_keep = []
+        #     for pair in pairs:
+        #         pair_i = np.where(indices[0] == pair[0])
+        #         pair_j = np.where(indices[1] == pair[1])
+        #         overlap = np.intersect1d(pair_i, pair_j)
+        #         if len(overlap) != 1:
+        #             raise ValueError('Something went wrong while computing overlaps.')
+        #         indices_to_keep.append(overlap[0])
+        #     self._specific_mapping[category] = (indices, dist_indices, indices_to_keep)
+        # else:
+        #     indices, dist_indices, indices_to_keep = self._specific_mapping[category]
+        # mapped_predictions = predictions[indices]
+        # mapped_predictions = np.array(mapped_predictions[indices_to_keep])
+        # mapped_distances = self.distances[dist_indices]
+        # mapped_distances = np.array(mapped_distances[indices_to_keep])
+        # return mapped_predictions, mapped_distances
 
     def score_auc(self, predictions, category='Any'):
         """

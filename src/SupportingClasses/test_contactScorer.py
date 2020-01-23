@@ -15,6 +15,8 @@ from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score, recall_score, f1_score, precision_recall_curve
 from test_Base import TestBase
 from SeqAlignment import SeqAlignment
+from PDBReference import PDBReference
+from utils import compute_rank_and_coverage
 from ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores, init_compute_w2_ave_sub,
                            compute_w2_ave_sub, init_clustering_z_score, clustering_z_score)
 sys.path.append(os.path.abspath('..'))
@@ -31,11 +33,13 @@ class TestContactScorer(TestBase):
         cls.aln_file1 = cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln']
         cls.pdb_file1 = cls.data_set.protein_data[cls.small_structure_id]['PDB']
         cls.pdb_chain1 = cls.data_set.protein_data[cls.small_structure_id]['Chain']
+        cls.seq1 = cls.data_set.protein_data[cls.small_structure_id]['Sequence']
         cls.seq_len1 = cls.data_set.protein_data[cls.small_structure_id]['Length']
         cls.query2 = cls.large_structure_id
         cls.aln_file2 = cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln']
         cls.pdb_file2 = cls.data_set.protein_data[cls.large_structure_id]['PDB']
         cls.pdb_chain2 = cls.data_set.protein_data[cls.large_structure_id]['Chain']
+        cls.seq2 = cls.data_set.protein_data[cls.large_structure_id]['Sequence']
         cls.seq_len2 = cls.data_set.protein_data[cls.large_structure_id]['Length']
 
     def setUp(self):
@@ -416,195 +420,169 @@ class TestContactScorer(TestBase):
             prev_score = score_data
         return pd.DataFrame(data)
 
-    def test_init(self):
-        aln = SeqAlignment(query_id=self.query1, file_name=self.aln_file1)
-        scorer = ContactScorer(query=self.query1, seq_alignment=aln, pdb_reference=self.pdb_file1,
-                               cutoff=8.0, chain=self.pdb_chain1)
-
-    def evaluate_init(self, scorer, expected_aln, expected_structure, expected_cutoff, expected_chain):
-        self.assertEqual(scorer.query_alignment, expected_aln)
-        self.assertEqual(scorer.query_structure, expected_structure)
-        self.assertEqual(scorer.cutoff, expected_cutoff)
-        if expected_chain:
-            self.assertEqual(scorer.best_chain, expected_chain)
-        else:
-            self.assertIsNone(scorer.best_chain)
-        self.assertIsNone(scorer.query_pdb_mapping)
-        self.assertIsNone(scorer._specific_mapping)
-        self.assertIsNone(scorer.distances)
-        self.assertIsNone(scorer.dist_type)
-        self.assertIsNone(scorer.data)
-
-    def test_1a___init(self):
-        with self.assertRaises(TypeError):
-            ContactScorer()
-        self.evaluate_init(scorer=self.scorer1, expected_aln=os.path.abspath(self.aln_file1),
-                           expected_structure=os.path.abspath(self.pdb_file1), expected_cutoff=8.0,
-                           expected_chain=self.pdb_chain1)
-
-    def test_1b___init(self):
-        with self.assertRaises(TypeError):
-            ContactScorer()
-        self.evaluate_init(scorer=self.scorer2, expected_aln=os.path.abspath(self.aln_file2),
-                           expected_structure=os.path.abspath(self.pdb_file2), expected_cutoff=8.0,
-                           expected_chain=self.pdb_chain2)
-
-    def test_1c___init(self):
-        with self.assertRaises(TypeError):
-            ContactScorer()
-        eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
-        self.evaluate_init(scorer=eval1, expected_aln=os.path.abspath(self.aln_file1),
-                           expected_structure=os.path.abspath(self.pdb_file1), expected_cutoff=8.0,
-                           expected_chain=None)
-
-    def test_1d___init(self):
-        with self.assertRaises(TypeError):
-            ContactScorer()
-        eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
-        self.evaluate_init(scorer=eval2, expected_aln=os.path.abspath(self.aln_file2),
-                           expected_structure=os.path.abspath(self.pdb_file2), expected_cutoff=8.0,
-                           expected_chain=None)
-
-    def evaluate_str(self, scorer, seq_len, chain_count, expected_chain):
-        with self.assertRaises(ValueError):
-            str(scorer)
-        scorer.fit()
-        expected_str = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
-            seq_len, chain_count, expected_chain)
-        self.assertEqual(str(scorer), expected_str)
-
-    def test_2a___str(self):
-        self.evaluate_str(self.scorer1, self.seq_len1, 1, self.pdb_chain1)
-
-    def test_2b___str(self):
-        self.evaluate_str(self.scorer2, self.seq_len2, 1, self.pdb_chain2)
-
-    def test_2c___str(self):
-        eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
-        self.evaluate_str(eval1, self.seq_len1, 1, self.pdb_chain1)
-
-    def test_2d___str(self):
-        eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
-        self.evaluate_str(eval2, self.seq_len2, 1, self.pdb_chain2)
-
-    def evaluate_fit(self, scorer, expected_aln, expected_struct, expected_chain, expected_mapping):
-        self.assertEqual(scorer.query_alignment, expected_aln)
-        self.assertEqual(scorer.query_structure, expected_struct)
-        self.scorer1.fit()
-        self.assertNotEqual(scorer.query_alignment, expected_aln)
-        self.assertNotEqual(scorer.query_structure, expected_struct)
-        self.assertEqual(scorer.best_chain, expected_chain)
-        self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
-        scorer.best_chain = None
-        scorer.fit()
-        self.assertNotEqual(scorer.query_alignment, expected_aln)
-        self.assertNotEqual(scorer.query_structure, expected_struct)
-        self.assertEqual(scorer.best_chain, expected_chain)
-        self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
-        scorer.query_pdb_mapping = None
-        scorer.fit()
-        self.assertNotEqual(scorer.query_alignment, expected_aln)
-        self.assertNotEqual(scorer.query_structure, expected_struct)
-        self.assertEqual(scorer.best_chain, expected_chain)
-        self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
-
-    def test_3a_fit(self):
-        self.assertEqual(self.scorer1.query_alignment, os.path.abspath(self.aln_file1))
-        self.assertEqual(self.scorer1.query_structure, os.path.abspath(self.pdb_file1))
-        self.scorer1.fit()
-        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-        self.assertEqual(self.scorer1.best_chain, 'A')
-        self.assertEqual(self.scorer1.query_pdb_mapping,
-                         {i + 18: i for i in range(len(self.scorer1.query_structure.seq[self.scorer1.best_chain]))})
-        self.scorer1.best_chain = None
-        self.scorer1.fit()
-        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-        self.assertEqual(self.scorer1.best_chain, 'A')
-        self.assertEqual(self.scorer1.query_pdb_mapping,
-                         {i + 18: i for i in range(len(self.scorer1.query_structure.seq[self.scorer1.best_chain]))})
-        self.scorer1.query_pdb_mapping = None
-        self.scorer1.fit()
-        self.assertNotEqual(self.scorer1.query_alignment, self.aln_file1)
-        self.assertNotEqual(self.scorer1.query_structure, self.pdb_file1)
-        self.assertEqual(self.scorer1.best_chain, 'A')
-        self.assertEqual(self.scorer1.query_pdb_mapping,
-                         {i + 18: i for i in range(len(self.scorer1.query_structure.seq[self.scorer1.best_chain]))})
+    # def test_init(self):
+    #     aln = SeqAlignment(query_id=self.query1, file_name=self.aln_file1)
+    #     scorer = ContactScorer(query=self.query1, seq_alignment=aln, pdb_reference=self.pdb_file1,
+    #                            cutoff=8.0, chain=self.pdb_chain1)
+    #
+    # def evaluate_init(self, scorer, expected_aln, expected_structure, expected_cutoff, expected_chain):
+    #     self.assertEqual(scorer.query_alignment, expected_aln)
+    #     self.assertEqual(scorer.query_structure, expected_structure)
+    #     self.assertEqual(scorer.cutoff, expected_cutoff)
+    #     if expected_chain:
+    #         self.assertEqual(scorer.best_chain, expected_chain)
+    #     else:
+    #         self.assertIsNone(scorer.best_chain)
+    #     self.assertIsNone(scorer.query_pdb_mapping)
+    #     self.assertIsNone(scorer._specific_mapping)
+    #     self.assertIsNone(scorer.distances)
+    #     self.assertIsNone(scorer.dist_type)
+    #     self.assertIsNone(scorer.data)
+    #
+    # def test_1a___init(self):
+    #     with self.assertRaises(TypeError):
+    #         ContactScorer()
+    #     self.evaluate_init(scorer=self.scorer1, expected_aln=os.path.abspath(self.aln_file1),
+    #                        expected_structure=os.path.abspath(self.pdb_file1), expected_cutoff=8.0,
+    #                        expected_chain=self.pdb_chain1)
+    #
+    # def test_1b___init(self):
+    #     with self.assertRaises(TypeError):
+    #         ContactScorer()
+    #     self.evaluate_init(scorer=self.scorer2, expected_aln=os.path.abspath(self.aln_file2),
+    #                        expected_structure=os.path.abspath(self.pdb_file2), expected_cutoff=8.0,
+    #                        expected_chain=self.pdb_chain2)
+    #
+    # def test_1c___init(self):
+    #     with self.assertRaises(TypeError):
+    #         ContactScorer()
+    #     eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
+    #     self.evaluate_init(scorer=eval1, expected_aln=os.path.abspath(self.aln_file1),
+    #                        expected_structure=os.path.abspath(self.pdb_file1), expected_cutoff=8.0,
+    #                        expected_chain=None)
+    #
+    # def test_1d___init(self):
+    #     with self.assertRaises(TypeError):
+    #         ContactScorer()
+    #     eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
+    #     self.evaluate_init(scorer=eval2, expected_aln=os.path.abspath(self.aln_file2),
+    #                        expected_structure=os.path.abspath(self.pdb_file2), expected_cutoff=8.0,
+    #                        expected_chain=None)
+    #
+    # def evaluate_str(self, scorer, seq_len, chain_count, expected_chain):
+    #     with self.assertRaises(ValueError):
+    #         str(scorer)
+    #     scorer.fit()
+    #     expected_str = 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
+    #         seq_len, chain_count, expected_chain)
+    #     self.assertEqual(str(scorer), expected_str)
+    #
+    # def test_2a___str(self):
+    #     self.evaluate_str(self.scorer1, self.seq_len1, 1, self.pdb_chain1)
+    #
+    # def test_2b___str(self):
+    #     self.evaluate_str(self.scorer2, self.seq_len2, 1, self.pdb_chain2)
+    #
+    # def test_2c___str(self):
+    #     eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
+    #     self.evaluate_str(eval1, self.seq_len1, 1, self.pdb_chain1)
+    #
+    # def test_2d___str(self):
+    #     eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
+    #     self.evaluate_str(eval2, self.seq_len2, 1, self.pdb_chain2)
+    #
+    # def evaluate_fit(self, scorer, expected_aln_fn, expected_struct_fn, expected_chain, expected_mapping, expected_seq,
+    #                  expected_struct):
+    #     self.assertEqual(scorer.query_alignment, expected_aln_fn)
+    #     self.assertEqual(scorer.query_structure, expected_struct_fn)
+    #     scorer.fit()
+    #     self.assertNotEqual(scorer.query_alignment, expected_aln_fn)
+    #     self.assertNotEqual(scorer.query_structure, expected_struct_fn)
+    #     self.assertEqual(scorer.best_chain, expected_chain)
+    #     self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
+    #     self.assertIsNotNone(scorer.data)
+    #     scorer.best_chain = None
+    #     scorer.fit()
+    #     self.assertNotEqual(scorer.query_alignment, expected_aln_fn)
+    #     self.assertNotEqual(scorer.query_structure, expected_struct_fn)
+    #     self.assertEqual(scorer.best_chain, expected_chain)
+    #     self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
+    #     self.assertIsNotNone(scorer.data)
+    #     scorer.query_pdb_mapping = None
+    #     scorer.fit()
+    #     self.assertNotEqual(scorer.query_alignment, expected_aln_fn)
+    #     self.assertNotEqual(scorer.query_structure, expected_struct_fn)
+    #     self.assertEqual(scorer.best_chain, expected_chain)
+    #     self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
+    #     self.assertIsNotNone(scorer.data)
+    #     # print(scorer.data)
+    #     for i in scorer.data.index:
+    #         # print(i)
+    #         # print(scorer.data.loc[i, :])
+    #         # print(scorer.data.loc[i, 'Seq Pos 1'])
+    #         # print(expected_seq)
+    #         # print(expected_seq.seq)
+    #         # print(expected_seq.seq[scorer.data.loc[i, 'Seq Pos 1']])
+    #         self.assertEqual(scorer.data.loc[i, 'Seq AA 1'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 1']])
+    #         self.assertEqual(scorer.data.loc[i, 'Seq AA 2'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 2']])
+    #         self.assertEqual(scorer.data.loc[i, 'Seq Separation'],
+    #                          scorer.data.loc[i, 'Seq Pos 2'] - scorer.data.loc[i, 'Seq Pos 1'])
+    #         if scorer.data.loc[i, 'Seq Separation'] < 6:
+    #             self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Neighbors')
+    #         elif scorer.data.loc[i, 'Seq Separation'] < 13:
+    #             self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Short')
+    #         elif scorer.data.loc[i, 'Seq Separation'] < 25:
+    #             self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Medium')
+    #         else:
+    #             self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Long')
+    #         if scorer.data.loc[i, 'Struct Pos 1'] == '-':
+    #             self.assertFalse(scorer.data.loc[i, 'Seq AA 1'] in scorer.query_pdb_mapping)
+    #             self.assertEqual(scorer.data.loc[i, 'Struct AA 1'], '-')
+    #         else:
+    #             self.assertEqual(scorer.data.loc[i, 'Struct Pos 1'],
+    #                              expected_struct.pdb_residue_list[expected_chain][scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 1']]])
+    #             self.assertEqual(scorer.data.loc[i, 'Struct AA 1'],
+    #                              expected_struct.seq[expected_chain][scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 1']]])
+    #         if scorer.data.loc[i, 'Struct Pos 2'] == '-':
+    #             self.assertFalse(scorer.data.loc[i, 'Seq AA 2'] in scorer.query_pdb_mapping)
+    #             self.assertEqual(scorer.data.loc[i, 'Struct AA 2'], '-')
+    #         else:
+    #             self.assertEqual(scorer.data.loc[i, 'Struct Pos 2'],
+    #                              expected_struct.pdb_residue_list[expected_chain][scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 2']]])
+    #             self.assertEqual(scorer.data.loc[i, 'Struct AA 2'],
+    #                              expected_struct.seq[expected_chain][scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 2']]])
+    #
+    # def test_3a_fit(self):
+    #     struct1 = PDBReference(pdb_file=self.pdb_file1)
+    #     struct1.import_pdb(structure_id=self.query1)
+    #     self.evaluate_fit(self.scorer1, os.path.abspath(self.aln_file1), os.path.abspath(self.pdb_file1), 'A',
+    #                       {i + 18: i for i in range(len(struct1.seq['A']))}, self.seq1, struct1)
     #
     # def test_3b_fit(self):
-    #     self.assertEqual(self.scorer2.query_alignment, os.path.abspath(self.aln_file2))
-    #     self.assertEqual(self.scorer2.query_structure, os.path.abspath(self.pdb_file2))
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    #     self.assertEqual(self.scorer2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(self.scorer2.query_structure.seq[self.scorer2.best_chain]))})
-    #     self.scorer2.best_chain = None
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    #     self.assertEqual(self.scorer2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(self.scorer2.query_structure.seq[self.scorer2.best_chain]))})
-    #     self.scorer2.query_pdb_mapping = None
-    #     self.scorer2.fit()
-    #     self.assertNotEqual(self.scorer2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(self.scorer2.query_structure, self.pdb_file2)
-    #     self.assertEqual(self.scorer2.best_chain, 'A')
-    #     self.assertEqual(self.scorer2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(self.scorer2.query_structure.seq[self.scorer2.best_chain]))})
+    #     struct2 = PDBReference(pdb_file=self.pdb_file2)
+    #     struct2.import_pdb(structure_id=self.query2)
+    #     self.evaluate_fit(self.scorer2, os.path.abspath(self.aln_file2), os.path.abspath(self.pdb_file2), 'A',
+    #                       {i + 16: i for i in range(len(struct2.seq['A']))}, self.seq2, struct2)
     #
     # def test_3c_fit(self):
+    #     struct1 = PDBReference(pdb_file=self.pdb_file1)
+    #     struct1.import_pdb(structure_id=self.query1)
     #     eval1 = ContactScorer(query=self.query1, seq_alignment=self.aln_file1, pdb_reference=self.pdb_file1, cutoff=8.0)
-    #     self.assertEqual(eval1.query_alignment, os.path.abspath(self.aln_file1))
-    #     self.assertEqual(eval1.query_structure, os.path.abspath(self.pdb_file1))
-    #     eval1.fit()
-    #     self.assertNotEqual(eval1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(eval1.query_structure, self.pdb_file1)
-    #     self.assertEqual(eval1.best_chain, 'A')
-    #     self.assertEqual(eval1.query_pdb_mapping,
-    #                      {i + 18: i for i in range(len(eval1.query_structure.seq[eval1.best_chain]))})
-    #     eval1.best_chain = None
-    #     eval1.fit()
-    #     self.assertNotEqual(eval1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(eval1.query_structure, self.pdb_file1)
-    #     self.assertEqual(eval1.best_chain, 'A')
-    #     self.assertEqual(eval1.query_pdb_mapping,
-    #                      {i + 18: i for i in range(len(eval1.query_structure.seq[eval1.best_chain]))})
-    #     eval1.query_pdb_mapping = None
-    #     eval1.fit()
-    #     self.assertNotEqual(eval1.query_alignment, self.aln_file1)
-    #     self.assertNotEqual(eval1.query_structure, self.pdb_file1)
-    #     self.assertEqual(eval1.best_chain, 'A')
-    #     self.assertEqual(eval1.query_pdb_mapping,
-    #                      {i + 18: i for i in range(len(eval1.query_structure.seq[eval1.best_chain]))})
+    #     self.evaluate_fit(eval1, os.path.abspath(self.aln_file1), os.path.abspath(self.pdb_file1), 'A',
+    #                       {i + 18: i for i in range(len(struct1.seq['A']))}, self.seq1, struct1)
     #
     # def test_3d_fit(self):
+    #     struct2 = PDBReference(pdb_file=self.pdb_file2)
+    #     struct2.import_pdb(structure_id=self.query2)
     #     eval2 = ContactScorer(query=self.query2, seq_alignment=self.aln_file2, pdb_reference=self.pdb_file2, cutoff=8.0)
-    #     self.assertEqual(eval2.query_alignment, os.path.abspath(self.aln_file2))
-    #     self.assertEqual(eval2.query_structure, os.path.abspath(self.pdb_file2))
-    #     eval2.fit()
-    #     self.assertNotEqual(eval2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(eval2.query_structure, self.pdb_file2)
-    #     self.assertEqual(eval2.best_chain, 'A')
-    #     self.assertEqual(eval2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(eval2.query_structure.seq[eval2.best_chain]))})
-    #     eval2.best_chain = None
-    #     eval2.fit()
-    #     self.assertNotEqual(eval2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(eval2.query_structure, self.pdb_file2)
-    #     self.assertEqual(eval2.best_chain, 'A')
-    #     self.assertEqual(eval2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(eval2.query_structure.seq[eval2.best_chain]))})
-    #     eval2.query_pdb_mapping = None
-    #     eval2.fit()
-    #     self.assertNotEqual(eval2.query_alignment, self.aln_file2)
-    #     self.assertNotEqual(eval2.query_structure, self.pdb_file2)
-    #     self.assertEqual(eval2.best_chain, 'A')
-    #     self.assertEqual(eval2.query_pdb_mapping,
-    #                      {i + 16: i for i in range(len(eval2.query_structure.seq[eval2.best_chain]))})
+    #     self.evaluate_fit(eval2, os.path.abspath(self.aln_file2), os.path.abspath(self.pdb_file2), 'A',
+    #                       {i + 16: i for i in range(len(struct2.seq['A']))}, self.seq2, struct2)
+    #
+    # def evaluate_get_coords(self, method, residue, expected_coordinates, options={}):
+    #     measured_coordinates = np.vstack(method(residue, **options))
+    #     diff = measured_coordinates - expected_coordinates
+    #     not_passing = diff > 1E-5
+    #     self.assertFalse(not_passing.any())
     #
     # def test_4a__get_all_coords(self):
     #     self.scorer1.fit()
@@ -612,56 +590,42 @@ class TestContactScorer(TestBase):
     #     expected1 = np.vstack([[24.704, 20.926, 27.944], [25.408, 20.195, 26.922], [24.487, 19.147, 26.324],
     #                            [23.542, 18.689, 26.993], [26.589, 19.508, 27.519], [26.344, 18.392, 28.442],
     #                            [27.689, 17.685, 28.514], [27.941, 16.866, 27.267], [29.154, 16.092, 27.419]])
-    #     measured1 = np.vstack(ContactScorer._get_all_coords(residue1))
-    #     diff = measured1 - expected1
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_all_coords, residue=residue1, expected_coordinates=expected1)
     #
     # def test_4b__get_all_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
     #     expected2 = np.vstack([[26.432, 44.935, 26.052], [25.921, 43.597, 25.862], [25.159, 43.203, 24.568],
     #                            [23.936, 43.424, 24.593], [25.050, 43.281, 27.093], [25.777, 43.092, 28.306]])
-    #     measured2 = np.vstack(ContactScorer._get_all_coords(residue2))
-    #     diff = measured2 - expected2
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_all_coords, residue=residue2, expected_coordinates=expected2)
     #
     # def test_4c__get_c_alpha_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
     #     expected1 = np.vstack([[25.408, 20.195, 26.922]])
-    #     measured1 = np.vstack(ContactScorer._get_c_alpha_coords(residue1))
-    #     diff = measured1 - expected1
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_c_alpha_coords, residue=residue1,
+    #                              expected_coordinates=expected1)
     #
     # def test_4d__get_c_alpha_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
     #     expected2 = np.vstack([[25.921, 43.597, 25.862]])
-    #     measured2 = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
-    #     diff = measured2 - expected2
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_c_alpha_coords, residue=residue2,
+    #                              expected_coordinates=expected2)
     #
     # def test_4e__get_c_beta_coords(self):
     #     self.scorer1.fit()
     #     residue1 = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
     #     expected1 = np.vstack([[26.589, 19.508, 27.519]])
-    #     measured1 = np.vstack(ContactScorer._get_c_beta_coords(residue1))
-    #     diff = measured1 - expected1
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_c_beta_coords, residue=residue1,
+    #                              expected_coordinates=expected1)
     #
     # def test_4f__get_c_beta_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
     #     expected2 = np.vstack([[25.050, 43.281, 27.093]])
-    #     measured2 = np.vstack(ContactScorer._get_c_beta_coords(residue2))
-    #     diff = measured2 - expected2
-    #     not_passing = diff > 1E-5
-    #     self.assertFalse(not_passing.any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_c_beta_coords, residue=residue2,
+    #                              expected_coordinates=expected2)
     #
     # def test_4g__get_coords(self):
     #     self.scorer1.fit()
@@ -669,35 +633,73 @@ class TestContactScorer(TestBase):
     #     expected1a = np.vstack([[24.704, 20.926, 27.944], [25.408, 20.195, 26.922], [24.487, 19.147, 26.324],
     #                            [23.542, 18.689, 26.993], [26.589, 19.508, 27.519], [26.344, 18.392, 28.442],
     #                            [27.689, 17.685, 28.514], [27.941, 16.866, 27.267], [29.154, 16.092, 27.419]])
-    #     measured1a = np.vstack(ContactScorer._get_coords(residue1, method='Any'))
-    #     self.assertFalse(((measured1a - expected1a) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue1,
+    #                              expected_coordinates=expected1a, options={'method': 'Any'})
     #     expected1b = np.vstack([[25.408, 20.195, 26.922]])
-    #     measured1b = np.vstack(ContactScorer._get_coords(residue1, method='CA'))
-    #     self.assertFalse(((measured1b - expected1b) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue1,
+    #                              expected_coordinates=expected1b, options={'method': 'CA'})
     #     expected1c = np.vstack([[26.589, 19.508, 27.519]])
-    #     measured1c = np.vstack(ContactScorer._get_coords(residue1, method='CB'))
-    #     self.assertFalse(((measured1c - expected1c) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue1,
+    #                              expected_coordinates=expected1c, options={'method': 'CB'})
     #
     # def test_4h__get_coords(self):
     #     self.scorer2.fit()
     #     residue2 = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
     #     expected2a = np.vstack([[26.432, 44.935, 26.052], [25.921, 43.597, 25.862], [25.159, 43.203, 24.568],
     #                            [23.936, 43.424, 24.593], [25.050, 43.281, 27.093], [25.777, 43.092, 28.306]])
-    #     measured2a = np.vstack(ContactScorer._get_coords(residue2, method='Any'))
-    #     self.assertFalse(((measured2a - expected2a) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue2,
+    #                              expected_coordinates=expected2a, options={'method': 'Any'})
     #     expected2b = np.vstack([[25.921, 43.597, 25.862]])
-    #     measured2b = np.vstack(ContactScorer._get_c_alpha_coords(residue2))
-    #     self.assertFalse(((measured2b - expected2b) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue2,
+    #                              expected_coordinates=expected2b, options={'method': 'CA'})
     #     expected2c = np.vstack([[25.050, 43.281, 27.093]])
-    #     measured2c = np.vstack(ContactScorer._get_c_beta_coords(residue2))
-    #     self.assertFalse(((measured2c - expected2c) > 1E-5).any())
+    #     self.evaluate_get_coords(method=ContactScorer._get_coords, residue=residue2,
+    #                              expected_coordinates=expected2c, options={'method': 'CB'})
     #
-    # def test_5a_measure_distance(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     self.assertEqual(self.scorer1.dist_type, 'Any')
-    #     residue1a = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][1]
-    #     residue1b = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][2]
+    # def evaulate_measure_distance(self, scorer):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='Any')
+    #     self.assertEqual(scorer.dist_type, 'Any')
+    #     residue_coords = {}
+    #     size1 = len(scorer.query_structure.seq[scorer.best_chain])
+    #     dists = np.zeros((size1, size1))
+    #     dists2 = np.zeros((size1, size1))
+    #     counter = 0
+    #     counter_map = {}
+    #     for res_num in scorer.query_structure.residue_pos[scorer.best_chain]:
+    #         counter_map[counter] = res_num
+    #         residue = scorer.query_structure.structure[0][scorer.best_chain][res_num]
+    #         coords = scorer._get_all_coords(residue)
+    #         residue_coords[counter] = coords
+    #         for residue2 in residue_coords:
+    #             if residue2 == counter:
+    #                 continue
+    #             else:
+    #                 dist = self._et_calcDist(coords, residue_coords[residue2])
+    #                 dist2 = np.sqrt(dist)
+    #                 dists[counter, residue2] = dist
+    #                 dists[residue2, counter] = dist
+    #                 dists2[counter, residue2] = dist2
+    #                 dists2[residue2, counter] = dist2
+    #                 self.assertLess(np.abs(dist - np.square(
+    #                     scorer.data.loc[(scorer.data['Struct Pos 1'] == counter_map[residue2]) &
+    #                                     (scorer.data['Struct Pos 2'] == res_num), 'Distance'].values[0])), 1E-3)
+    #                 self.assertLess(np.abs(dist2 -
+    #                                        scorer.data.loc[(scorer.data['Struct Pos 1'] == counter_map[residue2]) &
+    #                                                        (scorer.data['Struct Pos 2'] == res_num),
+    #                                                        'Distance'].values[0]), 1E-5)
+    #         counter += 1
+    #     distance_diff = np.square(scorer.distances) - dists
+    #     self.assertLess(np.max(distance_diff), 1e-3)
+    #     adj_diff = ((np.square(scorer.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
+    #                 (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
+    #     self.assertEqual(np.sum(adj_diff), 0)
+    #     self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
+    #     distance_diff2 = scorer.distances - dists2
+    #     self.assertEqual(np.sum(distance_diff2), 0.0)
+    #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
+    #     residue1a = scorer.query_structure.structure[0][scorer.best_chain][1]
+    #     residue1b = scorer.query_structure.structure[0][scorer.best_chain][2]
     #     pos1a = ContactScorer._get_all_coords(residue1a)
     #     pos1b = ContactScorer._get_all_coords(residue1b)
     #     expected1a = None
@@ -707,170 +709,119 @@ class TestContactScorer(TestBase):
     #                                 np.power(pos1a[i][2] - pos1b[j][2], 2))
     #             if (expected1a is None) or (curr_dist < expected1a):
     #                 expected1a = curr_dist
-    #     self.assertLess(expected1a - self.scorer1.distances[0, 1], 1E-5)
-    #     self.scorer1.measure_distance(method='CA')
-    #     self.assertEqual(self.scorer1.dist_type, 'CA')
+    #     self.assertLess(expected1a - scorer.distances[0, 1], 1E-5)
+    #     scorer.measure_distance(method='CA')
+    #     self.assertEqual(scorer.dist_type, 'CA')
     #     ca_atom1a = residue1a['CA'].get_coord()
     #     ca_atom1b = residue1b['CA'].get_coord()
     #     expected1b = np.sqrt(np.power(ca_atom1a[0] - ca_atom1b[0], 2) + np.power(ca_atom1a[1] - ca_atom1b[1], 2) +
     #                          np.power(ca_atom1a[2] - ca_atom1b[2], 2))
-    #     self.assertLess(expected1b - self.scorer1.distances[0, 1], 1E-5)
-    #     self.scorer1.measure_distance(method='CB')
-    #     self.assertEqual(self.scorer1.dist_type, 'CB')
+    #     self.assertLess(expected1b - scorer.distances[0, 1], 1E-5)
+    #     scorer.measure_distance(method='CB')
+    #     self.assertEqual(scorer.dist_type, 'CB')
     #     cb_atom1a = residue1a['CB'].get_coord()
     #     cb_atom1b = residue1b['CB'].get_coord()
     #     expected1c = np.sqrt(np.power(cb_atom1a[0] - cb_atom1b[0], 2) + np.power(cb_atom1a[1] - cb_atom1b[1], 2) +
     #                          np.power(cb_atom1a[2] - cb_atom1b[2], 2))
-    #     self.assertLess(expected1c - self.scorer1.distances[0, 1], 1E-5)
+    #     self.assertLess(expected1c - scorer.distances[0, 1], 1E-5)
+    #
+    # def test_5a_measure_distance(self):
+    #     self.evaulate_measure_distance(scorer=self.scorer1)
     #
     # def test_5b_measure_distance(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     self.assertEqual(self.scorer2.dist_type, 'Any')
-    #     residue2a = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][1]
-    #     residue2b = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][2]
-    #     pos2a = ContactScorer._get_all_coords(residue2a)
-    #     pos2b = ContactScorer._get_all_coords(residue2b)
-    #     expected2a = None
-    #     for i in range(len(pos2a)):
-    #         for j in range(len(pos2b)):
-    #             curr_dist = np.sqrt(np.power(pos2a[i][0] - pos2b[j][0], 2) + np.power(pos2a[i][1] - pos2b[j][1], 2) +
-    #                                 np.power(pos2a[i][2] - pos2b[j][2], 2))
-    #             if (expected2a is None) or (curr_dist < expected2a):
-    #                 expected2a = curr_dist
-    #     self.assertLess(expected2a - self.scorer2.distances[0, 1], 1e-6)
-    #     self.scorer2.measure_distance(method='CA')
-    #     self.assertEqual(self.scorer2.dist_type, 'CA')
-    #     ca_atom2a = residue2a['CA'].get_coord()
-    #     ca_atom2b = residue2b['CA'].get_coord()
-    #     expected2b = np.sqrt(np.power(ca_atom2a[0] - ca_atom2b[0], 2) + np.power(ca_atom2a[1] - ca_atom2b[1], 2) +
-    #                          np.power(ca_atom2a[2] - ca_atom2b[2], 2))
-    #     self.assertLess(expected2b - self.scorer2.distances[0, 1], 1e-6)
-    #     self.scorer2.measure_distance(method='CB')
-    #     self.assertEqual(self.scorer2.dist_type, 'CB')
-    #     cb_atom2a = residue2a['CB'].get_coord()
-    #     cb_atom2b = residue2b['CB'].get_coord()
-    #     expected2c = np.sqrt(np.power(cb_atom2a[0] - cb_atom2b[0], 2) + np.power(cb_atom2a[1] - cb_atom2b[1], 2) +
-    #                          np.power(cb_atom2a[2] - cb_atom2b[2], 2))
-    #     self.assertLess(expected2c - self.scorer2.distances[0, 1], 1e-6)
-    #
-    # def test_5c_measure_distance(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     self.assertEqual(self.scorer1.dist_type, 'Any')
-    #     residue_coords = {}
-    #     size1 = len(self.scorer1.query_structure.seq[self.scorer1.best_chain])
-    #     dists = np.zeros((size1, size1))
-    #     dists2 = np.zeros((size1, size1))
-    #     counter = 0
-    #     for res_num in self.scorer1.query_structure.residue_pos[self.scorer1.best_chain]:
-    #         residue = self.scorer1.query_structure.structure[0][self.scorer1.best_chain][res_num]
-    #         coords = self.scorer1._get_all_coords(residue)
-    #         residue_coords[counter] = coords
-    #         for residue2 in residue_coords:
-    #             if residue2 == counter:
-    #                 continue
-    #             else:
-    #                 dist = self._et_calcDist(coords, residue_coords[residue2])
-    #                 dist2 = np.sqrt(dist)
-    #                 dists[counter, residue2] = dist
-    #                 dists[residue2, counter] = dist
-    #                 dists2[counter, residue2] = dist2
-    #                 dists2[residue2, counter] = dist2
-    #         counter += 1
-    #     distance_diff = np.square(self.scorer1.distances) - dists
-    #     self.assertLess(np.max(distance_diff), 1e-3)
-    #     adj_diff = ((np.square(self.scorer1.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
-    #                 (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
-    #     self.assertEqual(np.sum(adj_diff), 0)
-    #     self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
-    #     distance_diff2 = self.scorer1.distances - dists2
-    #     self.assertEqual(np.sum(distance_diff2), 0.0)
-    #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
-    #
-    # def test_5d_measure_distance(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     self.assertEqual(self.scorer2.dist_type, 'Any')
-    #     residue_coords = {}
-    #     size2 = len(self.scorer2.query_structure.seq[self.scorer2.best_chain])
-    #     dists = np.zeros((size2, size2))
-    #     dists2 = np.zeros((size2, size2))
-    #     counter = 0
-    #     for res_num in self.scorer2.query_structure.residue_pos[self.scorer2.best_chain]:
-    #         residue = self.scorer2.query_structure.structure[0][self.scorer2.best_chain][res_num]
-    #         coords = self.scorer2._get_all_coords(residue)
-    #         residue_coords[counter] = coords
-    #         for residue2 in residue_coords:
-    #             if residue2 == counter:
-    #                 continue
-    #             else:
-    #                 dist = self._et_calcDist(coords, residue_coords[residue2])
-    #                 dist2 = np.sqrt(dist)
-    #                 dists[counter, residue2] = dist
-    #                 dists[residue2, counter] = dist
-    #                 dists2[counter, residue2] = dist2
-    #                 dists2[residue2, counter] = dist2
-    #         counter += 1
-    #     distance_diff = np.square(self.scorer2.distances) - dists
-    #     self.assertLess(np.max(distance_diff), 2E-3)
-    #     adj_diff = ((np.square(self.scorer2.distances)[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2) ^
-    #                 (dists[np.nonzero(distance_diff)] < self.CONTACT_DISTANCE2))
-    #     self.assertEqual(np.sum(adj_diff), 0)
-    #     self.assertEqual(len(np.nonzero(adj_diff)[0]), 0)
-    #     distance_diff2 = self.scorer2.distances - dists2
-    #     self.assertEqual(np.sum(distance_diff2), 0.0)
-    #     self.assertEqual(len(np.nonzero(distance_diff2)[0]), 0.0)
-    #
-    # def test_6a_find_pairs_by_separation(self):
-    #     self.scorer1.fit()
+    #     self.evaulate_measure_distance(scorer=self.scorer2)
+
+    # def evaluate_find_pairs_by_separation(self, scorer, seq_len):
+    #     scorer.fit()
     #     with self.assertRaises(ValueError):
-    #         self.scorer1.find_pairs_by_separation(category='Wide')
+    #         scorer.find_pairs_by_separation(category='Wide')
     #     expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-    #     for i in range(self.seq_len1):
-    #         for j in range(i + 1, self.seq_len1):
+    #     for i in range(seq_len):
+    #         for j in range(i + 1, seq_len):
     #             pair = (i, j)
     #             separation = j - i
     #             if (separation >= 1) and (separation < 6):
     #                 expected1['Neighbors'].append(pair)
-    #             if (separation >= 6) and (separation < 13):
+    #             if (separation >= 6) and (separation < 12):
     #                 expected1['Short'].append(pair)
-    #             if (separation >= 13) and (separation < 24):
+    #             if (separation >= 12) and (separation < 24):
     #                 expected1['Medium'].append(pair)
     #             if separation >= 24:
     #                 expected1['Long'].append(pair)
     #             expected1['Any'].append(pair)
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Any'), expected1['Any'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Short'), expected1['Short'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Medium'), expected1['Medium'])
-    #     self.assertEqual(self.scorer1.find_pairs_by_separation(category='Long'), expected1['Long'])
+    #     self.assertEqual(scorer.find_pairs_by_separation(category='Any'), expected1['Any'])
+    #     self.assertEqual(scorer.find_pairs_by_separation(category='Neighbors'), expected1['Neighbors'])
+    #     self.assertEqual(scorer.find_pairs_by_separation(category='Short'), expected1['Short'])
+    #     self.assertEqual(scorer.find_pairs_by_separation(category='Medium'), expected1['Medium'])
+    #     self.assertEqual(scorer.find_pairs_by_separation(category='Long'), expected1['Long'])
+    #
+    # def test_6a_find_pairs_by_separation(self):
+    #     self.evaluate_find_pairs_by_separation(self.scorer1, self.seq_len1)
     #
     # def test_6b_find_pairs_by_separation(self):
-    #     self.scorer2.fit()
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.find_pairs_by_separation(category='Small')
-    #     expected2 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-    #     for i in range(self.seq_len2):
-    #         for j in range(i + 1, self.seq_len2):
-    #             pair = (i, j)
-    #             separation = j - i
-    #             if (separation >= 1) and (separation < 6):
-    #                 expected2['Neighbors'].append(pair)
-    #             if (separation >= 6) and (separation < 13):
-    #                 expected2['Short'].append(pair)
-    #             if (separation >= 13) and (separation < 24):
-    #                 expected2['Medium'].append(pair)
-    #             if separation >= 24:
-    #                 expected2['Long'].append(pair)
-    #             expected2['Any'].append(pair)
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Any'), expected2['Any'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Neighbors'), expected2['Neighbors'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Short'), expected2['Short'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Medium'), expected2['Medium'])
-    #     self.assertEqual(self.scorer2.find_pairs_by_separation(category='Long'), expected2['Long'])
+    #     self.evaluate_find_pairs_by_separation(self.scorer2, self.seq_len2)
+
+    # def evaluate_map_prediction_to_pdb(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(seq_len, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     self.assertIsNotNone(scorer.data)
+    #     self.assertTrue(pd.Series(['Rank', 'Score', 'Coverage', 'True Prediction']).isin(scorer.data.columns).all())
+    #     for i in scorer.data.index:
+    #         pos1 = scorer.data.loc[i, 'Seq Pos 1']
+    #         pos2 = scorer.data.loc[i, 'Seq Pos 2']
+    #         self.assertEqual(ranks[pos1, pos2], scorer.data.loc[i, 'Rank'])
+    #         self.assertEqual(scores[pos1, pos2], scorer.data.loc[i, 'Score'])
+    #         self.assertEqual(coverages[pos1, pos2], scorer.data.loc[i, 'Coverage'])
+    #         if coverages[pos1, pos2] <= 0.5:
+    #             self.assertEqual(scorer.data.loc[i, 'True Prediction'], 1)
+    #         else:
+    #             self.assertEqual(scorer.data.loc[i, 'True Prediction'], 0)
     #
-    # def test_7a__map_predictions_to_pdb(self):
+    # def test_7a_map_prediction_to_pdb(self):
+    #     self.evaluate_map_prediction_to_pdb(scorer=self.scorer1, seq_len=self.seq_len1)
+    #
+    # def test_7b_map_prediction_to_pdb(self):
+    #     self.evaluate_map_prediction_to_pdb(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    def evaluate__identify_relevant_data(self, scorer, seq_len):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(seq_len, seq_len)
+        scores[np.tril_indices(self.seq_len1, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        with self.assertRaises(ValueError):
+            scorer._identify_relevant_data(category='Any', n=10, k=10)
+        for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+            for n in [None, 10, 100]:
+                _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, n=n)
+                seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
+                if n:
+                    self.assertEqual(len(np.unique(preds)), n)
+                else:
+                    self.assertEqual(len(np.unique(preds)), len(np.unique(scores)))
+                expected_values = sorted(scores[seq_sep_ind])[:len(preds)]
+                diff = np.array(preds) - np.array(expected_values)
+                not_passing = diff > 1E-12
+                self.assertFalse(not_passing.any())
+            for k in range(1, 11):
+                _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, k=k)
+                seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
+                n = int(floor(scorer.query_alignment.seq_length / float(k)))
+                self.assertEqual(len(np.unique(preds)), n)
+                expected_values = sorted(scores[seq_sep_ind])[:len(preds)]
+                diff = np.array(preds) - np.array(expected_values)
+                not_passing = diff > 1E-12
+                self.assertFalse(not_passing.any())
+
+    def test_8a__identify_relevant_data(self):
+        self.evaluate__identify_relevant_data(scorer=self.scorer1, seq_len=self.seq_len1)
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
     #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
@@ -948,7 +899,8 @@ class TestContactScorer(TestBase):
     #     self.assertLess(np.sum(expected_scores1e - scores_mapped1e), 1e-5)
     #     self.assertLess(np.sum(expected_dists1e - dists_mapped1e), 1e-5)
     #
-    # def test_7b__map_predictions_to_pdb(self):
+    def test_8b__identify_relevant_data(self):
+        self.evaluate__identify_relevant_data(scorer=self.scorer2, seq_len=self.seq_len2)
     #     self.scorer2.fit()
     #     self.scorer2.measure_distance(method='CB')
     #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
