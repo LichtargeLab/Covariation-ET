@@ -473,10 +473,6 @@ class ContactScorer(object):
         # the PDB Structure.
         if self.data is None:
             self.fit()
-        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]))
-        print(self.data.columns)
-        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns))
-        print(pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all())
         if not pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all():
             raise ValueError('measure_distance must be called before a specific evaluation is performed so that'
                              'contacts can be identified to compare to the predictions.')
