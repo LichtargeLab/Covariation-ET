@@ -730,7 +730,7 @@ class TestContactScorer(TestBase):
     #
     # def test_5b_measure_distance(self):
     #     self.evaulate_measure_distance(scorer=self.scorer2)
-
+    #
     # def evaluate_find_pairs_by_separation(self, scorer, seq_len):
     #     scorer.fit()
     #     with self.assertRaises(ValueError):
@@ -760,7 +760,7 @@ class TestContactScorer(TestBase):
     #
     # def test_6b_find_pairs_by_separation(self):
     #     self.evaluate_find_pairs_by_separation(self.scorer2, self.seq_len2)
-
+    #
     # def evaluate_map_prediction_to_pdb(self, scorer, seq_len):
     #     scorer.fit()
     #     scorer.measure_distance(method='CB')
@@ -787,424 +787,208 @@ class TestContactScorer(TestBase):
     #
     # def test_7b_map_prediction_to_pdb(self):
     #     self.evaluate_map_prediction_to_pdb(scorer=self.scorer2, seq_len=self.seq_len2)
-
-    def evaluate__identify_relevant_data(self, scorer, seq_len):
-        scorer.fit()
-        scorer.measure_distance(method='CB')
-        scores = np.random.rand(seq_len, seq_len)
-        scores[np.tril_indices(self.seq_len1, 1)] = 0
-        scores += scores.T
-        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-        with self.assertRaises(ValueError):
-            scorer._identify_relevant_data(category='Any', n=10, k=10)
-        for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-            for n in [None, 10, 100]:
-                _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, n=n)
-                seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
-                expected_values = sorted(scores[list(zip(*seq_sep_ind))])
-                if n:
-                    self.assertEqual(len(np.unique(preds)), n)
-                else:
-                    self.assertEqual(len(np.unique(preds)), len(np.unique(expected_values)))
-                expected_values = expected_values[:len(preds)]
-                diff = np.array(preds) - np.array(expected_values)
-                not_passing = diff > 1E-12
-                self.assertFalse(not_passing.any())
-            for k in range(1, 11):
-                _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, k=k)
-                seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
-                expected_values = sorted(scores[list(zip(*seq_sep_ind))])
-                n = int(floor(scorer.query_alignment.seq_length / float(k)))
-                self.assertEqual(len(np.unique(preds)), n)
-                expected_values = expected_values[:len(preds)]
-                diff = np.array(preds) - np.array(expected_values)
-                not_passing = diff > 1E-12
-                self.assertFalse(not_passing.any())
-
-    def test_8a__identify_relevant_data(self):
-        self.evaluate__identify_relevant_data(scorer=self.scorer1, seq_len=self.seq_len1)
-
-    def test_8b__identify_relevant_data(self):
-        self.evaluate__identify_relevant_data(scorer=self.scorer2, seq_len=self.seq_len2)
-
-    # def test_8a_score_auc(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     fpr_expected1a, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
+    #
+    # def evaluate__identify_relevant_data(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(self.seq_len1, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     with self.assertRaises(ValueError):
+    #         scorer._identify_relevant_data(category='Any', n=10, k=10)
+    #     for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+    #         for n in [None, 10, 100]:
+    #             _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, n=n)
+    #             seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
+    #             expected_values = sorted(scores[list(zip(*seq_sep_ind))])
+    #             if n:
+    #                 self.assertEqual(len(np.unique(preds)), n)
+    #             else:
+    #                 self.assertEqual(len(np.unique(preds)), len(np.unique(expected_values)))
+    #             expected_values = expected_values[:len(preds)]
+    #             diff = np.array(preds) - np.array(expected_values)
+    #             not_passing = diff > 1E-12
+    #             self.assertFalse(not_passing.any())
+    #         for k in range(1, 11):
+    #             _, _, _, preds, _, _ = scorer._identify_relevant_data(category=category, k=k)
+    #             seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
+    #             expected_values = sorted(scores[list(zip(*seq_sep_ind))])
+    #             n = int(floor(scorer.query_alignment.seq_length / float(k)))
+    #             self.assertEqual(len(np.unique(preds)), n)
+    #             expected_values = expected_values[:len(preds)]
+    #             diff = np.array(preds) - np.array(expected_values)
+    #             not_passing = diff > 1E-12
+    #             self.assertFalse(not_passing.any())
+    #
+    # def test_8a__identify_relevant_data(self):
+    #     self.evaluate__identify_relevant_data(scorer=self.scorer1, seq_len=self.seq_len1)
+    #
+    # def test_8b__identify_relevant_data(self):
+    #     self.evaluate__identify_relevant_data(scorer=self.scorer2, seq_len=self.seq_len2)
+    #
+    # def evaluate_score_auc(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(seq_len, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     dists_mapped1a, _, _, _, scores_mapped1a, _ = scorer._identify_relevant_data(category='Any')
+    #     fpr_expected1a, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, 1.0 - scores_mapped1a, pos_label=True)
     #     auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
-    #     tpr1a, fpr1a, auroc1a = self.scorer1.score_auc(scores1, category='Any')
+    #     tpr1a, fpr1a, auroc1a = scorer.score_auc(category='Any')
     #     self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
     #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
     #     self.assertEqual(auroc_expected1a, auroc1a)
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
+    #     dists_mapped1b, _, _, scores_mapped1b, _, _ = scorer._identify_relevant_data(category='Neighbors')
+    #     fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, 1.0 - scores_mapped1b, pos_label=True)
     #     auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
-    #     tpr1b, fpr1b, auroc1b = self.scorer1.score_auc(scores1, category='Neighbors')
+    #     tpr1b, fpr1b, auroc1b = scorer.score_auc(category='Neighbors')
     #     self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
     #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
     #     self.assertEqual(auroc_expected1b, auroc1b)
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
+    #     dists_mapped1c, _, _, scores_mapped1c, _, _ = scorer._identify_relevant_data(category='Short')
+    #     fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, 1.0 - scores_mapped1c, pos_label=True)
     #     auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
-    #     tpr1c, fpr1c, auroc1c = self.scorer1.score_auc(scores1, category='Short')
+    #     tpr1c, fpr1c, auroc1c = scorer.score_auc(category='Short')
     #     self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
     #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
     #     self.assertEqual(auroc_expected1c, auroc1c)
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
+    #     dists_mapped1d, _, _, scores_mapped1d, _, _ = scorer._identify_relevant_data(category='Medium')
+    #     fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, 1.0 - scores_mapped1d, pos_label=True)
     #     auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
-    #     tpr1d, fpr1d, auroc1d = self.scorer1.score_auc(scores1, category='Medium')
+    #     tpr1d, fpr1d, auroc1d = scorer.score_auc(category='Medium')
     #     self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
     #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
     #     self.assertEqual(auroc_expected1d, auroc1d)
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
+    #     dists_mapped1e, _, _, scores_mapped1e, _, _ = scorer._identify_relevant_data(category='Long')
+    #     fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, 1.0 - scores_mapped1e, pos_label=True)
     #     auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
-    #     tpr1e, fpr1e, auroc1e = self.scorer1.score_auc(scores1, category='Long')
+    #     tpr1e, fpr1e, auroc1e = scorer.score_auc(category='Long')
     #     self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
     #     self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
     #     self.assertEqual(auroc_expected1e, auroc1e)
     #
-    # def test_8b_score_auc(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     fpr_expected2a, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
-    #     auroc_expected2a = auc(fpr_expected2a, tpr_expected2a)
-    #     tpr2a, fpr2a, auroc2a = self.scorer2.score_auc(scores2, category='Any')
-    #     self.assertEqual(np.sum(fpr_expected2a - fpr2a), 0)
-    #     self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
-    #     self.assertEqual(auroc_expected2a, auroc2a)
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     fpr_expected2b, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
-    #     auroc_expected2b = auc(fpr_expected2b, tpr_expected2b)
-    #     tpr2b, fpr2b, auroc2b = self.scorer2.score_auc(scores2, category='Neighbors')
-    #     self.assertEqual(np.sum(fpr_expected2b - fpr2b), 0)
-    #     self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
-    #     self.assertEqual(auroc_expected2b, auroc2b)
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     fpr_expected2c, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
-    #     auroc_expected2c = auc(fpr_expected2c, tpr_expected2c)
-    #     tpr2c, fpr2c, auroc2c = self.scorer2.score_auc(scores2, category='Short')
-    #     self.assertEqual(np.sum(fpr_expected2c - fpr2c), 0)
-    #     self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
-    #     self.assertEqual(auroc_expected2c, auroc2c)
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     fpr_expected2d, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
-    #     auroc_expected2d = auc(fpr_expected2d, tpr_expected2d)
-    #     tpr2d, fpr2d, auroc2d = self.scorer2.score_auc(scores2, category='Medium')
-    #     self.assertEqual(np.sum(fpr_expected2d - fpr2d), 0)
-    #     self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
-    #     self.assertEqual(auroc_expected2d, auroc2d)
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     fpr_expected2e, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
-    #     auroc_expected2e = auc(fpr_expected2e, tpr_expected2e)
-    #     tpr2e, fpr2e, auroc2e = self.scorer2.score_auc(scores2, category='Long')
-    #     self.assertEqual(np.sum(fpr_expected2e - fpr2e), 0)
-    #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
-    #     self.assertEqual(auroc_expected2e, auroc2e)
+    # def test_9a_score_auc(self):
+    #     self.evaluate_score_auc(self.scorer1, self.seq_len1)
     #
-    # def test_9a_plot_auc(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     auroc1a = self.scorer1.score_auc(scores1, category='Any')
-    #     self.scorer1.plot_auc(auc_data=auroc1a, title='{} AUROC for All Pairs'.format(self.small_structure_id),
-    #                           file_name='{}_Any_AUROC'.format(self.small_structure_id), output_dir=self.testing_dir)
-    #     expected_path1 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUROC.png'.format(self.small_structure_id)))
+    # def test_9b_score_auc(self):
+    #     self.evaluate_score_auc(self.scorer2, self.seq_len2)
+
+    # def evaluate_plot_auc(self, scorer, seq_len, structure_id, dir):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(seq_len, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     auroc1a = scorer.score_auc(category='Any')
+    #     scorer.plot_auc(auc_data=auroc1a, title='{} AUROC for All Pairs'.format(structure_id),
+    #                     file_name='{}_Any_AUROC'.format(structure_id), output_dir=dir)
+    #     expected_path1 = os.path.abspath(os.path.join(dir, '{}_Any_AUROC.png'.format(structure_id)))
     #     self.assertTrue(os.path.isfile(expected_path1))
     #     os.remove(expected_path1)
     #
-    # def test_9b_plot_auc(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     auroc2a = self.scorer2.score_auc(scores2, category='Any')
-    #     self.scorer2.plot_auc(auc_data=auroc2a, title='{} AUROC for All Pairs'.format(self.large_structure_id),
-    #                           file_name='{}_Any_AUROC'.format(self.large_structure_id), output_dir=self.testing_dir)
-    #     expected_path2 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUROC.png'.format(self.large_structure_id)))
-    #     self.assertTrue(os.path.isfile(expected_path2))
-    #     os.remove(expected_path2)
+    # def test_10a_plot_auc(self):
+    #     self.evaluate_plot_auc(scorer=self.scorer1, seq_len=self.seq_len1, structure_id=self.small_structure_id,
+    #                            dir=self.testing_dir)
     #
-    # def test_10a_score_precision_recall(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     precision_expected1a, recall_expected1a, _ = precision_recall_curve(dists_mapped1a <= 8.0, scores_mapped1a,
-    #                                                                         pos_label=True)
+    # def test_10b_plot_auc(self):
+    #     self.evaluate_plot_auc(scorer=self.scorer2, seq_len=self.seq_len2, structure_id=self.large_structure_id,
+    #                            dir=self.testing_dir)
+
+    # def evaluate_score_precision_recall(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(seq_len, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     dists_mapped1a, _, _, _, scores_mapped1a, _ = scorer._identify_relevant_data(category='Any')
+    #     precision_expected1a, recall_expected1a, _ = precision_recall_curve(dists_mapped1a <= 8.0,
+    #                                                                         1.0 - scores_mapped1a, pos_label=True)
     #     recall_expected1a, precision_expected1a = zip(*sorted(zip(recall_expected1a, precision_expected1a)))
     #     recall_expected1a, precision_expected1a = np.array(recall_expected1a), np.array(precision_expected1a)
     #     auprc_expected1a = auc(recall_expected1a, precision_expected1a)
-    #     precision1a, recall1a, auprc1a = self.scorer1.score_precision_recall(scores1, category='Any')
+    #     precision1a, recall1a, auprc1a = scorer.score_precision_recall(category='Any')
     #     self.assertEqual(np.sum(precision_expected1a - precision1a), 0)
     #     self.assertEqual(np.sum(recall_expected1a - recall1a), 0)
     #     self.assertEqual(auprc_expected1a, auprc1a)
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     precision_expected1b, recall_expected1b, _ = precision_recall_curve(dists_mapped1b <= 8.0, scores_mapped1b,
-    #                                                                         pos_label=True)
+    #     dists_mapped1b, _, _, _, scores_mapped1b, _ = scorer._identify_relevant_data(category='Neighbors')
+    #     precision_expected1b, recall_expected1b, _ = precision_recall_curve(dists_mapped1b <= 8.0,
+    #                                                                         1.0 - scores_mapped1b, pos_label=True)
     #     recall_expected1b, precision_expected1b = zip(*sorted(zip(recall_expected1b, precision_expected1b)))
     #     recall_expected1b, precision_expected1b = np.array(recall_expected1b), np.array(precision_expected1b)
     #     auprc_expected1b = auc(recall_expected1b, precision_expected1b)
-    #     precision1b, recall1b, auprc1b = self.scorer1.score_precision_recall(scores1, category='Neighbors')
-    #
+    #     precision1b, recall1b, auprc1b = scorer.score_precision_recall(category='Neighbors')
     #     self.assertEqual(np.sum(precision_expected1b - precision1b), 0)
     #     self.assertEqual(np.sum(recall_expected1b - recall1b), 0)
     #     self.assertEqual(auprc_expected1b, auprc1b)
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     precision_expected1c, recall_expected1c, _ = precision_recall_curve(dists_mapped1c <= 8.0, scores_mapped1c,
-    #                                                                         pos_label=True)
+    #     dists_mapped1c, _, _, _, scores_mapped1c, _ = scorer._identify_relevant_data(category='Short')
+    #     precision_expected1c, recall_expected1c, _ = precision_recall_curve(dists_mapped1c <= 8.0,
+    #                                                                         1.0 - scores_mapped1c, pos_label=True)
     #     recall_expected1c, precision_expected1c = zip(*sorted(zip(recall_expected1c, precision_expected1c)))
     #     recall_expected1c, precision_expected1c = np.array(recall_expected1c), np.array(precision_expected1c)
     #     auprc_expected1c = auc(recall_expected1c, precision_expected1c)
-    #     precision1c, recall1c, auprc1c = self.scorer1.score_precision_recall(scores1, category='Short')
+    #     precision1c, recall1c, auprc1c = scorer.score_precision_recall(category='Short')
     #     self.assertEqual(np.sum(precision_expected1c - precision1c), 0)
     #     self.assertEqual(np.sum(recall_expected1c - recall1c), 0)
     #     self.assertEqual(auprc_expected1c, auprc1c)
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     precision_expected1d, recall_expected1d, _ = precision_recall_curve(dists_mapped1d <= 8.0, scores_mapped1d,
-    #                                                                         pos_label=True)
+    #     dists_mapped1d, _, _, _, scores_mapped1d, _ = scorer._identify_relevant_data(category='Medium')
+    #     precision_expected1d, recall_expected1d, _ = precision_recall_curve(dists_mapped1d <= 8.0,
+    #                                                                         1.0 - scores_mapped1d, pos_label=True)
     #     recall_expected1d, precision_expected1d = zip(*sorted(zip(recall_expected1d, precision_expected1d)))
     #     recall_expected1d, precision_expected1d = np.array(recall_expected1d), np.array(precision_expected1d)
     #     auprc_expected1d = auc(recall_expected1d, precision_expected1d)
-    #     precision1d, recall1d, auprc1d = self.scorer1.score_precision_recall(scores1, category='Medium')
+    #     precision1d, recall1d, auprc1d = scorer.score_precision_recall(category='Medium')
     #     self.assertEqual(np.sum(precision_expected1d - precision1d), 0)
     #     self.assertEqual(np.sum(recall_expected1d - recall1d), 0)
     #     self.assertEqual(auprc_expected1d, auprc1d)
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     precision_expected1e, recall_expected1e, _ = precision_recall_curve(dists_mapped1e <= 8.0, scores_mapped1e,
-    #                                                                         pos_label=True)
+    #     dists_mapped1e, _, _, _, scores_mapped1e, _ = scorer._identify_relevant_data(category='Long')
+    #     precision_expected1e, recall_expected1e, _ = precision_recall_curve(dists_mapped1e <= 8.0,
+    #                                                                         1.0 - scores_mapped1e, pos_label=True)
     #     recall_expected1e, precision_expected1e = zip(*sorted(zip(recall_expected1e, precision_expected1e)))
     #     recall_expected1e, precision_expected1e = np.array(recall_expected1e), np.array(precision_expected1e)
     #     auprc_expected1e = auc(recall_expected1e, precision_expected1e)
-    #     precision1e, recall1e, auprc1e = self.scorer1.score_precision_recall(scores1, category='Long')
+    #     precision1e, recall1e, auprc1e = scorer.score_precision_recall(category='Long')
     #     self.assertEqual(np.sum(precision_expected1e - precision1e), 0)
     #     self.assertEqual(np.sum(recall_expected1e - recall1e), 0)
     #     self.assertEqual(auprc_expected1e, auprc1e)
     #
-    # def test_10b_score_precision_recall(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     precision_expected2a, recall_expected2a, _ = precision_recall_curve(dists_mapped2a <= 8.0, scores_mapped2a,
-    #                                                                         pos_label=True)
-    #     recall_expected2a, precision_expected2a = zip(*sorted(zip(recall_expected2a, precision_expected2a)))
-    #     recall_expected2a, precision_expected2a = np.array(recall_expected2a), np.array(precision_expected2a)
-    #     auprc_expected2a = auc(recall_expected2a, precision_expected2a)
-    #     precision2a, recall2a, auprc2a = self.scorer2.score_precision_recall(scores2, category='Any')
-    #     self.assertEqual(np.sum(precision_expected2a - precision2a), 0)
-    #     self.assertEqual(np.sum(recall_expected2a - recall2a), 0)
-    #     self.assertEqual(auprc_expected2a, auprc2a)
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     precision_expected2b, recall_expected2b, _ = precision_recall_curve(dists_mapped2b <= 8.0, scores_mapped2b,
-    #                                                                         pos_label=True)
-    #     recall_expected2b, precision_expected2b = zip(*sorted(zip(recall_expected2b, precision_expected2b)))
-    #     recall_expected2b, precision_expected2b = np.array(recall_expected2b), np.array(precision_expected2b)
-    #     auprc_expected2b = auc(recall_expected2b, precision_expected2b)
-    #     precision2b, recall2b, auprc2b = self.scorer2.score_precision_recall(scores2, category='Neighbors')
-    #     self.assertEqual(np.sum(precision_expected2b - precision2b), 0)
-    #     self.assertEqual(np.sum(recall_expected2b - recall2b), 0)
-    #     self.assertEqual(auprc_expected2b, auprc2b)
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     precision_expected2c, recall_expected2c, _ = precision_recall_curve(dists_mapped2c <= 8.0, scores_mapped2c,
-    #                                                                         pos_label=True)
-    #     recall_expected2c, precision_expected2c = zip(*sorted(zip(recall_expected2c, precision_expected2c)))
-    #     recall_expected2c, precision_expected2c = np.array(recall_expected2c), np.array(precision_expected2c)
-    #     auprc_expected2c = auc(recall_expected2c, precision_expected2c)
-    #     precision2c, recall2c, auprc2c = self.scorer2.score_precision_recall(scores2, category='Short')
-    #     self.assertEqual(np.sum(precision_expected2c - precision2c), 0)
-    #     self.assertEqual(np.sum(recall_expected2c - recall2c), 0)
-    #     self.assertEqual(auprc_expected2c, auprc2c)
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     precision_expected2d, recall_expected2d, _ = precision_recall_curve(dists_mapped2d <= 8.0, scores_mapped2d,
-    #                                                                         pos_label=True)
-    #     recall_expected2d, precision_expected2d = zip(*sorted(zip(recall_expected2d, precision_expected2d)))
-    #     recall_expected2d, precision_expected2d = np.array(recall_expected2d), np.array(precision_expected2d)
-    #     auprc_expected2d = auc(recall_expected2d, precision_expected2d)
-    #     precision2d, recall2d, auprc2d = self.scorer2.score_precision_recall(scores2, category='Medium')
-    #     self.assertEqual(np.sum(precision_expected2d - precision2d), 0)
-    #     self.assertEqual(np.sum(recall_expected2d - recall2d), 0)
-    #     self.assertEqual(auprc_expected2d, auprc2d)
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     precision_expected2e, recall_expected2e, _ = precision_recall_curve(dists_mapped2e <= 8.0, scores_mapped2e,
-    #                                                                         pos_label=True)
-    #     recall_expected2e, precision_expected2e = zip(*sorted(zip(recall_expected2e, precision_expected2e)))
-    #     recall_expected2e, precision_expected2e = np.array(recall_expected2e), np.array(precision_expected2e)
-    #     auprc_expected2e = auc(recall_expected2e, precision_expected2e)
-    #     precision2e, recall2e, auprc2e = self.scorer2.score_precision_recall(scores2, category='Long')
-    #     self.assertEqual(np.sum(precision_expected2e - precision2e), 0)
-    #     self.assertEqual(np.sum(recall_expected2e - recall2e), 0)
-    #     self.assertEqual(auprc_expected2e, auprc2e)
+    # def test_11a_score_precision_recall(self):
+    #     self.evaluate_score_precision_recall(scorer=self.scorer1, seq_len=self.seq_len1)
     #
-    # def test_11a_plot_auprc(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     auprc1a = self.scorer1.score_precision_recall(scores1, category='Any')
-    #     self.scorer1.plot_auprc(auprc_data=auprc1a, title='{} AUPRC for All Pairs'.format(self.small_structure_id),
-    #                             file_name='{}_Any_AUPRC'.format(self.small_structure_id), output_dir=self.testing_dir)
-    #     expected_path1 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUPRC.png'.format(self.small_structure_id)))
-    #     self.assertTrue(os.path.isfile(expected_path1))
-    #     os.remove(expected_path1)
-    #
-    # def test_11b_plot_auprc(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     auprc2a = self.scorer2.score_precision_recall(scores2, category='Any')
-    #     self.scorer2.plot_auprc(auprc_data=auprc2a, title='{} AUPRC for All Pairs'.format(self.large_structure_id),
-    #                             file_name='{}_Any_AUPRC'.format(self.large_structure_id), output_dir=self.testing_dir)
-    #     expected_path2 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUPRC.png'.format(self.large_structure_id)))
-    #     self.assertTrue(os.path.isfile(expected_path2))
-    #     os.remove(expected_path2)
-    #
-    # # def test_12a_score_tpr_fdr(self):
-    # #     self.scorer1.fit()
-    # #     self.scorer1.measure_distance(method='CB')
-    # #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    # #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    # #     scores1 += scores1.T
-    # #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    # #     _, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, scores_mapped1a, pos_label=True)
-    # #     # autprfdrc_expected1a = auc(, )
-    # #     tpr1a, fdr1a, autprfdrc1a = self.scorer1.score_tpr_fdr(scores1, category='Any')
-    # #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected1a - fdr1a), 0)
-    # #     # self.assertEqual(autprfdrc_expected1a, autprfdrc1a)
-    # #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    # #                                                                            category='Neighbors')
-    # #     _, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, scores_mapped1b, pos_label=True)
-    # #     # autprfdrc_expected1b = auc(, )
-    # #     tpr1b, fdr1b, autprfdrc1b = self.scorer1.score_tpr_fdr(scores1, category='Neighbors')
-    # #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected1b - fdr1b), 0)
-    # #     # self.assertEqual(autprfdrc_expected1b, autprfdrc1b)
-    # #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    # #     _, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, scores_mapped1c, pos_label=True)
-    # #     # autprfdrc_expected1c = auc(, )
-    # #     tpr1c, fdr1c, autprfdrc1c = self.scorer1.score_tpr_fdr(scores1, category='Short')
-    # #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected1c - fdr1c), 0)
-    # #     # self.assertEqual(autprfdrc_expected1c, autprfdrc1c)
-    # #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    # #     _, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, scores_mapped1d, pos_label=True)
-    # #     # autprfdrc_expected1d = auc(, )
-    # #     tpr1d, fdr1d, autprfdrc1d = self.scorer1.score_tpr_fdr(scores1, category='Medium')
-    # #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected1d - fdr1d), 0)
-    # #     # self.assertEqual(autprfdrc_expected1d, autprfdrc1d)
-    # #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    # #     _, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, scores_mapped1e, pos_label=True)
-    # #     # autprfdrc_expected1e = auc(, )
-    # #     tpr1e, fdr1e, autprfdrc1e = self.scorer1.score_tpr_fdr(scores1, category='Long')
-    # #     self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected1e - fdr1e), 0)
-    # #     # self.assertEqual(autprfdrc_expected1e, autprfdrc1e)
-    # #
-    # # def test_12b_score_tpr_fdr(self):
-    # #     self.scorer2.fit()
-    # #     self.scorer2.measure_distance(method='CB')
-    # #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    # #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    # #     scores2 += scores2.T
-    # #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    # #     _, tpr_expected2a, _ = roc_curve(dists_mapped2a <= 8.0, scores_mapped2a, pos_label=True)
-    # #     # autprfdrc_expected2a = auc(, )
-    # #     tpr2a, fdr2a, autprfdrc2a = self.scorer2.score_tpr_fdr(scores2, category='Any')
-    # #     self.assertEqual(np.sum(tpr_expected2a - tpr2a), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected2a - fdr2a), 0)
-    # #     # self.assertEqual(autprfdrc_expected2a, autprfdrc2a)
-    # #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    # #                                                                            category='Neighbors')
-    # #     _, tpr_expected2b, _ = roc_curve(dists_mapped2b <= 8.0, scores_mapped2b, pos_label=True)
-    # #     # autprfdrc_expected2b = auc(, )
-    # #     tpr2b, fdr2b, autprfdrc2b = self.scorer2.score_tpr_fdr(scores2, category='Neighbors')
-    # #     self.assertEqual(np.sum(tpr_expected2b - tpr2b), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected2b - fdr2b), 0)
-    # #     # self.assertEqual(autprfdrc_expected2b, autprfdrc2b)
-    # #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    # #     _, tpr_expected2c, _ = roc_curve(dists_mapped2c <= 8.0, scores_mapped2c, pos_label=True)
-    # #     # autprfdrc_expected2c = auc(, )
-    # #     tpr2c, fdr2c, autprfdrc2c = self.scorer2.score_tpr_fdr(scores2, category='Short')
-    # #     self.assertEqual(np.sum(tpr_expected2c - tpr2c), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected2c - fdr2c), 0)
-    # #     # self.assertEqual(autprfdrc_expected2c, autprfdrc2c)
-    # #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    # #     _, tpr_expected2d, _ = roc_curve(dists_mapped2d <= 8.0, scores_mapped2d, pos_label=True)
-    # #     # autprfdrc_expected2d = auc(, )
-    # #     tpr2d, fdr2d, autprfdrc2d = self.scorer2.score_tpr_fdr(scores2, category='Medium')
-    # #     self.assertEqual(np.sum(tpr_expected2d - tpr2d), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected2d - fdr2d), 0)
-    # #     # self.assertEqual(autprfdrc_expected2d, autprfdrc2d)
-    # #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    # #     _, tpr_expected2e, _ = roc_curve(dists_mapped2e <= 8.0, scores_mapped2e, pos_label=True)
-    # #     # autprfdrc_expected2e = auc(, )
-    # #     tpr2e, fdr2e, autprfdrc2e = self.scorer2.score_tpr_fdr(scores2, category='Long')
-    # #     self.assertEqual(np.sum(tpr_expected2e - tpr2e), 0)
-    # #     # self.assertEqual(np.sum(fdr_expected2e - fdr2e), 0)
-    # #     # self.assertEqual(autprfdrc_expected2e, autprfdrc2e)
-    #
-    # def test_13a_plot_autprfdrc(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     autprfdrc1a = self.scorer1.score_tpr_fdr(scores1, category='Any')
-    #     self.scorer1.plot_autprfdrc(autprfdrc_data=autprfdrc1a,
-    #                                 title='{} AUTPRFDRC for All Pairs'.format(self.small_structure_id),
-    #                                 file_name='{}_Any_AUTPRFDRC'.format(self.small_structure_id),
-    #                                 output_dir=self.testing_dir)
-    #     expected_path1 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUTPRFDRC.png'.format(self.small_structure_id)))
-    #     self.assertTrue(os.path.isfile(expected_path1))
-    #     os.remove(expected_path1)
-    #
-    # def test_13b_plot_autprfdrc(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     autprfdrc2a = self.scorer2.score_tpr_fdr(scores2, category='Any')
-    #     self.scorer2.plot_autprfdrc(autprfdrc_data=autprfdrc2a,
-    #                                 title='{} AUTPRFDRC for All Pairs'.format(self.large_structure_id),
-    #                                 file_name='{}_Any_AUTPRFDRC'.format(self.large_structure_id),
-    #                                 output_dir=self.testing_dir)
-    #     expected_path2 = os.path.abspath(os.path.join(self.testing_dir,
-    #                                                   '{}_Any_AUTPRFDRC.png'.format(self.large_structure_id)))
-    #     self.assertTrue(os.path.isfile(expected_path2))
-    #     os.remove(expected_path2)
-    #
+    # def test_11b_score_precision_recall(self):
+    #     self.evaluate_score_precision_recall(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    def evaluate_plot_auprc(self, scorer, seq_len, structure_id, dir):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(seq_len, seq_len)
+        scores[np.tril_indices(seq_len, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        auprc1a = scorer.score_precision_recall(category='Any')
+        scorer.plot_auprc(auprc_data=auprc1a, title='{} AUPRC for All Pairs'.format(structure_id),
+                          file_name='{}_Any_AUPRC'.format(structure_id), output_dir=dir)
+        expected_path1 = os.path.abspath(os.path.join(dir, '{}_Any_AUPRC.png'.format(structure_id)))
+        self.assertTrue(os.path.isfile(expected_path1))
+        os.remove(expected_path1)
+
+    def test_12a_plot_auprc(self):
+        self.evaluate_plot_auprc(scorer=self.scorer1, seq_len=self.seq_len1, structure_id=self.small_structure_id,
+                                 dir=self.testing_dir)
+
+    def test_12b_plot_auprc(self):
+        self.evaluate_plot_auprc(scorer=self.scorer2, seq_len=self.seq_len2, structure_id=self.large_structure_id,
+                                 dir=self.testing_dir)
+
     # def test_14a_score_precision(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='CB')
