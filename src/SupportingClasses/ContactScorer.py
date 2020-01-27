@@ -353,27 +353,32 @@ class ContactScorer(object):
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for res_num in self.query_structure.residue_pos[self.best_chain]:
-                residue = self.query_structure.structure[0][self.best_chain][res_num]
+            for res_num1 in sorted(self.query_structure.residue_pos[self.best_chain]):
+                residue = self.query_structure.structure[0][self.best_chain][res_num1]
                 # Loop over residues to calculate distance between all residues i and j
-                key1 = residue.get_id()[1]
-                if key1 not in coords:
-                    pos[key1] = counter
-                    key[counter] = key1
+                # res_num1 = residue.get_id()[1]
+                print('RES NUM: {}'.format(res_num1))
+                # print('KEY1: {}'.format(res_num1))
+                if res_num1 not in coords:
+                    pos[res_num1] = counter
+                    print('POS1: {}'.format(counter))
+                    # print('COUNTER {} VS. {} INDEX'.format(
+                    #     counter, self.query_structure.residue_pos[self.best_chain].index(res_num1)))
+                    key[counter] = res_num1
                     counter += 1
-                    coords[key1] = np.vstack(ContactScorer._get_coords(residue, method))
-                for j in range(pos[key1]):
-                    key2 = key[j]
-                    if key2 not in pos:
+                    coords[res_num1] = np.vstack(ContactScorer._get_coords(residue, method))
+                for j in range(pos[res_num1]):
+                    res_num2 = key[j]
+                    if res_num2 not in pos:
                         continue
                     # Getting the 3d coordinates for every atom in each residue.
                     # iterating over all pairs to find all distances
-                    res1 = (coords[key1] - coords[key2][:, np.newaxis])
-                    norms = np.linalg.norm(res1, axis=2)
+                    coord_diff = (coords[res_num1] - coords[res_num2][:, np.newaxis])
+                    norms = np.linalg.norm(coord_diff, axis=2)
                     distance = np.min(norms)
-                    dists[pos[key1], pos[key2]] = dists[pos[key2], pos[key1]] = distance
-                    self.data.loc[(self.data['Struct Pos 1'] == key2) &
-                                  (self.data['Struct Pos 2'] == key1), 'Distance'] = distance
+                    dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = distance
+                    self.data.loc[(self.data['Struct Pos 1'] == res_num2) &
+                                  (self.data['Struct Pos 2'] == res_num1), 'Distance'] = distance
             if save_file is not None:
                 np.savez(save_file, dists=dists)
         self.data['Contact (within {}A cutoff)'.format(self.cutoff)] = self.data['Distance'].apply(
@@ -583,10 +588,6 @@ class ContactScorer(object):
         determined when the fit function is performed.
 
         Args:
-            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
-            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
-            the least confident.)
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors : Residues 1 to 5 sequence positions apart.
                 Short : Residues 6 to 12 sequences positions apart.
@@ -649,7 +650,8 @@ class ContactScorer(object):
         plt.savefig(file_name, format='png', dpi=300, fontsize=8)
         plt.close()
 
-    def score_precision(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+    # def score_precision(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+    def score_precision(self, category='Any', k=None, n=None):
         """
         Score Precision
 
@@ -667,39 +669,44 @@ class ContactScorer(object):
             is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
             such that the maximum prediction value is the most confident prediction and the lowest prediction value is
             the least confident.)
-            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
-            the query sequence, will be divided by to give the number of predictions to test.
-            n (int): This value should only be specified if k is not specified. This is the number of predictions to
-            test.
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors - Residues 1 to 5 sequence positions apart.
                 Short - Residues 6 to 12 sequences positions apart.
                 Medium - Residues 13 to 24 sequences positions apart.
                 Long - Residues more than 24 sequence positions apart.
                 Any - Any/All pairs of residues.
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
             threshold (float): Value above which a prediction will be labeled 1 (confident/true).
         Returns:
             float: The precision value computed for the predictions provided.
         """
-        if self.query_structure is None:
-            print('Precision cannot be measured, because no PDB was provided.')
-            return '-'
-        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
-        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
-        if (k is not None) and (n is not None):
-            raise ValueError('Both k and n were set for score_precision which is not a valid option.')
-        elif k:
-            n = int(floor(self.query_alignment.seq_length / float(k)))
-        elif n is None:
-            n = mapped_distances.shape[0]
-        else:
-            pass
-        ind = np.where(ranks <= n)
-        top_predictions = mapped_predictions[ind]
-        y_pred1 = ((top_predictions > threshold) * 1)
-        top_distances = mapped_distances[ind]
-        y_true1 = ((top_distances <= self.cutoff) * 1)
-        precision = precision_score(y_true1, y_pred1)
+        # Checks are performed in _identify_relevant_data
+        _, contacts, _, _, _, predictions = self._identify_relevant_data(category=category, n=n, k=k)
+        # Precision computation
+        if (contacts is not None) and (len(predictions) != len(contacts)):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        # if self.query_structure is None:
+        #     print('Precision cannot be measured, because no PDB was provided.')
+        #     return '-'
+        # mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
+        # ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
+        # if (k is not None) and (n is not None):
+        #     raise ValueError('Both k and n were set for score_precision which is not a valid option.')
+        # elif k:
+        #     n = int(floor(self.query_alignment.seq_length / float(k)))
+        # elif n is None:
+        #     n = mapped_distances.shape[0]
+        # else:
+        #     pass
+        # ind = np.where(ranks <= n)
+        # top_predictions = mapped_predictions[ind]
+        # y_pred1 = ((top_predictions > threshold) * 1)
+        # top_distances = mapped_distances[ind]
+        # y_true1 = ((top_distances <= self.cutoff) * 1)
+        precision = precision_score(contacts.astype(bool), predictions, pos_label=True)
         return precision
 
     def score_recall(self, predictions, k=None, n=None, category='Any', threshold=0.5):
