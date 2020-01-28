@@ -353,17 +353,11 @@ class ContactScorer(object):
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for res_num1 in sorted(self.query_structure.residue_pos[self.best_chain]):
+            for res_num1 in sorted(self.query_structure.pdb_residue_list[self.best_chain]):
                 residue = self.query_structure.structure[0][self.best_chain][res_num1]
                 # Loop over residues to calculate distance between all residues i and j
-                # res_num1 = residue.get_id()[1]
-                print('RES NUM: {}'.format(res_num1))
-                # print('KEY1: {}'.format(res_num1))
                 if res_num1 not in coords:
                     pos[res_num1] = counter
-                    print('POS1: {}'.format(counter))
-                    # print('COUNTER {} VS. {} INDEX'.format(
-                    #     counter, self.query_structure.residue_pos[self.best_chain].index(res_num1)))
                     key[counter] = res_num1
                     counter += 1
                     coords[res_num1] = np.vstack(ContactScorer._get_coords(residue, method))
@@ -706,6 +700,10 @@ class ContactScorer(object):
         # y_pred1 = ((top_predictions > threshold) * 1)
         # top_distances = mapped_distances[ind]
         # y_true1 = ((top_distances <= self.cutoff) * 1)
+        print('Predictions')
+        print(predictions)
+        print('Contacts')
+        print(contacts.astype(bool))
         precision = precision_score(contacts.astype(bool), predictions, pos_label=True)
         return precision
 
