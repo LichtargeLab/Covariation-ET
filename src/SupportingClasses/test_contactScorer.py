@@ -802,14 +802,18 @@ class TestContactScorer(TestBase):
         preds_subset = coverage_subset <= threshold
         distance_subset = distances[converted_dist_ind]
         contact_subset = distance_subset <= cutoff
-        sorted_score, sorted_coverage, sorted_rank, sorted_pred, sorted_distance, sorted_contact = zip(*sorted(
-            zip(scores_subset, coverage_subset, ranks_subset, preds_subset, distance_subset, contact_subset),
-            key=lambda pair: pair[1]))
-        ranking = rankdata(sorted_coverage, method='dense')
-        n_index = ranking <= n
-        return (np.array(list(sorted_score))[n_index], np.array(list(sorted_coverage))[n_index],
-                np.array(list(sorted_rank))[n_index], np.array(list(sorted_pred))[n_index],
-                np.array(list(sorted_distance))[n_index], np.array(list(sorted_contact))[n_index])
+        df = pd.DataFrame({'Seq Pos 1': converted_ind[0], 'Seq Pos 2': converted_ind[1],
+                           'Struct Pos 1': [scorer.query_structure.pdb_residue_list[scorer.best_chain][x]
+                                            for x in converted_dist_ind[0]],
+                           'Struct Pos 2': [scorer.query_structure.pdb_residue_list[scorer.best_chain][x]
+                                            for x in converted_dist_ind[1]],
+                           'Score': scores_subset, 'Coverage': coverage_subset, 'Rank': ranks_subset,
+                           'Predictions': preds_subset, 'Distance': distance_subset, 'Contact': contact_subset})
+        df_sorted = df.sort_values(by='Coverage')
+        df_sorted['Top Predictions'] = rankdata(df_sorted['Coverage'], method='dense')
+        n_index = df_sorted['Top Predictions'] <= n
+        df_final = df_sorted.loc[n_index, :]
+        return df_final
 
     # def evaluate__identify_relevant_data(self, scorer, seq_len):
     #     scorer.fit()
@@ -826,61 +830,64 @@ class TestContactScorer(TestBase):
     #         for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
     #                      (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
     #             print('Subset: n:{} k:{}'.format(n, k))
-    #             curr_distances, curr_contacts, curr_ranks, curr_scores, curr_coverages, curr_preds = scorer._identify_relevant_data(category=category, n=n, k=k)
-    #             expected_score, expected_coverage, expected_rank, expected_pred, expected_distance, expected_contact = TestContactScorer.identify_expected_scores_and_distances(
+    #             curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k)
+    #             expected_subset = TestContactScorer.identify_expected_scores_and_distances(
     #                 scorer, scores, coverages, ranks, scorer.distances, category, n=n, k=k)
+    #             seq_1_pos_diff = np.abs(curr_subset['Seq Pos 1'].values - expected_subset['Seq Pos 1'].values)
+    #             seq_1_pos_not_passing = seq_1_pos_diff > 0
+    #             self.assertFalse(seq_1_pos_not_passing.any())
+    #             seq_2_pos_diff = np.abs(curr_subset['Seq Pos 2'].values - expected_subset['Seq Pos 2'].values)
+    #             seq_2_pos_not_passing = seq_2_pos_diff > 0
+    #             self.assertFalse(seq_2_pos_not_passing.any())
+    #             struct_1_pos_diff = np.abs(curr_subset['Struct Pos 1'].values - expected_subset['Struct Pos 1'].values)
+    #             struct_1_not_passing = struct_1_pos_diff > 0
+    #             self.assertFalse(struct_1_not_passing.any())
+    #             struct_2_pos_diff = np.abs(curr_subset['Struct Pos 2'].values - expected_subset['Struct Pos 2'].values)
+    #             struct_2_not_passing = struct_2_pos_diff > 0
+    #             self.assertFalse(struct_2_not_passing.any())
     #             if k and (n is None):
     #                 n = int(floor(scorer.query_alignment.seq_length / float(k)))
     #             if n:
-    #                 self.assertEqual(len(np.unique(curr_ranks)), n)
-    #                 self.assertEqual(len(np.unique(expected_rank)), n)
-    #                 self.assertEqual(len(np.unique(curr_scores)), n)
-    #                 self.assertEqual(len(np.unique(expected_score)), n)
-    #                 self.assertEqual(len(np.unique(curr_coverages)), n)
-    #                 self.assertEqual(len(np.unique(expected_coverage)), n)
+    #                 self.assertEqual(len(curr_subset['Rank'].unique()), n)
+    #                 self.assertEqual(len(expected_subset['Rank'].unique()), n)
+    #                 self.assertEqual(len(curr_subset['Score'].unique()), n)
+    #                 self.assertEqual(len(expected_subset['Score'].unique()), n)
+    #                 self.assertEqual(len(curr_subset['Coverage'].unique()), n)
+    #                 self.assertEqual(len(expected_subset['Coverage'].unique()), n)
     #             else:
-    #                 self.assertEqual(len(np.unique(curr_ranks)), len(np.unique(expected_rank)))
-    #                 self.assertEqual(len(np.unique(curr_scores)), len(np.unique(expected_score)))
-    #                 self.assertEqual(len(np.unique(curr_coverages)), len(np.unique(expected_coverage)))
-    #             self.assertEqual(len(np.unique(curr_distances)), len(np.unique(expected_distance)))
-    #             self.assertEqual(len(np.unique(curr_contacts)), len(np.unique(expected_contact)))
-    #             self.assertEqual(len(np.unique(curr_preds)), len(np.unique(expected_pred)))
-    #             diff_ranks = np.abs(curr_ranks - expected_rank)
+    #                 self.assertEqual(len(curr_subset['Rank'].unique()), len(expected_subset['Rank'].unique()))
+    #                 self.assertEqual(len(curr_subset['Score'].unique()), len(expected_subset['Score'].unique()))
+    #                 self.assertEqual(len(curr_subset['Coverage'].unique()), len(expected_subset['Coverage'].unique()))
+    #             self.assertEqual(len(curr_subset['Distance'].unique()), len(expected_subset['Distance'].unique()))
+    #             self.assertEqual(len(curr_subset['Contact (within {}A cutoff)'.format(scorer.cutoff)].unique()),
+    #                              len(expected_subset['Contact'].unique()))
+    #             self.assertEqual(len(curr_subset['True Prediction'].unique()),
+    #                              len(expected_subset['Predictions'].unique()))
+    #             diff_ranks = np.abs(curr_subset['Rank'].values - expected_subset['Rank'].values)
     #             not_passing_ranks = diff_ranks > 1E-12
     #             self.assertFalse(not_passing_ranks.any())
-    #             diff_scores = np.abs(curr_scores - expected_score)
+    #             diff_scores = np.abs(curr_subset['Score'].values - expected_subset['Score'].values)
     #             not_passing_scores = diff_scores > 1E-12
     #             self.assertFalse(not_passing_scores.any())
-    #             diff_coverages = np.abs(curr_coverages - expected_coverage)
+    #             diff_coverages = np.abs(curr_subset['Coverage'].values - expected_subset['Coverage'].values)
     #             not_passing_coverages = diff_coverages > 1E-12
     #             self.assertFalse(not_passing_coverages.any())
-    #             diff_preds = curr_preds ^ expected_pred
+    #             diff_preds = curr_subset['True Prediction'].values ^ expected_subset['Predictions'].values
     #             not_passing_preds = diff_preds > 1E-12
     #             self.assertFalse(not_passing_preds.any())
-    #             diff_contacts = curr_contacts ^ expected_contact
+    #             diff_contacts = (curr_subset['Contact (within {}A cutoff)'.format(scorer.cutoff)].values ^
+    #                              expected_subset['Contact'].values)
     #             not_passing_contacts = diff_contacts > 1E-12
     #             self.assertFalse(not_passing_contacts.any())
-    #             diff_distances = np.abs(curr_distances - expected_distance)
+    #             diff_distances = np.abs(curr_subset['Distance'].values - expected_subset['Distance'].values)
     #             not_passing_distances = diff_distances > 1E-12
-    #             failed_dists = np.array(sorted(curr_distances[not_passing_distances]))
-    #             failed_expected_dists = np.array(sorted(expected_distance[not_passing_distances]))
-    #             failed_dist_ranks = curr_ranks[not_passing_distances]
-    #             unique_ranks = np.unique(failed_dist_ranks)
-    #             print('{} Failed Distance Matches with {} Unique Ranks'.format(np.sum(not_passing_distances),
-    #                                                                            len(unique_ranks)))
-    #             for rank in unique_ranks:
-    #                 failed_dist_diff = np.abs(np.array(sorted(failed_dists[failed_dist_ranks == rank])) -
-    #                                           np.array(sorted(failed_expected_dists[failed_dist_ranks == rank])))
-    #                 not_passing_failed = failed_dist_diff > 1E-12
-    #                 self.assertFalse(not_passing_failed.any())
+    #             self.assertFalse(not_passing_distances.any())
     #
     # def test_8a__identify_relevant_data(self):
     #     self.evaluate__identify_relevant_data(scorer=self.scorer1, seq_len=self.seq_len1)
     #
     # def test_8b__identify_relevant_data(self):
     #     self.evaluate__identify_relevant_data(scorer=self.scorer2, seq_len=self.seq_len2)
-
-    ####################################################################################################################
 
     # def evaluate_score_auc(self, scorer, seq_len):
     #     scorer.fit()
@@ -890,44 +897,49 @@ class TestContactScorer(TestBase):
     #     scores += scores.T
     #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
     #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-    #     _, scores_mapped1a, _, _, dists_mapped1a, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_a = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Any')
-    #     fpr_expected1a, tpr_expected1a, _ = roc_curve(dists_mapped1a <= 8.0, 1.0 - scores_mapped1a, pos_label=True)
+    #     fpr_expected1a, tpr_expected1a, _ = roc_curve(expected_df_a['Distance'] <= 8.0,
+    #                                                   1.0 - expected_df_a['Coverage'], pos_label=True)
     #     auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
     #     tpr1a, fpr1a, auroc1a = scorer.score_auc(category='Any')
     #     self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
     #     self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
     #     self.assertEqual(auroc_expected1a, auroc1a)
-    #     _, scores_mapped1b, _, _, dists_mapped1b, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_b = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Neighbors')
-    #     fpr_expected1b, tpr_expected1b, _ = roc_curve(dists_mapped1b <= 8.0, 1.0 - scores_mapped1b, pos_label=True)
+    #     fpr_expected1b, tpr_expected1b, _ = roc_curve(expected_df_b['Distance'] <= 8.0,
+    #                                                   1.0 - expected_df_b['Coverage'], pos_label=True)
     #     auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
     #     tpr1b, fpr1b, auroc1b = scorer.score_auc(category='Neighbors')
     #     self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
     #     self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
     #     self.assertEqual(auroc_expected1b, auroc1b)
-    #     _, scores_mapped1c, _, _, dists_mapped1c, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_c = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Short')
-    #     fpr_expected1c, tpr_expected1c, _ = roc_curve(dists_mapped1c <= 8.0, 1.0 - scores_mapped1c, pos_label=True)
+    #     fpr_expected1c, tpr_expected1c, _ = roc_curve(expected_df_c['Distance'] <= 8.0,
+    #                                                   1.0 - expected_df_c['Coverage'], pos_label=True)
     #     auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
     #     tpr1c, fpr1c, auroc1c = scorer.score_auc(category='Short')
     #     self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
     #     self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
     #     self.assertEqual(auroc_expected1c, auroc1c)
-    #     _, scores_mapped1d, _, _, dists_mapped1d, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_d = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Medium')
-    #     fpr_expected1d, tpr_expected1d, _ = roc_curve(dists_mapped1d <= 8.0, 1.0 - scores_mapped1d, pos_label=True)
+    #     fpr_expected1d, tpr_expected1d, _ = roc_curve(expected_df_d['Distance'] <= 8.0,
+    #                                                   1.0 - expected_df_d['Coverage'], pos_label=True)
     #     auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
     #     tpr1d, fpr1d, auroc1d = scorer.score_auc(category='Medium')
     #     self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
     #     self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
     #     self.assertEqual(auroc_expected1d, auroc1d)
-    #     _, scores_mapped1e, _, _, dists_mapped1e, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_e = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Long')
-    #     fpr_expected1e, tpr_expected1e, _ = roc_curve(dists_mapped1e <= 8.0, 1.0 - scores_mapped1e, pos_label=True)
+    #     fpr_expected1e, tpr_expected1e, _ = roc_curve(expected_df_e['Distance'] <= 8.0,
+    #                                                   1.0 - expected_df_e['Coverage'], pos_label=True)
     #     auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
     #     tpr1e, fpr1e, auroc1e = scorer.score_auc(category='Long')
     #     self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
@@ -971,10 +983,11 @@ class TestContactScorer(TestBase):
     #     scores += scores.T
     #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
     #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-    #     _, scores_mapped1a, _, _, dists_mapped1a, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_a = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Any')
-    #     precision_expected1a, recall_expected1a, _ = precision_recall_curve(dists_mapped1a <= 8.0,
-    #                                                                         1.0 - scores_mapped1a, pos_label=True)
+    #     precision_expected1a, recall_expected1a, _ = precision_recall_curve(expected_df_a['Distance'] <= 8.0,
+    #                                                                         1.0 - expected_df_a['Coverage'],
+    #                                                                         pos_label=True)
     #     recall_expected1a, precision_expected1a = zip(*sorted(zip(recall_expected1a, precision_expected1a)))
     #     recall_expected1a, precision_expected1a = np.array(recall_expected1a), np.array(precision_expected1a)
     #     auprc_expected1a = auc(recall_expected1a, precision_expected1a)
@@ -982,11 +995,12 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(precision_expected1a - precision1a), 0)
     #     self.assertEqual(np.sum(recall_expected1a - recall1a), 0)
     #     self.assertEqual(auprc_expected1a, auprc1a)
-    #     _, scores_mapped1b, _, _, dists_mapped1b, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_b = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Neighbors')
-    #     precision_expected1b, recall_expected1b, _ = precision_recall_curve(dists_mapped1b <= 8.0,
-    #                                                                         1.0 - scores_mapped1b, pos_label=True)
+    #     precision_expected1b, recall_expected1b, _ = precision_recall_curve(expected_df_b['Distance'] <= 8.0,
+    #                                                                         1.0 - expected_df_b['Coverage'],
+    #                                                                         pos_label=True)
     #     recall_expected1b, precision_expected1b = zip(*sorted(zip(recall_expected1b, precision_expected1b)))
     #     recall_expected1b, precision_expected1b = np.array(recall_expected1b), np.array(precision_expected1b)
     #     auprc_expected1b = auc(recall_expected1b, precision_expected1b)
@@ -994,11 +1008,12 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(precision_expected1b - precision1b), 0)
     #     self.assertEqual(np.sum(recall_expected1b - recall1b), 0)
     #     self.assertEqual(auprc_expected1b, auprc1b)
-    #     _, scores_mapped1c, _, _, dists_mapped1c, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_c = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Short')
-    #     precision_expected1c, recall_expected1c, _ = precision_recall_curve(dists_mapped1c <= 8.0,
-    #                                                                         1.0 - scores_mapped1c, pos_label=True)
+    #     precision_expected1c, recall_expected1c, _ = precision_recall_curve(expected_df_c['Distance'] <= 8.0,
+    #                                                                         1.0 - expected_df_c['Coverage'],
+    #                                                                         pos_label=True)
     #     recall_expected1c, precision_expected1c = zip(*sorted(zip(recall_expected1c, precision_expected1c)))
     #     recall_expected1c, precision_expected1c = np.array(recall_expected1c), np.array(precision_expected1c)
     #     auprc_expected1c = auc(recall_expected1c, precision_expected1c)
@@ -1006,11 +1021,12 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(precision_expected1c - precision1c), 0)
     #     self.assertEqual(np.sum(recall_expected1c - recall1c), 0)
     #     self.assertEqual(auprc_expected1c, auprc1c)
-    #     _, scores_mapped1d, _, _, dists_mapped1d, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_d = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
     #         category='Medium')
-    #     precision_expected1d, recall_expected1d, _ = precision_recall_curve(dists_mapped1d <= 8.0,
-    #                                                                         1.0 - scores_mapped1d, pos_label=True)
+    #     precision_expected1d, recall_expected1d, _ = precision_recall_curve(expected_df_d['Distance'] <= 8.0,
+    #                                                                         1.0 - expected_df_d['Coverage'],
+    #                                                                         pos_label=True)
     #     recall_expected1d, precision_expected1d = zip(*sorted(zip(recall_expected1d, precision_expected1d)))
     #     recall_expected1d, precision_expected1d = np.array(recall_expected1d), np.array(precision_expected1d)
     #     auprc_expected1d = auc(recall_expected1d, precision_expected1d)
@@ -1018,10 +1034,11 @@ class TestContactScorer(TestBase):
     #     self.assertEqual(np.sum(precision_expected1d - precision1d), 0)
     #     self.assertEqual(np.sum(recall_expected1d - recall1d), 0)
     #     self.assertEqual(auprc_expected1d, auprc1d)
-    #     _, scores_mapped1e, _, _, dists_mapped1e, _ = TestContactScorer.identify_expected_scores_and_distances(
+    #     expected_df_e = TestContactScorer.identify_expected_scores_and_distances(
     #         scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Long')
-    #     precision_expected1e, recall_expected1e, _ = precision_recall_curve(dists_mapped1e <= 8.0,
-    #                                                                         1.0 - scores_mapped1e, pos_label=True)
+    #     precision_expected1e, recall_expected1e, _ = precision_recall_curve(expected_df_e['Distance'] <= 8.0,
+    #                                                                         1.0 - expected_df_e['Coverage'],
+    #                                                                         pos_label=True)
     #     recall_expected1e, precision_expected1e = zip(*sorted(zip(recall_expected1e, precision_expected1e)))
     #     recall_expected1e, precision_expected1e = np.array(recall_expected1e), np.array(precision_expected1e)
     #     auprc_expected1e = auc(recall_expected1e, precision_expected1e)
@@ -1035,7 +1052,7 @@ class TestContactScorer(TestBase):
     #
     # def test_11b_score_precision_recall(self):
     #     self.evaluate_score_precision_recall(scorer=self.scorer2, seq_len=self.seq_len2)
-
+    #
     # def evaluate_plot_auprc(self, scorer, seq_len, structure_id, dir):
     #     scorer.fit()
     #     scorer.measure_distance(method='CB')
@@ -1059,7 +1076,65 @@ class TestContactScorer(TestBase):
     #     self.evaluate_plot_auprc(scorer=self.scorer2, seq_len=self.seq_len2, structure_id=self.large_structure_id,
     #                              dir=self.testing_dir)
 
-    def evaluate_score_precision(self, scorer, seq_len):
+    # def evaluate_score_precision(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(self.seq_len1, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     with self.assertRaises(ValueError):
+    #         scorer.score_precision(category='Any', n=10, k=10)
+    #     for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+    #         print('Category: {}'.format(category))
+    #         for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
+    #                      (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
+    #             print('N: {}, K: {}'.format(n, k))
+    #             precision = scorer.score_precision(category=category, n=n, k=k)
+    #             expected_df = TestContactScorer.identify_expected_scores_and_distances(
+    #                 scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
+    #                 category=category, n=n, k=k)
+    #             expected_precision = precision_score(expected_df['Distance'] <= scorer.cutoff,
+    #                                                  expected_df['Coverage'] <= 0.5, pos_label=True)
+    #             self.assertEqual(precision, expected_precision)
+    #
+    # def test_13a_score_precision(self):
+    #     self.evaluate_score_precision(scorer=self.scorer1, seq_len=self.seq_len1)
+    #
+    # def test_13b_score_precision(self):
+    #     self.evaluate_score_precision(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    # def evaluate_score_recall(self, scorer, seq_len):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(seq_len, seq_len)
+    #     scores[np.tril_indices(self.seq_len1, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     with self.assertRaises(ValueError):
+    #         scorer.score_recall(category='Any', n=10, k=10)
+    #     for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+    #         print('Category: {}'.format(category))
+    #         for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
+    #                      (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
+    #             print('N: {}, K: {}'.format(n, k))
+    #             precision = scorer.score_precision(category=category, n=n, k=k)
+    #             expected_df = TestContactScorer.identify_expected_scores_and_distances(
+    #                 scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
+    #                 category=category, n=n, k=k)
+    #             expected_precision = precision_score(expected_df['Distance'] <= scorer.cutoff,
+    #                                                  expected_df['Coverage'] <= 0.5, pos_label=True)
+    #             self.assertEqual(precision, expected_precision)
+    #
+    # def test_14a_score_precision(self):
+    #     self.evaluate_score_recall(scorer=self.scorer1, seq_len=self.seq_len1)
+    #
+    # def test_14b_score_precision(self):
+    #     self.evaluate_score_recall(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    def evaluate_score_f1(self, scorer, seq_len):
         scorer.fit()
         scorer.measure_distance(method='CB')
         scores = np.random.rand(seq_len, seq_len)
@@ -1068,505 +1143,28 @@ class TestContactScorer(TestBase):
         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         with self.assertRaises(ValueError):
-            scorer.score_precision(category='Any', n=10, k=10)
+            scorer.score_recall(category='Any', n=10, k=10)
         for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+            print('Category: {}'.format(category))
             for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
                          (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
-                precision = scorer.score_precision(category=category, n=n, k=k)
-                # expected_scores, expected_distances = TestContactScorer.identify_expected_scores_and_distances(
-                #     scorer, coverages, scorer.distances, category, n=n)
-                _, expected_scores, _, _, expected_distances, _ = TestContactScorer.identify_expected_scores_and_distances(
+                print('N: {}, K: {}'.format(n, k))
+                f1 = scorer.score_f1(category=category, n=n, k=k)
+                expected_df = TestContactScorer.identify_expected_scores_and_distances(
                     scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-                    category='Long', n=n, k=k)
-                print('Expected predictions')
-                print(expected_scores <= 0.5)
-                print('Expected contacts')
-                print(expected_distances <= scorer.cutoff)
-                expected_precision = precision_score(expected_distances <= scorer.cutoff, expected_scores <= 0.5,
-                                                     pos_label=True)
-                self.assertEqual(precision, expected_precision)
-            # for k in range(1, 11):
-            #     precision = scorer.score_precision(category=category, k=k)
-            #     expected_scores, expected_distances = TestContactScorer.identify_expected_scores_and_distances(
-            #         scorer, coverages, scorer.distances, category, k=k)
-            #     expected_precision = precision_score(expected_distances <= scorer.cutoff, expected_scores <= 0.5,
-            #                                          pos_label=True)
-            #     self.assertEqual(precision, expected_precision)
+                    category=category, n=n, k=k)
+                expected_f1 = f1_score(expected_df['Distance'] <= scorer.cutoff, expected_df['Coverage'] <= 0.5,
+                                       pos_label=True)
+                self.assertEqual(f1, expected_f1)
 
-    def test_13a_score_precision(self):
-        self.evaluate_score_precision(scorer=self.scorer1, seq_len=self.seq_len1)
+    def test_15a_score_f1(self):
+        self.evaluate_score_f1(scorer=self.scorer1, seq_len=self.seq_len1)
 
-    # def test_13b_score_precision(self):
-    #     self.evaluate_score_precision(scorer=self.scorer2, seq_len=self.seq_len2)
+    def test_15b_score_f1(self):
+        self.evaluate_score_f1(scorer=self.scorer2, seq_len=self.seq_len2)
 
-    # def test_14a_score_precision(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     expected_precision1a_all = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
-    #     precision1a_all = self.scorer1.score_precision(predictions=scores1, category='Any')
-    #     self.assertEqual(expected_precision1a_all, precision1a_all)
-    #     expected_precision1a_k10 = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                                     count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     precision1a_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Any')
-    #     self.assertEqual(expected_precision1a_k10, precision1a_k10)
-    #     expected_precision1a_n10 = self.check_precision(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                                     count=10.0)
-    #     precision1a_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Any')
-    #     self.assertEqual(expected_precision1a_n10, precision1a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Any')
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     expected_precision1b_all = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
-    #     precision1b_all = self.scorer1.score_precision(predictions=scores1, category='Neighbors')
-    #     self.assertEqual(expected_precision1b_all, precision1b_all)
-    #     expected_precision1b_k10 = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                                     count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     precision1b_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Neighbors')
-    #     self.assertEqual(expected_precision1b_k10, precision1b_k10)
-    #     expected_precision1b_n10 = self.check_precision(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                                     count=10.0)
-    #     precision1b_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Neighbors')
-    #     self.assertEqual(expected_precision1b_n10, precision1b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Neighbors')
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     expected_precision1c_all = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
-    #     precision1c_all = self.scorer1.score_precision(predictions=scores1, category='Short')
-    #     self.assertEqual(expected_precision1c_all, precision1c_all)
-    #     precision1c_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Short')
-    #     expected_precision1c_k10 = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                                     count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_precision1c_k10, precision1c_k10)
-    #     expected_precision1c_n10 = self.check_precision(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                                     count=10.0)
-    #     precision1c_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Short')
-    #     self.assertEqual(expected_precision1c_n10, precision1c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Short')
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     expected_precision1d_all = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
-    #     precision1d_all = self.scorer1.score_precision(predictions=scores1, category='Medium')
-    #     self.assertEqual(expected_precision1d_all, precision1d_all)
-    #     expected_precision1d_k10 = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                                     count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     precision1d_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Medium')
-    #     self.assertEqual(expected_precision1d_k10, precision1d_k10)
-    #     expected_precision1d_n10 = self.check_precision(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                                     count=10.0)
-    #     precision1d_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Medium')
-    #     self.assertEqual(expected_precision1d_n10, precision1d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Medium')
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     expected_precision1e_all = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
-    #     precision1e_all = self.scorer1.score_precision(predictions=scores1, category='Long')
-    #     self.assertEqual(expected_precision1e_all, precision1e_all)
-    #     expected_precision1e_k10 = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                                     count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     precision1e_k10 = self.scorer1.score_precision(predictions=scores1, k=10, category='Long')
-    #     self.assertEqual(expected_precision1e_k10, precision1e_k10)
-    #     expected_precision1e_n10 = self.check_precision(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                                     count=10.0)
-    #     precision1e_n10 = self.scorer1.score_precision(predictions=scores1, n=10, category='Long')
-    #     self.assertEqual(expected_precision1e_n10, precision1e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_precision(predictions=scores1, k=10, n=10, category='Long')
-    #
-    # def test_14b_score_precision(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     expected_precision2a_all = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
-    #     precision2a_all = self.scorer2.score_precision(predictions=scores2, category='Any')
-    #     self.assertEqual(expected_precision2a_all, precision2a_all)
-    #     expected_precision2a_k10 = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                                     count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     precision2a_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Any')
-    #     self.assertEqual(expected_precision2a_k10, precision2a_k10)
-    #     expected_precision2a_n10 = self.check_precision(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                                     count=10.0)
-    #     precision2a_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Any')
-    #     self.assertEqual(expected_precision2a_n10, precision2a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Any')
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     expected_precision2b_all = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
-    #     precision2b_all = self.scorer2.score_precision(predictions=scores2, category='Neighbors')
-    #     self.assertEqual(expected_precision2b_all, precision2b_all)
-    #     expected_precision2b_k10 = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                                     count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     precision2b_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Neighbors')
-    #     self.assertEqual(expected_precision2b_k10, precision2b_k10)
-    #     expected_precision2b_n10 = self.check_precision(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                                     count=10.0)
-    #     precision2b_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Neighbors')
-    #     self.assertEqual(expected_precision2b_n10, precision2b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Neighbors')
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     expected_precision2c_all = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
-    #     precision2c_all = self.scorer2.score_precision(predictions=scores2, category='Short')
-    #     self.assertEqual(expected_precision2c_all, precision2c_all)
-    #     precision2c_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Short')
-    #     expected_precision2c_k10 = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                                     count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_precision2c_k10, precision2c_k10)
-    #     expected_precision2c_n10 = self.check_precision(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                                     count=10.0)
-    #     precision2c_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Short')
-    #     self.assertEqual(expected_precision2c_n10, precision2c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Short')
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     expected_precision2d_all = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
-    #     precision2d_all = self.scorer2.score_precision(predictions=scores2, category='Medium')
-    #     self.assertEqual(expected_precision2d_all, precision2d_all)
-    #     expected_precision2d_k10 = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                                     count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     precision2d_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Medium')
-    #     self.assertEqual(expected_precision2d_k10, precision2d_k10)
-    #     expected_precision2d_n10 = self.check_precision(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                                     count=10.0)
-    #     precision2d_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Medium')
-    #     self.assertEqual(expected_precision2d_n10, precision2d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Medium')
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     expected_precision2e_all = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
-    #     precision2e_all = self.scorer2.score_precision(predictions=scores2, category='Long')
-    #     self.assertEqual(expected_precision2e_all, precision2e_all)
-    #     expected_precision2e_k10 = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                                     count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     precision2e_k10 = self.scorer2.score_precision(predictions=scores2, k=10, category='Long')
-    #     self.assertEqual(expected_precision2e_k10, precision2e_k10)
-    #     expected_precision2e_n10 = self.check_precision(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                                     count=10.0)
-    #     precision2e_n10 = self.scorer2.score_precision(predictions=scores2, n=10, category='Long')
-    #     self.assertEqual(expected_precision2e_n10, precision2e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_precision(predictions=scores2, k=10, n=10, category='Long')
-    #
-    # def test_15a_score_recall(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     expected_recall1a_all = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
-    #     recall1a_all = self.scorer1.score_recall(predictions=scores1, category='Any')
-    #     self.assertEqual(expected_recall1a_all, recall1a_all)
-    #     expected_recall1a_k10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     recall1a_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Any')
-    #     self.assertEqual(expected_recall1a_k10, recall1a_k10)
-    #     expected_recall1a_n10 = self.check_recall(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                               count=10.0)
-    #     precision1a_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Any')
-    #     self.assertEqual(expected_recall1a_n10, precision1a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Any')
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     expected_recall1b_all = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
-    #     recall1b_all = self.scorer1.score_recall(predictions=scores1, category='Neighbors')
-    #     self.assertEqual(expected_recall1b_all, recall1b_all)
-    #     expected_recall1b_k10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     recall1b_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Neighbors')
-    #     self.assertEqual(expected_recall1b_k10, recall1b_k10)
-    #     expected_recall1b_n10 = self.check_recall(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                               count=10.0)
-    #     recall1b_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Neighbors')
-    #     self.assertEqual(expected_recall1b_n10, recall1b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Neighbors')
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     expected_recall1c_all = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
-    #     recall1c_all = self.scorer1.score_recall(predictions=scores1, category='Short')
-    #     self.assertEqual(expected_recall1c_all, recall1c_all)
-    #     recall1c_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Short')
-    #     expected_recall1c_k10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_recall1c_k10, recall1c_k10)
-    #     expected_recall1c_n10 = self.check_recall(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                               count=10.0)
-    #     recall1c_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Short')
-    #     self.assertEqual(expected_recall1c_n10, recall1c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Short')
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     expected_recall1d_all = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
-    #     recall1d_all = self.scorer1.score_recall(predictions=scores1, category='Medium')
-    #     self.assertEqual(expected_recall1d_all, recall1d_all)
-    #     expected_recall1d_k10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     recall1d_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Medium')
-    #     self.assertEqual(expected_recall1d_k10, recall1d_k10)
-    #     expected_recall1d_n10 = self.check_recall(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                               count=10.0)
-    #     recall1d_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Medium')
-    #     self.assertEqual(expected_recall1d_n10, recall1d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Medium')
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     expected_recall1e_all = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
-    #     recall1e_all = self.scorer1.score_recall(predictions=scores1, category='Long')
-    #     self.assertEqual(expected_recall1e_all, recall1e_all)
-    #     expected_recall1e_k10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                               count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     recall1e_k10 = self.scorer1.score_recall(predictions=scores1, k=10, category='Long')
-    #     self.assertEqual(expected_recall1e_k10, recall1e_k10)
-    #     expected_recall1e_n10 = self.check_recall(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                               count=10.0)
-    #     recall1e_n10 = self.scorer1.score_recall(predictions=scores1, n=10, category='Long')
-    #     self.assertEqual(expected_recall1e_n10, recall1e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_recall(predictions=scores1, k=10, n=10, category='Long')
-    #
-    # def test_15b_score_recall(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     expected_recall2a_all = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
-    #     recall2a_all = self.scorer2.score_recall(predictions=scores2, category='Any')
-    #     self.assertEqual(expected_recall2a_all, recall2a_all)
-    #     expected_recall2a_k10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     recall2a_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Any')
-    #     self.assertEqual(expected_recall2a_k10, recall2a_k10)
-    #     expected_recall2a_n10 = self.check_recall(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                               count=10.0)
-    #     recall2a_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Any')
-    #     self.assertEqual(expected_recall2a_n10, recall2a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Any')
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     expected_recall2b_all = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
-    #     recall2b_all = self.scorer2.score_recall(predictions=scores2, category='Neighbors')
-    #     self.assertEqual(expected_recall2b_all, recall2b_all)
-    #     expected_recall2b_k10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     recall2b_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Neighbors')
-    #     self.assertEqual(expected_recall2b_k10, recall2b_k10)
-    #     expected_recall2b_n10 = self.check_recall(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                               count=10.0)
-    #     recall2b_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Neighbors')
-    #     self.assertEqual(expected_recall2b_n10, recall2b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Neighbors')
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     expected_recall2c_all = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
-    #     recall2c_all = self.scorer2.score_recall(predictions=scores2, category='Short')
-    #     self.assertEqual(expected_recall2c_all, recall2c_all)
-    #     recall2c_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Short')
-    #     expected_recall2c_k10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_recall2c_k10, recall2c_k10)
-    #     expected_recall2c_n10 = self.check_recall(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                               count=10.0)
-    #     recall2c_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Short')
-    #     self.assertEqual(expected_recall2c_n10, recall2c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Short')
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     expected_recall2d_all = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
-    #     recall2d_all = self.scorer2.score_recall(predictions=scores2, category='Medium')
-    #     self.assertEqual(expected_recall2d_all, recall2d_all)
-    #     expected_recall2d_k10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     recall2d_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Medium')
-    #     self.assertEqual(expected_recall2d_k10, recall2d_k10)
-    #     expected_recall2d_n10 = self.check_recall(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                               count=10.0)
-    #     recall2d_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Medium')
-    #     self.assertEqual(expected_recall2d_n10, recall2d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Medium')
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     expected_recall2e_all = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
-    #     recall2e_all = self.scorer2.score_recall(predictions=scores2, category='Long')
-    #     self.assertEqual(expected_recall2e_all, recall2e_all)
-    #     expected_recall2e_k10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                               count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     recall2e_k10 = self.scorer2.score_recall(predictions=scores2, k=10, category='Long')
-    #     self.assertEqual(expected_recall2e_k10, recall2e_k10)
-    #     expected_recall2e_n10 = self.check_recall(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                               count=10.0)
-    #     recall2e_n10 = self.scorer2.score_recall(predictions=scores2, n=10, category='Long')
-    #     self.assertEqual(expected_recall2e_n10, recall2e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_recall(predictions=scores2, k=10, n=10, category='Long')
-    #
-    # def test_16a_score_f1(self):
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='CB')
-    #     scores1 = np.random.rand(self.seq_len1, self.seq_len1)
-    #     scores1[np.tril_indices(self.seq_len1, 1)] = 0
-    #     scores1 += scores1.T
-    #     scores_mapped1a, dists_mapped1a = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Any')
-    #     expected_f1_1a_all = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a)
-    #     f1_1a_all = self.scorer1.score_f1(predictions=scores1, category='Any')
-    #     self.assertEqual(expected_f1_1a_all, f1_1a_all)
-    #     expected_f1_1a_k10 = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                        count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     f1_1a_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Any')
-    #     self.assertEqual(expected_f1_1a_k10, f1_1a_k10)
-    #     expected_f1_1a_n10 = self.check_f1(mapped_scores=scores_mapped1a, mapped_dists=dists_mapped1a,
-    #                                        count=10.0)
-    #     f1_1a_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Any')
-    #     self.assertEqual(expected_f1_1a_n10, f1_1a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Any')
-    #     scores_mapped1b, dists_mapped1b = self.scorer1._map_predictions_to_pdb(predictions=scores1,
-    #                                                                            category='Neighbors')
-    #     expected_f1_1b_all = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b)
-    #     f1_1b_all = self.scorer1.score_f1(predictions=scores1, category='Neighbors')
-    #     self.assertEqual(expected_f1_1b_all, f1_1b_all)
-    #     expected_f1_1b_k10 = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                        count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     f1_1b_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Neighbors')
-    #     self.assertEqual(expected_f1_1b_k10, f1_1b_k10)
-    #     expected_f1_1b_n10 = self.check_f1(mapped_scores=scores_mapped1b, mapped_dists=dists_mapped1b,
-    #                                        count=10.0)
-    #     f1_1b_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Neighbors')
-    #     self.assertEqual(expected_f1_1b_n10, f1_1b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Neighbors')
-    #     scores_mapped1c, dists_mapped1c = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Short')
-    #     expected_f1_1c_all = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c)
-    #     f1_1c_all = self.scorer1.score_f1(predictions=scores1, category='Short')
-    #     self.assertEqual(expected_f1_1c_all, f1_1c_all)
-    #     f1_1c_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Short')
-    #     expected_f1_1c_k10 = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                        count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_f1_1c_k10, f1_1c_k10)
-    #     expected_f1_1c_n10 = self.check_f1(mapped_scores=scores_mapped1c, mapped_dists=dists_mapped1c,
-    #                                        count=10.0)
-    #     f1_1c_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Short')
-    #     self.assertEqual(expected_f1_1c_n10, f1_1c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Short')
-    #     scores_mapped1d, dists_mapped1d = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Medium')
-    #     expected_f1_1d_all = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d)
-    #     f1_1d_all = self.scorer1.score_f1(predictions=scores1, category='Medium')
-    #     self.assertEqual(expected_f1_1d_all, f1_1d_all)
-    #     expected_f1_1d_k10 = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                        count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     f1_1d_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Medium')
-    #     self.assertEqual(expected_f1_1d_k10, f1_1d_k10)
-    #     expected_f1_1d_n10 = self.check_f1(mapped_scores=scores_mapped1d, mapped_dists=dists_mapped1d,
-    #                                        count=10.0)
-    #     f1_1d_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Medium')
-    #     self.assertEqual(expected_f1_1d_n10, f1_1d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Medium')
-    #     scores_mapped1e, dists_mapped1e = self.scorer1._map_predictions_to_pdb(predictions=scores1, category='Long')
-    #     expected_f1_1e_all = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e)
-    #     f1_1e_all = self.scorer1.score_f1(predictions=scores1, category='Long')
-    #     self.assertEqual(expected_f1_1e_all, f1_1e_all)
-    #     expected_f1_1e_k10 = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                        count=floor(self.scorer1.query_alignment.seq_length / 10.0))
-    #     f1_1e_k10 = self.scorer1.score_f1(predictions=scores1, k=10, category='Long')
-    #     self.assertEqual(expected_f1_1e_k10, f1_1e_k10)
-    #     expected_f1_1e_n10 = self.check_f1(mapped_scores=scores_mapped1e, mapped_dists=dists_mapped1e,
-    #                                        count=10.0)
-    #     f1_1e_n10 = self.scorer1.score_f1(predictions=scores1, n=10, category='Long')
-    #     self.assertEqual(expected_f1_1e_n10, f1_1e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer1.score_f1(predictions=scores1, k=10, n=10, category='Long')
-    #
-    # def test_16b_score_f1(self):
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='CB')
-    #     scores2 = np.random.rand(self.seq_len2, self.seq_len2)
-    #     scores2[np.tril_indices(self.seq_len2, 1)] = 0
-    #     scores2 += scores2.T
-    #     scores_mapped2a, dists_mapped2a = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Any')
-    #     expected_f1_2a_all = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a)
-    #     f1_2a_all = self.scorer2.score_f1(predictions=scores2, category='Any')
-    #     self.assertEqual(expected_f1_2a_all, f1_2a_all)
-    #     expected_f1_2a_k10 = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                        count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     f1_2a_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Any')
-    #     self.assertEqual(expected_f1_2a_k10, f1_2a_k10)
-    #     expected_f1_2a_n10 = self.check_f1(mapped_scores=scores_mapped2a, mapped_dists=dists_mapped2a,
-    #                                        count=10.0)
-    #     f1_2a_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Any')
-    #     self.assertEqual(expected_f1_2a_n10, f1_2a_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Any')
-    #     scores_mapped2b, dists_mapped2b = self.scorer2._map_predictions_to_pdb(predictions=scores2,
-    #                                                                            category='Neighbors')
-    #     expected_f1_2b_all = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b)
-    #     f1_2b_all = self.scorer2.score_f1(predictions=scores2, category='Neighbors')
-    #     self.assertEqual(expected_f1_2b_all, f1_2b_all)
-    #     expected_f1_2b_k10 = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                        count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     f1_2b_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Neighbors')
-    #     self.assertEqual(expected_f1_2b_k10, f1_2b_k10)
-    #     expected_f1_2b_n10 = self.check_f1(mapped_scores=scores_mapped2b, mapped_dists=dists_mapped2b,
-    #                                        count=10.0)
-    #     f1_2b_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Neighbors')
-    #     self.assertEqual(expected_f1_2b_n10, f1_2b_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Neighbors')
-    #     scores_mapped2c, dists_mapped2c = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Short')
-    #     expected_f1_2c_all = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c)
-    #     f1_2c_all = self.scorer2.score_f1(predictions=scores2, category='Short')
-    #     self.assertEqual(expected_f1_2c_all, f1_2c_all)
-    #     f1_2c_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Short')
-    #     expected_f1_2c_k10 = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                        count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     self.assertEqual(expected_f1_2c_k10, f1_2c_k10)
-    #     expected_f1_2c_n10 = self.check_f1(mapped_scores=scores_mapped2c, mapped_dists=dists_mapped2c,
-    #                                        count=10.0)
-    #     f1_2c_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Short')
-    #     self.assertEqual(expected_f1_2c_n10, f1_2c_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Short')
-    #     scores_mapped2d, dists_mapped2d = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Medium')
-    #     expected_f1_2d_all = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d)
-    #     f1_2d_all = self.scorer2.score_f1(predictions=scores2, category='Medium')
-    #     self.assertEqual(expected_f1_2d_all, f1_2d_all)
-    #     expected_f1_2d_k10 = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                        count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     f1_2d_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Medium')
-    #     self.assertEqual(expected_f1_2d_k10, f1_2d_k10)
-    #     expected_f1_2d_n10 = self.check_f1(mapped_scores=scores_mapped2d, mapped_dists=dists_mapped2d,
-    #                                        count=10.0)
-    #     f1_2d_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Medium')
-    #     self.assertEqual(expected_f1_2d_n10, f1_2d_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Medium')
-    #     scores_mapped2e, dists_mapped2e = self.scorer2._map_predictions_to_pdb(predictions=scores2, category='Long')
-    #     expected_f1_2e_all = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e)
-    #     f1_2e_all = self.scorer2.score_f1(predictions=scores2, category='Long')
-    #     self.assertEqual(expected_f1_2e_all, f1_2e_all)
-    #     expected_f1_2e_k10 = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                        count=floor(self.scorer2.query_alignment.seq_length / 10.0))
-    #     f1_2e_k10 = self.scorer2.score_f1(predictions=scores2, k=10, category='Long')
-    #     self.assertEqual(expected_f1_2e_k10, f1_2e_k10)
-    #     expected_f1_2e_n10 = self.check_f1(mapped_scores=scores_mapped2e, mapped_dists=dists_mapped2e,
-    #                                        count=10.0)
-    #     f1_2e_n10 = self.scorer2.score_f1(predictions=scores2, n=10, category='Long')
-    #     self.assertEqual(expected_f1_2e_n10, f1_2e_n10)
-    #     with self.assertRaises(ValueError):
-    #         self.scorer2.score_f1(predictions=scores2, k=10, n=10, category='Long')
-    #
+    ####################################################################################################################
+
     # def test_17a_compute_w2_ave_sub(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')

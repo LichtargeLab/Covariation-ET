@@ -497,11 +497,13 @@ class ContactScorer(object):
         else:
             pass
         ind = final_df['Top Predictions'] <= n
-        final_df = final_df.loc[ind, ['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff), 'Rank', 'Score',
-                                      'Coverage', 'True Prediction']]
-        return (final_df['Distance'].values, final_df['Contact (within {}A cutoff)'.format(self.cutoff)].values,
-                final_df['Rank'].values, final_df['Score'].values, final_df['Coverage'].values,
-                final_df['True Prediction'].values)
+        # final_df = final_df.loc[ind, ['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff), 'Rank', 'Score',
+        #                               'Coverage', 'True Prediction']]
+        # return (final_df['Distance'].values, final_df['Contact (within {}A cutoff)'.format(self.cutoff)].values,
+        #         final_df['Rank'].values, final_df['Score'].values, final_df['Coverage'].values,
+        #         final_df['True Prediction'].values)
+        final_df = final_df.loc[ind, :]
+        return final_df
 
     def score_auc(self, category='Any'):
         """
@@ -525,11 +527,13 @@ class ContactScorer(object):
             float: The auroc determined for the roc curve.
         """
         # Checks are performed in _identify_relevant_data
-        _, contacts, _, _, predictions, _ = self._identify_relevant_data(category=category)
+        df = self._identify_relevant_data(category=category)
         # AUC computation
-        if (contacts is not None) and (len(predictions) != len(contacts)):
+        if (df is not None) and (np.sum(~ df['Contact (within {}A cutoff)'.format(self.cutoff)].isnull()) !=
+                                 np.sum(~ df['Coverage'].isnull())):
             raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
-        fpr, tpr, _thresholds = roc_curve(contacts.astype(bool), 1.0 - predictions, pos_label=True)
+        fpr, tpr, _thresholds = roc_curve(df['Contact (within {}A cutoff)'.format(self.cutoff)].values.astype(bool),
+                                          1.0 - df['Coverage'].values, pos_label=True)
         auroc = auc(fpr, tpr)
         return tpr, fpr, auroc
 
@@ -594,12 +598,14 @@ class ContactScorer(object):
             float: The auprc determined for the precision recall curve.
         """
         # Checks are performed in _identify_relevant_data
-        _, contacts, _, _, predictions, _ = self._identify_relevant_data(category=category)
+        df = self._identify_relevant_data(category=category)
         # AUPRC computation
-        if (contacts is not None) and (len(predictions) != len(contacts)):
+        if (df is not None) and (np.sum(~ df['Contact (within {}A cutoff)'.format(self.cutoff)].isnull()) !=
+                                 np.sum(~ df['Coverage'].isnull())):
             raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
-        precision, recall, _thresholds = precision_recall_curve(contacts.astype(bool), 1.0 - predictions,
-                                                                pos_label=True)
+        precision, recall, _thresholds = precision_recall_curve(
+            df['Contact (within {}A cutoff)'.format(self.cutoff)].values.astype(bool),
+            1.0 - df['Coverage'].values, pos_label=True)
         recall, precision = zip(*sorted(zip(recall, precision)))
         recall, precision = np.array(recall), np.array(precision)
         auprc = auc(recall, precision)
@@ -644,7 +650,6 @@ class ContactScorer(object):
         plt.savefig(file_name, format='png', dpi=300, fontsize=8)
         plt.close()
 
-    # def score_precision(self, predictions, k=None, n=None, category='Any', threshold=0.5):
     def score_precision(self, category='Any', k=None, n=None):
         """
         Score Precision
@@ -659,10 +664,6 @@ class ContactScorer(object):
         sklearn.
 
         Args:
-            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
-            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
-            the least confident.)
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors - Residues 1 to 5 sequence positions apart.
                 Short - Residues 6 to 12 sequences positions apart.
@@ -673,41 +674,20 @@ class ContactScorer(object):
             the query sequence, will be divided by to give the number of predictions to test.
             n (int): This value should only be specified if k is not specified. This is the number of predictions to
             test.
-            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
         Returns:
             float: The precision value computed for the predictions provided.
         """
         # Checks are performed in _identify_relevant_data
-        _, contacts, _, _, _, predictions = self._identify_relevant_data(category=category, n=n, k=k)
+        df = self._identify_relevant_data(category=category, n=n, k=k)
         # Precision computation
-        if (contacts is not None) and (len(predictions) != len(contacts)):
+        if (df is not None) and (np.sum(~ df['Contact (within {}A cutoff)'.format(self.cutoff)].isnull()) !=
+                                 np.sum(~ df['Coverage'].isnull())):
             raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
-        # if self.query_structure is None:
-        #     print('Precision cannot be measured, because no PDB was provided.')
-        #     return '-'
-        # mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
-        # ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
-        # if (k is not None) and (n is not None):
-        #     raise ValueError('Both k and n were set for score_precision which is not a valid option.')
-        # elif k:
-        #     n = int(floor(self.query_alignment.seq_length / float(k)))
-        # elif n is None:
-        #     n = mapped_distances.shape[0]
-        # else:
-        #     pass
-        # ind = np.where(ranks <= n)
-        # top_predictions = mapped_predictions[ind]
-        # y_pred1 = ((top_predictions > threshold) * 1)
-        # top_distances = mapped_distances[ind]
-        # y_true1 = ((top_distances <= self.cutoff) * 1)
-        print('Predictions')
-        print(predictions)
-        print('Contacts')
-        print(contacts.astype(bool))
-        precision = precision_score(contacts.astype(bool), predictions, pos_label=True)
+        precision = precision_score(df['Contact (within {}A cutoff)'.format(self.cutoff)].values.astype(bool),
+                                    df['True Prediction'].values, pos_label=True)
         return precision
 
-    def score_recall(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+    def score_recall(self, category='Any', k=None, n=None):
         """
         Score Recall
 
@@ -720,46 +700,30 @@ class ContactScorer(object):
         of residues to predict all structural contacts, it is given by tp / (tp + fn) as implemented by sklearn.
 
         Args:
-            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
-            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
-            the least confident.)
-            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
-            the query sequence, will be divided by to give the number of predictions to test.
-            n (int): This value should only be specified if k is not specified. This is the number of predictions to
-            test.
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors - Residues 1 to 5 sequence positions apart.
                 Short - Residues 6 to 12 sequences positions apart.
                 Medium - Residues 13 to 24 sequences positions apart.
                 Long - Residues more than 24 sequence positions apart.
                 Any - Any/All pairs of residues.
-            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
         Returns:
             float: The recall value computed for the predictions provided.
         """
-        if self.query_structure is None:
-            print('Recall cannot be measured, because no PDB was provided.')
-            return '-'
-        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
-        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
-        if (k is not None) and (n is not None):
-            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
-        elif k:
-            n = int(floor(self.query_alignment.seq_length / float(k)))
-        elif n is None:
-            n = mapped_distances.shape[0]
-        else:
-            pass
-        ind = np.where(ranks <= n)
-        top_predictions = mapped_predictions[ind]
-        y_pred1 = ((top_predictions > threshold) * 1)
-        top_distances = mapped_distances[ind]
-        y_true1 = ((top_distances <= self.cutoff) * 1)
-        recall = recall_score(y_true1, y_pred1)
+        # Checks are performed in _identify_relevant_data
+        df = self._identify_relevant_data(category=category, n=n, k=k)
+        # Recall computation
+        if (df is not None) and (np.sum(~ df['Contact (within {}A cutoff)'.format(self.cutoff)].isnull()) !=
+                                 np.sum(~ df['Coverage'].isnull())):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        recall = recall_score(df['Contact (within {}A cutoff)'.format(self.cutoff)].values.astype(bool),
+                              df['True Prediction'].values, pos_label=True)
         return recall
 
-    def score_f1(self, predictions, k=None, n=None, category='Any', threshold=0.5):
+    def score_f1(self, category='Any', k=None, n=None):
         """
         Score F1
 
@@ -772,44 +736,28 @@ class ContactScorer(object):
         average of precision and recall (2 * (precision * recall) / (precision + recall)) as implemented by sklearn.
 
         Args:
-            predictions (np.array): An array of predictions for contacts between protein residues with size nxn where n
-            is the length of the query sequence used when initializing the ContactScorer. (Predictions should be ordered
-            such that the maximum prediction value is the most confident prediction and the lowest prediction value is
-            the least confident.)
-            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
-            the query sequence, will be divided by to give the number of predictions to test.
-            n (int): This value should only be specified if k is not specified. This is the number of predictions to
-            test.
             category (str): The sequence separation category to score, the options are as follows:
                  Neighbors - Residues 1 to 5 sequence positions apart.
                 Short - Residues 6 to 12 sequences positions apart.
                 Medium - Residues 13 to 24 sequences positions apart.
                 Long - Residues more than 24 sequence positions apart.
                 Any - Any/All pairs of residues.
-            threshold (float): Value above which a prediction will be labeled 1 (confident/true).
+            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
+            the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k is not specified. This is the number of predictions to
+            test.
         Returns:
             float: The F1 score value computed for the predictions provided.
         """
-        if self.query_structure is None:
-            print('Recall cannot be measured, because no PDB was provided.')
-            return '-'
-        mapped_predictions, mapped_distances = self._map_predictions_to_pdb(predictions, category=category)
-        ranks = rankdata((np.zeros(mapped_predictions.shape) - mapped_predictions), method='dense')
-        if (k is not None) and (n is not None):
-            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
-        elif k:
-            n = int(floor(self.query_alignment.seq_length / float(k)))
-        elif n is None:
-            n = mapped_distances.shape[0]
-        else:
-            pass
-        ind = np.where(ranks <= n)
-        top_predictions = mapped_predictions[ind]
-        y_pred1 = ((top_predictions > threshold) * 1)
-        top_distances = mapped_distances[ind]
-        y_true1 = ((top_distances <= self.cutoff) * 1)
-        recall = f1_score(y_true1, y_pred1)
-        return recall
+        # Checks are performed in _identify_relevant_data
+        df = self._identify_relevant_data(category=category, n=n, k=k)
+        # F1 computation
+        if (df is not None) and (np.sum(~ df['Contact (within {}A cutoff)'.format(self.cutoff)].isnull()) !=
+                                 np.sum(~ df['Coverage'].isnull())):
+            raise ValueError("Lengths do not match between query sequence and the aligned pdb chain.")
+        f1 = f1_score(df['Contact (within {}A cutoff)'.format(self.cutoff)].values.astype(bool),
+                      df['True Prediction'].values, pos_label=True)
+        return f1
 
     def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
                                                 w2_ave_sub=None, processes=1):
