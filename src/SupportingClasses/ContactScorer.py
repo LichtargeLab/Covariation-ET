@@ -497,11 +497,6 @@ class ContactScorer(object):
         else:
             pass
         ind = final_df['Top Predictions'] <= n
-        # final_df = final_df.loc[ind, ['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff), 'Rank', 'Score',
-        #                               'Coverage', 'True Prediction']]
-        # return (final_df['Distance'].values, final_df['Contact (within {}A cutoff)'.format(self.cutoff)].values,
-        #         final_df['Rank'].values, final_df['Score'].values, final_df['Coverage'].values,
-        #         final_df['True Prediction'].values)
         final_df = final_df.loc[ind, :]
         return final_df
 
@@ -803,26 +798,32 @@ class ContactScorer(object):
                 au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
                                            df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
-        # Identify unmappable positions (do not appear in the PDB).
-        unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
-        # Identify all unique positions in the prediction set (assuming they are square and symmetrical).
-        indices = np.triu_indices(predictions.shape[0], k=1)
+        # # Identify unmappable positions (do not appear in the PDB).
+        # unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
+        # # Identify all unique positions in the prediction set (assuming they are square and symmetrical).
+        # indices = np.triu_indices(predictions.shape[0], k=1)
         # Set up dataframe for storing results.
-        data = {'Res_i': [], 'Res_j': [], 'Covariance_Score': [], 'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [],
-                'Sigma': [], 'Num_Residues': []}
-        # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
-        unmappable_x = np.isin(indices[0], list(unmappable_residues))
-        unmappable_y = np.isin(indices[1], list(unmappable_residues))
-        unmappable_all = unmappable_x | unmappable_y
-        unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
-        unmappable_pairs = list(zip(unmappable_indices[0], unmappable_indices[1]))
-        # Identify all mappable positions and retrieve their scores
-        mappable_all = ~ unmappable_all
-        mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
-        mappable_pairs = list(zip(mappable_indices[0], mappable_indices[1]))
-        scores = predictions[mappable_indices]
-        # Sort the scores in preparation for Z-scoring
-        sorted_scores, sorted_residues = list(zip(*sorted(zip(scores, mappable_pairs), reverse=True)))
+
+        data_df = self._identify_relevant_data(category='Any', n=None, k=None).loc[:, ['Seq Pos 1', 'Seq Pos 2',
+                                                                                       'Coverage']]
+        data_df.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
+                       inplace=True)
+        sorted_residues = list(zip(data_df['Res_i'], data_df['Res_j']))
+
+        data = {'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
+        # # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
+        # unmappable_x = np.isin(indices[0], list(unmappable_residues))
+        # unmappable_y = np.isin(indices[1], list(unmappable_residues))
+        # unmappable_all = unmappable_x | unmappable_y
+        # unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
+        # unmappable_pairs = list(zip(unmappable_indices[0], unmappable_indices[1]))
+        # # Identify all mappable positions and retrieve their scores
+        # mappable_all = ~ unmappable_all
+        # mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
+        # mappable_pairs = list(zip(mappable_indices[0], mappable_indices[1]))
+        # scores = predictions[mappable_indices]
+        # # Sort the scores in preparation for Z-scoring
+        # sorted_scores, sorted_residues = list(zip(*sorted(zip(scores, mappable_pairs), reverse=True)))
         # Set up structures to track unique sets of residues
         unique_sets = {}
         to_score = []
@@ -854,15 +855,10 @@ class ContactScorer(object):
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
                      initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
-                               self.best_chain)) # self.query_alignment))
+                               self.best_chain))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
         pool2.join()
-        # Store the values in the data frame
-        sorted_mappable_indices = [*map(list, zip(*sorted_residues))]
-        data['Res_i'] += sorted_mappable_indices[0]
-        data['Res_j'] += sorted_mappable_indices[1]
-        data['Covariance_Score'] += list(predictions[sorted_mappable_indices])
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
@@ -877,22 +873,41 @@ class ContactScorer(object):
             if curr_res[6] not in set([None, '-', 'NA']):
                 y_z_score.append(curr_res[6])
                 x_coverage.append(float(curr_res[11]) / self.query_alignment.seq_length)
+        data_df['Z-Score'] = data['Z-Score']
+        data_df['W'] = data['W']
+        data_df['W_Ave'] = data['W_Ave']
+        data_df['W2_Ave'] = data['W2_Ave']
+        data_df['Sigma'] = data['Sigma']
+        data_df['Num_Residues'] = data['Num_Residues']
         if len(x_coverage) == 0:
             au_scw_z_score_curve = None
         else:
             au_scw_z_score_curve = auc(x_coverage, y_z_score)
-        data['Res_i'] += list(unmappable_indices[0])
-        data['Res_j'] += list(unmappable_indices[1])
-        data['Covariance_Score'] += list(predictions[unmappable_indices])
-        len_unmappable = len(unmappable_pairs)
-        data['Z-Score'] += ['-'] * len_unmappable
-        data['W'] += [None] * len_unmappable
-        data['W_Ave'] += [None] * len_unmappable
-        data['W2_Ave'] += [None] * len_unmappable
-        data['Sigma'] += [None] * len_unmappable
-        data['Num_Residues'] += [None] * len_unmappable
+        # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
+        # data['Res_i'] += list(unmappable_indices[0])
+        # data['Res_j'] += list(unmappable_indices[1])
+        # data['Covariance_Score'] += list(predictions[unmappable_indices])
+        # len_unmappable = len(unmappable_pairs)
+        # data['Z-Score'] += ['-'] * len_unmappable
+        # data['W'] += [None] * len_unmappable
+        # data['W_Ave'] += [None] * len_unmappable
+        # data['W2_Ave'] += [None] * len_unmappable
+        # data['Sigma'] += [None] * len_unmappable
+        # data['Num_Residues'] += [None] * len_unmappable
+        data_df_unmapped = self.data.loc[self.data['Distance'] == '-',
+                                         ['Seq Pos 1', 'Seq Pos 2', 'Coverage']].sort_values(by='Coverage')
+        data_df_unmapped.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
+                                inplace=True)
+        data_df_unmapped['Z-Score'] = '-'
+        data_df_unmapped['W'] = None
+        data_df_unmapped['W_Ave'] = None
+        data_df_unmapped['W2_Ave'] = None
+        data_df_unmapped['Sigma'] = None
+        data_df_unmapped['Num_Residues'] = None
+        # Combine the mappable and unmappable index dataframes.
+        df = data_df.append(data_df_unmapped)
+        # df = pd.DataFrame(data)
         # Write out DataFrame
-        df = pd.DataFrame(data)
         df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
             path_or_buf=file_path, sep='\t', header=True, index=False)
         end = time()
