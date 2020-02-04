@@ -754,8 +754,10 @@ class ContactScorer(object):
                       df['True Prediction'].values, pos_label=True)
         return f1
 
-    def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
-                                                w2_ave_sub=None, processes=1):
+    # def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
+    #                                             w2_ave_sub=None, processes=1):
+    def score_clustering_of_contact_predictions(self, bias=True, file_path='./z_score.tsv', w2_ave_sub=None,
+                                                processes=1):
         """
         Score Clustering Of Contact Predictions
 
@@ -1493,7 +1495,7 @@ def clustering_z_score(res_list):
         bias_ij = np.subtract.outer(positions, positions)
         bias_ij[np.triu_indices(distances.shape[0], 1)] *= -1
     else:
-        bias_ij = np.ones(s_ij.shape)
+        bias_ij = np.ones(s_ij.shape, dtype=np.float64)
     w = np.sum(np.tril(a * s_ij * bias_ij))
     # Calculate w, <w>_S, and <w^2>_S.
     # Use expressions (3),(4),(5),(6) in Reference.
