@@ -338,8 +338,8 @@ class ContactScorer(object):
         start = time()
         if self.query_structure is None:
             raise ValueError('Distance cannot be measured, because no PDB was provided.')
-        elif (self.distances is not None) and (self.dist_type == method) and\
-                (pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns)):
+        elif ((self.distances is not None) and (self.dist_type == method) and
+              (pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all())):
             return
         elif (save_file is not None) and os.path.exists(save_file):
             dists = np.load(save_file + '.npz')['dists']
@@ -997,7 +997,7 @@ class ContactScorer(object):
                             header=True, index=False)
         return score_df, biased_w2_ave, unbiased_w2_ave
 
-    def evaluate_predictions(self, verbosity, out_dir, scores, dist='Any', file_prefix='',
+    def evaluate_predictions(self, verbosity, out_dir, scores, coverages, ranks, dist='Any', file_prefix='',
                              biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
         """
         Evaluate Predictions
@@ -1036,27 +1036,23 @@ class ContactScorer(object):
         stats = {}
         self.fit()
         self.measure_distance(method=dist)
+        self.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=threshold)
         duplicate = 1
         # Verbosity 1
         stats['AUROC'] = []
         stats['AUPRC'] = []
-        stats['AUTPRFDRC'] = []
         stats['Distance'] = []
         stats['Sequence_Separation'] = []
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
             # AUC Evaluation
-            auc_roc = self.score_auc(scores, category=separation)
-            auc_prc = self.score_precision_recall(scores, category=separation)
-            auc_tpr_fdr_curve = self.score_tpr_fdr(scores, category=separation)
+            auc_roc = self.score_auc(category=separation)
+            auc_prc = self.score_precision_recall(category=separation)
             if plots:
                 self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
                 self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
                                 file_name=file_prefix + 'AUPRC_Evaluation_Dist-{}_Separation-{}'.format(
                                     dist, separation))
-                self.plot_autprfdrc(autprfdrc_data=auc_tpr_fdr_curve, title='AUTPRFDRC Evaluation', output_dir=out_dir,
-                                    file_name=file_prefix + 'AUTPRFDRC_Evaluation_Dist-{}_Separation-{}'.format(
-                                        dist, separation))
             if verbosity >= 2:
                 duplicate = 10
                 if 'F1 Score' not in stats:
@@ -1069,16 +1065,15 @@ class ContactScorer(object):
                         top_preds_label = 'L'
                     else:
                         top_preds_label = 'L/{}'.format(k)
-                    f1 = self.score_f1(predictions=scores, k=k, category=separation, threshold=threshold)
-                    precision = self.score_precision(predictions=scores, k=k, category=separation, threshold=threshold)
-                    recall = self.score_recall(predictions=scores, k=k, category=separation, threshold=threshold)
+                    f1 = self.score_f1(k=k, category=separation)
+                    precision = self.score_precision(k=k, category=separation)
+                    recall = self.score_recall(k=k, category=separation)
                     stats['F1 Score'].append(f1)
                     stats['Precision'].append(precision)
                     stats['Recall'].append(recall)
                     stats['Top K Predictions'].append(top_preds_label)
             stats['AUROC'] += [auc_roc[2]] * duplicate
             stats['AUPRC'] += [auc_prc[2]] * duplicate
-            stats['AUTPRFDRC'] += [auc_tpr_fdr_curve[2]] * duplicate
             stats['Distance'] += [dist] * duplicate
             stats['Sequence_Separation'] += [separation] * duplicate
         duplicate *= 5

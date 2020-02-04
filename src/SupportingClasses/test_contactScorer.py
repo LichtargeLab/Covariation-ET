@@ -1439,68 +1439,139 @@ class TestContactScorer(TestBase):
     # def test_18d_score_clustering_of_contact_predictions(self):
     #     self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer2, seq_len=self.seq_len2, bias=False)
 
-    ####################################################################################################################
-    def evaluate_write_out_clustering_results(self, scorer, seq_len):
-        today = str(datetime.date.today())
-        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-        #
-        scorer.fit()
-        scorer.measure_distance(method='Any')
-        recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
-                                                 mapping=final_map)
-        pdb_query_mapping = {v: k for k, v in scorer.query_pdb_mapping.items()}
-        pdb_index_mapping = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
-        scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
-                                                         scorer.query_alignment.seq_length)
-        scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+    # def evaluate_write_out_clustering_results(self, scorer, seq_len):
+    #     today = str(datetime.date.today())
+    #     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
+    #     #
+    #     scorer.fit()
+    #     scorer.measure_distance(method='Any')
+    #     recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
+    #     struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
+    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+    #     A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
+    #                                              mapping=final_map)
+    #     pdb_query_mapping = {v: k for k, v in scorer.query_pdb_mapping.items()}
+    #     pdb_index_mapping = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
+    #     scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
+    #                                                      scorer.query_alignment.seq_length)
+    #     scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     scorer.write_out_clustering_results(today=today, file_name='Contact_1a_Scores.tsv',
+    #                                         output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
+    #     self.assertTrue(os.path.isfile(curr_path))
+    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+    #     self.assertEqual(list(test_df.columns), header)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=scorer.query_pdb_mapping,
+    #                        seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
+    #                        distances=scorer.distances, adjacencies=A)
+    #     os.remove(curr_path)
+    #     scorer.write_out_clustering_results(today=None, file_name='Contact_1b_Scores.tsv',
+    #                                         output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
+    #     self.assertTrue(os.path.isfile(curr_path))
+    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+    #     self.assertEqual(list(test_df.columns), header)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=scorer.query_pdb_mapping,
+    #                        seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
+    #                        distances=scorer.distances, adjacencies=A)
+    #     os.remove(curr_path)
+    #     scorer.write_out_clustering_results(today=today, file_name=None, output_dir=self.testing_dir)
+    #     curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, scorer.query))
+    #     self.assertTrue(os.path.isfile(curr_path))
+    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+    #     self.assertEqual(list(test_df.columns), header)
+    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+    #                        seq_pdb_map=scorer.query_pdb_mapping,
+    #                        seq=scorer.query_alignment.query_sequence, scores=scores,coverages=coverages,
+    #                        distances=scorer.distances, adjacencies=A)
+    #     os.remove(curr_path)
+    #
+    # def test_19a_write_out_clustering_results(self):
+    #     self.evaluate_write_out_clustering_results(scorer=self.scorer1, seq_len=self.seq_len1)
+    #
+    # def test_19b_write_out_clustering_results(self):
+    #     self.evaluate_write_out_clustering_results(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    def evaluate_evaluate_predictions(self, scorer, seq_len):
+        scores = np.random.RandomState(1234567890).rand(seq_len, seq_len)
+        scores[np.tril_indices(seq_len, 1)] = 0
         scores += scores.T
         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-        # coverages1 = np.random.RandomState(179424691).rand(scorer.query_alignment.seq_length,
-        #                                                    scorer.query_alignment.seq_length)
-        # coverages1[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
-        # coverages1 += coverages1.T
-        scorer.write_out_clustering_results(today=today, file_name='Contact_1a_Scores.tsv',
-                                            output_dir=self.testing_dir)
-        curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
-        self.assertTrue(os.path.isfile(curr_path))
-        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-        self.assertEqual(list(test_df.columns), header)
-        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-                           seq_pdb_map=scorer.query_pdb_mapping,
-                           seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
-                           distances=scorer.distances, adjacencies=A)
-        os.remove(curr_path)
-        scorer.write_out_clustering_results(today=None, file_name='Contact_1b_Scores.tsv',
-                                            output_dir=self.testing_dir)
-        curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
-        self.assertTrue(os.path.isfile(curr_path))
-        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-        self.assertEqual(list(test_df.columns), header)
-        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-                           seq_pdb_map=scorer.query_pdb_mapping,
-                           seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
-                           distances=scorer.distances, adjacencies=A)
-        os.remove(curr_path)
-        scorer.write_out_clustering_results(today=today, file_name=None, output_dir=self.testing_dir)
-        curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, scorer.query))
-        self.assertTrue(os.path.isfile(curr_path))
-        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-        self.assertEqual(list(test_df.columns), header)
-        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-                           seq_pdb_map=scorer.query_pdb_mapping,
-                           seq=scorer.query_alignment.query_sequence, scores=scores,coverages=coverages,
-                           distances=scorer.distances, adjacencies=A)
-        os.remove(curr_path)
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        for v in range(1, 3):
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = scorer.evaluate_predictions(
+                verbosity=v, out_dir=self.testing_dir, scores=scores, coverages=coverages, ranks=ranks, dist='CB',
+                file_prefix='SCORER1_TEST', biased_w2_ave=prev_b_w2_ave, unbiased_w2_ave=prev_u_w2_ave, processes=1,
+                threshold=0.5, plots=True)
+            # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            column_length = None
+            for key in curr_stats:
+                if column_length is None:
+                    column_length = len(curr_stats[key])
+                else:
+                    self.assertEqual(len(curr_stats[key]), column_length)
+            if v >= 1:
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('AUPRC' in curr_stats)
+                for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                    fn1 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                        'CB', sep))
+                    self.assertTrue(os.path.isfile(fn1))
+                    os.remove(fn1)
+                    fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
+                                    'CB', sep))
+                    self.assertTrue(os.path.isfile(fn2))
+                    os.remove(fn2)
+                if v == 1:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                self.assertTrue('Top K Predictions' in curr_stats)
+                self.assertTrue('F1 Score' in curr_stats)
+                self.assertTrue('Precision' in curr_stats)
+                self.assertTrue('Recall' in curr_stats)
+                if v == 2:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 3:
+                self.assertTrue('Max Biased Z-Score' in curr_stats)
+                self.assertTrue('AUC Biased Z-Score' in curr_stats)
+                self.assertTrue('Max Unbiased Z-Score' in curr_stats)
+                self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
+                fn4 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Biased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn6))
+                os.remove(fn6)
+                fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                self.assertTrue(os.path.isfile(fn7))
+                os.remove(fn7)
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            # Update
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
 
-    def test_19a_write_out_clustering_results(self):
-        self.evaluate_write_out_clustering_results(scorer=self.scorer1, seq_len=self.seq_len1)
+    def test_20a_evaluate_predictions(self):
+        self.evaluate_evaluate_predictions(scorer=self.scorer1, seq_len=self.seq_len1)
 
-    def test_19b_write_out_clustering_results(self):
-        self.evaluate_write_out_clustering_results(scorer=self.scorer2, seq_len=self.seq_len2)
+    def test_20b_evaluate_predictions(self):
+        self.evaluate_evaluate_predictions(scorer=self.scorer2, seq_len=self.seq_len2)
+
+    ####################################################################################################################
 
     # def test_21a_evaluate_predictions(self):
     #     self.scorer1.fit()
