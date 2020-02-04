@@ -754,8 +754,6 @@ class ContactScorer(object):
                       df['True Prediction'].values, pos_label=True)
         return f1
 
-    # def score_clustering_of_contact_predictions(self, predictions, bias=True, file_path='./z_score.tsv',
-    #                                             w2_ave_sub=None, processes=1):
     def score_clustering_of_contact_predictions(self, bias=True, file_path='./z_score.tsv', w2_ave_sub=None,
                                                 processes=1):
         """
@@ -767,13 +765,12 @@ class ContactScorer(object):
         That set of residues is evaluated for clustering z-score after each pair is added.
 
         Args:
-            predictions (numpy.array): An array of predictions for contacts between protein residues with size nxn where
-            n is the length of the query sequence used when initializing the ContactScorer.
             bias (int or bool): option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
             factor accounting for the sequence separation of residues, as well as their distance, is added to the
             calculation.
             file_path (str): path where the z-scoring results should be written to.
             w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+            processes (int): How many processes may be used in computing the clustering Z-scores.
         Returns:
             pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
             the clustering Z-Score, the w score, E[w], E[w^2], sigma, and the number of residues of interest up to that
@@ -800,32 +797,12 @@ class ContactScorer(object):
                 au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
                                            df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
-        # # Identify unmappable positions (do not appear in the PDB).
-        # unmappable_residues = set(range(predictions.shape[0])) - set(self.query_pdb_mapping)
-        # # Identify all unique positions in the prediction set (assuming they are square and symmetrical).
-        # indices = np.triu_indices(predictions.shape[0], k=1)
         # Set up dataframe for storing results.
-
-        data_df = self._identify_relevant_data(category='Any', n=None, k=None).loc[:, ['Seq Pos 1', 'Seq Pos 2',
-                                                                                       'Coverage']]
+        data_df = self._identify_relevant_data(category='Any').loc[:, ['Seq Pos 1', 'Seq Pos 2', 'Coverage']]
         data_df.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
                        inplace=True)
         sorted_residues = list(zip(data_df['Res_i'], data_df['Res_j']))
-
         data = {'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
-        # # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
-        # unmappable_x = np.isin(indices[0], list(unmappable_residues))
-        # unmappable_y = np.isin(indices[1], list(unmappable_residues))
-        # unmappable_all = unmappable_x | unmappable_y
-        # unmappable_indices = (indices[0][unmappable_all], indices[1][unmappable_all])
-        # unmappable_pairs = list(zip(unmappable_indices[0], unmappable_indices[1]))
-        # # Identify all mappable positions and retrieve their scores
-        # mappable_all = ~ unmappable_all
-        # mappable_indices = (indices[0][mappable_all], indices[1][mappable_all])
-        # mappable_pairs = list(zip(mappable_indices[0], mappable_indices[1]))
-        # scores = predictions[mappable_indices]
-        # # Sort the scores in preparation for Z-scoring
-        # sorted_scores, sorted_residues = list(zip(*sorted(zip(scores, mappable_pairs), reverse=True)))
         # Set up structures to track unique sets of residues
         unique_sets = {}
         to_score = []
@@ -881,22 +858,11 @@ class ContactScorer(object):
         data_df['W2_Ave'] = data['W2_Ave']
         data_df['Sigma'] = data['Sigma']
         data_df['Num_Residues'] = data['Num_Residues']
-        print(data_df.dtypes)
         if len(x_coverage) == 0:
             au_scw_z_score_curve = None
         else:
             au_scw_z_score_curve = auc(x_coverage, y_z_score)
         # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
-        # data['Res_i'] += list(unmappable_indices[0])
-        # data['Res_j'] += list(unmappable_indices[1])
-        # data['Covariance_Score'] += list(predictions[unmappable_indices])
-        # len_unmappable = len(unmappable_pairs)
-        # data['Z-Score'] += ['-'] * len_unmappable
-        # data['W'] += [None] * len_unmappable
-        # data['W_Ave'] += [None] * len_unmappable
-        # data['W2_Ave'] += [None] * len_unmappable
-        # data['Sigma'] += [None] * len_unmappable
-        # data['Num_Residues'] += [None] * len_unmappable
         data_df_unmapped = self.data.loc[self.data['Distance'] == '-',
                                          ['Seq Pos 1', 'Seq Pos 2', 'Coverage']].sort_values(by='Coverage')
         data_df_unmapped.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
@@ -907,14 +873,8 @@ class ContactScorer(object):
         data_df_unmapped['W2_Ave'] = None
         data_df_unmapped['Sigma'] = None
         data_df_unmapped['Num_Residues'] = None
-        print(data_df_unmapped.dtypes)
         # Combine the mappable and unmappable index dataframes.
         df = data_df.append(data_df_unmapped)
-        # df.astype(dtype={'Res_i': np.int64, 'Res_j': np.int64, 'Covariance_Score': np.float64, 'Z-Score': np.float64,
-        #                  'W': np.float64, 'W_Ave': np.float64, 'W2_Ave': np.float64, 'Sigma': np.float64,
-        #                  'Num_Residues': np.int64})
-        print(df.dtypes)
-        # df = pd.DataFrame(data)
         # Write out DataFrame
         df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
             path_or_buf=file_path, sep='\t', header=True, index=False)
@@ -922,7 +882,7 @@ class ContactScorer(object):
         print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
         return df, w2_ave_sub, au_scw_z_score_curve
 
-    def write_out_clustering_results(self, today, raw_scores, coverage_scores, output_dir, file_name=None, prefix=None):
+    def write_out_clustering_results(self, today, output_dir, file_name=None, prefix=None):
         """
         Write Out Clustering Results
 
@@ -930,8 +890,6 @@ class ContactScorer(object):
 
         Args:
             today (date/str): Today's date.
-            raw_scores (np.array): A matrix  the raw values from the covariance/contact prediction process.
-            coverage_scores (dict): A matrix of the coverage_scores computed based on the raw_scores matrices.
             output_dir (str): The full path to where the output file should be stored. If None (default) the file will
             be stored in the current working directory.
             file_name (str): The filename under which to save the results.
@@ -950,51 +908,11 @@ class ContactScorer(object):
                 (end - start) / 60.0))
             return
         header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-        file_dict = {key: [] for key in header}
-        mapped_chain = self.best_chain
-        for i in range(0, self.query_alignment.seq_length):
-            for j in range(i + 1, self.query_alignment.seq_length):
-                file_dict['(AA1)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[i])))
-                file_dict['(AA2)'].append('({})'.format(one_to_three(self.query_alignment.query_sequence[j])))
-                file_dict['Raw_Score'].append(round(raw_scores[i, j], 4))
-                if coverage_scores is not None:
-                    file_dict['Coverage_Score'].append(round(coverage_scores[i, j], 4))
-                else:
-                    file_dict['Coverage_Score'].append(np.nan)
-                if (self.query_structure is None) and (self.query_pdb_mapping is None):
-                    file_dict['Pos1'].append(i + 1)
-                    file_dict['Pos2'].append(j + 1)
-                    r = '-'
-                    dist = '-'
-                else:
-                    if (i in self.query_pdb_mapping) or (j in self.query_pdb_mapping):
-                        if i in self.query_pdb_mapping:
-                            mapped1 = self.query_pdb_mapping[i]
-                            file_dict['Pos1'].append(self.query_structure.pdb_residue_list[mapped_chain][mapped1])
-                        else:
-                            file_dict['Pos1'].append('-')
-                        if j in self.query_pdb_mapping:
-                            mapped2 = self.query_pdb_mapping[j]
-                            file_dict['Pos2'].append(self.query_structure.pdb_residue_list[mapped_chain][mapped2])
-                        else:
-                            file_dict['Pos2'].append('-')
-                        if (i in self.query_pdb_mapping) and (j in self.query_pdb_mapping):
-                            dist = round(self.distances[mapped1, mapped2], 4)
-                        else:
-                            dist = float('NaN')
-                    else:
-                        file_dict['Pos1'].append('-')
-                        file_dict['Pos2'].append('-')
-                        dist = float('NaN')
-                    if dist <= self.cutoff:
-                        r = 1
-                    elif np.isnan(dist):
-                        r = '-'
-                    else:
-                        r = 0
-                file_dict['Residue_Dist'].append(dist)
-                file_dict['Within_Threshold'].append(r)
-        df = pd.DataFrame(file_dict)
+        df = self.data[['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Score', 'Coverage', 'Distance',
+                        'Contact (within {}A cutoff)'.format(self.cutoff)]]
+        df = df.rename(columns={'Seq Pos 1': 'Pos1', 'Seq AA 1': '(AA1)', 'Seq Pos 2': 'Pos2', 'Seq AA 2': '(AA2)',
+                                'Score': 'Raw_Score', 'Coverage': 'Coverage_Score', 'Distance': 'Residue_Dist',
+                                'Contact (within {}A cutoff)'.format(self.cutoff): 'Within_Threshold'})
         df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
         end = time()
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(

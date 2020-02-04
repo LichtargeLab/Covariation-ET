@@ -1327,109 +1327,109 @@ class TestContactScorer(TestBase):
     # def test_17b_clustering_z_scores(self):
     #     self.evaluate_clustering_z_scores(scorer=self.scorer2)
 
-    ####################################################################################################################
-
-    def evaluate_score_clustering_of_contact_predictions(self, scorer, seq_len, bias):
-        # Initialize scorer and scores
-        scorer.fit()
-        scorer.measure_distance(method='Any')
-        scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
-                                                        scorer.query_alignment.seq_length)
-        scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
-        scores += scores.T
-        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-        # Calculate Z-scores for the structure
-        start1 = time()
-        output_fn_1b = os.path.join(self.testing_dir, 'z_score1b.tsv')
-        zscore_df, _, _ = scorer.score_clustering_of_contact_predictions(bias=bias, file_path=output_fn_1b,
-                                                                            w2_ave_sub=None)
-        end1 = time()
-        print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-        # Check that the scoring file was written out to the expected file.
-        self.assertTrue(os.path.isfile(output_fn_1b))
-        os.remove(output_fn_1b)
-        # Generate data for calculating expected values
-        recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
-        struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
-        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-        A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
-                                                 mapping=final_map)
-        # Iterate over the returned data frame row by row and test whether the results are correct
-        visited_scorable_residues = set()
-        prev_len = 0
-        prev_stats = None
-        prev_composed_w2_ave = None
-        prev_composed_sigma = None
-        prev_composed_z_score = None
-        zscore_df[['Res_i', 'Res_j']].astype(dtype=np.int64)
-        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace([None, '-', 'NA'],
-                                                                                                 np.nan, inplace=True)
-        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(dtype=np.float64, inplace=True)
-        for ind in zscore_df.index:
-            # print('{}:{}'.format(ind, np.max(zscore_df_1b.index)))
-            res_i = zscore_df.loc[ind, 'Res_i']
-            res_j = zscore_df.loc[ind, 'Res_j']
-            if (res_i in scorer.query_pdb_mapping) and (res_j in scorer.query_pdb_mapping):
-                visited_scorable_residues.add(res_i)
-                visited_scorable_residues.add(res_j)
-                if len(visited_scorable_residues) > prev_len:
-                    curr_stats = self._et_calcZScore(
-                        reslist=sorted(visited_scorable_residues),
-                        L=len(scorer.query_structure.seq[scorer.best_chain]), A=A, bias=bias)
-                    expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
-                                                (curr_stats[3] * curr_stats[10]['Case2']) +
-                                                (curr_stats[4] * curr_stats[10]['Case3']))
-                    expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
-                    if expected_composed_sigma == 0.0:
-                        expected_composed_z_score = 'NA'
-                    else:
-                        expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
-                    prev_len = len(visited_scorable_residues)
-                    prev_stats = curr_stats
-                    prev_composed_w2_ave = expected_composed_w2_ave
-                    prev_composed_sigma = expected_composed_sigma
-                    prev_composed_z_score = expected_composed_z_score
-                else:
-                    curr_stats = prev_stats
-                    expected_composed_w2_ave = prev_composed_w2_ave
-                    expected_composed_sigma = prev_composed_sigma
-                    expected_composed_z_score = prev_composed_z_score
-                error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
-                                '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
-                                'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
-                    zscore_df.loc[ind, 'W'], curr_stats[6], zscore_df.loc[ind, 'W_Ave'], curr_stats[7],
-                    zscore_df.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
-                    zscore_df.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
-                    zscore_df.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
-                self.assertEqual(zscore_df.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
-                                     error_message)
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-3, error_message)
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
-                                     error_message)
-                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
-                if expected_composed_sigma == 0.0:
-                    self.assertEqual(zscore_df.loc[ind, 'Z-Score'], expected_composed_z_score)
-                    self.assertEqual(zscore_df.loc[ind, 'Z-Score'], curr_stats[5])
-                else:
-                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
-                                         error_message)
-                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
-            else:
-                self.assertEqual(zscore_df.loc[ind, 'Z-Score'], '-')
-                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W']))
-                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W_Ave']))
-                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W2_Ave']))
-                self.assertTrue(np.isnan(zscore_df.loc[ind, 'Sigma']))
-                self.assertIsNone(zscore_df.loc[ind, 'Num_Residues'])
-            self.assertEqual(zscore_df.loc[ind, 'Covariance_Score'], coverages[res_i, res_j])
-
-    def test_18a_score_clustering_of_contact_predictions(self):
-        self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer1, seq_len=self.seq_len1, bias=True)
-
+    # def evaluate_score_clustering_of_contact_predictions(self, scorer, seq_len, bias):
+    #     # Initialize scorer and scores
+    #     scorer.fit()
+    #     scorer.measure_distance(method='Any')
+    #     scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
+    #                                                     scorer.query_alignment.seq_length)
+    #     scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #     # Calculate Z-scores for the structure
+    #     start1 = time()
+    #     output_fn_1b = os.path.join(self.testing_dir, 'z_score1b.tsv')
+    #     zscore_df, _, _ = scorer.score_clustering_of_contact_predictions(bias=bias, file_path=output_fn_1b,
+    #                                                                         w2_ave_sub=None)
+    #     end1 = time()
+    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
+    #     # Check that the scoring file was written out to the expected file.
+    #     self.assertTrue(os.path.isfile(output_fn_1b))
+    #     os.remove(output_fn_1b)
+    #     # Generate data for calculating expected values
+    #     recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
+    #     struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
+    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+    #     A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
+    #                                              mapping=final_map)
+    #     # Iterate over the returned data frame row by row and test whether the results are correct
+    #     visited_scorable_residues = set()
+    #     prev_len = 0
+    #     prev_stats = None
+    #     prev_composed_w2_ave = None
+    #     prev_composed_sigma = None
+    #     prev_composed_z_score = None
+    #     zscore_df[['Res_i', 'Res_j']] = zscore_df[['Res_i', 'Res_j']].astype(dtype=np.int64)
+    #     zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace([None, '-', 'NA'],
+    #                                                                                              np.nan, inplace=True)
+    #     zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = zscore_df[
+    #         ['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(dtype=np.float64)
+    #     # print(zscore_df.dtypes)
+    #     for ind in zscore_df.index:
+    #         print('{}:{}'.format(ind, np.max(zscore_df.index)))
+    #         res_i = zscore_df.loc[ind, 'Res_i']
+    #         res_j = zscore_df.loc[ind, 'Res_j']
+    #         if (res_i in scorer.query_pdb_mapping) and (res_j in scorer.query_pdb_mapping):
+    #             visited_scorable_residues.add(res_i)
+    #             visited_scorable_residues.add(res_j)
+    #             if len(visited_scorable_residues) > prev_len:
+    #                 curr_stats = self._et_calcZScore(
+    #                     reslist=sorted(visited_scorable_residues),
+    #                     L=len(scorer.query_structure.seq[scorer.best_chain]), A=A, bias=bias)
+    #                 expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
+    #                                             (curr_stats[3] * curr_stats[10]['Case2']) +
+    #                                             (curr_stats[4] * curr_stats[10]['Case3']))
+    #                 expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
+    #                 if expected_composed_sigma == 0.0:
+    #                     expected_composed_z_score = 'NA'
+    #                 else:
+    #                     expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
+    #                 prev_len = len(visited_scorable_residues)
+    #                 prev_stats = curr_stats
+    #                 prev_composed_w2_ave = expected_composed_w2_ave
+    #                 prev_composed_sigma = expected_composed_sigma
+    #                 prev_composed_z_score = expected_composed_z_score
+    #             else:
+    #                 curr_stats = prev_stats
+    #                 expected_composed_w2_ave = prev_composed_w2_ave
+    #                 expected_composed_sigma = prev_composed_sigma
+    #                 expected_composed_z_score = prev_composed_z_score
+    #             error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
+    #                             '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
+    #                             'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
+    #                 zscore_df.loc[ind, 'W'], curr_stats[6], zscore_df.loc[ind, 'W_Ave'], curr_stats[7],
+    #                 zscore_df.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
+    #                 zscore_df.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
+    #                 zscore_df.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
+    #             self.assertEqual(zscore_df.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
+    #                                  error_message)
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-2, error_message)
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
+    #                                  error_message)
+    #             self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
+    #             if expected_composed_sigma == 0.0:
+    #                 self.assertEqual(zscore_df.loc[ind, 'Z-Score'], expected_composed_z_score)
+    #                 self.assertEqual(zscore_df.loc[ind, 'Z-Score'], curr_stats[5])
+    #             else:
+    #                 self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
+    #                                      error_message)
+    #                 self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
+    #         else:
+    #             self.assertEqual(zscore_df.loc[ind, 'Z-Score'], '-')
+    #             self.assertTrue(np.isnan(zscore_df.loc[ind, 'W']))
+    #             self.assertTrue(np.isnan(zscore_df.loc[ind, 'W_Ave']))
+    #             self.assertTrue(np.isnan(zscore_df.loc[ind, 'W2_Ave']))
+    #             self.assertTrue(np.isnan(zscore_df.loc[ind, 'Sigma']))
+    #             self.assertIsNone(zscore_df.loc[ind, 'Num_Residues'])
+    #         self.assertEqual(zscore_df.loc[ind, 'Covariance_Score'], coverages[res_i, res_j])
+    #
+    # def test_18a_score_clustering_of_contact_predictions(self):
+    #     self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer1, seq_len=self.seq_len1, bias=True)
+    #
     # def test_18b_score_clustering_of_contact_predictions(self):
     #     self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer1, seq_len=self.seq_len1, bias=False)
     #
@@ -1439,492 +1439,69 @@ class TestContactScorer(TestBase):
     # def test_18d_score_clustering_of_contact_predictions(self):
     #     self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer2, seq_len=self.seq_len2, bias=False)
 
-    # def test_19a_score_clustering_of_contact_predictions(self):
-    #     # Initialize scorer and scores
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
-    #                                                      self.scorer1.query_alignment.seq_length)
-    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
-    #     scores1 += scores1.T
-    #     # Calculate biased Z-scores for the small structure
-    #     start1 = time()
-    #     output_fn_1b = os.path.join(self.testing_dir, 'z_score1b.tsv')
-    #     zscore_df_1b, _, _ = self.scorer1.score_clustering_of_contact_predictions(
-    #         predictions=scores1, bias=True, file_path=output_fn_1b, w2_ave_sub=None)
-    #     end1 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-    #     # Check that the scoring file was written out to the expected file.
-    #     self.assertTrue(os.path.isfile(output_fn_1b))
-    #     os.remove(output_fn_1b)
-    #     # Generate data for calculating expected values
-    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-    #                                              mapping=final_map)
-    #     # Iterate over the returned data frame row by row and test whether the results are correct
-    #     visited_scorable_residues = set()
-    #     prev_len = 0
-    #     prev_stats = None
-    #     prev_composed_w2_ave = None
-    #     prev_composed_sigma = None
-    #     prev_composed_z_score = None
-    #     for ind in zscore_df_1b.index:
-    #         print('{}:{}'.format(ind, np.max(zscore_df_1b.index)))
-    #         res_i = zscore_df_1b.loc[ind, 'Res_i']
-    #         res_j = zscore_df_1b.loc[ind, 'Res_j']
-    #         if (res_i in self.scorer1.query_pdb_mapping) and (res_j in self.scorer1.query_pdb_mapping):
-    #             visited_scorable_residues.add(res_i)
-    #             visited_scorable_residues.add(res_j)
-    #             if len(visited_scorable_residues) > prev_len:
-    #                 curr_stats = self._et_calcZScore(
-    #                     reslist=sorted(visited_scorable_residues),
-    #                     L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]), A=A, bias=True)
-    #                 expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
-    #                                             (curr_stats[3] * curr_stats[10]['Case2']) +
-    #                                             (curr_stats[4] * curr_stats[10]['Case3']))
-    #                 expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
-    #                 if expected_composed_sigma == 0.0:
-    #                     expected_composed_z_score = 'NA'
-    #                 else:
-    #                     expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
-    #                 prev_len = len(visited_scorable_residues)
-    #                 prev_stats = curr_stats
-    #                 prev_composed_w2_ave = expected_composed_w2_ave
-    #                 prev_composed_sigma = expected_composed_sigma
-    #                 prev_composed_z_score = expected_composed_z_score
-    #             else:
-    #                 curr_stats = prev_stats
-    #                 expected_composed_w2_ave = prev_composed_w2_ave
-    #                 expected_composed_sigma = prev_composed_sigma
-    #                 expected_composed_z_score = prev_composed_z_score
-    #             error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
-    #                             '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
-    #                             'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
-    #                 zscore_df_1b.loc[ind, 'W'], curr_stats[6], zscore_df_1b.loc[ind, 'W_Ave'], curr_stats[7],
-    #                 zscore_df_1b.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
-    #                 zscore_df_1b.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
-    #                 zscore_df_1b.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
-    #             self.assertEqual(zscore_df_1b.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-3, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
-    #             if expected_composed_sigma == 0.0:
-    #                 self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], expected_composed_z_score)
-    #                 self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], curr_stats[5])
-    #             else:
-    #                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
-    #                                      error_message)
-    #                 self.assertLessEqual(np.abs(zscore_df_1b.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
-    #         else:
-    #             self.assertEqual(zscore_df_1b.loc[ind, 'Z-Score'], '-')
-    #             self.assertTrue(np.isnan(zscore_df_1b.loc[ind, 'W']))
-    #             self.assertTrue(np.isnan(zscore_df_1b.loc[ind, 'W_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_1b.loc[ind, 'W2_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_1b.loc[ind, 'Sigma']))
-    #             self.assertTrue(np.isnan(zscore_df_1b.loc[ind, 'Num_Residues']))
-    #         self.assertEqual(zscore_df_1b.loc[ind, 'Covariance_Score'], scores1[res_i, res_j])
-    #
-    # def test_19b_score_clustering_of_contact_predictions(self):
-    #     # Initialize scorer and scores
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
-    #                                                      self.scorer1.query_alignment.seq_length)
-    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
-    #     scores1 += scores1.T
-    #     # Calculate biased Z-scores for the small structure
-    #     start1 = time()
-    #     output_fn_1u = os.path.join(self.testing_dir, 'z_score1u.tsv')
-    #     zscore_df_1u, _, _ = self.scorer1.score_clustering_of_contact_predictions(
-    #         predictions=scores1, bias=False, file_path=output_fn_1u, w2_ave_sub=None)
-    #     end1 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-    #     # Check that the scoring file was written out to the expected file.
-    #     self.assertTrue(os.path.isfile(output_fn_1u))
-    #     os.remove(output_fn_1u)
-    #     # Generate data for calculating expected values
-    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-    #                                              mapping=final_map)
-    #     # Iterate over the returned data frame row by row and test whether the results are correct
-    #     visited_scorable_residues = set()
-    #     prev_len = 0
-    #     prev_stats = None
-    #     prev_composed_w2_ave = None
-    #     prev_composed_sigma = None
-    #     prev_composed_z_score = None
-    #     for ind in zscore_df_1u.index:
-    #         print('{}:{}'.format(ind, np.max(zscore_df_1u.index)))
-    #         res_i = zscore_df_1u.loc[ind, 'Res_i']
-    #         res_j = zscore_df_1u.loc[ind, 'Res_j']
-    #         if (res_i in self.scorer1.query_pdb_mapping) and (res_j in self.scorer1.query_pdb_mapping):
-    #             visited_scorable_residues.add(res_i)
-    #             visited_scorable_residues.add(res_j)
-    #             if len(visited_scorable_residues) > prev_len:
-    #                 curr_stats = self._et_calcZScore(
-    #                     reslist=sorted(visited_scorable_residues),
-    #                     L=len(self.scorer1.query_structure.seq[self.scorer1.best_chain]), A=A, bias=False)
-    #                 expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
-    #                                             (curr_stats[3] * curr_stats[10]['Case2']) +
-    #                                             (curr_stats[4] * curr_stats[10]['Case3']))
-    #                 expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
-    #                 if expected_composed_sigma == 0.0:
-    #                     expected_composed_z_score = 'NA'
-    #                 else:
-    #                     expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
-    #                 prev_len = len(visited_scorable_residues)
-    #                 prev_stats = curr_stats
-    #                 prev_composed_w2_ave = expected_composed_w2_ave
-    #                 prev_composed_sigma = expected_composed_sigma
-    #                 prev_composed_z_score = expected_composed_z_score
-    #             else:
-    #                 curr_stats = prev_stats
-    #                 expected_composed_w2_ave = prev_composed_w2_ave
-    #                 expected_composed_sigma = prev_composed_sigma
-    #                 expected_composed_z_score = prev_composed_z_score
-    #             error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
-    #                             '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
-    #                             'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
-    #                 zscore_df_1u.loc[ind, 'W'], curr_stats[6], zscore_df_1u.loc[ind, 'W_Ave'], curr_stats[7],
-    #                 zscore_df_1u.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
-    #                 zscore_df_1u.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
-    #                 zscore_df_1u.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
-    #             self.assertEqual(zscore_df_1u.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-5, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
-    #             if expected_composed_sigma == 0.0:
-    #                 self.assertEqual(zscore_df_1u.loc[ind, 'Z-Score'], expected_composed_z_score)
-    #                 self.assertEqual(zscore_df_1u.loc[ind, 'Z-Score'], curr_stats[5])
-    #             else:
-    #                 self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
-    #                                      error_message)
-    #                 self.assertLessEqual(np.abs(zscore_df_1u.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-6, error_message)
-    #         else:
-    #             self.assertEqual(zscore_df_1u.loc[ind, 'Z-Score'], '-')
-    #             self.assertTrue(np.isnan(zscore_df_1u.loc[ind, 'W']))
-    #             self.assertTrue(np.isnan(zscore_df_1u.loc[ind, 'W_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_1u.loc[ind, 'W2_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_1u.loc[ind, 'Sigma']))
-    #             self.assertTrue(np.isnan(zscore_df_1u.loc[ind, 'Num_Residues']))
-    #         self.assertEqual(zscore_df_1u.loc[ind, 'Covariance_Score'], scores1[res_i, res_j])
-    #
-    # def test_19c_score_clustering_of_contact_predictions(self):
-    #     # Initialize scorer and scores
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
-    #                                                      self.scorer2.query_alignment.seq_length)
-    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
-    #     scores2 += scores2.T
-    #     # Calculate biased Z-scores for the small structure
-    #     start1 = time()
-    #     output_fn_2b = os.path.join(self.testing_dir, 'z_score2b.tsv')
-    #     zscore_df_2b, _, _ = self.scorer2.score_clustering_of_contact_predictions(
-    #         predictions=scores2, bias=True, file_path=output_fn_2b, w2_ave_sub=None)
-    #     end1 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-    #     # Check that the scoring file was written out to the expected file.
-    #     self.assertTrue(os.path.isfile(output_fn_2b))
-    #     os.remove(output_fn_2b)
-    #     # Generate data for calculating expected values
-    #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
-    #                                              mapping=final_map)
-    #     # Iterate over the returned data frame row by row and test whether the results are correct
-    #     visited_scorable_residues = set()
-    #     prev_len = 0
-    #     prev_stats = None
-    #     prev_composed_w2_ave = None
-    #     prev_composed_sigma = None
-    #     prev_composed_z_score = None
-    #     for ind in zscore_df_2b.index:
-    #         print('{}:{}'.format(ind, np.max(zscore_df_2b.index)))
-    #         res_i = zscore_df_2b.loc[ind, 'Res_i']
-    #         res_j = zscore_df_2b.loc[ind, 'Res_j']
-    #         if (res_i in self.scorer2.query_pdb_mapping) and (res_j in self.scorer2.query_pdb_mapping):
-    #             visited_scorable_residues.add(res_i)
-    #             visited_scorable_residues.add(res_j)
-    #             if len(visited_scorable_residues) > prev_len:
-    #                 curr_stats = self._et_calcZScore(
-    #                     reslist=sorted(visited_scorable_residues),
-    #                     L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]), A=A, bias=True)
-    #                 expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
-    #                                             (curr_stats[3] * curr_stats[10]['Case2']) +
-    #                                             (curr_stats[4] * curr_stats[10]['Case3']))
-    #                 expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
-    #                 if expected_composed_sigma == 0.0:
-    #                     expected_composed_z_score = 'NA'
-    #                 else:
-    #                     expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
-    #                 prev_len = len(visited_scorable_residues)
-    #                 prev_stats = curr_stats
-    #                 prev_composed_w2_ave = expected_composed_w2_ave
-    #                 prev_composed_sigma = expected_composed_sigma
-    #                 prev_composed_z_score = expected_composed_z_score
-    #             else:
-    #                 curr_stats = prev_stats
-    #                 expected_composed_w2_ave = prev_composed_w2_ave
-    #                 expected_composed_sigma = prev_composed_sigma
-    #                 expected_composed_z_score = prev_composed_z_score
-    #             error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
-    #                             '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
-    #                             'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
-    #                 zscore_df_2b.loc[ind, 'W'], curr_stats[6], zscore_df_2b.loc[ind, 'W_Ave'], curr_stats[7],
-    #                 zscore_df_2b.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
-    #                 zscore_df_2b.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
-    #                 zscore_df_2b.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
-    #             self.assertEqual(zscore_df_2b.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-2, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
-    #             if expected_composed_sigma == 0.0:
-    #                 self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], expected_composed_z_score)
-    #                 self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], curr_stats[5])
-    #             else:
-    #                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
-    #                                      error_message)
-    #                 self.assertLessEqual(np.abs(zscore_df_2b.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
-    #         else:
-    #             self.assertEqual(zscore_df_2b.loc[ind, 'Z-Score'], '-')
-    #             self.assertTrue(np.isnan(zscore_df_2b.loc[ind, 'W']))
-    #             self.assertTrue(np.isnan(zscore_df_2b.loc[ind, 'W_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_2b.loc[ind, 'W2_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_2b.loc[ind, 'Sigma']))
-    #             self.assertTrue(np.isnan(zscore_df_2b.loc[ind, 'Num_Residues']))
-    #         self.assertEqual(zscore_df_2b.loc[ind, 'Covariance_Score'], scores2[res_i, res_j])
-    #
-    # def test_19d_score_clustering_of_contact_predictions(self):
-    #     # Initialize scorer and scores
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
-    #                                                      self.scorer2.query_alignment.seq_length)
-    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
-    #     scores2 += scores2.T
-    #     # Calculate biased Z-scores for the small structure
-    #     start1 = time()
-    #     output_fn_2u = os.path.join(self.testing_dir, 'z_score2u.tsv')
-    #     zscore_df_2u, _, _ = self.scorer2.score_clustering_of_contact_predictions(
-    #         predictions=scores2, bias=False, file_path=output_fn_2u, w2_ave_sub=None)
-    #     end1 = time()
-    #     print('Time for ContactScorer to compute SCW: {}'.format((end1 - start1) / 60.0))
-    #     # Check that the scoring file was written out to the expected file.
-    #     self.assertTrue(os.path.isfile(output_fn_2u))
-    #     os.remove(output_fn_2u)
-    #     # Generate data for calculating expected values
-    #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
-    #                                              mapping=final_map)
-    #     # Iterate over the returned data frame row by row and test whether the results are correct
-    #     visited_scorable_residues = set()
-    #     prev_len = 0
-    #     prev_stats = None
-    #     prev_composed_w2_ave = None
-    #     prev_composed_sigma = None
-    #     prev_composed_z_score = None
-    #     for ind in zscore_df_2u.index:
-    #         print('{}:{}'.format(ind, np.max(zscore_df_2u.index)))
-    #         res_i = zscore_df_2u.loc[ind, 'Res_i']
-    #         res_j = zscore_df_2u.loc[ind, 'Res_j']
-    #         if (res_i in self.scorer2.query_pdb_mapping) and (res_j in self.scorer2.query_pdb_mapping):
-    #             visited_scorable_residues.add(res_i)
-    #             visited_scorable_residues.add(res_j)
-    #             if len(visited_scorable_residues) > prev_len:
-    #                 curr_stats = self._et_calcZScore(
-    #                     reslist=sorted(visited_scorable_residues),
-    #                     L=len(self.scorer2.query_structure.seq[self.scorer2.best_chain]), A=A, bias=False)
-    #                 expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
-    #                                             (curr_stats[3] * curr_stats[10]['Case2']) +
-    #                                             (curr_stats[4] * curr_stats[10]['Case3']))
-    #                 expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
-    #                 if expected_composed_sigma == 0.0:
-    #                     expected_composed_z_score = 'NA'
-    #                 else:
-    #                     expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
-    #                 prev_len = len(visited_scorable_residues)
-    #                 prev_stats = curr_stats
-    #                 prev_composed_w2_ave = expected_composed_w2_ave
-    #                 prev_composed_sigma = expected_composed_sigma
-    #                 prev_composed_z_score = expected_composed_z_score
-    #             else:
-    #                 curr_stats = prev_stats
-    #                 expected_composed_w2_ave = prev_composed_w2_ave
-    #                 expected_composed_sigma = prev_composed_sigma
-    #                 expected_composed_z_score = prev_composed_z_score
-    #             error_message = '\nW: {}\nExpected W: {}\nW Ave: {}\nExpected W Ave: {}\nW2 Ave: {}\nExpected W2 Ave: '\
-    #                             '{}\nComposed Expected W2 Ave: {}\nSigma: {}\nExpected Sigma: {}\nComposed Expected '\
-    #                             'Sigma: {}\nZ-Score: {}\nExpected Z-Score: {}\nComposed Expected Z-Score: {}'.format(
-    #                 zscore_df_2u.loc[ind, 'W'], curr_stats[6], zscore_df_2u.loc[ind, 'W_Ave'], curr_stats[7],
-    #                 zscore_df_2u.loc[ind, 'W2_Ave'], curr_stats[8], expected_composed_w2_ave,
-    #                 zscore_df_2u.loc[ind, 'Sigma'], curr_stats[9], expected_composed_sigma,
-    #                 zscore_df_2u.loc[ind, 'Z-Score'], curr_stats[5], expected_composed_z_score)
-    #             self.assertEqual(zscore_df_2u.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-4, error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
-    #                                  error_message)
-    #             self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
-    #             if expected_composed_sigma == 0.0:
-    #                 self.assertEqual(zscore_df_2u.loc[ind, 'Z-Score'], expected_composed_z_score)
-    #                 self.assertEqual(zscore_df_2u.loc[ind, 'Z-Score'], curr_stats[5])
-    #             else:
-    #                 self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
-    #                                      error_message)
-    #                 self.assertLessEqual(np.abs(zscore_df_2u.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-6, error_message)
-    #         else:
-    #             self.assertEqual(zscore_df_2u.loc[ind, 'Z-Score'], '-')
-    #             self.assertTrue(np.isnan(zscore_df_2u.loc[ind, 'W']))
-    #             self.assertTrue(np.isnan(zscore_df_2u.loc[ind, 'W_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_2u.loc[ind, 'W2_Ave']))
-    #             self.assertTrue(np.isnan(zscore_df_2u.loc[ind, 'Sigma']))
-    #             self.assertTrue(np.isnan(zscore_df_2u.loc[ind, 'Num_Residues']))
-    #         self.assertEqual(zscore_df_2u.loc[ind, 'Covariance_Score'], scores2[res_i, res_j])
-    #
-    # def test_20a_write_out_clustering_results(self):
-    #     today = str(datetime.date.today())
-    #     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-    #     #
-    #     self.scorer1.fit()
-    #     self.scorer1.measure_distance(method='Any')
-    #     recip_map = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer1.query_structure.structure[0][self.scorer1.best_chain],
-    #                                              mapping=final_map)
-    #     pdb_query_mapping = {v: k for k, v in self.scorer1.query_pdb_mapping.items()}
-    #     pdb_index_mapping = {k: i for i, k in enumerate(self.scorer1.query_structure.pdb_residue_list[self.scorer1.best_chain])}
-    #     scores1 = np.random.RandomState(1234567890).rand(self.scorer1.query_alignment.seq_length,
-    #                                                      self.scorer1.query_alignment.seq_length)
-    #     scores1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
-    #     scores1 += scores1.T
-    #     coverages1 = np.random.RandomState(179424691).rand(self.scorer1.query_alignment.seq_length,
-    #                                                        self.scorer1.query_alignment.seq_length)
-    #     coverages1[np.tril_indices(self.scorer1.query_alignment.seq_length, 1)] = 0
-    #     coverages1 += coverages1.T
-    #     self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name='Contact_1a_Scores.tsv', output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
-    #                        distances=self.scorer1.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #     self.scorer1.write_out_clustering_results(today=None, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name='Contact_1b_Scores.tsv', output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1, coverages=coverages1,
-    #                        distances=self.scorer1.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #
-    #     self.scorer1.write_out_clustering_results(today=today, raw_scores=scores1, coverage_scores=coverages1,
-    #                                               file_name=None, output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer1.query))
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer1.query_pdb_mapping,
-    #                        seq=self.scorer1.query_alignment.query_sequence, scores=scores1,coverages=coverages1,
-    #                        distances=self.scorer1.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #
-    # def test_20b_write_out_clustering_results(self):
-    #     today = str(datetime.date.today())
-    #     header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-    #     #
-    #     self.scorer2.fit()
-    #     self.scorer2.measure_distance(method='Any')
-    #     recip_map = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-    #     struc_seq_map = {k: i for i, k in
-    #                      enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-    #     final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-    #     A, res_atoms = self._et_computeAdjacency(self.scorer2.query_structure.structure[0][self.scorer2.best_chain],
-    #                                              mapping=final_map)
-    #     pdb_query_mapping = {v: k for k, v in self.scorer2.query_pdb_mapping.items()}
-    #     pdb_index_mapping = {k: i for i, k in
-    #                          enumerate(self.scorer2.query_structure.pdb_residue_list[self.scorer2.best_chain])}
-    #     scores2 = np.random.RandomState(1234567890).rand(self.scorer2.query_alignment.seq_length,
-    #                                                      self.scorer2.query_alignment.seq_length)
-    #     scores2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
-    #     scores2 += scores2.T
-    #     coverages2 = np.random.RandomState(179424691).rand(self.scorer2.query_alignment.seq_length,
-    #                                                        self.scorer2.query_alignment.seq_length)
-    #     coverages2[np.tril_indices(self.scorer2.query_alignment.seq_length, 1)] = 0
-    #     coverages2 += coverages2.T
-    #     self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name='Contact_2a_Scores.tsv', output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, 'Contact_2a_Scores.tsv')
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                        distances=self.scorer2.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #     self.scorer2.write_out_clustering_results(today=None, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name='Contact_2b_Scores.tsv', output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, 'Contact_2b_Scores.tsv')
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                        distances=self.scorer2.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #     self.scorer2.write_out_clustering_results(today=today, raw_scores=scores2, coverage_scores=coverages2,
-    #                                               file_name=None, output_dir=self.testing_dir)
-    #     curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, self.scorer2.query))
-    #     self.assertTrue(os.path.isfile(curr_path))
-    #     test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-    #     self.assertEqual(list(test_df.columns), header)
-    #     self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-    #                        seq_pdb_map=self.scorer2.query_pdb_mapping,
-    #                        seq=self.scorer2.query_alignment.query_sequence, scores=scores2, coverages=coverages2,
-    #                        distances=self.scorer2.distances, adjacencies=A)
-    #     os.remove(curr_path)
-    #
+    ####################################################################################################################
+    def evaluate_write_out_clustering_results(self, scorer, seq_len):
+        today = str(datetime.date.today())
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
+        #
+        scorer.fit()
+        scorer.measure_distance(method='Any')
+        recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
+                                                 mapping=final_map)
+        pdb_query_mapping = {v: k for k, v in scorer.query_pdb_mapping.items()}
+        pdb_index_mapping = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
+        scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
+                                                         scorer.query_alignment.seq_length)
+        scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        # coverages1 = np.random.RandomState(179424691).rand(scorer.query_alignment.seq_length,
+        #                                                    scorer.query_alignment.seq_length)
+        # coverages1[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+        # coverages1 += coverages1.T
+        scorer.write_out_clustering_results(today=today, file_name='Contact_1a_Scores.tsv',
+                                            output_dir=self.testing_dir)
+        curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
+        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                           seq_pdb_map=scorer.query_pdb_mapping,
+                           seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
+                           distances=scorer.distances, adjacencies=A)
+        os.remove(curr_path)
+        scorer.write_out_clustering_results(today=None, file_name='Contact_1b_Scores.tsv',
+                                            output_dir=self.testing_dir)
+        curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
+        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                           seq_pdb_map=scorer.query_pdb_mapping,
+                           seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
+                           distances=scorer.distances, adjacencies=A)
+        os.remove(curr_path)
+        scorer.write_out_clustering_results(today=today, file_name=None, output_dir=self.testing_dir)
+        curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, scorer.query))
+        self.assertTrue(os.path.isfile(curr_path))
+        test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
+        self.assertEqual(list(test_df.columns), header)
+        self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
+                           seq_pdb_map=scorer.query_pdb_mapping,
+                           seq=scorer.query_alignment.query_sequence, scores=scores,coverages=coverages,
+                           distances=scorer.distances, adjacencies=A)
+        os.remove(curr_path)
+
+    def test_19a_write_out_clustering_results(self):
+        self.evaluate_write_out_clustering_results(scorer=self.scorer1, seq_len=self.seq_len1)
+
+    def test_19b_write_out_clustering_results(self):
+        self.evaluate_write_out_clustering_results(scorer=self.scorer2, seq_len=self.seq_len2)
+
     # def test_21a_evaluate_predictions(self):
     #     self.scorer1.fit()
     #     self.scorer1.measure_distance(method='Any')
