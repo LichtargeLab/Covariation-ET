@@ -881,6 +881,7 @@ class ContactScorer(object):
         data_df['W2_Ave'] = data['W2_Ave']
         data_df['Sigma'] = data['Sigma']
         data_df['Num_Residues'] = data['Num_Residues']
+        print(data_df.dtypes)
         if len(x_coverage) == 0:
             au_scw_z_score_curve = None
         else:
@@ -906,8 +907,13 @@ class ContactScorer(object):
         data_df_unmapped['W2_Ave'] = None
         data_df_unmapped['Sigma'] = None
         data_df_unmapped['Num_Residues'] = None
+        print(data_df_unmapped.dtypes)
         # Combine the mappable and unmappable index dataframes.
         df = data_df.append(data_df_unmapped)
+        # df.astype(dtype={'Res_i': np.int64, 'Res_j': np.int64, 'Covariance_Score': np.float64, 'Z-Score': np.float64,
+        #                  'W': np.float64, 'W_Ave': np.float64, 'W2_Ave': np.float64, 'Sigma': np.float64,
+        #                  'Num_Residues': np.int64})
+        print(df.dtypes)
         # df = pd.DataFrame(data)
         # Write out DataFrame
         df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
