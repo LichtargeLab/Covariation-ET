@@ -17,9 +17,11 @@ try:
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
+from Predictor import Predictor
+from utils import compute_rank_and_coverage
 
 
-class EVCouplingsWrapper(object):
+class EVCouplingsWrapper(Predictor):
     """
     This class is intended as a wrapper for the EVcouplings python code distributed through github for the following
     citation:
@@ -48,21 +50,27 @@ class EVCouplingsWrapper(object):
         time (float): The time in seconds required to perform the predictions.
     """
 
-    def __init__(self, alignment, protocol):
-        """
-        __init__
-
-        This method instantiates the wrapper for EVCouplings.
-
-        Args:
-            alignment (SeqAlignment): The alignment for the protein of interest.
-            protocol (str): Which evcouplings pipeline protocol to use ('standard' or 'mean_field' expected).
-        """
+    def __init__(self, query, aln_file, protocol, out_dir='.'):
+        super().__init__(query, aln_file, out_dir)
+        self.method = 'EVCouplings'
         self.protocol = protocol
-        self.alignment = alignment.remove_gaps()
-        self.scores = None
         self.probability = None
-        self.time = None
+
+    # def __init__(self, alignment, protocol):
+    #     """
+    #     __init__
+    #
+    #     This method instantiates the wrapper for EVCouplings.
+    #
+    #     Args:
+    #         alignment (SeqAlignment): The alignment for the protein of interest.
+    #         protocol (str): Which evcouplings pipeline protocol to use ('standard' or 'mean_field' expected).
+    #     """
+    #     self.protocol = protocol
+    #     self.alignment = alignment.remove_gaps()
+    #     self.scores = None
+    #     self.probability = None
+    #     self.time = None
 
     def import_covariance_scores(self, out_path):
         """
@@ -195,7 +203,8 @@ class EVCouplingsWrapper(object):
         write_config_file(os.path.join(out_dir, "{}_config.txt".format(self.alignment.query_id)), config)
         return config
 
-    def calculate_scores(self, out_dir, cores=1, delete_files=True):
+    # def calculate_scores(self, out_dir, cores=1, delete_files=True):
+    def calculate_scores(self, cores=1, delete_files=True):
         """
         Calculate Scores
 
@@ -213,14 +222,17 @@ class EVCouplingsWrapper(object):
             float: The time in seconds required to calculate the EVcouplings covariation scores for the provided protein
             alignment.
         """
-        serialized_path = os.path.join(out_dir, 'EVCouplings.npz')
+        serialized_path = os.path.join(self.out_dir, 'EVCouplings.npz')
         if os.path.isfile(serialized_path):
             loaded_data = np.load(serialized_path)
             self.scores = loaded_data['scores']
+            self.probability = loaded_data['probability']
+            self.coverages = loaded_data['coverages']
+            self.rankings = loaded_data['rankings']
             self.time = loaded_data['time']
         else:
-            config = self.configure_run(out_dir=out_dir, cores=cores)
-            out_path = os.path.join(out_dir, 'couplings', '_CouplingScores.csv')
+            config = self.configure_run(out_dir=self.out_dir, cores=cores)
+            out_path = os.path.join(self.out_dir, 'couplings', '_CouplingScores.csv')
             start = time()
             # Call EVCouplings pipeline
             if self.protocol == 'mean_field':
@@ -230,10 +242,13 @@ class EVCouplingsWrapper(object):
             end = time()
             self.time = end - start
             self.import_covariance_scores(out_path=out_path)
+            self.rankings, self.coverages = compute_rank_and_coverage(seq_length=self.non_gapped_aln.seq_length,
+                                                                      scores=self.scores, pos_size=2, rank_type='max')
             if delete_files:
-                rmtree(os.path.join(out_dir, 'couplings'))
-                rmtree(os.path.join(out_dir, 'align'))
-                os.remove(os.path.join(out_dir, '_final.outcfg'))
-            np.savez(serialized_path, scores=self.scores, time=self.time)
+                rmtree(os.path.join(self.out_dir, 'couplings'))
+                rmtree(os.path.join(self.out_dir, 'align'))
+                os.remove(os.path.join(self.out_dir, '_final.outcfg'))
+            np.savez(serialized_path, scores=self.scores, probability=self.probability, coverages=self.coverages,
+                     rankings=self.rankings, time=self.time)
         print(self.time)
         return self.time
