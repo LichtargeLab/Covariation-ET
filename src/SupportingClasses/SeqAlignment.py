@@ -61,9 +61,7 @@ class SeqAlignment(object):
             query_id (str): The sequence identifier of interest.
             polymer_type (str): The type of polymer this alignment represents. Expected values are 'Protein' or 'DNA'.
         """
-        if file_name.startswith('..'):
-            file_name = os.path.abspath(file_name)
-        self.file_name = file_name
+        self.file_name = os.path.abspath(file_name)
         self.query_id = query_id
         self.alignment = None
         self.seq_order = None
