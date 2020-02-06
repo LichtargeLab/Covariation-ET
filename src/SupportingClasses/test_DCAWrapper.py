@@ -69,7 +69,7 @@ class TestDCAWrapper(TestBase):
                 handle.write('{} {} {}\n'.format(sorted_x[i] + 1, sorted_y[i] + 1, sorted_scores[i]))
         dca.import_covariance_scores(out_path=os.path.join(out_dir, 'DCA_predictions.tsv'))
         diff_scores = dca.scores - scores
-        not_passing_scores = diff_scores > 1E15
+        not_passing_scores = diff_scores > 1E-15
         self.assertFalse(not_passing_scores.any())
 
     def test_2a_import_scores(self):
