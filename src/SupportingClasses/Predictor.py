@@ -22,11 +22,13 @@ class Predictor(object):
         non_gapped_aln (SeqAlignment): SeqAlignment object representing the original alignment with all columns which
         are gaps in the query sequence removed.
         non_gapped_aln_fn (str): Path to where the non-gapped alignment is written.
+        method (str): What type of method is being used to compute the importance/covariance scores.
         scores (np.array): The raw scores calculated for each single or paired position in the provided alignment.
         coverages (np.array): The percentage of scores at or better than the score for this single or paired position
         (i.e. the percentile rank).
         rankings (np.array): The rank (lowest being best, highest being worst) of each single or paired position in the
         provided alignment as determined from the calculated scores.
+        time (float): The time (in seconds) required to complete the computation of importance/covariance scores.
     """
     def __init__(self, query, aln_file, out_dir='.'):
         """
