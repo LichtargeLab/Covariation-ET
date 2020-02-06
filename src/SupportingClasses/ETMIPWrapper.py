@@ -12,6 +12,7 @@ from subprocess import Popen, PIPE
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
+from Predictor import Predictor
 from PhylogeneticTree import PhylogeneticTree
 from AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
@@ -21,7 +22,7 @@ except IOError:
 load_dotenv(dotenv_path)
 
 
-class ETMIPWrapper(object):
+class ETMIPWrapper(Predictor):
     """
     This class is intended as a wrapper for the original ET-MIp binary created by Angela Wilson for the publication:
         Sung Y-M, Wilkins AD, Rodriguez GJ, Wensel TG, Lichtarge O. Intramolecular allosteric communication in dopamine
@@ -34,21 +35,28 @@ class ETMIPWrapper(object):
     the ET-MIp method on an msf formatted alignment, and to import the covariance raw and coverage scores from the
     analysis.
 
+    This class inherits from the Predictor class which means it shares the attributes and initializer of that class,
+    as well as implementing the calculate_scores method.
+
     Attributes:
-        alignment (SeqAlignment): This variable holds a seq alignment object. This is mainly used to provide the path
-        to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
-        advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed
-        to ETMIPWrapper.
-        msf_path (str): The path to the location at which the msf formatted alignment to be analyzed is located. If the
-        SeqAlignment object was created using an msf formatted alignments its filename variable will be the same as
-        msf_path, other wise a different path will be found here.
-        scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
-        This matrix contains the raw covariance scores computed by the ET-MIp method.
-        coverage (numpy.array): A square matrix whose length on either axis is the query sequence length (without gaps).
-        This matrix contains the coverage covariance scores computed by the ET-MIp method.
-        distance_matrix - (Bio.Phylo.TreeConstruction.DistanceMatrix): A triangular matrix whose length on either axis
-        is the number of sequences in the alignment. The matrix contains the distance computed between sequences of the
-        alignment.
+        out_dir (str): The path where results of this analysis should be written to.
+        query (str): The sequence identifier for the sequence being analyzed.
+        original_aln (SeqAlignment): A SeqAlignment object representing the alignment originally passed in.
+        original_aln_fn (str): The path to the alignment to analyze.
+        non_gapped_aln (SeqAlignment): SeqAlignment object representing the original alignment with all columns which
+        are gaps in the query sequence removed.
+        non_gapped_aln_fn (str): Path to where the non-gapped alignment is written.
+        msf_aln_fn (str): The path to the location at which the msf formatted alignment to be analyzed is located.
+        method (str): 'WETC' for all instances of this class, because it describes how the importance/covariances scores
+        are being computed.
+        scores (np.array): The raw scores calculated for each single or paired position in the provided alignment by
+        wetc.
+        coverages (np.array): The percentage of scores at or better than the score for this single or paired position
+        (i.e. the percentile rank).
+        rankings (np.array): The rank (lowest being best, highest being worst) of each single or paired position in the
+        provided alignment as determined from the calculated scores.
+        time (float): The time (in seconds) required to complete the computation of importance/covariance scores by
+        wetc.
         tree - (PhylogeneticTree): The tree structure computed from the distance matrix during the ET computation.
         rank_group_assignments - (dict): First level of the dictionary maps a rank to another dictionary. The second
         level of the dictionary maps a group value to another dictionary. This third level of the dictionary maps the
@@ -63,83 +71,96 @@ class ETMIPWrapper(object):
         entropy - (dict): A dictionary where the key is a rank in the tree (int) and the values is a square matrix whose
         length on either axis is the query sequence length (without gaps). The contents of the matrix are entropy scores
         at that rank/level in the tree.
-        time (float): The number of seconds it took for the ET-MIp code to load the msf formatted file and calculate
-        covariance scores.
     """
 
-    def __init__(self, alignment):
-        """
-        This method instantiates an instance of the ETMIPWrapper class.
+    # def __init__(self, alignment):
+    #     """
+    #     This method instantiates an instance of the ETMIPWrapper class.
+    #
+    #     Args:
+    #         alignment (SeqAlignment): This is mainly used to provide the path the to the alignment used, but is also
+    #         used to determine the length of the query sequence. Because of this it is advised that the
+    #         import_alignment() method be run before the SeqAlignment instance is passed to ETMIPWrapper.
+    #     """
+    #     self.alignment = alignment
+    #     self.msf_path = None
+    #     self.scores = None
+    #     self.coverage = None
+    #     self.distance_matrix = None
+    #     self.tree = None
+    #     self.rank_group_assignments = None
+    #     self.rank_scores = None
+    #     self.rho = None
+    #     self.entropy = None
+    #     self.time = None
 
-        Args:
-            alignment (SeqAlignment): This is mainly used to provide the path the to the alignment used, but is also
-            used to determine the length of the query sequence. Because of this it is advised that the
-            import_alignment() method be run before the SeqAlignment instance is passed to ETMIPWrapper.
+    def __init__(self, query, aln_file, out_dir='.'):
         """
-        self.alignment = alignment
-        self.msf_path = None
-        self.scores = None
-        self.coverage = None
+        __init__
+
+        The initialization function for the ETMIPWrapper class which draws on its parent (Predictor)
+        initialization.
+
+        Arguments:
+            query (str): The sequence identifier for the sequence being analyzed.
+            aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
+            out_dir (str): The path where results of this analysis should be written to. If no path is provided the
+            default will be to write results to the current working directory.
+        """
+        super().__init__(query, aln_file, out_dir)
+        self.msf_aln_fn = None
         self.distance_matrix = None
         self.tree = None
         self.rank_group_assignments = None
         self.rank_scores = None
-        self.rho = None
         self.entropy = None
-        self.time = None
+        self.method = 'WETC'
 
-    def check_alignment(self, target_dir=None):
+    # def check_alignment(self, target_dir=None):
+    def convert_alignment(self):
         """
-        Check Alignment
+        Convert Alignment
 
-        This method checks whether the alignment currently associated with the ETMIPWrapper object ends with '.msf'. If
-        it does not the clustalw tool is used to convert the initial alignment (assumed to be in fasta format) to an
-        .msf formatted alignment at the specified target_dir, or the same location as the fasta alignment if not
-        specified. The file path to this .msf alignment is stored in the msf_path variable. This function is dependent
-        on the .env file at the project level containing the 'CLUSTALW_PATH' variable describing the path to the
-        clustalw binary.
+        This method converts the alignment currently associated with the ETMIPWrapper and uses the clustalw tool to
+        convert the initial alignment (assumed to be in fasta format) to an .msf formatted alignment in the out_dir. The
+        file path to this .msf alignment is stored in the msf_path variable. This function is dependent on the .env file
+        at the project level containing the 'CLUSTALW_PATH' variable describing the path to the clustalw binary.
 
         Args:
             target_dir (str): The path to a directory where the msf alignment should be written if the passed in
             alignment is not an msf alignment. If not specified the directory where the fasta alignment is stored will
             be used.
         """
-        if not self.alignment.file_name.endswith('.msf'):
-            clustalw_path = os.environ.get('CLUSTALW_PATH')
-            if target_dir is None:
-                target_dir = os.path.dirname(self.alignment.file_name)
-            old_file_name = os.path.basename(self.alignment.file_name)
-            new_file_name = os.path.join(target_dir, '{}.msf'.format(old_file_name.split('.')[0]))
-            if not os.path.isfile(new_file_name):
-                c_line = ClustalwCommandline(clustalw_path, infile=self.alignment.file_name, convert=True,
-                                             outfile=new_file_name, output='GCG')
-                c_line()
-            self.msf_path = new_file_name
-        else:
-            self.msf_path = self.alignment.file_name
+        clustalw_path = os.environ.get('CLUSTALW_PATH')
+        new_file_name = os.path.join(self.out_dir, 'Non-Gapped_Alignment.msf')
+        if not os.path.isfile(new_file_name):
+            c_line = ClustalwCommandline(clustalw_path, infile=self.non_gapped_aln_fn, convert=True,
+                                         outfile=new_file_name, output='GCG')
+            c_line()
+        self.msf_aln_fn = new_file_name
 
-    def import_rank_sores(self, out_dir, file_name_format='etc_out.rank_{}.tsv', rank_type='id'):
+    def import_rank_scores(self, file_name_format='etc_out.rank_{}.tsv', rank_type='id'):
         """
         Import Rank Scores
 
         This function imports intermediate ranks files (ending in .tsv) to the self.rank_scores attribute.
 
         Args:
-            out_dir (str): The path to the directory where the ET scores have been written.
             file_name_format (str): The format for the rank file name, a placeholder is left for the rank type.
             rank_type (str): The rank type ('identity', 'weak', etc.) for which to import scores.
         Return:
             np.array: Rank scores for each position in the analyzed alignment.
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, file_name_format.format(rank_type))
+        if not os.path.isdir(self.out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(self.out_dir))
+        file_path1 = os.path.join(self.out_dir, file_name_format.format(rank_type))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected rank file!')
         rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         self.rank_scores = rank_df['Rank'].values
 
-    def import_entropy_rank_sores(self, out_dir, file_name_format='etc_out.rank_{}_entropy.tsv', rank_type='plain'):
+    # def import_entropy_rank_sores(self, out_dir, file_name_format='etc_out.rank_{}_entropy.tsv', rank_type='plain'):
+    def import_entropy_rank_sores(self, file_name_format='etc_out.rank_{}_entropy.tsv', rank_type='plain'):
         """
         Import Entropy Rank Scores
 
@@ -152,18 +173,19 @@ class ETMIPWrapper(object):
         Return:
             np.array: Rank scores for each position in the analyzed alignment.
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, file_name_format.format(rank_type))
+        # if not os.path.isdir(out_dir):
+        #     raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        file_path1 = os.path.join(self.out_dir, file_name_format.format(rank_type))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected rank file!')
         rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         self.rho = rank_df['Rho'].values
         self.entropy = {}
-        for i in range(1, self.alignment.size):
+        for i in range(1, self.non_gapped_aln.size):
             self.entropy[i] = rank_df['Rank {} Entropy'.format(i)].values
 
-    def import_distance_matrices(self, out_dir, prefix='etc_out'):
+    # def import_distance_matrices(self, out_dir, prefix='etc_out'):
+    def import_distance_matrices(self, prefix='etc_out'):
         """
         Import Distance Matrices
 
@@ -181,18 +203,18 @@ class ETMIPWrapper(object):
             include the identity counts generated by the two different methods as well as the sequence lengths used for
             normalization.
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, '{}.aln_dist.tsv'.format(prefix))
-        file_path2 = os.path.join(out_dir, '{}.id_dist.tsv'.format(prefix))
-        file_path3 = os.path.join(out_dir, '{}.debug.tsv'.format(prefix))
+        # if not os.path.isdir(self.out_dir):
+        #     raise ValueError('Provided directory does not exist: {}!'.format(self.out_dir))
+        file_path1 = os.path.join(self.out_dir, '{}.aln_dist.tsv'.format(prefix))
+        file_path2 = os.path.join(self.out_dir, '{}.id_dist.tsv'.format(prefix))
+        file_path3 = os.path.join(self.out_dir, '{}.debug.tsv'.format(prefix))
         if not os.path.isfile(file_path1) or not os.path.isfile(file_path2) or not os.path.isfile(file_path3):
             raise ValueError('Provided directory does not contain expected distance files!\n{}\n{}\n{}'.format(
                 file_path1, file_path2, file_path3))
         aln_dist_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=0)
         id_dist_df = pd.read_csv(file_path2, sep='\t', header=0, index_col=0)
         intermediate_df = pd.read_csv(file_path3, sep='\t', header=0, index_col=False, comment='%')
-        array_data = np.asarray(aln_dist_df,dtype=float)
+        array_data = np.asarray(aln_dist_df, dtype=float)
         self.distance_matrix = convert_array_to_distance_matrix(array_data, list(aln_dist_df.columns))
         return aln_dist_df, id_dist_df, intermediate_df
 
@@ -219,7 +241,7 @@ class ETMIPWrapper(object):
                 self.import_distance_matrices(prefix=prefix, out_dir=out_dir)
             except ValueError:
                 print('FAILED TO IMPORT DM')
-                self.distance_matrix = DistanceMatrix(names=self.alignment.seq_order)
+                self.distance_matrix = DistanceMatrix(names=self.non_gapped_aln.seq_order)
         tree.construct_tree(dm=self.distance_matrix)
         self.tree = tree
 
@@ -243,7 +265,7 @@ class ETMIPWrapper(object):
         from time import time
         start = time()
         full_df = pd.read_csv(file_path1, sep='\t', comment='%', header=None, index_col=None,
-                              names=range(1 + self.alignment.size))
+                              names=range(1 + self.non_gapped_aln.size))
         table_names = ['Mapping', 'Nodes']
         tables = full_df[0].isin(['Rank']).cumsum()
         table_dict = {table_names[k - 1]: t.iloc[:] for k, t in full_df.groupby(tables)}
@@ -269,7 +291,7 @@ class ETMIPWrapper(object):
         node_mapping = {}
         for node in self.tree.traverse_top_down():
             if node.is_terminal():
-                node_mapping[(self.alignment.seq_order.index(node.name) + 1) * -1] = node
+                node_mapping[(self.non_gapped_aln.seq_order.index(node.name) + 1) * -1] = node
             else:
                 node_mapping[int(node.name.strip('Inner'))] = node
         inter3 = time()
@@ -354,11 +376,11 @@ class ETMIPWrapper(object):
                 self.import_phylogenetic_tree(out_dir=out_dir, file_name='{}.nhx'.format(prefix))
             if self.rank_group_assignments is None:
                 self.rank_group_assignments = self.tree.assign_group_rank()
-            size = len(str(self.alignment.query_sequence).replace('-', ''))
+            size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
             pos_mapping = {}
             pos_counter = 0
-            for i in range(self.alignment.seq_length):
-                if self.alignment.query_sequence[i] != '-':
+            for i in range(self.non_gapped_aln.seq_length):
+                if self.non_gapped_aln.query_sequence[i] != '-':
                     pos_mapping[i] = pos_counter
                     pos_counter += 1
             print('NON GAP SEQUENCE LENGTH: {}'.format(size))
@@ -384,7 +406,8 @@ class ETMIPWrapper(object):
                         intermediate_mi_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mi
                     else:
                         print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_mi, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                            group_mi, i, j, self.non_gapped_aln.query_sequence[i],
+                            self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import APC Values
@@ -395,7 +418,8 @@ class ETMIPWrapper(object):
                         intermediate_amii_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amii
                     else:
                         print('Skipped AMIi position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_amii, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                            group_amii, i, j, self.non_gapped_aln.query_sequence[i],
+                            self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import E[MIj] values
@@ -405,7 +429,8 @@ class ETMIPWrapper(object):
                         intermediate_amij_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amij
                     else:
                         print('Skipped AMIj position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_amij, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                            group_amij, i, j, self.non_gapped_aln.query_sequence[i],
+                            self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import E[MI] values
@@ -415,7 +440,8 @@ class ETMIPWrapper(object):
                         intermediate_ami_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_ami
                     else:
                         print('Skipped AMI position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_ami, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                            group_ami, i, j, self.non_gapped_aln.query_sequence[i],
+                            self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import MIp values
@@ -425,7 +451,8 @@ class ETMIPWrapper(object):
                         intermediate_mip_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mip
                     else:
                         print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_mip, i, j, self.alignment.query_sequence[i], self.alignment.query_sequence[j]))
+                            group_mip, i, j, self.non_gapped_aln.query_sequence[i],
+                            self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
             for rank in self.rank_group_assignments:
@@ -470,7 +497,7 @@ class ETMIPWrapper(object):
         data = pd.read_csv(file_path, comment='%', sep='\s+', names=['Sort', 'Res_i', 'i(AA)', 'Res_j', 'j(AA)',
                                                                      'Raw_Scores', 'Coverage_Scores', 'Interface',
                                                                      'Contact', 'Number', 'Average_Contact'])
-        size = len(str(self.alignment.query_sequence).replace('-', ''))
+        size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
         self.scores = np.zeros((size, size))
         self.coverage = np.zeros((size, size))
         for ind in data.index:
@@ -507,7 +534,7 @@ class ETMIPWrapper(object):
             columns.append('rho')
         columns.append('coverage')
         data = pd.read_csv(file_path, comment='%', sep='\s+', index_col=None, names=columns)
-        size = len(str(self.alignment.query_sequence).replace('-', ''))
+        size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
         self.scores = np.zeros(size)
         self.coverage = np.zeros(size)
         for ind in data.index:
@@ -536,7 +563,8 @@ class ETMIPWrapper(object):
         else:
             raise ValueError('import_scores does not support method: {}'.format(method))
 
-    def calculate_scores(self, out_dir, method='ET-MIp', delete_files=True):
+    # def calculate_scores(self, out_dir, method='ET-MIp', delete_files=True):
+    def calculate_scores(self, method='ET-MIp', delete_files=True):
         """
         Calculated Scores
 
@@ -557,8 +585,8 @@ class ETMIPWrapper(object):
             found in that directory.
         """
         prefix = '{}_{}'.format('etc_out', method)
-        serialized_path1 = os.path.join(out_dir, '{}.npz'.format(method))
-        serialized_path2 = os.path.join(out_dir, '{}.pkl'.format(method))
+        serialized_path1 = os.path.join(self.out_dir, '{}.npz'.format(method))
+        serialized_path2 = os.path.join(self.out_dir, '{}.pkl'.format(method))
         if os.path.isfile(serialized_path1) and os.path.isfile(serialized_path2):
             loaded_data = np.load(serialized_path1)
             self.scores = loaded_data['scores']
@@ -567,13 +595,14 @@ class ETMIPWrapper(object):
             with open(serialized_path2, 'rb') as handle:
                 self.distance_matrix, self.tree, self.rank_group_assignments = pickle.load(handle)
         else:
-            self.check_alignment(target_dir=out_dir)
+            # self.check_alignment(target_dir=self.out_dir)
+            self.convert_alignment()
             binary_path = os.environ.get('WETC_PATH')
             start = time()
             current_dir = os.getcwd()
-            os.chdir(out_dir)
+            os.chdir(self.out_dir)
             # Call binary
-            options = [binary_path, '-p', self.msf_path, '-x', self.alignment.query_id, '-o', prefix]
+            options = [binary_path, '-p', self.msf_aln_fn, '-x', self.non_gapped_aln.query_id, '-o', prefix]
             if method == 'ET-MIp':
                 options.append('-allpairs')
             elif method == 'intET':
@@ -592,14 +621,14 @@ class ETMIPWrapper(object):
             print('Error:')
             print(error)
             os.chdir(current_dir)
-            self.import_phylogenetic_tree(prefix=prefix, out_dir=out_dir)
+            self.import_phylogenetic_tree(prefix=prefix, out_dir=self.out_dir)
             try:
-                self.import_assignments(prefix=prefix, out_dir=out_dir)
+                self.import_assignments(prefix=prefix, out_dir=self.out_dir)
             except ValueError:
                 self.rank_group_assignments = self.tree.assign_group_rank()
-            self.import_scores(prefix=prefix, out_dir=out_dir, method=method)
+            self.import_scores(prefix=prefix, out_dir=self.out_dir, method=method)
             if delete_files:
-                self.remove_ouptut(out_dir=out_dir, prefix=prefix)
+                self.remove_ouptut(out_dir=self.out_dir, prefix=prefix)
             np.savez(serialized_path1, time=self.time, scores=self.scores, coverage=self.coverage)
             with open(serialized_path2, 'wb') as handle:
                 pickle.dump((self.distance_matrix, self.tree, self.rank_group_assignments), handle,
