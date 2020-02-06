@@ -29,13 +29,25 @@ class DCAWrapper(Predictor):
     This wrapper makes it possible to  perform covariance analysis using the DCA method on a fasta formatted alignment
     and to import the covariance scores from the analysis.
 
+    This class inherits from the Predictor class which means it shares the attributes and initializer of that class,
+    as well as implementing the calculate_scores method.
+
     Attributes:
-        alignment (SeqAlignment): This variable holds a SeqAlignment object. This is mainly used to provide the path
-        the to the alignment used, but is also used to determine the length of the query sequence. Because of this it is
-        advised that the import_alignment() and remove_gaps() methods be run before the SeqAlignment instance is passed
-        to ETMIPWrapper.
-        scores (numpy.array): A square matrix whose length on either axis is the query sequence length (without
-        gaps). This matrix contains the covariance scores computed by the DCA method.
+        out_dir (str): The path where results of this analysis should be written to.
+        query (str): The sequence identifier for the sequence being analyzed.
+        original_aln (SeqAlignment): A SeqAlignment object representing the alignment originally passed in.
+        original_aln_fn (str): The path to the alignment to analyze.
+        non_gapped_aln (SeqAlignment): SeqAlignment object representing the original alignment with all columns which
+        are gaps in the query sequence removed.
+        non_gapped_aln_fn (str): Path to where the non-gapped alignment is written.
+        method (str): 'DCA' for all instances of this class, since the attribute describes how the covariance scores
+        were computed.
+        scores (np.array): A square matrix whose length on either axis is the query sequence length (without gaps). This
+        matrix contains the covariance scores computed by the DCA method.
+        coverages (np.array): The percentage of scores at or better than the score for this pair of positions (i.e. the
+        percentile rank).
+        rankings (np.array): The rank (lowest being best, highest being worst) of each pair of positions in the
+        provided alignment as determined from the calculated scores.
         time (float): The number of seconds it took for the DCA code to load the alignment file and calculate
         covariance scores.
     """
@@ -44,7 +56,7 @@ class DCAWrapper(Predictor):
         """
         __init__
 
-        The base initialization function for all Predictor sub-classes.
+        The initialization function for the DCAWrapper class which draws on its parent (Predictor) initialization.
 
         Arguments:
             query (str): The sequence identifier for the sequence being analyzed.
