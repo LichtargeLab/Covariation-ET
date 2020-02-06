@@ -8,6 +8,8 @@ import unittest
 import numpy as np
 from time import time
 from shutil import rmtree
+from multiprocessing import cpu_count
+from evcouplings.utils import read_config_file
 from test_Base import TestBase
 from EVCouplingsWrapper import EVCouplingsWrapper
 from utils import compute_rank_and_coverage
@@ -58,6 +60,22 @@ class TestEVCouplingsWrapper(TestBase):
         self.evaluate_init(query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
                            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
                            expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+
+    def evaluate_configure_run(self, query, aln_file, out_dir, expected_length):
+        if os.path.isdir(out_dir):
+            rmtree(out_dir)
+        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
+        expected_cpus = cpu_count()
+        evc.configure_run(out_dir=out_dir, cores=expected_cpus)
+        expected_config_fn = os.path.join(out_dir, "{}_config.txt".format(query))
+        self.assertTrue(os.path.isfile(expected_config_fn))
+        config = read_config_file(expected_config_fn)
+        self.assertEqual(config["global"]["prefix"], out_dir + ('/' if not out_dir.endswith('/') else ''))
+        self.assertEqual(config["global"]["sequence_id"], query)
+        self.assertEqual(config["global"]["sequence_file"], os.path.join(out_dir, '{}_seq.fasta'.format(query)))
+        self.assertIsNone(config["global"]["region"])
+        self.assertEqual()
+
 
     # def evaluate_import_scores(self, query, aln_file, out_dir, expected_length):
     #     dca = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir)

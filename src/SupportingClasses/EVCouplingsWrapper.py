@@ -72,28 +72,6 @@ class EVCouplingsWrapper(Predictor):
     #     self.probability = None
     #     self.time = None
 
-    def import_covariance_scores(self, out_path):
-        """
-        Import Covariance Scores
-
-        This method imports the predicted covariation scores into numpy arrays with the shape defined by the length of
-        the query sequence (the same format expected from Evolutionary Trace covariation scores, allowing for easier
-        evaluation).
-
-        Args:
-            out_path (str): Path to the file from which the data should be read.
-        """
-        if not os.path.isfile(out_path):
-            raise ValueError('Provided file does not exist: {}!'.format(out_path))
-        data = pd.read_csv(out_path, sep=',')
-        self.scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        self.probability = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
-        for ind in data.index:
-            i = data.loc[ind, 'i'] - 1
-            j = data.loc[ind, 'j'] - 1
-            self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'cn']
-            self.probability[i, j] = self.scores[j, i] = data.loc[ind, 'probability']
-
     def configure_run(self, out_dir, cores):
         """
         Configure Run
@@ -202,6 +180,28 @@ class EVCouplingsWrapper(Predictor):
         # Fold - skipping
         write_config_file(os.path.join(out_dir, "{}_config.txt".format(self.alignment.query_id)), config)
         return config
+
+    def import_covariance_scores(self, out_path):
+        """
+        Import Covariance Scores
+
+        This method imports the predicted covariation scores into numpy arrays with the shape defined by the length of
+        the query sequence (the same format expected from Evolutionary Trace covariation scores, allowing for easier
+        evaluation).
+
+        Args:
+            out_path (str): Path to the file from which the data should be read.
+        """
+        if not os.path.isfile(out_path):
+            raise ValueError('Provided file does not exist: {}!'.format(out_path))
+        data = pd.read_csv(out_path, sep=',')
+        self.scores = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        self.probability = np.zeros((self.alignment.seq_length, self.alignment.seq_length))
+        for ind in data.index:
+            i = data.loc[ind, 'i'] - 1
+            j = data.loc[ind, 'j'] - 1
+            self.scores[i, j] = self.scores[j, i] = data.loc[ind, 'cn']
+            self.probability[i, j] = self.scores[j, i] = data.loc[ind, 'probability']
 
     # def calculate_scores(self, out_dir, cores=1, delete_files=True):
     def calculate_scores(self, cores=1, delete_files=True):
