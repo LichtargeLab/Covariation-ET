@@ -6,11 +6,8 @@ Created on February 5, 2020
 import os
 import unittest
 import numpy as np
-from time import time
 from shutil import rmtree
-from multiprocessing import cpu_count
 from dotenv import find_dotenv, load_dotenv
-from evcouplings.utils import read_config_file
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -19,13 +16,16 @@ load_dotenv(dotenv_path)
 from test_Base import TestBase
 from ETMIPWrapper import ETMIPWrapper
 from utils import compute_rank_and_coverage
+from PhylogeneticTree import PhylogeneticTree
+from AlignmentDistanceCalculator import convert_array_to_distance_matrix
+from test_PhylogeneticTree import compare_nodes_key, compare_nodes
 
 
-class TestEVCouplingsWrapper(TestBase):
+class TestETMIPWrapper(TestBase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEVCouplingsWrapper, cls).setUpClass()
+        super(TestETMIPWrapper, cls).setUpClass()
         cls.small_fa_fn = cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln']
         cls.large_fa_fn = cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln']
         cls.out_small_dir = os.path.join(cls.testing_dir, cls.small_structure_id)
@@ -142,6 +142,258 @@ class TestEVCouplingsWrapper(TestBase):
     #     self.evaluate_import_entropy_rank_scores(
     #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
     #         expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
+
+    def evaluate_import_distance_matrices(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        rand_state = np.random.RandomState(1234567890)
+        expected_id_path = os.path.join(out_dir, 'etc_out.id_dist.tsv')
+        expected_id_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_id_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_id_dists += expected_id_dists.T
+        expected_id_dists[np.arange(wetc.non_gapped_aln.size), np.arange(wetc.non_gapped_aln.size)] = 1.0
+        with open(expected_id_path, 'w') as handle:
+            handle.write('Seq1/Seq2\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+            for i in range(wetc.non_gapped_aln.size):
+                handle.write(wetc.non_gapped_aln.seq_order[i] + '\t' +
+                             '\t'.join([str(x) for x in expected_id_dists[:, i]]) + '\n')
+        expected_aln_path = os.path.join(out_dir, 'etc_out.aln_dist.tsv')
+        expected_aln_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_aln_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_aln_dists += expected_aln_dists.T
+        with open(expected_aln_path, 'w') as handle2:
+            handle2.write('Seq1/Seq2\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+            for i in range(wetc.non_gapped_aln.size):
+                handle2.write(wetc.non_gapped_aln.seq_order[i] + '\t' +
+                              '\t'.join([str(x) for x in expected_aln_dists[:, i]]) + '\n')
+        expected_debug_path = os.path.join(out_dir, 'etc_out.debug.tsv')
+        expected_thresh = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length)
+        expected_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.size)
+        num_comp = len(np.triu_indices(n=wetc.non_gapped_aln.size)[0])
+        expected_min_seq_len = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_id_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_thresh_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_seq1 = []
+        expected_seq2 = []
+        ind = 0
+        with open(expected_debug_path, 'w') as handle3:
+            handle3.write('% Lines starting with % are comments\n')
+            handle3.write('% Threshold: {} From Count: {}\n'.format(expected_thresh, expected_count))
+            handle3.write('Seq1\tSeq2\tConsensus_Seq\tMin_Seq_Length\tID_Count\tThreshold_Count\n')
+            for i in range(wetc.non_gapped_aln.size):
+                for j in range(i, wetc.non_gapped_aln.size):
+                    handle3.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        wetc.non_gapped_aln.seq_order[i], wetc.non_gapped_aln.seq_order[j],
+                        ','.join(['XX'] * expected_id_count[ind]), expected_min_seq_len[ind], expected_id_count[ind],
+                        expected_thresh_count[ind]))
+                    ind += 1
+                    expected_seq1.append(wetc.non_gapped_aln.seq_order[i])
+                    expected_seq2.append(wetc.non_gapped_aln.seq_order[j])
+        aln_dist_df, id_dist_df, debug_df = wetc.import_distance_matrices()
+        diff_dist_mat = np.array(wetc.distance_matrix) - expected_aln_dists
+        not_passing_dist_mat = diff_dist_mat > 1E-15
+        self.assertFalse(not_passing_dist_mat.any())
+        diff_aln_dist = aln_dist_df.values - expected_aln_dists
+        not_passing_aln_dist = diff_aln_dist > 1E-15
+        self.assertFalse(not_passing_aln_dist.any())
+        diff_id_dist = id_dist_df.values - expected_id_dists
+        not_passing_id_dist = diff_id_dist > 1E-15
+        self.assertFalse(not_passing_id_dist.any())
+        self.assertEqual(list(debug_df['Seq1']), expected_seq1)
+        self.assertEqual(list(debug_df['Seq2']), expected_seq2)
+        diff_min_seq_len = debug_df['Min_Seq_Length'].values - expected_min_seq_len
+        not_passing_min_seq_len = diff_min_seq_len > 0
+        self.assertFalse(not_passing_min_seq_len.any())
+        diff_id_count = debug_df['ID_Count'].values - expected_id_count
+        not_passing_id_count = diff_id_count > 0
+        self.assertFalse(not_passing_id_count.any())
+        diff_thresh_count = debug_df['Threshold_Count'].values - expected_thresh_count
+        not_passing_thresh_count = diff_thresh_count > 0
+        self.assertFalse(not_passing_thresh_count.any())
+
+    # def test_5a_import_distance_matrices(self):
+    #     self.evaluate_import_distance_matrices(
+    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
+    #
+    # def test_5b_import_distance_matrices(self):
+    #     self.evaluate_import_distance_matrices(
+    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
+
+    def check_nodes(self, node1, node2):
+        if node1.is_terminal():
+            self.assertTrue(node2.is_terminal(), 'Node1: {} vs Node2: {}'.format(node1.name, node2.name))
+            self.assertEqual(node1.name, node2.name)
+        else:
+            self.assertTrue(node2.is_bifurcating())
+            self.assertFalse(node2.is_terminal(), 'Node1: {} vs Node2: {}'.format(node1.name, node2.name))
+            self.assertEqual(set([x.name for x in node1.get_terminals()]),
+                             set([x.name for x in node2.get_terminals()]))
+
+    def evaluate_import_phylogenetic_tree(self, query, aln_file, out_dir):
+        def test_tree_equality(wetc_tree, phylo_tree):
+            wetc_iter = wetc_tree.traverse_by_rank()
+            expected_iter = phylo_tree.traverse_by_rank()
+            try:
+                wetc_nodes = next(wetc_iter)
+            except StopIteration:
+                wetc_nodes = None
+            try:
+                expected_nodes = next(expected_iter)
+            except StopIteration:
+                expected_nodes = None
+            count = 1
+            while wetc_nodes and expected_nodes:
+                count += 1
+                if wetc_nodes is None:
+                    self.assertIsNone(expected_nodes)
+                else:
+                    sorted_wetc_nodes = sorted(wetc_nodes, key=compare_nodes_key(compare_nodes))
+                    sorted_py_nodes = sorted(expected_nodes, key=compare_nodes_key(compare_nodes))
+                    self.assertEqual(len(sorted_wetc_nodes), len(sorted_py_nodes))
+                    for i in range(len(sorted_py_nodes)):
+                        try:
+                            self.check_nodes(sorted_wetc_nodes[i], sorted_py_nodes[i])
+                        except AssertionError as e:
+                            raise AssertionError(
+                                "ERRORED ON i={}\nWETC NODE:{} WITH CHILDREN {} and {}\nPY NODE:{} with CHILDREN {} and {}".format(
+                                    i, sorted_wetc_nodes[i], sorted_wetc_nodes[i].clades[0],
+                                    sorted_wetc_nodes[i].clades[1],
+                                    sorted_py_nodes[i], sorted_py_nodes[i].clades[0],
+                                    sorted_py_nodes[i].clades[1])) from e
+                try:
+                    wetc_nodes = next(wetc_iter)
+                except StopIteration:
+                    wetc_nodes = None
+                try:
+                    expected_nodes = next(expected_iter)
+                except StopIteration:
+                    expected_nodes = None
+
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        rand_state = np.random.RandomState(1234567890)
+        expected_id_path = os.path.join(out_dir, 'etc_out.id_dist.tsv')
+        expected_id_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_id_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_id_dists += expected_id_dists.T
+        expected_id_dists[np.arange(wetc.non_gapped_aln.size), np.arange(wetc.non_gapped_aln.size)] = 1.0
+        with open(expected_id_path, 'w') as handle:
+            handle.write('Seq1/Seq2\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+            for i in range(wetc.non_gapped_aln.size):
+                handle.write(wetc.non_gapped_aln.seq_order[i] + '\t' +
+                             '\t'.join([str(x) for x in expected_id_dists[:, i]]) + '\n')
+        expected_aln_path = os.path.join(out_dir, 'etc_out.aln_dist.tsv')
+        expected_aln_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_aln_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_aln_dists += expected_aln_dists.T
+        with open(expected_aln_path, 'w') as handle2:
+            handle2.write('Seq1/Seq2\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+            for i in range(wetc.non_gapped_aln.size):
+                handle2.write(wetc.non_gapped_aln.seq_order[i] + '\t' +
+                              '\t'.join([str(x) for x in expected_aln_dists[:, i]]) + '\n')
+        expected_debug_path = os.path.join(out_dir, 'etc_out.debug.tsv')
+        expected_thresh = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length)
+        expected_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.size)
+        num_comp = len(np.triu_indices(n=wetc.non_gapped_aln.size)[0])
+        expected_min_seq_len = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_id_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_thresh_count = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length, size=num_comp)
+        expected_seq1 = []
+        expected_seq2 = []
+        ind = 0
+        with open(expected_debug_path, 'w') as handle3:
+            handle3.write('% Lines starting with % are comments\n')
+            handle3.write('% Threshold: {} From Count: {}\n'.format(expected_thresh, expected_count))
+            handle3.write('Seq1\tSeq2\tConsensus_Seq\tMin_Seq_Length\tID_Count\tThreshold_Count\n')
+            for i in range(wetc.non_gapped_aln.size):
+                for j in range(i, wetc.non_gapped_aln.size):
+                    handle3.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        wetc.non_gapped_aln.seq_order[i], wetc.non_gapped_aln.seq_order[j],
+                        ','.join(['XX'] * expected_id_count[ind]), expected_min_seq_len[ind], expected_id_count[ind],
+                        expected_thresh_count[ind]))
+                    ind += 1
+                    expected_seq1.append(wetc.non_gapped_aln.seq_order[i])
+                    expected_seq2.append(wetc.non_gapped_aln.seq_order[j])
+        dm = convert_array_to_distance_matrix(expected_aln_dists, wetc.non_gapped_aln.seq_order)
+        pg_tree = PhylogeneticTree()
+        pg_tree.construct_tree(dm)
+        pg_tree.write_out_tree(os.path.join(out_dir, 'etc_out.nhx'))
+        wetc.import_phylogenetic_tree()
+        self.assertIsNotNone(wetc.tree)
+        self.assertIsNotNone(wetc.distance_matrix)
+        diff_dist_mat = np.array(wetc.distance_matrix) - expected_aln_dists
+        not_passing_dist_mat = diff_dist_mat > 1E-15
+        self.assertFalse(not_passing_dist_mat.any())
+        os.remove(expected_aln_path)
+        os.remove(expected_id_path)
+        os.remove(expected_debug_path)
+        wetc2 = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        wetc2.import_phylogenetic_tree()
+        self.assertEqual(wetc2.distance_matrix.names, wetc.non_gapped_aln.seq_order)
+        diff_dist_mat2 = np.array(wetc2.distance_matrix) - np.zeros((wetc2.non_gapped_aln.size,
+                                                                     wetc2.non_gapped_aln.size))
+        not_passing_dist_mat2 = diff_dist_mat2 > 1E-15
+        self.assertFalse(not_passing_dist_mat2.any())
+        test_tree_equality(wetc_tree=wetc2.tree, phylo_tree=pg_tree)
+
+    # def test_6a_import_phylogenetic_tree(self):
+    #     self.evaluate_import_phylogenetic_tree(query=self.small_structure_id, aln_file=self.small_fa_fn,
+    #                                            out_dir=self.out_small_dir)
+    #
+    # def test_6b_import_phylogenetic_tree(self):
+    #     self.evaluate_import_phylogenetic_tree(query=self.large_structure_id, aln_file=self.large_fa_fn,
+    #                                            out_dir=self.out_large_dir)
+
+    # def evaluate_import_assignments(self, query, aln_file, out_dir):
+    #     wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+    #     rand_state = np.random.RandomState(1234567890)
+    #     expected_ranks = range(1, wetc.non_gapped_aln.size + 1)
+    #     expected_assignments = {i: rand_state.randint(low=1, high=i, size=wetc.non_gapped_aln.size)
+    #                             for i in range(2, wetc.non_gapped_aln.size + 1)}
+    #     expected_assignments[1] = [1] * wetc.non_gapped_aln.size
+    #     expected_root_ranks = []
+    #     expected_root_groups = []
+    #     expected_root_nodes = []
+    #     with open(os.path.join(out_dir, 'etc_out.group.tsv'), 'w') as handle:
+    #         handle.write('% Group definitions:\n')
+    #         handle.write('Rank\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+    #         for i in expected_ranks:
+    #             handle.write(str(i) + '\t' + '\t'.join([str(x) for x in expected_assignments[i]]) + '\n')
+    #         handle.write('% Group root:\n')
+    #         handle.write('Rank\tGroup\tRoot_Node\n')
+    #         for i in range(1, wetc.non_gapped_aln.size + 1):
+    #             ranks = [i] * (wetc.non_gapped_aln.size + 2)
+    #             groups = list(range(1, wetc.non_gapped_aln.size + 2))
+    #             nodes = np.zeros(wetc.non_gapped_aln.size + 2)
+    #             ind = rand_state.randint(low=1, high=wetc.non_gapped_aln.size + 2, size=i)
+    #             values = rand_state.randint(low=-1 * (i - 1), high=wetc.non_gapped_aln.size + 2, size=i)
+    #             nodes[ind] = values
+    #             expected_root_ranks += ranks
+    #             expected_root_groups += groups
+    #             expected_root_nodes += list(nodes)
+    #             for j in range(len(ranks)):
+    #                 print('J: ', j)
+    #                 print('Ranks: ', ranks[j])
+    #                 print('Groups: ', groups[j])
+    #                 print('Nodes: ', nodes[j])
+    #                 handle.write('{}\t{}\t{}\n'.format(ranks[j], groups[j], nodes[j]))
+    #     wetc.import_assignments()
+    #     self.assertIsNotNone(wetc.rank_group_assignments)
+    #     self.assertEqual(set(expected_ranks), set(wetc.rank_group_assignments.keys()))
+    #     for r in expected_ranks:
+    #         self.assertEqual(set(range(1, r + 1)), set(wetc.rank_group_assignments[r].keys()))
+    #         for g in wetc.rank_group_assignments[r]:
+    #             self.assertEqual(set(['node', 'terminals', 'descendants']),
+    #                              set(wetc.rank_group_assignments[r][g].key()))
+    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['node'].name, )
+    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['terminals'], )
+    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['descendants'], )
+    #
+    # def test_7a_import_phylogenetic_tree(self):
+    #     self.evaluate_import_assignments(query=self.small_structure_id, aln_file=self.small_fa_fn,
+    #                                      out_dir=self.out_small_dir)
+    #
+    # def test_7b_import_phylogenetic_tree(self):
+    #     self.evaluate_import_assignments(query=self.large_structure_id, aln_file=self.large_fa_fn,
+    #                                      out_dir=self.out_large_dir)
 
     # def evaluate_import_scores(self, query, aln_file, out_dir, expected_length):
     #     evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
