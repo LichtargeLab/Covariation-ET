@@ -242,6 +242,8 @@ class ETMIPWrapper(Predictor):
         file_path1 = os.path.join(self.out_dir, '{}.group.tsv'.format(prefix))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected distance files!')
+        if self.tree is None:
+            self.import_phylogenetic_tree(prefix=prefix)
         from time import time
         start = time()
         full_df = pd.read_csv(file_path1, sep='\t', comment='%', header=None, index_col=None,
@@ -300,7 +302,7 @@ class ETMIPWrapper(Predictor):
         print('Importing table 2 took {} min'.format((end - inter3) / 60.0))
         self.rank_group_assignments = rank_group_assignments
 
-    def import_intermediate_covariance_scores(self, out_dir, prefix='etc_out'):
+    def import_intermediate_covariance_scores(self, prefix='etc_out'):
         """
         Import Intermediate Covariance Scores
 
@@ -309,12 +311,9 @@ class ETMIPWrapper(Predictor):
         exception will be raised.
 
         Args:
-            out_dir (str): The path to the directory where the ETC group and rank assignments have been written.
             prefix (str): The file prefix to prepend to the nhx tree file (WETC -o option).
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path1 = os.path.join(out_dir, '{}.all_rank_and_group_mip.tsv'.format(prefix))
+        file_path1 = os.path.join(self.out_dir, '{}.all_rank_and_group_mip.tsv'.format(prefix))
         if not os.path.isfile(file_path1):
             raise ValueError('Provided directory does not contain expected intermediate file!')
         loaded = True
@@ -333,19 +332,19 @@ class ETMIPWrapper(Predictor):
             intermediate_mip_arrays[rank] = {}
             for group in self.rank_group_assignments[rank]:
                 check1, intermediate_mi_arrays[rank][group] = check_numpy_array(
-                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    out_dir=self.out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
                     metric='WETC_MI', low_memory=True)
                 check2, intermediate_amii_arrays[rank][group] = check_numpy_array(
-                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    out_dir=self.out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
                     metric='WETC_AMIi', low_memory=True)
                 check3, intermediate_amij_arrays[rank][group] = check_numpy_array(
-                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    out_dir=self.out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
                     metric='WETC_AMIj', low_memory=True)
                 check4, intermediate_ami_arrays[rank][group] = check_numpy_array(
-                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    out_dir=self.out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
                     metric='WETC_AMI', low_memory=True)
                 check5, intermediate_mip_arrays[rank][group] = check_numpy_array(
-                    out_dir=out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
+                    out_dir=self.out_dir, node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group',
                     metric='WETC_MIp', low_memory=True)
                 final_check = check1 and check2 and check3 and check4 and check5
                 loaded &= final_check
@@ -353,19 +352,22 @@ class ETMIPWrapper(Predictor):
         if not loaded:
             intermediate_mip_rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=None)
             if self.tree is None:
-                self.import_phylogenetic_tree(out_dir=out_dir, file_name='{}.nhx'.format(prefix))
+                self.import_phylogenetic_tree(prefix=prefix)
             if self.rank_group_assignments is None:
                 self.rank_group_assignments = self.tree.assign_group_rank()
-            size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
-            pos_mapping = {}
-            pos_counter = 0
-            for i in range(self.non_gapped_aln.seq_length):
-                if self.non_gapped_aln.query_sequence[i] != '-':
-                    pos_mapping[i] = pos_counter
-                    pos_counter += 1
+            # size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
+            size = self.non_gapped_aln.seq_length
+
+            # pos_mapping = {i: char for i, char in enumerate(self.non_gapped_aln.query_sequence)}
+
+            # pos_counter = 0
+            # for i in range(self.non_gapped_aln.seq_length):
+            #     if self.non_gapped_aln.query_sequence[i] != '-':
+            #         pos_mapping[i] = pos_counter
+            #         pos_counter += 1
             print('NON GAP SEQUENCE LENGTH: {}'.format(size))
-            print('NON GAP POSITION MAPPING SIZE: {}'.format(len(pos_mapping)))
-            print(pos_mapping)
+            # print('NON GAP POSITION MAPPING SIZE: {}'.format(len(pos_mapping)))
+            # print(pos_mapping)
             for rank in self.rank_group_assignments:
                 for group in self.rank_group_assignments[rank]:
                     intermediate_mi_arrays[rank][group] = np.zeros((size, size))
@@ -382,80 +384,90 @@ class ETMIPWrapper(Predictor):
                 # Import MI values
                 try:
                     group_mi = float(row['group_MI'])
-                    if (i in pos_mapping) and (j in pos_mapping):
-                        intermediate_mi_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mi
-                    else:
-                        print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_mi, i, j, self.non_gapped_aln.query_sequence[i],
-                            self.non_gapped_aln.query_sequence[j]))
+                    intermediate_mi_arrays[rank][group][i, j] = group_mi
+                    # if (i in pos_mapping) and (j in pos_mapping):
+                    #     intermediate_mi_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mi
+                    # else:
+                    #     print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                    #         group_mi, i, j, self.non_gapped_aln.query_sequence[i],
+                    #         self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import APC Values
                 # Import E[MIi] values
                 try:
                     group_amii = float(row['E[MIi]'])
-                    if (i in pos_mapping) and (j in pos_mapping):
-                        intermediate_amii_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amii
-                    else:
-                        print('Skipped AMIi position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_amii, i, j, self.non_gapped_aln.query_sequence[i],
-                            self.non_gapped_aln.query_sequence[j]))
+                    intermediate_amii_arrays[rank][group][i, j] = group_amii
+                    # if (i in pos_mapping) and (j in pos_mapping):
+                    #     intermediate_amii_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amii
+                    # else:
+                    #     print('Skipped AMIi position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                    #         group_amii, i, j, self.non_gapped_aln.query_sequence[i],
+                    #         self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import E[MIj] values
                 try:
                     group_amij = float(row['E[MIj]'])
-                    if (i in pos_mapping) and (j in pos_mapping):
-                        intermediate_amij_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amij
-                    else:
-                        print('Skipped AMIj position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_amij, i, j, self.non_gapped_aln.query_sequence[i],
-                            self.non_gapped_aln.query_sequence[j]))
+                    intermediate_amij_arrays[rank][group][i, j] = group_amij
+                    # if (i in pos_mapping) and (j in pos_mapping):
+                    #     intermediate_amij_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_amij
+                    # else:
+                    #     print('Skipped AMIj position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                    #         group_amij, i, j, self.non_gapped_aln.query_sequence[i],
+                    #         self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import E[MI] values
                 try:
                     group_ami = float(row['E[MI]'])
-                    if (i in pos_mapping) and (j in pos_mapping):
-                        intermediate_ami_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_ami
-                    else:
-                        print('Skipped AMI position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_ami, i, j, self.non_gapped_aln.query_sequence[i],
-                            self.non_gapped_aln.query_sequence[j]))
+                    intermediate_ami_arrays[rank][group][i, j] = group_ami
+                    # if (i in pos_mapping) and (j in pos_mapping):
+                    #     intermediate_ami_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_ami
+                    # else:
+                    #     print('Skipped AMI position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                    #         group_ami, i, j, self.non_gapped_aln.query_sequence[i],
+                    #         self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
                 # Import MIp values
                 try:
                     group_mip = float(row['group_MIp'])
-                    if (i in pos_mapping) and (j in pos_mapping):
-                        intermediate_mip_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mip
-                    else:
-                        print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
-                            group_mip, i, j, self.non_gapped_aln.query_sequence[i],
-                            self.non_gapped_aln.query_sequence[j]))
+                    intermediate_mip_arrays[rank][group][i, j] = group_mip
+                    # if (i in pos_mapping) and (j in pos_mapping):
+                    #     intermediate_mip_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mip
+                    # else:
+                    #     print('Skipped MIp position has value: {}\ti: {}\tj: {}\tchar_i: {}\tchar_j: {}'.format(
+                    #         group_mip, i, j, self.non_gapped_aln.query_sequence[i],
+                    #         self.non_gapped_aln.query_sequence[j]))
                 except ValueError:
                     pass
             for rank in self.rank_group_assignments:
                 for group in self.rank_group_assignments[rank]:
                     intermediate_mi_arrays[rank][group] = save_numpy_array(
-                        mat=intermediate_mi_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
-                        pos_type='pair', score_type='group', metric='WETC_MI', low_memory=True)
+                        mat=intermediate_mi_arrays[rank][group], out_dir=self.out_dir,
+                        node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group', metric='WETC_MI',
+                        low_memory=True)
                     intermediate_amii_arrays[rank][group] = save_numpy_array(
-                        mat=intermediate_amii_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
-                        pos_type='pair', score_type='group', metric='WETC_AMIi', low_memory=True)
+                        mat=intermediate_amii_arrays[rank][group], out_dir=self.out_dir,
+                        node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group', metric='WETC_AMIi',
+                        low_memory=True)
                     intermediate_amij_arrays[rank][group] = save_numpy_array(
-                        mat=intermediate_amij_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
-                        pos_type='pair', score_type='group', metric='WETC_AMIj', low_memory=True)
+                        mat=intermediate_amij_arrays[rank][group], out_dir=self.out_dir,
+                        node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group', metric='WETC_AMIj',
+                        low_memory=True)
                     intermediate_ami_arrays[rank][group] = save_numpy_array(
-                        mat=intermediate_ami_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
-                        pos_type='pair', score_type='group', metric='WETC_AMI', low_memory=True)
+                        mat=intermediate_ami_arrays[rank][group], out_dir=self.out_dir,
+                        node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group', metric='WETC_AMI',
+                        low_memory=True)
                     intermediate_mip_arrays[rank][group] = save_numpy_array(
-                        mat=intermediate_mip_arrays[rank][group], out_dir=out_dir, node_name='R{}G{}'.format(rank, group),
-                        pos_type='pair', score_type='group', metric='WETC_MIp', low_memory=True)
+                        mat=intermediate_mip_arrays[rank][group], out_dir=self.out_dir,
+                        node_name='R{}G{}'.format(rank, group), pos_type='pair', score_type='group', metric='WETC_MIp',
+                        low_memory=True)
         return (intermediate_mi_arrays, intermediate_amii_arrays, intermediate_amij_arrays, intermediate_ami_arrays,
                 intermediate_mip_arrays)
 
-    def import_covariance_scores(self, out_dir, prefix='etc_out'):
+    def import_covariance_scores(self, prefix='etc_out'):
         """
         Import Covariance Scores
 
@@ -464,14 +476,11 @@ class ETMIPWrapper(Predictor):
         coverage matrices.
 
         Args:
-            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the covariance score files (WETC -o option).
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path = os.path.join(out_dir, '{}.tree_mip_sorted'.format(prefix))
+        file_path = os.path.join(self.out_dir, '{}.tree_mip_sorted'.format(prefix))
         if not os.path.isfile(file_path):
             raise ValueError('Provided directory does not contain expected covariance file!')
         data = pd.read_csv(file_path, comment='%', sep='\s+', names=['Sort', 'Res_i', 'i(AA)', 'Res_j', 'j(AA)',
@@ -489,8 +498,9 @@ class ETMIPWrapper(Predictor):
                 print(str1 + ' to i: {} and j:{}'.format(i, j))
             self.scores[i, j] = data.loc[ind, 'Raw_Scores']
             self.coverage[i, j] = data.loc[ind, 'Coverage_Scores']
+            self.rankings[i, j] = data.loc[ind, 'Sort']
 
-    def import_et_ranks(self, method, out_dir, prefix='etc_out'):
+    def import_et_ranks(self, method, prefix='etc_out'):
         """
         Import ET ranks
 
@@ -499,14 +509,11 @@ class ETMIPWrapper(Predictor):
 
         Args:
             method (str): Which method (rvET or intET) was used to generate the scores.
-            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the rank files (WETC -o option).
         Raises:
             ValueError: If the directory does not exist, or the expected file is not found in that directory.
         """
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
-        file_path = os.path.join(out_dir, '{}.ranks'.format(prefix))
+        file_path = os.path.join(self.out_dir, '{}.ranks'.format(prefix))
         if not os.path.isfile(file_path):
             raise ValueError('Provided directory does not contain expected covariance file!')
         columns = ["alignment#", "residue#", "type", "rank", "variability", "characters"]
@@ -522,7 +529,7 @@ class ETMIPWrapper(Predictor):
             self.scores[i] = data.loc[ind, 'rank']
             self.coverage[i] = data.loc[ind, 'coverage']
 
-    def import_scores(self, method, out_dir, prefix='etc_out'):
+    def import_scores(self, method, prefix='etc_out'):
         """
         Import Scores
 
@@ -532,14 +539,13 @@ class ETMIPWrapper(Predictor):
 
         Args:
             method (str): Which method was used to generate results, current expected inputs are intET, rvET, or ET-MIp.
-            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the rank files (WETC -o option).
         """
 
         if method == 'ET-MIp':
-            self.import_covariance_scores(prefix=prefix, out_dir=out_dir)
+            self.import_covariance_scores(prefix=prefix)
         elif method == 'intET' or method == 'rvET':
-            self.import_et_ranks(method=method, prefix=prefix, out_dir=out_dir)
+            self.import_et_ranks(method=method, prefix=prefix)
         else:
             raise ValueError('import_scores does not support method: {}'.format(method))
 

@@ -6,6 +6,7 @@ Created on February 5, 2020
 import os
 import unittest
 import numpy as np
+import pandas as pd
 from shutil import rmtree
 from dotenv import find_dotenv, load_dotenv
 try:
@@ -342,51 +343,60 @@ class TestETMIPWrapper(TestBase):
     #     self.evaluate_import_phylogenetic_tree(query=self.large_structure_id, aln_file=self.large_fa_fn,
     #                                            out_dir=self.out_large_dir)
 
-    # def evaluate_import_assignments(self, query, aln_file, out_dir):
-    #     wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
-    #     rand_state = np.random.RandomState(1234567890)
-    #     expected_ranks = range(1, wetc.non_gapped_aln.size + 1)
-    #     expected_assignments = {i: rand_state.randint(low=1, high=i, size=wetc.non_gapped_aln.size)
-    #                             for i in range(2, wetc.non_gapped_aln.size + 1)}
-    #     expected_assignments[1] = [1] * wetc.non_gapped_aln.size
-    #     expected_root_ranks = []
-    #     expected_root_groups = []
-    #     expected_root_nodes = []
-    #     with open(os.path.join(out_dir, 'etc_out.group.tsv'), 'w') as handle:
-    #         handle.write('% Group definitions:\n')
-    #         handle.write('Rank\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
-    #         for i in expected_ranks:
-    #             handle.write(str(i) + '\t' + '\t'.join([str(x) for x in expected_assignments[i]]) + '\n')
-    #         handle.write('% Group root:\n')
-    #         handle.write('Rank\tGroup\tRoot_Node\n')
-    #         for i in range(1, wetc.non_gapped_aln.size + 1):
-    #             ranks = [i] * (wetc.non_gapped_aln.size + 2)
-    #             groups = list(range(1, wetc.non_gapped_aln.size + 2))
-    #             nodes = np.zeros(wetc.non_gapped_aln.size + 2)
-    #             ind = rand_state.randint(low=1, high=wetc.non_gapped_aln.size + 2, size=i)
-    #             values = rand_state.randint(low=-1 * (i - 1), high=wetc.non_gapped_aln.size + 2, size=i)
-    #             nodes[ind] = values
-    #             expected_root_ranks += ranks
-    #             expected_root_groups += groups
-    #             expected_root_nodes += list(nodes)
-    #             for j in range(len(ranks)):
-    #                 print('J: ', j)
-    #                 print('Ranks: ', ranks[j])
-    #                 print('Groups: ', groups[j])
-    #                 print('Nodes: ', nodes[j])
-    #                 handle.write('{}\t{}\t{}\n'.format(ranks[j], groups[j], nodes[j]))
-    #     wetc.import_assignments()
-    #     self.assertIsNotNone(wetc.rank_group_assignments)
-    #     self.assertEqual(set(expected_ranks), set(wetc.rank_group_assignments.keys()))
-    #     for r in expected_ranks:
-    #         self.assertEqual(set(range(1, r + 1)), set(wetc.rank_group_assignments[r].keys()))
-    #         for g in wetc.rank_group_assignments[r]:
-    #             self.assertEqual(set(['node', 'terminals', 'descendants']),
-    #                              set(wetc.rank_group_assignments[r][g].key()))
-    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['node'].name, )
-    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['terminals'], )
-    #             # self.assertEqual(wetc.rank_group_assignments[r][g]['descendants'], )
-    #
+    def evaluate_import_assignments(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        rand_state = np.random.RandomState(1234567890)
+        expected_aln_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_aln_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_aln_dists += expected_aln_dists.T
+        dm = convert_array_to_distance_matrix(expected_aln_dists, wetc.non_gapped_aln.seq_order)
+        pg_tree = PhylogeneticTree()
+        pg_tree.construct_tree(dm)
+        pg_tree.write_out_tree(os.path.join(out_dir, 'etc_out.nhx'))
+        expected_rank_group_assignments = pg_tree.assign_group_rank()
+
+        with open(os.path.join(out_dir, 'etc_out.group.tsv'), 'w') as handle:
+            handle.write('% Group definitions:\n')
+            handle.write('Rank\t' + '\t'.join(wetc.non_gapped_aln.seq_order) + '\n')
+            for r in expected_rank_group_assignments:
+                curr_groups = {}
+                for g in expected_rank_group_assignments[r]:
+                    for t in expected_rank_group_assignments[r][g]['terminals']:
+                        curr_groups[t] = g
+                handle.write(str(r) + '\t' + '\t'.join([str(curr_groups[wetc.non_gapped_aln.seq_order[i]])
+                                                        for i in range(wetc.non_gapped_aln.size)]) + '\n')
+            handle.write('% Group root:\n')
+            handle.write('Rank\tGroup\tRoot_Node\n')
+            for r in range(1, wetc.non_gapped_aln.size + 2):
+                for g in range(1, wetc.non_gapped_aln.size + 2):
+                    curr_line = str(r) + '\t' + str(g) + '\t'
+                    if (r in expected_rank_group_assignments) and (g in expected_rank_group_assignments[r]):
+                        node_name = expected_rank_group_assignments[r][g]['node'].name
+                        if len(expected_rank_group_assignments[r][g]['terminals']) == 1:
+                            curr_num = -1 * (wetc.non_gapped_aln.seq_order.index(node_name) + 1)
+                        else:
+                            curr_num = int(node_name.strip('Inner'))
+                    else:
+                        curr_num = 0
+                    curr_line += '{}\n'.format(curr_num)
+                    handle.write(curr_line)
+        wetc.import_assignments()
+        self.assertEqual(set(wetc.rank_group_assignments.keys()), set(expected_rank_group_assignments.keys()))
+        for r in sorted(wetc.rank_group_assignments.keys()):
+            self.assertEqual(set(wetc.rank_group_assignments[r].keys()), set(expected_rank_group_assignments[r].keys()))
+            for g in sorted(wetc.rank_group_assignments[r].keys()):
+                self.assertEqual(set(wetc.rank_group_assignments[r][g].keys()),
+                                 set(expected_rank_group_assignments[r][g].keys()))
+                self.assertEqual(wetc.rank_group_assignments[r][g]['node'].name,
+                                 expected_rank_group_assignments[r][g]['node'].name)
+                self.assertEqual(set(wetc.rank_group_assignments[r][g]['terminals']),
+                                 set(expected_rank_group_assignments[r][g]['terminals']))
+                if wetc.rank_group_assignments[r][g]['descendants'] is None:
+                    self.assertIsNone(expected_rank_group_assignments[r][g]['descendants'])
+                else:
+                    self.assertEqual(set([x.name for x in wetc.rank_group_assignments[r][g]['descendants']]),
+                                     set([x.name for x in expected_rank_group_assignments[r][g]['descendants']]))
+
     # def test_7a_import_phylogenetic_tree(self):
     #     self.evaluate_import_assignments(query=self.small_structure_id, aln_file=self.small_fa_fn,
     #                                      out_dir=self.out_small_dir)
@@ -394,6 +404,137 @@ class TestETMIPWrapper(TestBase):
     # def test_7b_import_phylogenetic_tree(self):
     #     self.evaluate_import_assignments(query=self.large_structure_id, aln_file=self.large_fa_fn,
     #                                      out_dir=self.out_large_dir)
+
+    def evaluate_import_intermediate_covariance_scores(self, query, aln_file, out_dir):
+        expected_path = os.path.join(out_dir, 'etc_out.all_rank_and_group_mip.tsv')
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        wetc2 = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        rand_state = np.random.RandomState(1234567890)
+        expected_aln_dists = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+        expected_aln_dists[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_aln_dists += expected_aln_dists.T
+        dm = convert_array_to_distance_matrix(expected_aln_dists, wetc.non_gapped_aln.seq_order)
+        pg_tree = PhylogeneticTree()
+        pg_tree.construct_tree(dm)
+        wetc.tree = pg_tree
+        wetc2.tree = pg_tree
+        wetc.rank_group_assignments = pg_tree.assign_group_rank()
+        wetc2.rank_group_assignments = pg_tree.assign_group_rank()
+        # i, j, rank, group, group_MI, E[MIi], E[MIj], E[MI], group_MIp
+        # '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric)
+        data_for_file = {'i': [], 'j': [], 'rank': [], 'group': [], 'group_MI': [], 'E[MIi]': [], 'E[MIj]': [],
+                         'E[MI]': [], 'group_MIp': []}
+        indices = np.triu_indices(wetc.non_gapped_aln.seq_length, k=1)
+        expected_scores = {}
+        for r in sorted(wetc.rank_group_assignments.keys()):
+            expected_scores[r] = {}
+            for g in sorted(wetc.rank_group_assignments[r].keys()):
+                expected_scores[r][g] = {}
+                data_for_file['i'] += list(indices[0] + 1)
+                data_for_file['j'] += list(indices[1] + 1)
+                data_for_file['rank'] += [r] * len(indices[0])
+                data_for_file['group'] += [g] * len(indices[0])
+                for data in ['group_MI', 'E[MIi]', 'E[MIj]', 'E[MI]', 'group_MIp']:
+                    curr_data = rand_state.rand(wetc.non_gapped_aln.size, wetc.non_gapped_aln.size)
+                    curr_data[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+                    curr_data += curr_data.T
+                    expected_scores[r][g][data] = curr_data
+                    data_for_file[data] += list(curr_data[indices])
+        pd.DataFrame(data_for_file).to_csv(expected_path, sep='\t', header=True, index=False,
+                                           columns=['i', 'j', 'rank', 'group', 'group_MI', 'E[MIi]', 'E[MIj]', 'E[MI]',
+                                                    'group_MIp'])
+        mi_arrays1, amii_arrays1, amij_arrays1, ami_arrays1, mip_arrays1 = wetc.import_intermediate_covariance_scores()
+        os.remove(expected_path)
+        mi_arrays2, amii_arrays2, amij_arrays2, ami_arrays2, mip_arrays2 = wetc2.import_intermediate_covariance_scores()
+        for r in sorted(wetc.rank_group_assignments.keys()):
+            for g in sorted(wetc.rank_group_assignments[r].keys()):
+                diff_mi1 = mi_arrays1 - expected_scores[r][g]['group_MI']
+                not_passing_mi1 = diff_mi1 > 1E-15
+                self.assertFalse(not_passing_mi1.any())
+                diff_mi2 = mi_arrays2 - expected_scores[r][g]['group_MI']
+                not_passing_mi2 = diff_mi2 > 1E-15
+                self.assertFalse(not_passing_mi2.any())
+                diff_amii1 = amii_arrays1 - expected_scores[r][g]['E[MIi]']
+                not_passing_amii1 = diff_amii1 > 1E-15
+                self.assertFalse(not_passing_amii1.any())
+                diff_amii2 = amii_arrays2 - expected_scores[r][g]['E[MIi]']
+                not_passing_amii2 = diff_amii2 > 1E-15
+                self.assertFalse(not_passing_amii2.any())
+                diff_amij1 = amij_arrays1 - expected_scores[r][g]['E[MIj]']
+                not_passing_amij1 = diff_amij1 > 1E-15
+                self.assertFalse(not_passing_amij1.any())
+                diff_amij2 = amij_arrays2 - expected_scores[r][g]['E[MIj]']
+                not_passing_amij2 = diff_amij2 > 1E-15
+                self.assertFalse(not_passing_amij2.any())
+                diff_ami1 = ami_arrays1 - expected_scores[r][g]['E[MI]']
+                not_passing_ami1 = diff_ami1 > 1E-15
+                self.assertFalse(not_passing_ami1.any())
+                diff_ami2 = ami_arrays2 - expected_scores[r][g]['E[MI]']
+                not_passing_ami2 = diff_ami2 > 1E-15
+                self.assertFalse(not_passing_ami2.any())
+                diff_mip1 = mip_arrays1 - expected_scores[r][g]['group_MIp']
+                not_passing_mip1 = diff_mip1 > 1E-15
+                self.assertFalse(not_passing_mip1.any())
+                diff_mip2 = mip_arrays2 - expected_scores[r][g]['group_MIp']
+                not_passing_mip2 = diff_mip2 > 1E-15
+                self.assertFalse(not_passing_mip2.any())
+                self.assertTrue(os.path.isfile(os.path.join(out_dir,
+                                                            'R{}G{}_pair_group_WETC_MI_score.npz'.format(r, g))))
+                self.assertTrue(os.path.isfile(os.path.join(out_dir,
+                                                            'R{}G{}_pair_group_WETC_AMIi_score.npz'.format(r, g))))
+                self.assertTrue(os.path.isfile(os.path.join(out_dir,
+                                                            'R{}G{}_pair_group_WETC_AMIj_score.npz'.format(r, g))))
+                self.assertTrue(os.path.isfile(os.path.join(out_dir,
+                                                            'R{}G{}_pair_group_WETC_AMI_score.npz'.format(r, g))))
+                self.assertTrue(os.path.isfile(os.path.join(out_dir,
+                                                            'R{}G{}_pair_group_WETC_MIp_score.npz'.format(r, g))))
+
+    def test_8a_import_intermediate_covariance_scores(self):
+        self.evaluate_import_intermediate_covariance_scores(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                                            out_dir=self.out_small_dir)
+
+    def test_8b_import_intermediate_covariance_scores(self):
+        self.evaluate_import_intermediate_covariance_scores(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                                            out_dir=self.out_large_dir)
+
+    def evaluate_import_covariance_scores(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        rand_state = np.random.RandomState(1234567890)
+        indices = np.triu_indices(n=wetc.non_gapped_aln.seq_length, k=1)
+        expected_scores = rand_state.rand(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length)
+        expected_scores[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_scores += expected_scores.T
+        expected_ranks, expected_coverage = compute_rank_and_coverage(wetc.non_gapped_aln.seq_length, expected_scores,
+                                                                      2, 'max')
+        expected_interface = rand_state.randint(low=0, high=1, size=(wetc.non_gapped_aln.seq_length,
+                                                                     wetc.non_gapped_aln.seq_length))
+        expected_contacts = rand_state.randint(low=0, high=1, size=(wetc.non_gapped_aln.seq_length,
+                                                                     wetc.non_gapped_aln.seq_length))
+        expected_number = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length,
+                                            size=(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length))
+        expected_ave_contact = rand_state.rand(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length)
+        with open(os.path.join(out_dir, )) as handle:
+            handle.write('%       Sort Res i(AA) Res j(AA)      sorted   cvg(sort)  interface      contact      number  AveContact\n')
+            for x in range(len(indices[0])):
+                i = indices[0][x]
+                j = indices[1][x]
+                handle.write('        {} {} {} {} {}      {}   {}  {}      {}      {}  {}\n'.format(
+                    expected_ranks[i, j], i + 1, wetc.non_gapped_aln.query_sequence[i], j + 1,
+                    wetc.non_gapped_aln.query_sequence[j], expected_scores[i, j], expected_coverage[i, j],
+                    expected_interface[i, j], expected_contacts[i, j], expected_number[i, j],
+                    expected_ave_contact[i, j]))
+        wetc.import_covariance_scores()
+        diff_scores = wetc.scores[indices] - expected_scores[indices]
+        not_passing_scores = diff_scores > 1E-15
+        self.asssertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages[indices] - expected_coverage[indices]
+        not_passing_coverage = diff_coverage > 1E-15
+        self.assertFalse(not_passing_coverage)
+        diff_ranking = wetc.rankings - expected_ranks
+        not_passing_ranking = diff_ranking > 1E-15
+        self.assertFalse(not_passing_ranking.any())
+
+
 
     # def evaluate_import_scores(self, query, aln_file, out_dir, expected_length):
     #     evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
