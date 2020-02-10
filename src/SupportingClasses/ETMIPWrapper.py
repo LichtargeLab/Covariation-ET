@@ -74,27 +74,6 @@ class ETMIPWrapper(Predictor):
         at that rank/level in the tree.
     """
 
-    # def __init__(self, alignment):
-    #     """
-    #     This method instantiates an instance of the ETMIPWrapper class.
-    #
-    #     Args:
-    #         alignment (SeqAlignment): This is mainly used to provide the path the to the alignment used, but is also
-    #         used to determine the length of the query sequence. Because of this it is advised that the
-    #         import_alignment() method be run before the SeqAlignment instance is passed to ETMIPWrapper.
-    #     """
-    #     self.alignment = alignment
-    #     self.msf_path = None
-    #     self.scores = None
-    #     self.coverage = None
-    #     self.distance_matrix = None
-    #     self.tree = None
-    #     self.rank_group_assignments = None
-    #     self.rank_scores = None
-    #     self.rho = None
-    #     self.entropy = None
-    #     self.time = None
-
     def __init__(self, query, aln_file, out_dir='.'):
         """
         __init__
@@ -616,14 +595,15 @@ class ETMIPWrapper(Predictor):
             self.import_scores(prefix=prefix, method=method)
             if delete_files:
                 self.remove_ouptut(prefix=prefix)
-            np.savez(serialized_path1, time=self.time, scores=self.scores, ranks=self.rankings, coverages=self.coverage)
+            np.savez(serialized_path1, time=self.time, scores=self.scores, ranks=self.rankings,
+                     coverages=self.coverages)
             with open(serialized_path2, 'wb') as handle:
                 pickle.dump((self.distance_matrix, self.tree, self.rank_group_assignments), handle,
                             pickle.HIGHEST_PROTOCOL)
         print(self.time)
         return self.time
 
-    def remove_ouptut(self, prefix='etc_out'):
+    def remove_output(self, prefix='etc_out'):
         """
         Remove Output
 

@@ -36,6 +36,7 @@ class TestETMIPWrapper(TestBase):
         rmtree(cls.out_large_dir, ignore_errors=True)
 
     def evaluate_init(self, query, aln_file, out_dir, expected_length, expected_sequence):
+        rmtree(os.path.abspath(out_dir))
         self.assertFalse(os.path.isdir(os.path.abspath(out_dir)))
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
         self.assertEqual(wetc.out_dir, os.path.abspath(out_dir))
@@ -488,13 +489,13 @@ class TestETMIPWrapper(TestBase):
                 self.assertTrue(os.path.isfile(os.path.join(out_dir,
                                                             'R{}G{}_pair_group_WETC_MIp_score.npz'.format(r, g))))
 
-    def test_8a_import_intermediate_covariance_scores(self):
-        self.evaluate_import_intermediate_covariance_scores(query=self.small_structure_id, aln_file=self.small_fa_fn,
-                                                            out_dir=self.out_small_dir)
-
-    def test_8b_import_intermediate_covariance_scores(self):
-        self.evaluate_import_intermediate_covariance_scores(query=self.large_structure_id, aln_file=self.large_fa_fn,
-                                                            out_dir=self.out_large_dir)
+    # # def test_8a_import_intermediate_covariance_scores(self):
+    # #     self.evaluate_import_intermediate_covariance_scores(query=self.small_structure_id, aln_file=self.small_fa_fn,
+    # #                                                         out_dir=self.out_small_dir)
+    # #
+    # # def test_8b_import_intermediate_covariance_scores(self):
+    # #     self.evaluate_import_intermediate_covariance_scores(query=self.large_structure_id, aln_file=self.large_fa_fn,
+    # #                                                         out_dir=self.out_large_dir)
 
     def generate_covariance_scores(self, wetc, out_dir):
         rand_state = np.random.RandomState(1234567890)
@@ -667,7 +668,7 @@ class TestETMIPWrapper(TestBase):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
         for method in ['intET', 'rvET', 'ET-MIp']:
             start = time()
-            wetc.calculate_scores(delete_files=False, cores=self.max_threads)
+            wetc.calculate_scores(delete_files=False, method=method)
             end = time()
             expected_time = end - start
             self.assertEqual(wetc.out_dir, os.path.abspath(out_dir))
@@ -690,19 +691,19 @@ class TestETMIPWrapper(TestBase):
             else:
                 expected_ranks, expected_coverages = compute_rank_and_coverage(expected_length, wetc.scores, 2, 'max')
             ranks_diff = wetc.rankings - expected_ranks
-            ranks_not_passing = ranks_diff > 0.0
+            ranks_not_passing = ranks_diff < 0.0
             self.assertFalse(ranks_not_passing.any())
             coverages_diff = wetc.coverages - expected_coverages
-            coverages_not_passing = coverages_diff > 0.0
+            coverages_not_passing = coverages_diff > 1E-3
             self.assertFalse(coverages_not_passing.any())
             self.assertLessEqual(wetc.time, expected_time)
-            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'WETC.npz')))
-            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'WETC.pkl')))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, '{}.npz'.format(method))))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, '{}.pkl'.format(method))))
             wetc.scores = None
             wetc.rankings = None
             wetc.coverages = None
-            os.remove(os.path.join(out_dir, 'WETC.npz'))
-            os.remove(os.path.join(out_dir, 'WETC.pkl'))
+            os.remove(os.path.join(out_dir, '{}.npz'.format(method)))
+            os.remove(os.path.join(out_dir, '{}.pkl'.format(method)))
 
     def test_12a_calculate_scores(self):
         self.evaluate_calculate_scores(
@@ -716,7 +717,7 @@ class TestETMIPWrapper(TestBase):
             expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
             expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
 
-    def evalaute_remove_output(self, query, aln_file, out_dir):
+    def evaluate_remove_output(self, query, aln_file, out_dir):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
         file_suffixes = ['aa_freqs', 'allpair_ranks', 'allpair_ranks_sorted', 'auc', 'average_ranks_sorted',
                          'covariation_matrix', 'entro.heatmap', 'entroMI.heatmap', 'mip_sorted', 'MI_sorted', 'nhx',
@@ -738,7 +739,7 @@ class TestETMIPWrapper(TestBase):
             query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
 
     def test_13b_remove_output(self):
-        self.evalaute_remove_output(
+        self.evaluate_remove_output(
             query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
 
 
