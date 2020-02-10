@@ -191,7 +191,7 @@ class TestEVCouplingsWrapper(TestBase):
             query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
             expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
 
-    def evaluate_calculator_scores(self, query, aln_file, out_dir, expected_length, expected_sequence):
+    def evaluate_calculate_scores(self, query, aln_file, out_dir, expected_length, expected_sequence):
         evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
         start = time()
         evc.calculate_scores(delete_files=False, cores=self.max_threads)
@@ -225,13 +225,13 @@ class TestEVCouplingsWrapper(TestBase):
         self.assertTrue(os.path.isfile(os.path.join(out_dir, 'EVCouplings.npz')))
 
     def test_4a_calculate_scores(self):
-        self.evaluate_calculator_scores(
+        self.evaluate_calculate_scores(
             query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
             expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
             expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
 
     def test_4b_calculate_scores(self):
-        self.evaluate_calculator_scores(
+        self.evaluate_calculate_scores(
             query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
             expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
             expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
