@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from time import time
+from scipy.stats import rankdata
 from subprocess import Popen, PIPE
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from Bio.Align.Applications import ClustalwCommandline
@@ -488,7 +489,8 @@ class ETMIPWrapper(Predictor):
                                                                      'Contact', 'Number', 'Average_Contact'])
         size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
         self.scores = np.zeros((size, size))
-        self.coverage = np.zeros((size, size))
+        self.coverages = np.zeros((size, size))
+        self.rankings = np.zeros((size, size))
         for ind in data.index:
             i = data.loc[ind, 'Res_i'] - 1
             j = data.loc[ind, 'Res_j'] - 1
@@ -497,7 +499,7 @@ class ETMIPWrapper(Predictor):
                 j, i = i, j
                 print(str1 + ' to i: {} and j:{}'.format(i, j))
             self.scores[i, j] = data.loc[ind, 'Raw_Scores']
-            self.coverage[i, j] = data.loc[ind, 'Coverage_Scores']
+            self.coverages[i, j] = data.loc[ind, 'Coverage_Scores']
             self.rankings[i, j] = data.loc[ind, 'Sort']
 
     def import_et_ranks(self, method, prefix='etc_out'):
@@ -523,11 +525,12 @@ class ETMIPWrapper(Predictor):
         data = pd.read_csv(file_path, comment='%', sep='\s+', index_col=None, names=columns)
         size = len(str(self.non_gapped_aln.query_sequence).replace('-', ''))
         self.scores = np.zeros(size)
-        self.coverage = np.zeros(size)
+        self.coverages = np.zeros(size)
         for ind in data.index:
             i = data.loc[ind, 'residue#'] - 1
             self.scores[i] = data.loc[ind, 'rank']
-            self.coverage[i] = data.loc[ind, 'coverage']
+            self.coverages[i] = data.loc[ind, 'coverage']
+        self.rankings = rankdata(self.scores, method='dense')
 
     def import_scores(self, method, prefix='etc_out'):
         """
@@ -549,7 +552,6 @@ class ETMIPWrapper(Predictor):
         else:
             raise ValueError('import_scores does not support method: {}'.format(method))
 
-    # def calculate_scores(self, out_dir, method='ET-MIp', delete_files=True):
     def calculate_scores(self, method='ET-MIp', delete_files=True):
         """
         Calculated Scores
@@ -562,7 +564,6 @@ class ETMIPWrapper(Predictor):
         used or the python implementation is used to fill in the missing values).
 
         Args:
-            out_dir (str): The path to the directory where the wetc scores should be written.
             method (str): Which method (intET, rvET, or ET-MIp) to use to generate scores.
             delete_files (boolean): If True all of the files written out by calling this method will be deleted after
             importing the relevant data, if False all files will be left in the specified out_dir.
@@ -576,12 +577,12 @@ class ETMIPWrapper(Predictor):
         if os.path.isfile(serialized_path1) and os.path.isfile(serialized_path2):
             loaded_data = np.load(serialized_path1)
             self.scores = loaded_data['scores']
-            self.coverage = loaded_data['coverage']
+            self.rankings = loaded_data['ranks']
+            self.coverages = loaded_data['coverages']
             self.time = loaded_data['time']
             with open(serialized_path2, 'rb') as handle:
                 self.distance_matrix, self.tree, self.rank_group_assignments = pickle.load(handle)
         else:
-            # self.check_alignment(target_dir=self.out_dir)
             self.convert_alignment()
             binary_path = os.environ.get('WETC_PATH')
             start = time()
@@ -607,23 +608,22 @@ class ETMIPWrapper(Predictor):
             print('Error:')
             print(error)
             os.chdir(current_dir)
-            self.import_phylogenetic_tree(prefix=prefix, out_dir=self.out_dir)
+            self.import_phylogenetic_tree(prefix=prefix)
             try:
-                self.import_assignments(prefix=prefix, out_dir=self.out_dir)
+                self.import_assignments(prefix=prefix)
             except ValueError:
                 self.rank_group_assignments = self.tree.assign_group_rank()
-            self.import_scores(prefix=prefix, out_dir=self.out_dir, method=method)
+            self.import_scores(prefix=prefix, method=method)
             if delete_files:
-                self.remove_ouptut(out_dir=self.out_dir, prefix=prefix)
-            np.savez(serialized_path1, time=self.time, scores=self.scores, coverage=self.coverage)
+                self.remove_ouptut(prefix=prefix)
+            np.savez(serialized_path1, time=self.time, scores=self.scores, ranks=self.rankings, coverages=self.coverage)
             with open(serialized_path2, 'wb') as handle:
                 pickle.dump((self.distance_matrix, self.tree, self.rank_group_assignments), handle,
                             pickle.HIGHEST_PROTOCOL)
         print(self.time)
         return self.time
 
-    @staticmethod
-    def remove_ouptut(out_dir, prefix='etc_out'):
+    def remove_ouptut(self, prefix='etc_out'):
         """
         Remove Output
 
@@ -631,7 +631,6 @@ class ETMIPWrapper(Predictor):
         generated by the code.
 
         Args:
-            out_dir (str): The path to the directory where the ET scores have been written.
             prefix (str): The file prefix to prepend to the rank files (WETC -o option).
         Raises:
             ValueError: If the directory does not exist.
@@ -642,9 +641,9 @@ class ETMIPWrapper(Predictor):
                     'pairs_tree_mip_sorted', 'pairs_MI_sorted', 'pairs_tre_mip_sorted', 'pss.nhx', 'rank_matrix',
                     'ranks', 'ranks_sorted', 'rv.heatmap', 'rvMI.heatmap', 'tree_mip_matrix', 'tree_mip_sorted',
                     'tree_mip_top40_matrix']
-        if not os.path.isdir(out_dir):
-            raise ValueError('Provided directory does not exist: {}!'.format(out_dir))
+        if not os.path.isdir(self.out_dir):
+            raise ValueError('Provided directory does not exist: {}!'.format(self.out_dir))
         for suffix in suffixes:
-            curr_path = os.path.join(out_dir, '{}.{}'.format(prefix, suffix))
+            curr_path = os.path.join(self.out_dir, '{}.{}'.format(prefix, suffix))
             if os.path.isfile(curr_path):
                 os.remove(curr_path)

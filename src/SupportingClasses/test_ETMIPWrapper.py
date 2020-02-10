@@ -7,6 +7,7 @@ import os
 import unittest
 import numpy as np
 import pandas as pd
+from time import time
 from shutil import rmtree
 from dotenv import find_dotenv, load_dotenv
 try:
@@ -62,28 +63,28 @@ class TestETMIPWrapper(TestBase):
         self.assertIsNone(wetc.rank_scores)
         self.assertIsNone(wetc.entropy)
 
-    # def test_1a_init(self):
-    #     self.evaluate_init(query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-    #                        expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
-    #                        expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
-    #
-    # def test_1b_init(self):
-    #     self.evaluate_init(query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-    #                        expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-    #                        expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+    def test_1a_init(self):
+        self.evaluate_init(query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
+                           expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
+                           expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
+
+    def test_1b_init(self):
+        self.evaluate_init(query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
+                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
+                           expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
 
     def evaluate_convert_alignment(self, query, aln_file, out_dir):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
         wetc.convert_alignment()
         self.assertTrue(os.path.isfile(os.path.join(out_dir, 'Non-Gapped_Alignment.msf')))
 
-    # def test_2a_convert_alignment(self):
-    #     self.evaluate_convert_alignment(query=self.small_structure_id, aln_file=self.small_fa_fn,
-    #                                     out_dir=self.out_small_dir)
-    #
-    # def test_2b_convert_alignment(self):
-    #     self.evaluate_convert_alignment(query=self.large_structure_id, aln_file=self.large_fa_fn,
-    #                                     out_dir=self.out_large_dir)
+    def test_2a_convert_alignment(self):
+        self.evaluate_convert_alignment(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                        out_dir=self.out_small_dir)
+
+    def test_2b_convert_alignment(self):
+        self.evaluate_convert_alignment(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                        out_dir=self.out_large_dir)
 
     def evaluate_import_rank_scores(self, query, aln_file, out_dir, expected_length):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
@@ -99,15 +100,15 @@ class TestETMIPWrapper(TestBase):
         not_passing_ranks = diff_ranks > 1E-15
         self.assertFalse(not_passing_ranks.any())
 
-    # def test_3a_import_rank_scores(self):
-    #     self.evaluate_import_rank_scores(
-    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-    #         expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
-    #
-    # def test_3b_import_rank_scores(self):
-    #     self.evaluate_import_rank_scores(
-    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-    #         expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
+    def test_3a_import_rank_scores(self):
+        self.evaluate_import_rank_scores(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
+            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
+
+    def test_3b_import_rank_scores(self):
+        self.evaluate_import_rank_scores(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
+            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
 
     def evaluate_import_entropy_rank_scores(self, query, aln_file, out_dir, expected_length):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
@@ -134,15 +135,15 @@ class TestETMIPWrapper(TestBase):
             not_passing_rank_entropy = diff_rank_entropy > 1E-15
             self.assertFalse(not_passing_rank_entropy.any())
 
-    # def test_4a_import_entropy_rank_scores(self):
-    #     self.evaluate_import_entropy_rank_scores(
-    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-    #         expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
-    #
-    # def test_4b_import_entropy_rank_scores(self):
-    #     self.evaluate_import_entropy_rank_scores(
-    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-    #         expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
+    def test_4a_import_entropy_rank_scores(self):
+        self.evaluate_import_entropy_rank_scores(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
+            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
+
+    def test_4b_import_entropy_rank_scores(self):
+        self.evaluate_import_entropy_rank_scores(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
+            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
 
     def evaluate_import_distance_matrices(self, query, aln_file, out_dir):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
@@ -211,13 +212,13 @@ class TestETMIPWrapper(TestBase):
         not_passing_thresh_count = diff_thresh_count > 0
         self.assertFalse(not_passing_thresh_count.any())
 
-    # def test_5a_import_distance_matrices(self):
-    #     self.evaluate_import_distance_matrices(
-    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
-    #
-    # def test_5b_import_distance_matrices(self):
-    #     self.evaluate_import_distance_matrices(
-    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
+    def test_5a_import_distance_matrices(self):
+        self.evaluate_import_distance_matrices(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
+
+    def test_5b_import_distance_matrices(self):
+        self.evaluate_import_distance_matrices(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
 
     def check_nodes(self, node1, node2):
         if node1.is_terminal():
@@ -335,13 +336,13 @@ class TestETMIPWrapper(TestBase):
         self.assertFalse(not_passing_dist_mat2.any())
         test_tree_equality(wetc_tree=wetc2.tree, phylo_tree=pg_tree)
 
-    # def test_6a_import_phylogenetic_tree(self):
-    #     self.evaluate_import_phylogenetic_tree(query=self.small_structure_id, aln_file=self.small_fa_fn,
-    #                                            out_dir=self.out_small_dir)
-    #
-    # def test_6b_import_phylogenetic_tree(self):
-    #     self.evaluate_import_phylogenetic_tree(query=self.large_structure_id, aln_file=self.large_fa_fn,
-    #                                            out_dir=self.out_large_dir)
+    def test_6a_import_phylogenetic_tree(self):
+        self.evaluate_import_phylogenetic_tree(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                               out_dir=self.out_small_dir)
+
+    def test_6b_import_phylogenetic_tree(self):
+        self.evaluate_import_phylogenetic_tree(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                               out_dir=self.out_large_dir)
 
     def evaluate_import_assignments(self, query, aln_file, out_dir):
         wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
@@ -397,13 +398,13 @@ class TestETMIPWrapper(TestBase):
                     self.assertEqual(set([x.name for x in wetc.rank_group_assignments[r][g]['descendants']]),
                                      set([x.name for x in expected_rank_group_assignments[r][g]['descendants']]))
 
-    # def test_7a_import_phylogenetic_tree(self):
-    #     self.evaluate_import_assignments(query=self.small_structure_id, aln_file=self.small_fa_fn,
-    #                                      out_dir=self.out_small_dir)
-    #
-    # def test_7b_import_phylogenetic_tree(self):
-    #     self.evaluate_import_assignments(query=self.large_structure_id, aln_file=self.large_fa_fn,
-    #                                      out_dir=self.out_large_dir)
+    def test_7a_import_phylogenetic_tree(self):
+        self.evaluate_import_assignments(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                         out_dir=self.out_small_dir)
+
+    def test_7b_import_phylogenetic_tree(self):
+        self.evaluate_import_assignments(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                         out_dir=self.out_large_dir)
 
     def evaluate_import_intermediate_covariance_scores(self, query, aln_file, out_dir):
         expected_path = os.path.join(out_dir, 'etc_out.all_rank_and_group_mip.tsv')
@@ -420,8 +421,6 @@ class TestETMIPWrapper(TestBase):
         wetc2.tree = pg_tree
         wetc.rank_group_assignments = pg_tree.assign_group_rank()
         wetc2.rank_group_assignments = pg_tree.assign_group_rank()
-        # i, j, rank, group, group_MI, E[MIi], E[MIj], E[MI], group_MIp
-        # '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric)
         data_for_file = {'i': [], 'j': [], 'rank': [], 'group': [], 'group_MI': [], 'E[MIi]': [], 'E[MIj]': [],
                          'E[MI]': [], 'group_MIp': []}
         indices = np.triu_indices(wetc.non_gapped_aln.seq_length, k=1)
@@ -497,24 +496,24 @@ class TestETMIPWrapper(TestBase):
         self.evaluate_import_intermediate_covariance_scores(query=self.large_structure_id, aln_file=self.large_fa_fn,
                                                             out_dir=self.out_large_dir)
 
-    def evaluate_import_covariance_scores(self, query, aln_file, out_dir):
-        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+    def generate_covariance_scores(self, wetc, out_dir):
         rand_state = np.random.RandomState(1234567890)
         indices = np.triu_indices(n=wetc.non_gapped_aln.seq_length, k=1)
         expected_scores = rand_state.rand(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length)
-        expected_scores[np.tril_indices(wetc.non_gapped_aln.size)] = 0.0
+        expected_scores[np.tril_indices(wetc.non_gapped_aln.seq_length)] = 0.0
         expected_scores += expected_scores.T
         expected_ranks, expected_coverage = compute_rank_and_coverage(wetc.non_gapped_aln.seq_length, expected_scores,
                                                                       2, 'max')
         expected_interface = rand_state.randint(low=0, high=1, size=(wetc.non_gapped_aln.seq_length,
                                                                      wetc.non_gapped_aln.seq_length))
         expected_contacts = rand_state.randint(low=0, high=1, size=(wetc.non_gapped_aln.seq_length,
-                                                                     wetc.non_gapped_aln.seq_length))
+                                                                    wetc.non_gapped_aln.seq_length))
         expected_number = rand_state.randint(low=1, high=wetc.non_gapped_aln.seq_length,
-                                            size=(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length))
+                                             size=(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length))
         expected_ave_contact = rand_state.rand(wetc.non_gapped_aln.seq_length, wetc.non_gapped_aln.seq_length)
-        with open(os.path.join(out_dir, )) as handle:
-            handle.write('%       Sort Res i(AA) Res j(AA)      sorted   cvg(sort)  interface      contact      number  AveContact\n')
+        with open(os.path.join(out_dir, 'etc_out.tree_mip_sorted'), 'w') as handle:
+            handle.write('%       Sort Res i(AA) Res j(AA)      sorted   cvg(sort)  interface      contact      number'
+                         'AveContact\n')
             for x in range(len(indices[0])):
                 i = indices[0][x]
                 j = indices[1][x]
@@ -523,107 +522,224 @@ class TestETMIPWrapper(TestBase):
                     wetc.non_gapped_aln.query_sequence[j], expected_scores[i, j], expected_coverage[i, j],
                     expected_interface[i, j], expected_contacts[i, j], expected_number[i, j],
                     expected_ave_contact[i, j]))
+        return (expected_scores, expected_ranks, expected_coverage, expected_contacts, expected_interface,
+                expected_number, expected_ave_contact, indices)
+
+    def evaluate_import_covariance_scores(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        e_scores, e_ranks, e_coverage, _, _, _, _, indices = self.generate_covariance_scores(wetc=wetc, out_dir=out_dir)
         wetc.import_covariance_scores()
-        diff_scores = wetc.scores[indices] - expected_scores[indices]
+        diff_scores = wetc.scores[indices] - e_scores[indices]
         not_passing_scores = diff_scores > 1E-15
-        self.asssertFalse(not_passing_scores.any())
-        diff_coverage = wetc.coverages[indices] - expected_coverage[indices]
+        self.assertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages[indices] - e_coverage[indices]
         not_passing_coverage = diff_coverage > 1E-15
-        self.assertFalse(not_passing_coverage)
-        diff_ranking = wetc.rankings - expected_ranks
+        self.assertFalse(not_passing_coverage.any())
+        diff_ranking = wetc.rankings[indices] - e_ranks[indices]
         not_passing_ranking = diff_ranking > 1E-15
         self.assertFalse(not_passing_ranking.any())
 
+    def test_9a_import_covariance_scores(self):
+        self.evaluate_import_covariance_scores(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                               out_dir=self.out_small_dir)
 
+    def test_9b_import_covariance_scores(self):
+        self.evaluate_import_covariance_scores(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                               out_dir=self.out_large_dir)
 
-    # def evaluate_import_scores(self, query, aln_file, out_dir, expected_length):
-    #     evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
-    #     scores = np.random.RandomState(1234567890).rand(expected_length, expected_length)
-    #     scores[np.tril_indices(expected_length, 1)] = 0
-    #     scores += scores.T
-    #     _, coverages = compute_rank_and_coverage(expected_length, scores, 2, 'max')
-    #     probabilities = 1 - coverages
-    #     indices = np.triu_indices(expected_length, 1)
-    #     sorted_scores, sorted_x, sorted_y, sorted_probability = zip(*sorted(zip(scores[indices], indices[0], indices[1],
-    #                                                                             probabilities[indices])))
-    #     expected_dir = os.path.join(out_dir, 'couplings')
-    #     os.makedirs(expected_dir, exist_ok=True)
-    #     expected_path = os.path.join(expected_dir, '_CouplingScores.csv')
-    #     with open(expected_path, 'w') as handle:
-    #         handle.write('i,A_i,j,A_j,fn,cn,segment_i,segment_j,probability\n')
-    #         for i in range(len(sorted_scores)):
-    #             handle.write('{},X,{},X,0,{},X,X,{}\n'.format(sorted_x[i] + 1, sorted_y[i] + 1, sorted_scores[i],
-    #                                                           sorted_probability[i]))
-    #     evc.import_covariance_scores(out_path=expected_path)
-    #
-    #     diff_expected_scores = scores - scores.T
-    #     not_passing_expected_scores = diff_expected_scores > 1E-15
-    #     self.assertFalse(not_passing_expected_scores.any())
-    #     diff_computed_scores = evc.scores - evc.scores.T
-    #     not_passing_computed_scores = diff_computed_scores > 1E-15
-    #     self.assertFalse(not_passing_computed_scores.any())
-    #
-    #     diff_scores = evc.scores - scores
-    #     not_passing_scores = diff_scores > 1E-15
-    #     self.assertFalse(not_passing_scores.any())
-    #     diff_probabilities = evc.probability - probabilities
-    #     not_passing_protbabilities = diff_probabilities > 1E-15
-    #     self.assertFalse(not_passing_protbabilities.any())
-    #
-    # def test_3a_import_scores(self):
-    #     self.evaluate_import_scores(
-    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-    #         expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
-    #
-    # def test_3b_import_scores(self):
-    #     self.evaluate_import_scores(
-    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-    #         expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
-    #
-    # def evaluate_calculator_scores(self, query, aln_file, out_dir, expected_length, expected_sequence):
-    #     evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
-    #     start = time()
-    #     evc.calculate_scores(delete_files=False, cores=self.max_threads)
-    #     end = time()
-    #     expected_time = end - start
-    #     self.assertEqual(evc.out_dir, os.path.abspath(out_dir))
-    #     self.assertTrue(os.path.isdir(os.path.abspath(out_dir)))
-    #     self.assertEqual(evc.query, query)
-    #     self.assertIsNotNone(evc.original_aln)
-    #     self.assertGreaterEqual(evc.original_aln.seq_length, expected_length)
-    #     self.assertEqual(str(evc.original_aln.query_sequence).replace('-', ''), expected_sequence)
-    #     self.assertEqual(evc.original_aln_fn, os.path.join(out_dir, 'Original_Alignment.fa'))
-    #     self.assertTrue(os.path.isfile(evc.original_aln_fn))
-    #     self.assertIsNotNone(evc.non_gapped_aln)
-    #     self.assertEqual(evc.non_gapped_aln.seq_length, expected_length)
-    #     self.assertEqual(evc.non_gapped_aln.query_sequence, expected_sequence)
-    #     self.assertEqual(evc.non_gapped_aln_fn, os.path.join(out_dir, 'Non-Gapped_Alignment.fa'))
-    #     self.assertTrue(os.path.isfile(evc.non_gapped_aln_fn))
-    #     self.assertEqual(evc.method, 'EVCouplings')
-    #     self.assertEqual(evc.protocol, 'standard')
-    #     self.assertIsNotNone(evc.scores)
-    #     self.assertIsNotNone(evc.probability)
-    #     expected_ranks, expected_coverages = compute_rank_and_coverage(expected_length, evc.scores, 2, 'max')
-    #     ranks_diff = evc.rankings - expected_ranks
-    #     ranks_not_passing = ranks_diff > 0.0
-    #     self.assertFalse(ranks_not_passing.any())
-    #     coverages_diff = evc.coverages - expected_coverages
-    #     coverages_not_passing = coverages_diff > 0.0
-    #     self.assertFalse(coverages_not_passing.any())
-    #     self.assertLessEqual(evc.time, expected_time)
-    #     self.assertTrue(os.path.isfile(os.path.join(out_dir, 'EVCouplings.npz')))
-    #
-    # def test_4a_calculate_scores(self):
-    #     self.evaluate_calculator_scores(
-    #         query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-    #         expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
-    #         expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
-    #
-    # def test_4b_calculate_scores(self):
-    #     self.evaluate_calculator_scores(
-    #         query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-    #         expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-    #         expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+    def generate_importance_scores(self, wetc, method, out_dir):
+        rand_state = np.random.RandomState(1234567890)
+        if method == 'intET':
+            expected_scores = rand_state.randint(low=1, high=wetc.non_gapped_aln.size,
+                                                 size=wetc.non_gapped_aln.seq_length)
+        elif method == 'rvET':
+            expected_scores = rand_state.rand(wetc.non_gapped_aln.seq_length)
+        else:
+            raise ValueError('Bad method provided.')
+        expected_ranks, expected_coverage = compute_rank_and_coverage(wetc.non_gapped_aln.seq_length, expected_scores,
+                                                                      1, 'min')
+        expected_variability = rand_state.randint(low=1, high=23, size=wetc.non_gapped_aln.seq_length)
+        with open(os.path.join(out_dir, 'etc_out.ranks'), 'w') as handle:
+            handle.write('% Note: in this file % is a comment sign.\n% etc version April2019.\n% File produced on Thu '
+                         'Feb  6 16:02:44 2020\n% The command line was: '
+                         '/home/daniel/Documents/git/EvolutionaryTrace/src/wetc -p '
+                         '/home/daniel/Documents/New_ETMIP/Test/135l/Non-Gapped_Alignment.msf -x 135l -o etc_out_ET-MIp'
+                         ' -allpairs\n%\n%\n%	 RESIDUE RANKS:\n')
+            if method == 'intET':
+                handle.write('% alignment#  residue#      type      rank              variability           coverage\n')
+            elif method == 'rvET':
+                handle.write('% alignment#  residue#      type      rank              variability           rho     '
+                             'coverage\n')
+            else:
+                raise ValueError('Bad method specified')
+            for x in range(wetc.non_gapped_aln.seq_length):
+                if method == 'intET':
+                    handle.write(' {}  {}      {}      {}       {}          {}        {}\n'.format(
+                        x + 1, x + 1, wetc.non_gapped_aln.query_sequence[x], expected_scores[x],
+                        expected_variability[x], 'X' * expected_variability[x], expected_coverage[x]))
+                elif method == 'rvET':
+                    handle.write(' {}  {}      {}      {}       {}          {}        {}     {}\n'.format(
+                        x + 1, x + 1, wetc.non_gapped_aln.query_sequence[x], expected_scores[x],
+                        expected_variability[x],
+                        'X' * expected_variability[x], expected_scores[x], expected_coverage[x]))
+        return expected_scores, expected_ranks, expected_coverage
+
+    def evaluate_import_et_ranks(self, method, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        e_scores, e_ranks, e_coverage = self.generate_importance_scores(wetc=wetc, method=method, out_dir=out_dir)
+        wetc.import_et_ranks(method=method)
+        diff_scores = wetc.scores - e_scores
+        not_passing_scores = diff_scores > 1E-15
+        self.assertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages - e_coverage
+        not_passing_coverage = diff_coverage > 1E-15
+        self.assertFalse(not_passing_coverage.any())
+        diff_ranking = wetc.rankings - e_ranks
+        not_passing_ranking = diff_ranking > 1E-15
+        self.assertFalse(not_passing_ranking.any())
+
+    def test_10a_import_et_ranks(self):
+        self.evaluate_import_et_ranks(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                      out_dir=self.out_small_dir, method='intET')
+        self.evaluate_import_et_ranks(query=self.small_structure_id, aln_file=self.small_fa_fn,
+                                      out_dir=self.out_small_dir, method='rvET')
+
+    def test_10b_import_et_ranks(self):
+        self.evaluate_import_et_ranks(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                      out_dir=self.out_large_dir, method='intET')
+        self.evaluate_import_et_ranks(query=self.large_structure_id, aln_file=self.large_fa_fn,
+                                      out_dir=self.out_large_dir, method='rvET')
+
+    def evaluate_import_scores(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        e_scores1, e_ranks1, e_coverage1 = self.generate_importance_scores(wetc=wetc, method='intET', out_dir=out_dir)
+        wetc.import_scores(method='intET')
+        diff_scores = wetc.scores - e_scores1
+        not_passing_scores = diff_scores > 1E-15
+        self.assertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages - e_coverage1
+        not_passing_coverage = diff_coverage > 1E-15
+        self.assertFalse(not_passing_coverage.any())
+        diff_ranking = wetc.rankings - e_ranks1
+        not_passing_ranking = diff_ranking > 1E-15
+        self.assertFalse(not_passing_ranking.any())
+        wetc.scores = None
+        wetc.coverages = None
+        wetc.rankings = None
+        os.remove(os.path.join(out_dir, 'etc_out.ranks'))
+        e_scores2, e_ranks2, e_coverage2 = self.generate_importance_scores(wetc=wetc, method='rvET', out_dir=out_dir)
+        wetc.import_scores(method='rvET')
+        diff_scores = wetc.scores - e_scores2
+        not_passing_scores = diff_scores > 1E-15
+        self.assertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages - e_coverage2
+        not_passing_coverage = diff_coverage > 1E-15
+        self.assertFalse(not_passing_coverage.any())
+        diff_ranking = wetc.rankings - e_ranks2
+        not_passing_ranking = diff_ranking > 1E-15
+        self.assertFalse(not_passing_ranking.any())
+        wetc.scores = None
+        wetc.coverages = None
+        wetc.rankings = None
+        os.remove(os.path.join(out_dir, 'etc_out.ranks'))
+        e_scores3, e_ranks3, e_coverage3, _, _, _, _, indices = self.generate_covariance_scores(wetc=wetc,
+                                                                                                out_dir=out_dir)
+        wetc.import_scores(method='ET-MIp')
+        diff_scores = wetc.scores[indices] - e_scores3[indices]
+        not_passing_scores = diff_scores > 1E-15
+        self.assertFalse(not_passing_scores.any())
+        diff_coverage = wetc.coverages[indices] - e_coverage3[indices]
+        not_passing_coverage = diff_coverage > 1E-15
+        self.assertFalse(not_passing_coverage.any())
+        diff_ranking = wetc.rankings[indices] - e_ranks3[indices]
+        not_passing_ranking = diff_ranking > 1E-15
+        self.assertFalse(not_passing_ranking.any())
+
+    def test_11a_import_scores(self):
+        self.evaluate_import_scores(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
+
+    def test_11b_import_scores(self):
+        self.evaluate_import_scores(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
+
+    def evaluate_calculate_scores(self, query, aln_file, out_dir, expected_length, expected_sequence):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        for method in ['intET', 'rvET', 'ET-MIp']:
+            start = time()
+            wetc.calculate_scores(delete_files=False, cores=self.max_threads)
+            end = time()
+            expected_time = end - start
+            self.assertEqual(wetc.out_dir, os.path.abspath(out_dir))
+            self.assertTrue(os.path.isdir(os.path.abspath(out_dir)))
+            self.assertEqual(wetc.query, query)
+            self.assertIsNotNone(wetc.original_aln)
+            self.assertGreaterEqual(wetc.original_aln.seq_length, expected_length)
+            self.assertEqual(str(wetc.original_aln.query_sequence).replace('-', ''), expected_sequence)
+            self.assertEqual(wetc.original_aln_fn, os.path.join(out_dir, 'Original_Alignment.fa'))
+            self.assertTrue(os.path.isfile(wetc.original_aln_fn))
+            self.assertIsNotNone(wetc.non_gapped_aln)
+            self.assertEqual(wetc.non_gapped_aln.seq_length, expected_length)
+            self.assertEqual(wetc.non_gapped_aln.query_sequence, expected_sequence)
+            self.assertEqual(wetc.non_gapped_aln_fn, os.path.join(out_dir, 'Non-Gapped_Alignment.fa'))
+            self.assertTrue(os.path.isfile(wetc.non_gapped_aln_fn))
+            self.assertEqual(wetc.method, 'WETC')
+            self.assertIsNotNone(wetc.scores)
+            if method.endswith('ET'):
+                expected_ranks, expected_coverages = compute_rank_and_coverage(expected_length, wetc.scores, 1, 'min')
+            else:
+                expected_ranks, expected_coverages = compute_rank_and_coverage(expected_length, wetc.scores, 2, 'max')
+            ranks_diff = wetc.rankings - expected_ranks
+            ranks_not_passing = ranks_diff > 0.0
+            self.assertFalse(ranks_not_passing.any())
+            coverages_diff = wetc.coverages - expected_coverages
+            coverages_not_passing = coverages_diff > 0.0
+            self.assertFalse(coverages_not_passing.any())
+            self.assertLessEqual(wetc.time, expected_time)
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'WETC.npz')))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, 'WETC.pkl')))
+            wetc.scores = None
+            wetc.rankings = None
+            wetc.coverages = None
+            os.remove(os.path.join(out_dir, 'WETC.npz'))
+            os.remove(os.path.join(out_dir, 'WETC.pkl'))
+
+    def test_12a_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
+            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
+            expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
+
+    def test_12b_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
+            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
+            expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+
+    def evalaute_remove_output(self, query, aln_file, out_dir):
+        wetc = ETMIPWrapper(query=query, aln_file=aln_file, out_dir=out_dir)
+        file_suffixes = ['aa_freqs', 'allpair_ranks', 'allpair_ranks_sorted', 'auc', 'average_ranks_sorted',
+                         'covariation_matrix', 'entro.heatmap', 'entroMI.heatmap', 'mip_sorted', 'MI_sorted', 'nhx',
+                         'pairs_allpair_ranks_sorted', 'pairs_average_ranks_sorted', 'pairs_mip_sorted',
+                         'pairs_tree_mip_sorted', 'pairs_MI_sorted', 'pairs_tre_mip_sorted', 'pss.nhx', 'rank_matrix',
+                         'ranks', 'ranks_sorted', 'rv.heatmap', 'rvMI.heatmap', 'tree_mip_matrix', 'tree_mip_sorted',
+                         'tree_mip_top40_matrix']
+        for i in range(len(file_suffixes)):
+            for j in range(i + 1):
+                with open(os.path.join(out_dir, 'etc_out.{}'.format(file_suffixes[j])), 'a'):
+                    pass
+                self.assertTrue(os.path.isfile(os.path.join(out_dir, 'etc_out.{}'.format(file_suffixes[j]))))
+            wetc.remove_output()
+            for j in range(i + 1):
+                self.assertFalse(os.path.isfile(os.path.join(out_dir, 'etc_out.{}'.format(file_suffixes[j]))))
+
+    def test_13a_remove_output(self):
+        self.evaluate_remove_output(
+            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir)
+
+    def test_13b_remove_output(self):
+        self.evalaute_remove_output(
+            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir)
 
 
 if __name__ == '__main__':
