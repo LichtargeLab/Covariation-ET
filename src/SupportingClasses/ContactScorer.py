@@ -5,23 +5,14 @@ Created on Sep 1, 2018
 """
 import os
 import math
-import datetime
-import warnings
 import numpy as np
 import pandas as pd
 from time import time
 from math import floor
-from scipy.stats import rankdata
 from multiprocessing import Pool
 from Bio import pairwise2
-from Bio.pairwise2 import format_alignment
 from Bio.PDB.Polypeptide import one_to_three
-from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, accuracy_score, recall_score,
-                             f1_score, precision_recall_curve)
-from sklearn.exceptions import UndefinedMetricWarning
-from sklearn.utils import check_consistent_length, column_or_1d, assert_all_finite
-from sklearn.utils.multiclass import type_of_target
-from sklearn.utils.extmath import stable_cumsum
+from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -35,7 +26,6 @@ try:
 except ImportError:
     seq_aln_classes = (SeqAlignment, )
 from PDBReference import PDBReference
-from utils import compute_rank_and_coverage
 
 
 class ContactScorer(object):
@@ -919,8 +909,7 @@ class ContactScorer(object):
             (end - start) / 60.0))
 
     def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None, processes=1, threshold=0.5, pos_size=1, rank_type='min',
-                           file_prefix='Scores_', plots=True):
+                           unbiased_w2_ave=None, processes=1, threshold=0.5,  file_prefix='Scores_', plots=True):
         """
         Evaluate Predictor
 
@@ -950,9 +939,6 @@ class ContactScorer(object):
             processes (int): The number of processes to use when computing the clustering z-score (if specified).
             threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
             precision, recall, and f1 scores (this should be the expected coverage value).
-            pos_size (int): The size of a position being scored, 1 for individual positions, 2 for pairs of positions.
-            rank_type (str): Expected values are 'min' or 'max' denoting whether the optimal result/prediction is the
-            minimum or maximum score.
             file_prefix (str): string to prepend before filenames.
             plots (boolean): Whether to create and save plots associated with the scores computed.
         Returns:
@@ -964,6 +950,11 @@ class ContactScorer(object):
             dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
             dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
         """
+        # if not isinstance(predictor, Predictor):
+        #     import inspect
+        #     print(inspect.getmro(type(predictor)))
+        #     print(Predictor)
+        #     raise TypeError('To evaluate a predictor it must have type Predictor, please use a valid Predictor.')
         score_fn = os.path.join(out_dir, '{}_Evaluation_Dist-{}.txt'.format(file_prefix, dist))
         # If the evaluation has already been performed load the data and return it
         if os.path.isfile(score_fn):
@@ -973,18 +964,12 @@ class ContactScorer(object):
                    'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
                    'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
         # Retrieve coverages or computes them from the scorer
-        try:
-            coverages = predictor.coverage
-        except AttributeError:
-            _, coverages = compute_rank_and_coverage(seq_length=self.query_alignment.seq_length,
-                                                     scores=predictor.scores, pos_size=pos_size, rank_type=rank_type)
-        converted_scores = 1 - coverages
-        # Convert score threshold to coverage threshold
-        converted_threshold = np.max(converted_scores[np.triu(coverages >= threshold, k=1)])
+        ranks = predictor.rankings
+        coverages = predictor.coverages
         score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-            scores=converted_scores, verbosity=verbosity, out_dir=out_dir, dist=dist, file_prefix=file_prefix,
-            biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
-            threshold=converted_threshold, plots=plots)
+            scores=predictor.scores, coverages=coverages, ranks=ranks, verbosity=verbosity, out_dir=out_dir, dist=dist,
+            file_prefix=file_prefix, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
+            threshold=threshold, plots=plots)
         if (biased_w2_ave is None) and (b_w2_ave is not None):
             biased_w2_ave = b_w2_ave
         if (unbiased_w2_ave is None) and (u_w2_ave is not None):
