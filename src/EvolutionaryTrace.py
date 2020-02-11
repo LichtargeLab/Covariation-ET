@@ -12,20 +12,22 @@ from time import time
 from tqdm import tqdm
 from multiprocessing import Pool
 from Bio.Phylo.TreeConstruction import DistanceCalculator
+from SupportingClasses.Predictor import Predictor
 from SupportingClasses.Trace import Trace, load_freq_table
-from SupportingClasses.SeqAlignment import SeqAlignment
-from SupportingClasses.FrequencyTable import FrequencyTable
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
-class EvolutionaryTrace(object):
+class EvolutionaryTrace(Predictor):
     """
     This class draws on all supporting classes and methods to implement the full Evolutionary Trace algorithm.
 
+    This class inherits from the Predictor class which means it shares the attributes and initializer of that class,
+    as well as implementing the calculate_scores method.
+
     Attributes:
-        query_id (str): The sequence identifier for the sequence being analyzed.
+        query (str): The sequence identifier for the sequence being analyzed.
         polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
         original_aln_fn (str): The path to the alignment to analyze.
         original_aln (SeqAlignment): A SeqAlignment object representing the alignment in original_aln_fn.
@@ -61,13 +63,13 @@ class EvolutionaryTrace(object):
         trace (Trace): A Trace object used to organize data required for performing a trace and the methods to do so.
         scorer (PositionalScorer): A PositionalScorer object which uses the specified scoring metric to score groups and
         takes the combined group scores at a given rank to calculate a final rank score.
-        ranking (np.array): The rank (lowest being best, highest being worst) of each single or paired position in the
+        rankings (np.array): The rank (lowest being best, highest being worst) of each single or paired position in the
         provided alignment as determined from the calculated scores.
         scores (np.array): The raw scores calculated for each single or paired position in the provided alignment while
         performing the trace. For some methods (identity, plain_entropy) the lower the score the better, while for
         others (mutual_information, normalized_mutual_information, average_product_corrected_mutual_information, and
         filtered_average_product_corrected_mutual_information) the higher the score the better.
-        coverage (np.array): The percentage of scores at or better than the score for this single or paired position
+        coverages (np.array): The percentage of scores at or better than the score for this single or paired position
         (i.e. the percentile rank).
         out_dir (str): The path where results of this analysis should be written to.
         output_files (set): Which files to write out, possible values include: 'original_aln', 'non-gap_aln', 'tree',
@@ -80,13 +82,16 @@ class EvolutionaryTrace(object):
     def __init__(self, query_id, polymer_type, aln_fn, et_distance, distance_model, tree_building_method,
                  tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
                  output_files, processors, low_memory):
+    def __init__(self, query, polymer_type, aln_file, et_distance, distance_model, tree_building_method,
+                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
+                 output_files, processors, low_memory):
         """
         Initialization for EvolutionaryTrace class:
 
         Args:
-            query_id (str): The sequence identifier for the sequence being analyzed.
+            query (str): The sequence identifier for the sequence being analyzed.
             polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
-            aln_fn (str): The path to the alignment to analyze.
+            aln_file (str): The path to the alignment to analyze.
             et_distance (bool): Whether or not to use the Evolutionary Trace distance measure. This is a sequence
             similarity metric computed over the specified distance_model.
             distance_model (str): What type of distance model to use when computing the distance between sequences in
@@ -116,10 +121,9 @@ class EvolutionaryTrace(object):
             low_memory (bool): Whether or not to serialize files during execution in order to avoid keeping everything
             in memory (this is important for large alignments).
         """
-        self.query_id = query_id
+        super().__init__(query, aln_file, out_dir)
+        self.method = 'ET'
         self.polymer_type = polymer_type
-        self.original_aln_fn = aln_fn
-        self.original_aln = None
         self.et_distance = et_distance
         self.distance_model = distance_model
         self.distance_matrix = None
@@ -129,51 +133,15 @@ class EvolutionaryTrace(object):
         self.phylo_tree_fn = None
         self.ranks = ranks
         self.assignments = None
-        self.non_gapped_aln_fn = None
-        self.non_gapped_aln = None
         self.position_type = position_type
         self.scoring_metric = scoring_metric
         self.gap_correction = gap_correction
         self.maximize = maximize
         self.trace = None
-        self.ranking = None
         self.scorer = None
-        self.scores = None
-        self.coverage = None
-        self.out_dir = out_dir
         self.output_files = output_files
         self.processors = processors
         self.low_memory = low_memory
-
-    def import_and_process_aln(self):
-        """
-        Import and Processes Alignment
-
-        This function checks for the specified alignment then imports it. If specified the original alignment is written
-        out the output directory. A second alignment is then created with all columns which are gaps in the query
-        sequence removed, and if specified this is written to the output directory as well.
-        """
-        serial_fn = os.path.join(self.out_dir, '{}_alignments.pkl'.format(self.query_id))
-        aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
-        if os.path.isfile(serial_fn):
-            with open(serial_fn, 'rb') as handle:
-                self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(handle)
-        else:
-            if not os.path.isfile(self.original_aln_fn):
-                raise ValueError('Provided alignment path is not valid: {}'.format(self.original_aln_fn))
-            self.original_aln = SeqAlignment(file_name=self.original_aln_fn, query_id=self.query_id,
-                                             polymer_type=self.polymer_type)
-            self.original_aln.import_alignment()
-            self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
-            self.non_gapped_aln = self.original_aln.remove_gaps()
-            with open(serial_fn, 'wb') as handle:
-                pickle.dump((self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln), handle,
-                            protocol=pickle.HIGHEST_PROTOCOL)
-        if 'original_aln' in self.output_files:
-            self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
-                aln_base_name)))
-        if 'non_gap_aln' in self.output_files:
-            self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
 
     def compute_distance_matrix_tree_and_assignments(self):
         """
@@ -185,7 +153,7 @@ class EvolutionaryTrace(object):
         the tree is written to the output directory (in Newick/nhx format). Finally, nodes from the tree are assigned to
         ranks and groups.
         """
-        serial_fn = '{}_{}{}_Dist_{}_Tree.pkl'.format(self.query_id, ('ET_' if self.et_distance else ''),
+        serial_fn = '{}_{}{}_Dist_{}_Tree.pkl'.format(self.query, ('ET_' if self.et_distance else ''),
                                                       self.distance_model, self.tree_building_method)
         serial_fn = os.path.join(self.out_dir, serial_fn)
         if os.path.isfile(serial_fn):
@@ -204,7 +172,7 @@ class EvolutionaryTrace(object):
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
             self.phylo_tree_fn = os.path.join(self.out_dir, '{}_{}{}_dist_{}_tree.nhx'.format(
-                self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
+                self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
             end_tree = time()
             print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
@@ -225,7 +193,7 @@ class EvolutionaryTrace(object):
         ranked and coverage scores are computed.
         """
         serial_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.pkl'.format(
-            self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
+            self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         serial_fn = os.path.join(self.out_dir, serial_fn)
         self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
@@ -233,7 +201,7 @@ class EvolutionaryTrace(object):
                                        metric=self.scoring_metric)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
-                self.trace, self.ranking, self.scores, self.coverage = pickle.load(handle)
+                self.trace, self.rankings, self.scores, self.coverages = pickle.load(handle)
         else:
             self.trace = Trace(alignment=self.non_gapped_aln, phylo_tree=self.phylo_tree,
                                group_assignments=self.assignments, position_specific=(self.position_type == 'single'),
@@ -246,16 +214,31 @@ class EvolutionaryTrace(object):
                                                                         gap_correction=self.gap_correction,
                                                                         maximize=self.maximize)
             with open(serial_fn, 'wb') as handle:
-                pickle.dump((self.trace, self.ranking, self.scores, self.coverage), handle, pickle.HIGHEST_PROTOCOL)
+                pickle.dump((self.trace, self.rankings, self.scores, self.coverages), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
         root_freq_table = self.trace.unique_nodes[root_node_name][self.position_type.lower()]
         # Generate descriptive file name
         rank_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
-            self.query_id, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
+            self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
-                            freq_table=root_freq_table, ranks=self.ranking, scores=self.scores, coverages=self.coverage,
-                            precision=3, processors=self.processors, low_memory=self.low_memory)
+                            freq_table=root_freq_table, ranks=self.rankings, scores=self.scores,
+                            coverages=self.coverages, precision=3, processors=self.processors,
+                            low_memory=self.low_memory)
+
+    def calculate_scores(self):
+        """
+        Calculate Scores
+
+        This method calls the compute_distance_matrix_tree_and_assignments and the perform_trace to generate predictive
+        scores for position importance or pair covariance using the Evolutionary Trace method.
+        """
+        start = time()
+        self.compute_distance_matrix_tree_and_assignments()
+        self.perform_trace()
+        end = time()
+        self.time = end - start
+        print(self.time)
 
 
 def init_var_pool(aln):
@@ -542,7 +525,7 @@ if __name__ == "__main__":
     # Read input from the command line
     args = parse_args()
     # Initialize EvolutionaryTrace object
-    et = EvolutionaryTrace(query_id=args['query'], polymer_type=args['polymer_type'], aln_fn=args['alignment'],
+    et = EvolutionaryTrace(query=args['query'], polymer_type=args['polymer_type'], aln_file=args['alignment'],
                            et_distance=args['et_distance'], distance_model=args['distance_model'],
                            tree_building_method=args['tree_building_method'],
                            tree_building_options=args['tree_building_options'], ranks=args['ranks'],
@@ -550,8 +533,6 @@ if __name__ == "__main__":
                            gap_correction=args['gap_correction'], out_dir=args['output_dir'],
                            output_files=args['output_files'], processors=args['processors'],
                            low_memory=args['low_memory'])
-    # Import and process the alignment provided.
-    et.import_and_process_aln()
     # Compute distance matrix, construct tree, and perform sequence assignments
     et.compute_distance_matrix_tree_and_assignments()
     # Perform the trace and write out final scores

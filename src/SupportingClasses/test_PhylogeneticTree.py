@@ -68,8 +68,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Distance matrix is imported inside of et_mip_obj using the correct path.
         nhx_path = os.path.join(wetc_test_dir, 'intET', 'etc_out_intET.nhx')
         phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
@@ -95,8 +96,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Distance matrix is imported inside of et_mip_obj using the correct path.
         nhx_path = os.path.join(wetc_test_dir, 'intET', 'etc_out_intET.nhx')
         phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
@@ -450,8 +452,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaluate_top_down_traversal(et_mip_obj.tree)
 
@@ -482,8 +485,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaluate_top_down_traversal(et_mip_obj.tree)
 
@@ -527,8 +531,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaluate_bottom_up_traversal(et_mip_obj.tree)
 
@@ -559,8 +564,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaluate_bottom_up_traversal(et_mip_obj.tree)
 
@@ -624,8 +630,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         self.evaluate_by_rank_traversal(tree=et_mip_obj.tree)
 
     def test9e_traverse_by_rank(self):
@@ -656,8 +663,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         self.evaluate_by_rank_traversal(tree=et_mip_obj.tree)
 
     def evaluate_rename_internal_nodes(self, old_inner, old_terminal, new_inner, new_terminal, flip, size):
@@ -678,8 +686,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
         # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
@@ -703,8 +712,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
         # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
@@ -939,8 +949,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_msf_small)
@@ -949,8 +960,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank()
         self.evaulate_rank_group_assignments(assignment=assignments, alignment=self.query_aln_msf_large)
@@ -1011,8 +1023,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaulate_rank_group_assignments(assignment=et_mip_obj.rank_group_assignments,
                                              alignment=self.query_aln_msf_small)
@@ -1021,8 +1034,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         self.evaulate_rank_group_assignments(assignment=et_mip_obj.rank_group_assignments,
                                              alignment=self.query_aln_msf_large)
@@ -1063,8 +1077,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank(ranks=[1, 2, 3, 5, 7, 10, 25])
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
@@ -1073,8 +1088,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank()
         self.evaluate_rank_group_assignments_custom_ranks(assignments=assignments)
@@ -1224,8 +1240,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Distance matrix is imported inside of et_mip_obj the correct path.
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
@@ -1235,8 +1252,9 @@ class TestPhylogeneticTree(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         # Distance matrix is imported inside of et_mip_obj the correct path.
         phylo_tree = PhylogeneticTree()
         phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
@@ -1297,10 +1315,11 @@ class TestPhylogeneticTree(TestBase):
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         start = time()
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_small)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
+                                  out_dir=wetc_test_dir)
         inter1 = time()
         print('Initialization took {} min'.format((inter1 - start) / 60.0))
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         inter2 = time()
         print('Score calculation took {} min'.format((inter2 - inter1) / 60.0))
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
@@ -1316,10 +1335,11 @@ class TestPhylogeneticTree(TestBase):
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
         start = time()
-        et_mip_obj = ETMIPWrapper(alignment=self.query_aln_msf_large)
+        et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
+                                  out_dir=wetc_test_dir)
         inter1 = time()
         print('Initializatoin took {} min'.format((inter1 - start) / 60.0))
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         inter2 = time()
         print('Score calculation took {} min'.format((inter2 - inter1) / 60.0))
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
@@ -1330,12 +1350,13 @@ class TestPhylogeneticTree(TestBase):
             self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
             self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
-    def compare_tree_and_wetc_tree(self, p_id, fa_aln, msf_aln):
+    def compare_tree_and_wetc_tree(self, p_id, fa_aln):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
-        et_mip_obj.calculate_scores(method='intET', out_dir=wetc_test_dir, delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=fa_aln.query_id, aln_file=fa_aln.file_name,
+                                  out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         calculator = AlignmentDistanceCalculator(model='blosum62')
         _, dm, _, _ = calculator.get_et_distance(fa_aln.alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='et')
@@ -1375,12 +1396,10 @@ class TestPhylogeneticTree(TestBase):
                 py_nodes = None
 
     def test14a_compare_to_wetc_tree_small(self):
-        self.compare_tree_and_wetc_tree(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small,
-                                        msf_aln=self.query_aln_msf_small)
+        self.compare_tree_and_wetc_tree(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small)
 
     def test14b_compare_to_wetc_tree_small(self):
-        self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large,
-                                        msf_aln=self.query_aln_msf_large)
+        self.compare_tree_and_wetc_tree(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large)
 
 
 def compare_nodes_key(compare_nodes):
