@@ -19,7 +19,6 @@ from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
 
-# class EvolutionaryTrace(object):
 class EvolutionaryTrace(Predictor):
     """
     This class draws on all supporting classes and methods to implement the full Evolutionary Trace algorithm.
@@ -137,36 +136,6 @@ class EvolutionaryTrace(Predictor):
         self.output_files = output_files
         self.processors = processors
         self.low_memory = low_memory
-
-    # def import_and_process_aln(self):
-    #     """
-    #     Import and Processes Alignment
-    #
-    #     This function checks for the specified alignment then imports it. If specified the original alignment is written
-    #     out the output directory. A second alignment is then created with all columns which are gaps in the query
-    #     sequence removed, and if specified this is written to the output directory as well.
-    #     """
-    #     serial_fn = os.path.join(self.out_dir, '{}_alignments.pkl'.format(self.query_id))
-    #     aln_base_name, _ = os.path.splitext(os.path.basename(self.original_aln_fn))
-    #     if os.path.isfile(serial_fn):
-    #         with open(serial_fn, 'rb') as handle:
-    #             self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln = pickle.load(handle)
-    #     else:
-    #         if not os.path.isfile(self.original_aln_fn):
-    #             raise ValueError('Provided alignment path is not valid: {}'.format(self.original_aln_fn))
-    #         self.original_aln = SeqAlignment(file_name=self.original_aln_fn, query_id=self.query_id,
-    #                                          polymer_type=self.polymer_type)
-    #         self.original_aln.import_alignment()
-    #         self.non_gapped_aln_fn = os.path.join(self.out_dir, '{}_non_gapped.fa'.format(aln_base_name))
-    #         self.non_gapped_aln = self.original_aln.remove_gaps()
-    #         with open(serial_fn, 'wb') as handle:
-    #             pickle.dump((self.original_aln, self.non_gapped_aln_fn, self.non_gapped_aln), handle,
-    #                         protocol=pickle.HIGHEST_PROTOCOL)
-    #     if 'original_aln' in self.output_files:
-    #         self.original_aln.write_out_alignment(file_name=os.path.join(self.out_dir, '{}_original.fa'.format(
-    #             aln_base_name)))
-    #     if 'non_gap_aln' in self.output_files:
-    #         self.non_gapped_aln.write_out_alignment(file_name=self.non_gapped_aln_fn)
 
     def compute_distance_matrix_tree_and_assignments(self):
         """
@@ -549,7 +518,7 @@ if __name__ == "__main__":
     # Read input from the command line
     args = parse_args()
     # Initialize EvolutionaryTrace object
-    et = EvolutionaryTrace(query=args['query'], polymer_type=args['polymer_type'], aln_fn=args['alignment'],
+    et = EvolutionaryTrace(query=args['query'], polymer_type=args['polymer_type'], aln_file=args['alignment'],
                            et_distance=args['et_distance'], distance_model=args['distance_model'],
                            tree_building_method=args['tree_building_method'],
                            tree_building_options=args['tree_building_options'], ranks=args['ranks'],
