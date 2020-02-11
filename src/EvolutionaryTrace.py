@@ -79,9 +79,6 @@ class EvolutionaryTrace(Predictor):
         memory (this is important for large alignments).
     """
 
-    def __init__(self, query_id, polymer_type, aln_fn, et_distance, distance_model, tree_building_method,
-                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
-                 output_files, processors, low_memory):
     def __init__(self, query, polymer_type, aln_file, et_distance, distance_model, tree_building_method,
                  tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
                  output_files, processors, low_memory):
