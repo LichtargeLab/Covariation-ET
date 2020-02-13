@@ -1577,8 +1577,9 @@ class TestContactScorer(TestBase):
                                    et_distance=True, distance_model='blosum62', tree_building_method='et',
                                    tree_building_options={}, ranks=None, position_type='pair',
                                    scoring_metric='filtered_average_product_corrected_mutual_information',
-                                   gap_correction=None, out_dir=os.path.join(self.testing_dir, query_id),
-                                   output_files=set(), processors=self.max_threads, low_memory=True)
+                                   gap_correction=None, maximize=False,
+                                   out_dir=os.path.join(self.testing_dir, query_id), output_files=set(),
+                                   processors=self.max_threads, low_memory=True)
         etmip1.calculate_scores()
         prev_b_w2_ave = None
         prev_u_w2_ave = None

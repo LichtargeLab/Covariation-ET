@@ -125,6 +125,7 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
         """
+        start = time()
         if (self.best_chain is None) or (self.query_pdb_mapping is None):
             start = time()
             if self.query_alignment is None:
@@ -218,6 +219,8 @@ class ContactScorer(object):
             data_df['Seq Separation Category'] = data_df['Seq Separation'].apply(
                 lambda x: determine_sequence_separation_category(x))
             self.data = data_df
+            end = time()
+            print('IT TOOK {} SECONDS TO FIT THE CONTACTSCORER!'.format(end - start))
 
 
 
@@ -343,7 +346,7 @@ class ContactScorer(object):
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for res_num1 in sorted(self.query_structure.pdb_residue_list[self.best_chain]):
+            for res_num1 in self.query_structure.residue_pos[self.best_chain]:
                 residue = self.query_structure.structure[0][self.best_chain][res_num1]
                 # Loop over residues to calculate distance between all residues i and j
                 if res_num1 not in coords:
@@ -357,14 +360,14 @@ class ContactScorer(object):
                         continue
                     # Getting the 3d coordinates for every atom in each residue.
                     # iterating over all pairs to find all distances
-                    coord_diff = (coords[res_num1] - coords[res_num2][:, np.newaxis])
-                    norms = np.linalg.norm(coord_diff, axis=2)
-                    distance = np.min(norms)
-                    dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = distance
-                    self.data.loc[(self.data['Struct Pos 1'] == res_num2) &
-                                  (self.data['Struct Pos 2'] == res_num1), 'Distance'] = distance
+                    res1 = (coords[res_num1] - coords[res_num2][:, np.newaxis])
+                    norms = np.linalg.norm(res1, axis=2)
+                    dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = np.min(norms)
             if save_file is not None:
                 np.savez(save_file, dists=dists)
+        indices = self.data.loc[(self.data['Struct Pos 1'] != '-') & (self.data['Struct Pos 2'] != '-')].index
+        self.data.loc[indices, 'Distance'] = self.data.loc[indices].apply(
+            lambda x: dists[pos[x['Struct Pos 1']], pos[x['Struct Pos 2']]], axis=1)
         self.data['Contact (within {}A cutoff)'.format(self.cutoff)] = self.data['Distance'].apply(
             lambda x: '-' if x == '-' else x <= self.cutoff)
         end = time()
