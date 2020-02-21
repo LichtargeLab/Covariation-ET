@@ -207,9 +207,9 @@ class EvolutionaryTrace(Predictor):
             self.trace.characterize_rank_groups(processes=self.processors,
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
                                                 write_out_freq_table='frequency_tables' in self.output_files)
-            self.ranking, self.scores, self.coverage = self.trace.trace(scorer=self.scorer, processes=self.processors,
-                                                                        gap_correction=self.gap_correction,
-                                                                        maximize=self.maximize)
+            self.rankings, self.scores, self.coverages = self.trace.trace(scorer=self.scorer, processes=self.processors,
+                                                                          gap_correction=self.gap_correction,
+                                                                          maximize=self.maximize)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.trace, self.rankings, self.scores, self.coverages), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
