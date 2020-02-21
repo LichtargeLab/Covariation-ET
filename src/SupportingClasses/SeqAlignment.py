@@ -275,27 +275,27 @@ class SeqAlignment(object):
         print('Removing sequences that do not fit the alphabet took {} min'.format((end - start) / 60.00))
         return new_alignment
 
-    def generate_positional_sub_alignment(self, i, j):
+    def generate_positional_sub_alignment(self, positions):
         """
         Generate Positional Sub Alignment
 
-        This method generates an alignment with only two specified columns, meant to enable the interrogation of
-        covariance scores.
+        This method generates an alignment with only the specified columns, meant to enable the interrogation of
+        positional importance and covariance scores.
 
         Args:
-            i (int): The first position to consider when making a sub alignment of two specific positions.
-            j (int): The first position to consider when making a sub alignment of two specific positions.
+            positions (list): A list of integers where each element of the list is a position in the sequence alignment
+            which should be kept in the sub-alignment.
         Returns:
             SeqAlignment: A new sub-alignment containing all sequences from the current SeqAlignment object but with
-            only the two sequence positions (columns) specified.
+            only the sequence positions (columns) specified.
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
         new_alignment.query_sequence = SeqRecord(id=self.query_id,
-                                                 seq=Seq(self.query_sequence[i] + self.query_sequence[j]))
-        new_alignment.seq_length = 2
+                                                 seq=Seq(''.join([self.query_sequence[i] for i in positions])))
+        new_alignment.seq_length = len(positions)
         new_alignment.seq_order = deepcopy(self.seq_order)
-        new_alignment.alignment = self._subset_columns(indices_to_keep=[i, j])
+        new_alignment.alignment = self._subset_columns(indices_to_keep=positions)
         new_alignment.size = deepcopy(self.size)
         new_alignment.marked = deepcopy(self.marked)
         return new_alignment

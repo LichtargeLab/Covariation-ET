@@ -549,45 +549,33 @@ class TestSeqAlignment(TestBase):
             self.assertEqual(aln_large.alignment[i].id, aln_large_prime.alignment[i].id)
             self.assertEqual(aln_large_prime.alignment[i].seq, aln_large.alignment[i].seq)
 
+    def evaluate_generate_positional_sub_alignment(self, aln):
+        aln.import_alignment()
+        for i in range(aln.size - 1):
+            aln_sub = aln.generate_positional_sub_alignment(positions=[i, i + 1])
+            self.assertEqual(aln.file_name, aln_sub.file_name)
+            self.assertEqual(aln.query_id, aln_sub.query_id)
+            self.assertEqual(aln.seq_order, aln_sub.seq_order)
+            self.assertEqual(str(aln_sub.query_sequence.seq),
+                             aln.query_sequence[i] + aln.query_sequence[i + 1])
+            self.assertEqual(aln_sub.seq_length, 2)
+            self.assertEqual(aln.size, aln_sub.size)
+            self.assertEqual(aln.marked, aln_sub.marked)
+            self.assertEqual(aln.polymer_type, aln_sub.polymer_type)
+            self.assertTrue(isinstance(aln_sub.alphabet, type(aln.alphabet)))
+            for j in range(aln.size):
+                self.assertEqual(str(aln_sub.alignment[j].seq),
+                                 aln.alignment[j].seq[i] + aln.alignment[j].seq[i + 1])
+    
     def test8a_generate_positional_sub_alignment(self):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
-        aln_small.import_alignment()
-        for i in range(aln_small.size - 1):
-            aln_small_sub = aln_small.generate_positional_sub_alignment(i, i + 1)
-            self.assertEqual(aln_small.file_name, aln_small_sub.file_name)
-            self.assertEqual(aln_small.query_id, aln_small_sub.query_id)
-            self.assertEqual(aln_small.seq_order, aln_small_sub.seq_order)
-            self.assertEqual(str(aln_small_sub.query_sequence.seq),
-                             aln_small.query_sequence[i] + aln_small.query_sequence[i + 1])
-            self.assertEqual(aln_small_sub.seq_length, 2)
-            self.assertEqual(aln_small.size, aln_small_sub.size)
-            self.assertEqual(aln_small.marked, aln_small_sub.marked)
-            self.assertEqual(aln_small.polymer_type, aln_small_sub.polymer_type)
-            self.assertTrue(isinstance(aln_small_sub.alphabet, type(aln_small.alphabet)))
-            for j in range(aln_small.size):
-                self.assertEqual(str(aln_small_sub.alignment[j].seq),
-                                 aln_small.alignment[j].seq[i] + aln_small.alignment[j].seq[i + 1])
+        self.evaluate_generate_positional_sub_alignment(aln=aln_small)
 
     def test8b_generate_positional_sub_alignment(self):
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
                                  query_id=self.large_structure_id)
-        aln_large.import_alignment()
-        for i in range(aln_large.size - 1):
-            aln_large_sub = aln_large.generate_positional_sub_alignment(i, i + 1)
-            self.assertEqual(aln_large.file_name, aln_large_sub.file_name)
-            self.assertEqual(aln_large.query_id, aln_large_sub.query_id)
-            self.assertEqual(aln_large.seq_order, aln_large_sub.seq_order)
-            self.assertEqual(str(aln_large_sub.query_sequence.seq),
-                             aln_large.query_sequence[i] + aln_large.query_sequence[i + 1])
-            self.assertEqual(aln_large_sub.seq_length, 2)
-            self.assertEqual(aln_large.size, aln_large_sub.size)
-            self.assertEqual(aln_large.marked, aln_large_sub.marked)
-            self.assertEqual(aln_large.polymer_type, aln_large_sub.polymer_type)
-            self.assertTrue(isinstance(aln_large_sub.alphabet, type(aln_large.alphabet)))
-            for j in range(aln_large.size):
-                self.assertEqual(str(aln_large_sub.alignment[j].seq),
-                                 aln_large.alignment[j].seq[i] + aln_large.alignment[j].seq[i + 1])
+        self.evaluate_generate_positional_sub_alignment(aln=aln_large)
 
     def test9a_compute_effective_alignment_size(self):
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
