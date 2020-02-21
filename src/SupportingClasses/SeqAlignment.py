@@ -522,7 +522,7 @@ class SeqAlignment(object):
                 seqs_to_remove.append(self.seq_order[i])
         return seqs_to_keep, seqs_to_remove
 
-    def heatmap_plot(self, name, out_dir=None, save=True):
+    def heatmap_plot(self, name, out_dir=None, save=True, ax=None):
         """
         Heatmap Plot
 
@@ -537,6 +537,8 @@ class SeqAlignment(object):
             out_dir (str): Path to directory where the heatmap image file should be saved. If None (default) then the
             image will be stored in the current working directory.
             save (bool): Whether or not to save the plot to file.
+            ax (matplotlib.axes.Axes): Optional argument to provide the sub-plot to which the heatmap_plot should be
+            drawn.
         Returns:
             pd.Dataframe: The data used to generate the heatmap.
             matplotlib.Axes: The plotting object created when generating the heatmap.
@@ -550,16 +552,40 @@ class SeqAlignment(object):
         else:
             file_name = None
         start = time()
+
+        if ax is None:
+            # start by specifying cell size and margins
+            cellsize = 0.25  # inch
+            marg_top = 0.7
+            marg_bottom = 0.7
+            marg_left = 0.7
+            marg_right = 0.7
+            # number of cells along width
+            cells_in_row = self.seq_length
+            # determine figure width
+            figwidth = cellsize * cells_in_row + marg_left + marg_right
+            # number of cells along height
+            cells_in_column = self.size
+            # calculate figure height in inches
+            figheight = cellsize * cells_in_column + marg_top + marg_bottom
+            # set figure size
+            fig = plt.figure(figsize=(figwidth, figheight))
+            # adjust margins (relative numbers) according to absolute values
+            fig.subplots_adjust(bottom=marg_bottom / figheight, top=1. - marg_top / figheight,
+                                left=marg_left / figwidth, right=1. - marg_right / figwidth)
+
         _, _, mapping, _ = build_mapping(alphabet=self.alphabet)
         df = pd.DataFrame(self._alignment_to_num(mapping=mapping), index=self.seq_order,
                           columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
         cmap = matplotlib.cm.get_cmap('jet', len(mapping))
-        hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=True, square=False)
+        hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=False, square=True,
+                     annot=np.array([list(seq_rec) for seq_rec in self.alignment]), fmt='', ax=ax)
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
-        hm.set_xticklabels(hm.get_xticklabels(), fontsize=6, rotation=0)
-        plt.title(name)
+        hm.set_xticklabels(hm.get_xticklabels(), fontsize=8, rotation=0)
+        hm.tick_params(left=False, bottom=False)
+        hm.set_title(name)
         if save:
-            plt.savefig(file_name)
+            plt.savefig(file_name, bbox_inches='tight')
             plt.clf()
         plt.show()
         end = time()

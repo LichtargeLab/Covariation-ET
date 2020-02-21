@@ -12,6 +12,8 @@ from Bio.Seq import Seq
 from Bio.Alphabet import  Gapped
 from Bio.SeqRecord import  SeqRecord
 from Bio.Align import MultipleSeqAlignment
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from test_Base import TestBase
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
@@ -927,37 +929,46 @@ class TestSeqAlignment(TestBase):
             else:
                 self.assertTrue(aln_large_sub.seq_order[i] in removed)
 
+    def evaluate_heatmap_plot(self, aln, save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(alphabet=aln.alphabet)
+        name = '{} Alignment Visualization'.format(aln.query_id)
+        fig = plt.figure(figsize=(0.25 * aln.seq_length + 0.7 + 0.7,
+                                  0.25 * aln.size + 0.7 + 0.7))
+        gs = GridSpec(nrows=1, ncols=1)
+        plotting_ax = fig.add_subplot(gs[0, 0])
+        expected_path = os.path.join(save_dir, name.replace(' ', '_') + '.eps')
+        for save in [True, False]:
+            for ax in [None, plotting_ax]:
+                print('Plotting with save: {} and ax: {}'.format(save, ax))
+                df, hm = aln.heatmap_plot(name=name, out_dir=save_dir, save=save, ax=ax)
+                for i in range(aln.size):
+                    self.assertEqual(df.index[i], aln.seq_order[i])
+                    for j in range(aln.seq_length):
+                        self.assertEqual(df.loc[aln.seq_order[i],
+                                                '{}:{}'.format(j, aln.query_sequence[j])], mapping[aln.alignment[i, j]])
+                if ax:
+                    self.assertEqual(ax, hm)
+                    ax.clear()
+                else:
+                    self.assertIsNotNone(hm)
+                    self.assertNotEqual(ax, hm)
+                if save:
+                    self.assertTrue(os.path.isfile(expected_path))
+                    os.remove(expected_path)
+                else:
+                    self.assertFalse(os.path.isfile(expected_path))
+
     def test17a_heatmap_plot(self):
-        if not os.path.isdir(self.save_dir_small):
-            os.makedirs(self.save_dir_small)
         aln_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
-        aln_small.import_alignment()
-        _, _, mapping, _ = build_mapping(alphabet=aln_small.alphabet)
-        name = '{} Alignment Visualization'.format(self.small_structure_id)
-        df1a, _hm1a = aln_small.heatmap_plot(name=name, out_dir=self.save_dir_small, save=True)
-        for i in range(aln_small.size):
-            self.assertEqual(df1a.index[i], aln_small.seq_order[i])
-            for j in range(aln_small.seq_length):
-                self.assertEqual(df1a.loc[aln_small.seq_order[i], '{}:{}'.format(j, aln_small.query_sequence[j])],
-                                 mapping[aln_small.alignment[i, j]])
-        self.assertTrue(os.path.isfile(os.path.join(self.save_dir_small, name.replace(' ', '_') + '.eps')))
+        self.evaluate_heatmap_plot(aln=aln_small, save_dir=self.save_dir_small)
 
     def test17b_heatmap_plot(self):
-        if not os.path.isdir(self.save_dir_large):
-            os.makedirs(self.save_dir_large)
         aln_large = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
                                  query_id=self.small_structure_id)
-        aln_large.import_alignment()
-        _, _, mapping, _ = build_mapping(alphabet=aln_large.alphabet)
-        name = '{} Alignment Visualization'.format(self.large_structure_id)
-        df1a, _hm1a = aln_large.heatmap_plot(name=name, out_dir=self.save_dir_large, save=True)
-        for i in range(aln_large.size):
-            self.assertEqual(df1a.index[i], aln_large.seq_order[i])
-            for j in range(aln_large.seq_length):
-                self.assertEqual(df1a.loc[aln_large.seq_order[i], '{}:{}'.format(j, aln_large.query_sequence[j])],
-                                 mapping[aln_large.alignment[i, j]])
-        self.assertTrue(os.path.isfile(os.path.join(self.save_dir_large, name.replace(' ', '_') + '.eps')))
+        self.evaluate_heatmap_plot(aln=aln_large, save_dir=self.save_dir_large)
 
     def test18a_characterize_positions(self):
         # Test single position only for the small sequence
