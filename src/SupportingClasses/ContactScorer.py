@@ -125,7 +125,6 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
         """
-        start = time()
         if (self.best_chain is None) or (self.query_pdb_mapping is None):
             start = time()
             if self.query_alignment is None:
@@ -171,6 +170,7 @@ class ContactScorer(object):
         if (self.data is None) or (not self.data.columns.isin(
                 ['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Seq Separation', 'Seq Separation Category',
                  'Struct Pos 1', 'Struct AA 1', 'Struct Pos 2', 'Struct AA 2']).all()):
+            start = time()
             data_dict = {'Seq Pos 1': [], 'Seq AA 1': [], 'Seq Pos 2': [], 'Seq AA 2': [], 'Struct Pos 1': [],
                          'Struct AA 1': [], 'Struct Pos 2': [], 'Struct AA 2': []}
             for pos1 in range(self.query_alignment.seq_length):
@@ -220,7 +220,7 @@ class ContactScorer(object):
                 lambda x: determine_sequence_separation_category(x))
             self.data = data_df
             end = time()
-            print('IT TOOK {} SECONDS TO FIT THE CONTACTSCORER!'.format(end - start))
+            print('Constructing internal representation took {} min'.format((end - start) / 60.0))
 
 
 
@@ -1070,14 +1070,14 @@ class ContactScorer(object):
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
             z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
-                scores, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
+                1.0 - coverages, bias=True, file_path=z_score_fn.format(dist, 'Biased'), w2_ave_sub=biased_w2_ave,
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
-                scores, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
+                1.0 - coverages, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w2_ave_sub=unbiased_w2_ave,
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
