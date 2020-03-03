@@ -1117,6 +1117,52 @@ class TestEvoultionaryTrace(TestBase):
         # implementation and the WETC implementation for the large alignment.
         self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
+    def evaluate_visualize_trace(self, p_id, fa_aln, low_mem):
+        test_dir = os.path.join(self.testing_dir,  p_id)
+        rmtree(test_dir, ignore_errors=True)
+        os.makedirs(test_dir)
+        filtered_fa_fn = os.path.join(test_dir, '{}_filtered_aln.fa'.format(p_id))
+        if os.path.isfile(filtered_fa_fn):
+            char_filtered_fa_aln = SeqAlignment(file_name=filtered_fa_fn, query_id=p_id)
+            char_filtered_fa_aln.import_alignment()
+        else:
+            curr_fa_aln = SeqAlignment(file_name=fa_aln.file_name, query_id=p_id)
+            curr_fa_aln.import_alignment()
+            curr_fa_aln.alphabet = Gapped(IUPACProtein())
+            char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
+            char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
+            char_filtered_fa_aln.file_name = filtered_fa_fn
+        et = EvolutionaryTrace(query=p_id, polymer_type='Protein', aln_file=filtered_fa_fn, et_distance=True,
+                               distance_model='blosum62', tree_building_method='et',
+                               tree_building_options={}, ranks=None, position_type='pair', gap_correction=None,
+                               out_dir=test_dir, processors=self.max_threads, low_memory=low_mem,
+                               output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                               scoring_metric='filtered_average_product_corrected_mutual_information')
+        et.compute_distance_matrix_tree_and_assignments()
+        pos_sets = [[0, 1, et.non_gapped_aln.seq_length - 1], [0, et.non_gapped_aln.seq_length - 1], [0]]
+        expected_ranks = [list(range(1, 3)), list(range(1, 4)), list(range(1, 11))]
+        for i in range(len(pos_sets)):
+            pos_set = pos_sets[i]
+            expected_rank = expected_ranks[i]
+            et.visualize_trace(positions=pos_set, ranks=expected_rank)
+            expected_dir = os.path.join(test_dir, '_'.join([str(x) for x in pos_set]))
+            self.assertTrue(os.path.isdir(expected_dir))
+            for r in et.assignments:
+                print('Validate Rank: {}'.format(r))
+                expected_rank_fn = os.path.join(expected_dir, 'Rank_{}.png'.format(r))
+                if r in expected_rank:
+                    self.assertTrue(os.path.isfile(expected_rank_fn), expected_rank_fn)
+                else:
+                    self.assertFalse(os.path.isfile(expected_rank_fn), expected_rank_fn)
+
+    def test_6a_visualize_trace(self):
+        # Check that visualize_trace is generating the expected output for the small alignment
+        self.evaluate_visualize_trace(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
+
+    def test_6b_visualize_trace(self):
+        # Check that visualize_trace is generating the expected output for the large alignment
+        self.evaluate_visualize_trace(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
+
 
 if __name__ == '__main__':
     unittest.main()

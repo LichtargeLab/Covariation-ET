@@ -10,9 +10,16 @@ import numpy as np
 import pandas as pd
 from time import time
 from tqdm import tqdm
+from copy import deepcopy
+from seaborn import heatmap
 from multiprocessing import Pool
+from matplotlib import cm
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Predictor import Predictor
+from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.Trace import Trace, load_freq_table
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
@@ -80,7 +87,7 @@ class EvolutionaryTrace(Predictor):
     """
 
     def __init__(self, query, polymer_type, aln_file, et_distance, distance_model, tree_building_method,
-                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, maximize, out_dir,
+                 tree_building_options, ranks, position_type, scoring_metric, gap_correction, out_dir,
                  output_files, processors, low_memory):
         """
         Initialization for EvolutionaryTrace class:
@@ -109,8 +116,6 @@ class EvolutionaryTrace(Predictor):
             have their score replaced with the worse observed score during the trace (down weighting all highly gapped
             columns). The default value for this has traditionally been set to 0.6 for rvET but has not been used for
             intET or ET-MIp.
-            maximize (bool): Whether or not to enforce that the better score is kept when moving from parent node to
-            child nodes during the group scoring step.
             out_dir (str): The path where results of this analysis should be written to.
             output_files (set): Which files to write out, possible values include: 'original_aln', 'non-gap_aln',
             'tree', 'sub-alignment', 'frequency_tables', and 'scores'.
@@ -133,7 +138,6 @@ class EvolutionaryTrace(Predictor):
         self.position_type = position_type
         self.scoring_metric = scoring_metric
         self.gap_correction = gap_correction
-        self.maximize = maximize
         self.trace = None
         self.scorer = None
         self.output_files = output_files
@@ -208,8 +212,7 @@ class EvolutionaryTrace(Predictor):
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
                                                 write_out_freq_table='frequency_tables' in self.output_files)
             self.rankings, self.scores, self.coverages = self.trace.trace(scorer=self.scorer, processes=self.processors,
-                                                                          gap_correction=self.gap_correction,
-                                                                          maximize=self.maximize)
+                                                                          gap_correction=self.gap_correction)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.trace, self.rankings, self.scores, self.coverages), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
@@ -236,6 +239,97 @@ class EvolutionaryTrace(Predictor):
         end = time()
         self.time = end - start
         print(self.time)
+
+    def visualize_trace(self, positions, ranks=None):
+        """
+        Visualize Trace
+
+        This function is meant to create an image of a position or pair of position (or other subset of positions)
+        visualizing the alignment at each level in the trace. The images for each level of the trace will be saved to
+        a directory within the out_dir, named by joining each position specified in positions with an '_'.
+
+        Arguments:
+            positions (list): The subset of positions in the alignment for which to visualize their progression through
+            the EvolutionaryTrace.
+        """
+        start = time()
+        # Generate an alignment with only the specified positions and ordered such that the sequence order represents
+        # the ordering used when constructing the phylogenetic tree.
+        sub_aln = self.non_gapped_aln.generate_positional_sub_alignment(positions=positions)
+        tree_seq_order = [self.assignments[max(self.assignments.keys())][i]['terminals'][0]
+                          for i in sorted(self.assignments[max(self.assignments.keys())].keys())]
+        look_up = {seq_id: i for i, seq_id in enumerate(sub_aln.seq_order)}
+        sub_aln_to = deepcopy(sub_aln)
+        sub_aln_to.seq_order = tree_seq_order
+        sub_aln_to.alignment = MultipleSeqAlignment([deepcopy(sub_aln.alignment[look_up[x], :])
+                                                     for x in sub_aln_to.seq_order])
+        check1 = time()
+        print('It took {} sec to generate the sub-alignment for visualization.'.format(check1 - start))
+        # Setup the output directory.
+        sub_dir = os.path.join(self.out_dir, '_'.join([str(x) for x in positions]))
+        os.makedirs(sub_dir, exist_ok=True)
+        # Specify the full dimensions to make the plots, based on the sizing expected for each cell and each individual
+        # plot.
+        cellsize = 0.0001  # inch
+        marg_top = 0.
+        marg_bottom = 0.0
+        marg_left = 0.0
+        marg_right = 0.0
+        # Determine individual plot sizing
+        cells_in_row = len(positions)
+        sub_fig_width = (cellsize * cells_in_row) + marg_left + marg_right
+        cells_in_column = 1
+        sub_fig_height = (cellsize * cells_in_column) + marg_top + marg_bottom
+        # Identify which ranks to visualize
+        if ranks is None:
+            ranks = list(sorted(self.assignments.keys()))
+        else:
+            ranks = list(sorted(set(ranks).intersection(set(self.assignments.keys()))))
+        # Determine the full size of the image to make to hold all of the plots.
+        num_rows = sub_aln.size
+        num_cols = sub_aln.size
+        # num_cols = len(ranks)
+        col_spacing = 2.0
+        row_spacing = 1.0
+        fig_width = (num_cols * sub_fig_width) + ((num_cols - 1) * col_spacing)
+        fig_height = (num_rows * sub_fig_height) + ((num_rows - 1) * row_spacing)
+        # Create the figure canvas and the subdivisions needed to plot all of the ranks and groups in the trace.
+        fig = plt.figure(figsize=(fig_width, fig_height))
+        gs = GridSpec(nrows=sub_aln.size, ncols=sub_aln.size, wspace=col_spacing, hspace=row_spacing)
+        # Create plotting axes and fill with blank figures to establish the size of the plotting area
+        plotting_data = {}
+        print('Creating plot area')
+        for r in ranks:
+            plotting_data[r] = {}
+            starting_gs_pos = 0
+            for g in sorted(self.assignments[r].keys()):
+                plotting_data[r][g] = {}
+                plotting_data[r][g]['aln'] = sub_aln.generate_sub_alignment(
+                    sequence_ids=self.assignments[r][g]['terminals'])
+                plotting_data[r][g]['ax'] = fig.add_subplot(
+                    gs[starting_gs_pos: starting_gs_pos + plotting_data[r][g]['aln'].size, r - 1])
+                hm = heatmap(data=np.zeros((plotting_data[r][g]['aln'].size, len(positions))), cmap=cm.Greys,
+                             center=10.0, vmin=0.0, vmax=20.0, cbar=False, square=True,
+                             xticklabels=False, yticklabels=False, ax=plotting_data[r][g]['ax'])
+                hm.tick_params(left=False, bottom=False)
+                hm.set_title('Rank {} Group {}'.format(r, g), color='w')
+                starting_gs_pos += plotting_data[r][g]['aln'].size
+        check2 = time()
+        print('It took {} sec to create the fully sized canvas for visualizing the trace.'.format(check2 - check1))
+        # Fill in the figures and save at each rank
+        for r in ranks:
+            print('Plotting Rank: {}'.format(r))
+            for g in sorted(self.assignments[r].keys()):
+                plotting_data[r][g]['ax'].clear()
+                plotting_data[r][g]['aln'].heatmap_plot(name='Rank {} Group {}'.format(r, g),
+                                                        out_dir=sub_dir, save=False,
+                                                        ax=plotting_data[r][g]['ax'])
+                if r > 1:
+                    plotting_data[r][g]['ax'].set_xticklabels([None] * 2)
+                    plotting_data[r][g]['ax'].set_yticklabels([None] * plotting_data[r][g]['aln'].size)
+            fig.savefig(os.path.join(sub_dir, 'Rank_{}.png'.format(r)), bbox_inches='tight')
+        end = time()
+        print('Full visualization took {} sec.'.format(end - start))
 
 
 def init_var_pool(aln):
