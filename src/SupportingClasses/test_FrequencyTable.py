@@ -239,7 +239,17 @@ class TestFrequencyTable(TestBase):
         self.assertFalse(diff2.toarray().any())
         self.assertIsNot(table1, table2)
 
-    def test9_get_depth(self):
+    def test9_set_depth(self):
+        freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
+                                    reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
+        depth1 = freq_table.get_depth()
+        self.assertEqual(depth1, 0)
+        freq_table.set_depth(1)
+        depth2 = freq_table.get_depth()
+        self.assertNotEqual(depth1, depth2)
+        self.assertEqual(depth2, 1)
+
+    def test10_get_depth(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         depth1 = freq_table.get_depth()
@@ -247,13 +257,13 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(depth1, 0)
         self.assertEqual(depth1, depth2)
 
-    def test10a_get_positions(self):
+    def test11a_get_positions(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
         self.assertEqual(freq_table.get_positions(), list(range(self.query_aln_fa_small.seq_length)))
 
-    def test10b_get_positions(self):
+    def test11b_get_positions(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -266,14 +276,14 @@ class TestFrequencyTable(TestBase):
                 self.assertEqual(positions[count], expected_position)
                 count += 1
 
-    def test11a_get_chars(self):
+    def test12a_get_chars(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
         for pos in freq_table.get_positions():
             self.assertEqual(freq_table.get_chars(pos=pos), [self.query_aln_fa_small.query_sequence[pos]])
 
-    def test11b_get_chars(self):
+    def test12b_get_chars(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -282,7 +292,7 @@ class TestFrequencyTable(TestBase):
             self.assertEqual(freq_table.get_chars(pos=pos), [self.query_aln_fa_small.query_sequence[pos[0]] +
                                                              self.query_aln_fa_small.query_sequence[pos[1]]])
 
-    def test12a_get_count(self):
+    def test13a_get_count(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -294,7 +304,7 @@ class TestFrequencyTable(TestBase):
                 else:
                     self.assertEqual(freq_table.get_count(pos=pos, char=char), 0)
 
-    def test12b_get_count(self):
+    def test13b_get_count(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -307,14 +317,14 @@ class TestFrequencyTable(TestBase):
                 else:
                     self.assertEqual(freq_table.get_count(pos=pos, char=char), 0)
 
-    def test13a_get_count_array(self):
+    def test14a_get_count_array(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
         for pos in freq_table.get_positions():
             self.assertEqual(freq_table.get_count_array(pos=pos), np.array([1]))
 
-    def test13b_get_count_array(self):
+    def test14b_get_count_array(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -322,7 +332,7 @@ class TestFrequencyTable(TestBase):
         for pos in freq_table.get_positions():
             self.assertEqual(freq_table.get_count_array(pos=pos), np.array([1]))
 
-    def test14a_get_count_matrix(self):
+    def test15a_get_count_matrix(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -334,7 +344,7 @@ class TestFrequencyTable(TestBase):
         diff = mat - expected_mat
         self.assertTrue(not diff.any())
 
-    def test14b_get_count_matrix(self):
+    def test15b_get_count_matrix(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -350,7 +360,7 @@ class TestFrequencyTable(TestBase):
         diff = mat - expected_mat
         self.assertTrue(not diff.any())
 
-    def test15a_get_frequency(self):
+    def test16a_get_frequency(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -362,7 +372,7 @@ class TestFrequencyTable(TestBase):
                 else:
                     self.assertEqual(freq_table.get_frequency(pos=pos, char=char), 0.0)
 
-    def test15b_get_frequency(self):
+    def test16b_get_frequency(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -375,14 +385,14 @@ class TestFrequencyTable(TestBase):
                 else:
                     self.assertEqual(freq_table.get_frequency(pos=pos, char=char), 0.0)
 
-    def test16a_get_frequency_array(self):
+    def test17a_get_frequency_array(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
         for pos in freq_table.get_positions():
             self.assertEqual(freq_table.get_frequency_array(pos=pos), np.array([1.0]))
 
-    def test16b_get_frequency_array(self):
+    def test17b_get_frequency_array(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -390,7 +400,7 @@ class TestFrequencyTable(TestBase):
         for pos in freq_table.get_positions():
             self.assertEqual(freq_table.get_frequency_array(pos=pos), np.array([1.0]))
 
-    def test17a_get_frequency_matrix(self):
+    def test18a_get_frequency_matrix(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -402,7 +412,7 @@ class TestFrequencyTable(TestBase):
         diff = mat - expected_mat
         self.assertTrue(not diff.any())
 
-    def test17b_get_frequency_matrix(self):
+    def test18b_get_frequency_matrix(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -418,7 +428,7 @@ class TestFrequencyTable(TestBase):
         diff = mat - expected_mat
         self.assertTrue(not diff.any())
 
-    def test18a_to_csv(self):
+    def test19a_to_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -434,7 +444,7 @@ class TestFrequencyTable(TestBase):
             self.assertEqual(loaded_freq_table.loc[i, 'Frequencies'], 1.0)
         os.remove(fn)
 
-    def test18b_to_csv(self):
+    def test19b_to_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_large.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_large.query_sequence)
@@ -450,7 +460,7 @@ class TestFrequencyTable(TestBase):
             self.assertEqual(loaded_freq_table.loc[i, 'Frequencies'], 1.0)
         os.remove(fn)
 
-    def test18c_to_csv(self):
+    def test19c_to_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -468,7 +478,7 @@ class TestFrequencyTable(TestBase):
                 self.assertEqual(loaded_freq_table.loc[str((i, j)), 'Frequencies'], 1.0)
         os.remove(fn)
 
-    def test18d_to_csv(self):
+    def test19d_to_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_large.seq_length,
                                     pos_size=2)
@@ -486,7 +496,7 @@ class TestFrequencyTable(TestBase):
                 self.assertEqual(loaded_freq_table.loc[str((i, j)), 'Frequencies'], 1.0)
         os.remove(fn)
 
-    def test19a_load_csv(self):
+    def test20a_load_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_small.query_sequence)
@@ -501,7 +511,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
-    def test19b_load_csv(self):
+    def test20b_load_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
                                     reverse_mapping=self.single_reverse, seq_len=self.query_aln_fa_large.seq_length)
         freq_table.characterize_sequence(seq=self.query_aln_fa_large.query_sequence)
@@ -516,7 +526,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
-    def test19c_load_csv(self):
+    def test20c_load_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2)
@@ -532,7 +542,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
-    def test19d_load_csv(self):
+    def test20d_load_csv(self):
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse_mapping=self.pair_reverse, seq_len=self.query_aln_fa_large.seq_length,
                                     pos_size=2)
@@ -548,7 +558,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
-    def test20a_add(self):
+    def test21a_add(self):
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_small.size - 1
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
@@ -571,7 +581,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
-    def test20b_add(self):
+    def test21b_add(self):
         query_seq_index = self.query_aln_fa_small.seq_order.index(self.query_aln_fa_small.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_small.size - 1
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,
@@ -597,7 +607,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
-    def test20c_add(self):
+    def test21c_add(self):
         query_seq_index = self.query_aln_fa_large.seq_order.index(self.query_aln_fa_large.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_large.size - 1
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
@@ -620,7 +630,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(freq_table.get_positions(), freq_table_sum1.get_positions())
         self.assertEqual(freq_table.get_depth(), freq_table_sum1.get_depth())
 
-    def test20d_add(self):
+    def test21d_add(self):
         query_seq_index = self.query_aln_fa_large.seq_order.index(self.query_aln_fa_large.query_id)
         second_index = 0 if query_seq_index != 0 else self.query_aln_fa_large.size - 1
         freq_table = FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping,

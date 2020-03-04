@@ -180,6 +180,18 @@ class FrequencyTable(object):
         """
         self.__position_table = self.__position_table.tocsc()
 
+    def set_depth(self, depth):
+        """
+        Set Depth
+
+        This function is intended to update the depth attribute if the existing methods do not suffice.
+
+        Arguments
+            depth (int): The number of observations for all positions (normalization factor when turning count into
+            frequency).
+        """
+        self.__depth = deepcopy(depth)
+
     def get_table(self):
         """
         Get Table
