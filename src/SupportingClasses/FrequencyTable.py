@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from copy import deepcopy
-from scipy.sparse import lil_matrix
+from scipy.sparse import lil_matrix, csc_matrix
 
 
 class FrequencyTable(object):
@@ -21,9 +21,12 @@ class FrequencyTable(object):
         position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
         be 1, if it measures pairs of positions this should be 2, etc.
         num_pos (int): The number of positions being characterized.
-        __position_table (scipy.sparse.lil_matrix/csc_matrix): A structure storing the position specific counts for
-        amino acids found in the alignment.
-        __depth (int):
+        __position_table (dict/csc_matrix): A structure storing the position specific counts for nucleic/amino acids
+        found in the alignment. This attribute begins as a dictionary holding all of the values needed to initialize a
+        csc_matrix (including empty lists for values and i and j positions). When the seqeunce/alignment
+        characterization has been concluded this can be converted to a csc_matrix using the finalize_table() method.
+        __depth (int): The number of possible observations per positions (the normalization count for calculating
+        frequency).
     """
 
     def __init__(self, alphabet_size, mapping, reverse_mapping, seq_len, pos_size=1):
@@ -52,7 +55,8 @@ class FrequencyTable(object):
             self.num_pos = int(np.sum(range(seq_len + 1)))
         else:
             raise ValueError('FrequencyTable not implemented to handle pos_size: {}'.format(pos_size))
-        self.__position_table = lil_matrix((self.num_pos, alphabet_size))
+        # Elements of a csc_matrix: values, i, j, shape
+        self.__position_table = {'values': [], 'i': [], 'j': [], 'shape': (self.num_pos, alphabet_size)}
         self.__depth = 0
 
     def __convert_pos(self, pos):
@@ -69,7 +73,8 @@ class FrequencyTable(object):
         """
         if self.position_size == 1 and not isinstance(pos, (int, np.integer)):
             raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
-        if (self.position_size > 1) and not isinstance(pos, tuple) and (len(pos) != self.position_size):
+        # if (self.position_size > 1) and not isinstance(pos, tuple) and (len(pos) != self.position_size):
+        if (self.position_size > 1) and ((not isinstance(pos, tuple)) or (len(pos) != self.position_size)):
             raise TypeError('Positions for FrequencyTable with position_size > 1 must have length == position_size')
         if self.position_size == 1:
             final = pos
@@ -96,9 +101,11 @@ class FrequencyTable(object):
         """
         position = self.__convert_pos(pos=pos)
         char_pos = self.mapping[char]
-        self.__position_table[position, char_pos] += amount
+        self.__position_table['values'].append(amount)
+        self.__position_table['i'].append(position)
+        self.__position_table['j'].append(char_pos)
 
-    def characterize_alignment(self, num_aln, single_to_pair):
+    def characterize_alignment(self, num_aln, single_to_pair=None):
         """
         Characterize Alignment
 
@@ -124,7 +131,10 @@ class FrequencyTable(object):
                 # Find each unique character in the column and its count in that column
                 char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
                 # Update the observed characters with their counts
-                self.__position_table[i, char_pos.reshape(-1)] = counts
+                # self.__position_table[i, char_pos.reshape(-1)] = counts
+                self.__position_table['values'] += list(counts)
+                self.__position_table['i'] += [i] * len(counts)
+                self.__position_table['j'] += list(char_pos.reshape(-1))
             # If pair is not specified continue to the next position
             if self.position_size != 2:
                 continue
@@ -138,7 +148,9 @@ class FrequencyTable(object):
                 # Map the individual character alphabet observations to the pair alphabet positions
                 char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
                 # Update the observed pairs of characters for the pair of columns using the counts.
-                self.__position_table[position, char_pos] = counts
+                self.__position_table['values'] += list(counts)
+                self.__position_table['i'] += [position] * len(counts)
+                self.__position_table['j'] += list(char_pos)
         # Update the depth to the number of sequences in the characterized alignment
         self.__depth = num_aln.shape[0]
         self.finalize_table()
@@ -178,7 +190,9 @@ class FrequencyTable(object):
         to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
         behavior from other functions such as get_count_array() and get_frequency_array().
         """
-        self.__position_table = self.__position_table.tocsc()
+        self.__position_table = csc_matrix((self.__position_table['values'],
+                                            (self.__position_table['i'], self.__position_table['j'])),
+                                           shape=self.__position_table['shape'])
 
     def set_depth(self, depth):
         """
@@ -407,23 +421,33 @@ class FrequencyTable(object):
                 pos_str = elements[indices['Position']]
                 try:
                     pos = int(pos_str)
-                    if pos > (self.sequence_length - 1):
+                    # if pos > (self.sequence_length - 1):
+                    if pos > (self.num_pos - 1):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
+                    position = pos
                 except ValueError:
                     pos = tuple([int(x) for x in pos_str.lstrip('(').rstrip(')').split(',')])
                     if pos[0] > (self.sequence_length - 1) or pos[1] > (self.sequence_length - 1):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
-                position = self.__convert_pos(pos=pos)
+                    position = self.__convert_pos(pos=pos)
+                # position = self.__convert_pos(pos=pos)
                 chars = elements[indices['Characters']].split(',')
                 counts = [int(x) for x in elements[indices['Counts']].split(',')]
                 if len(chars) != len(counts):
                     raise ValueError('Frequency Table written to file incorrectly the length of Characters, Counts, and'
                                      ' Frequencies does not match for position: {}'.format(pos))
                 for i in range(len(chars)):
-                    char_pos = self.mapping[chars[i]]
-                    self.__position_table[position, char_pos] = counts[i]
+                    try:
+                        char_pos = self.mapping[chars[i]]
+                    except KeyError as e:
+                        print(self.mapping)
+                        raise e
+                    # self.__position_table[position, char_pos] = counts[i]
+                    self.__position_table['values'].append(counts[i])
+                    self.__position_table['i'].append(position)
+                    self.__position_table['j'].append(char_pos)
                     curr_depth = np.sum(counts)
                     if max_depth is None:
                         max_depth = curr_depth
@@ -431,6 +455,7 @@ class FrequencyTable(object):
                         if curr_depth != max_depth:
                             raise RuntimeError('Depth at position {} does not match the depth from previous positions '
                                                '{} vs {}'.format(pos, max_depth, curr_depth))
+        self.finalize_table()
         self.__depth = max_depth
         end = time()
         print('Loading FrequencyTable from file took {} min'.format((end - start) / 60.0))
@@ -460,6 +485,8 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if self.reverse_mapping != other.reverse_mapping:
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
+        if isinstance(self.__position_table, dict) or isinstance(other.__position_table,dict):
+            raise AttributeError('Before combining FrequencyTable objects please call finalize_table().')
         new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
                                    reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
