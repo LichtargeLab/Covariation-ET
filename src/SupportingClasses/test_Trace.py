@@ -459,8 +459,8 @@ class TestTrace(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='intET', delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='intET', delete_files=False)
         trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
                             pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
@@ -479,7 +479,7 @@ class TestTrace(TestBase):
             print(et_mip_obj.scores[indices])
             print(diff_ranks[indices])
         self.assertFalse(diff_ranks.any())
-        diff_coverage = coverage_ids - et_mip_obj.coverage
+        diff_coverage = coverage_ids - et_mip_obj.coverages
         not_passing = np.abs(diff_coverage) > 1e-2
         if not_passing.any():
             print(coverage_ids)
@@ -491,7 +491,7 @@ class TestTrace(TestBase):
             print(diff_coverage[indices])
         self.assertFalse(not_passing.any())
         rounded_coverages = np.round(coverage_ids, decimals=3)
-        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverages
         not_passing2 = diff_coverages2 > 1E-15
         if not_passing2.any():
             print(rounded_coverages)
@@ -575,8 +575,8 @@ class TestTrace(TestBase):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
         if not os.path.isdir(wetc_test_dir):
             os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(alignment=msf_aln)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='rvET', delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='rvET', delete_files=False)
         trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
                             pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
@@ -607,7 +607,7 @@ class TestTrace(TestBase):
             print(et_mip_obj.scores[indices])
             print(diff_ranks2[indices])
         self.assertFalse(diff_ranks2.any())
-        diff_coverage = coverage_entropies - et_mip_obj.coverage
+        diff_coverage = coverage_entropies - et_mip_obj.coverages
         not_passing = np.abs(diff_coverage) > 1e-2
         if not_passing.any():
             print(coverage_entropies)
@@ -619,7 +619,7 @@ class TestTrace(TestBase):
             print(diff_coverage[indices])
         self.assertFalse(not_passing.any())
         rounded_coverages = np.round(coverage_entropies, decimals=3)
-        diff_coverages2 = rounded_coverages - et_mip_obj.coverage
+        diff_coverages2 = rounded_coverages - et_mip_obj.coverages
         not_passing2 = diff_coverages2 > 1E-15
         if not_passing2.any():
             print(rounded_coverages)
@@ -820,9 +820,8 @@ class TestTrace(TestBase):
             char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
             char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
             char_filtered_fa_aln.file_name = filtered_fa_fn
-        et_mip_obj = ETMIPWrapper(alignment=char_filtered_fa_aln)
-        et_mip_obj.check_alignment(target_dir=wetc_test_dir)
-        et_mip_obj.calculate_scores(out_dir=wetc_test_dir, method='ET-MIp', delete_files=False)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=wetc_test_dir)
+        et_mip_obj.calculate_scores(method='ET-MIp', delete_files=False)
         gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
         trace_mip = Trace(alignment=gap_filtered_fa_aln, phylo_tree=et_mip_obj.tree,
                           group_assignments=et_mip_obj.rank_group_assignments, position_specific=False,
@@ -859,11 +858,11 @@ class TestTrace(TestBase):
             print(et_mip_obj.scores[indices])
             print(diff_ranks2[indices])
         self.assertFalse(not_passing_rounded.any())
-        diff_coverages = coverage_mips - et_mip_obj.coverage
+        diff_coverages = coverage_mips - et_mip_obj.coverages
         not_passing = np.abs(diff_coverages) > 1E-3
         if not_passing.any():
             print(coverage_mips)
-            print(et_mip_obj.coverage)
+            print(et_mip_obj.coverages)
             print(diff_coverages)
             indices = np.nonzero(not_passing)
             print(score_mips[indices])
