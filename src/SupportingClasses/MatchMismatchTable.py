@@ -95,28 +95,28 @@ class MatchMismatchTable(object):
         for pos in self.match_mismatch_tables:
             matches = self.match_mismatch_tables[pos] > 0
             match_ind = np.nonzero(matches)
-            match_counts = {}
+            # match_counts = {}
             for i in range(len(match_ind[0])):
                 pair = (self.num_aln[match_ind[0][i], pos], self.num_aln[match_ind[1][i], pos])
                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-                # match_table._increment_count(pos=(pos1, pos2), char=char)
-                if char not in match_counts:
-                    match_counts[char] = 0
-                match_counts[char] += 1
-            for char in match_counts:
-                match_table._increment_count(pos=pos, char=char, amount=match_counts[char])
+                match_table._increment_count(pos=(pos1, pos2), char=char)
+            #     if char not in match_counts:
+            #         match_counts[char] = 0
+            #     match_counts[char] += 1
+            # for char in match_counts:
+            #     match_table._increment_count(pos=pos, char=char, amount=match_counts[char])
             mismatches = self.match_mismatch_tables[pos] < 0
             mismatch_ind = np.nonzero(mismatches)
-            mismatch_counts = {}
+            # mismatch_counts = {}
             for i in range(len(mismatch_ind[0])):
                 pair = (self.num_aln[mismatch_ind[0][i], pos], self.num_aln[mismatch_ind[1][i], pos])
                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-                # mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-                if char not in mismatch_counts:
-                    mismatch_counts[char] = 0
-                mismatch_counts[char] += 1
-            for char in mismatch_counts:
-                mismatch_table._increment_count(pos=pos, char=char, amount=mismatch_counts[char])
+                mismatch_table._increment_count(pos=(pos1, pos2), char=char)
+            #     if char not in mismatch_counts:
+            #         mismatch_counts[char] = 0
+            #     mismatch_counts[char] += 1
+            # for char in mismatch_counts:
+            #     mismatch_table._increment_count(pos=pos, char=char, amount=mismatch_counts[char])
 
     def _characterize_pair_mm(self, match_table, mismatch_table):
         for pos1 in range(self.seq_len):
@@ -129,30 +129,30 @@ class MatchMismatchTable(object):
                 mismatches2 = self.match_mismatch_tables[pos2] < 0
                 matches = (matches1 * matches2) + (mismatches1 * mismatches2)
                 match_ind = np.nonzero(matches)
-                match_counts = {}
+                # match_counts = {}
                 for i in range(len(match_ind[0])):
                     quad = (self.num_aln[match_ind[0][i], pos1], self.num_aln[match_ind[1][i], pos1],
                             self.num_aln[match_ind[0][i], pos2], self.num_aln[match_ind[1][i], pos2])
                     char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-                    # match_table._increment_count(pos=(pos1, pos2), char=char)
-                    if char not in match_counts:
-                        match_counts[char] = 0
-                    match_counts[char] += 1
-                for char in match_counts:
-                    match_table._increment_count(pos=(pos1, pos2), char=char, amount=match_counts[char])
+                    match_table._increment_count(pos=(pos1, pos2), char=char)
+                #     if char not in match_counts:
+                #         match_counts[char] = 0
+                #     match_counts[char] += 1
+                # for char in match_counts:
+                #     match_table._increment_count(pos=(pos1, pos2), char=char, amount=match_counts[char])
                 mismatches = np.triu((1 - matches), k=1)
                 mismatch_ind = np.nonzero(mismatches)
-                mismatch_counts = {}
+                # mismatch_counts = {}
                 for i in range(len(mismatch_ind[0])):
                     quad = (self.num_aln[mismatch_ind[0][i], pos1], self.num_aln[mismatch_ind[1][i], pos1],
                             self.num_aln[mismatch_ind[0][i], pos2], self.num_aln[mismatch_ind[1][i], pos2])
                     char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-                    # mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-                    if char not in mismatch_counts:
-                        mismatch_counts[char] = 0
-                    mismatch_counts[char] += 1
-                for char in mismatch_counts:
-                    mismatch_table._increment_count(pos=(pos1, pos2), char=char, amount=mismatch_counts[char])
+                    mismatch_table._increment_count(pos=(pos1, pos2), char=char)
+                #     if char not in mismatch_counts:
+                #         mismatch_counts[char] = 0
+                #     mismatch_counts[char] += 1
+                # for char in mismatch_counts:
+                #     mismatch_table._increment_count(pos=(pos1, pos2), char=char, amount=mismatch_counts[char])
 
     def characterize_matches_mismatches(self):
         start = time()
@@ -189,6 +189,23 @@ class MatchMismatchTable(object):
         self.mismatch_freq_table = mismatch_table
         end = time()
         print('It took {} seconds to characterize matches and mismatches.'.format(end - start))
+
+    def get_status_and_character(self, pos, seq_ind1, seq_ind2):
+        if isinstance(pos, int):
+            char_tup = (self.num_aln[seq_ind1, pos], self.num_aln[seq_ind2, pos])
+            status = self.match_mismatch_tables[pos][seq_ind1, seq_ind2] == 1
+        elif isinstance(pos, tuple):
+            char_tup = []
+            status = 0
+            for x in range(len(pos)):
+                char_tup += [self.num_aln[s, pos[x]] for s in [seq_ind1, seq_ind2]]
+                status += self.match_mismatch_tables[pos[x]][seq_ind1, seq_ind2]
+            status = np.abs(status) == len(pos)
+        else:
+            return ValueError('Recieved a position with type other than int or tuple.')
+        char = self.larger_reverse_mapping[char_tup]
+        ret_status = 'Match' if status else 'Mismatch'
+        return ret_status, char
 
     def get_depth(self):
         return deepcopy(self.__depth)

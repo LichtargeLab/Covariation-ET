@@ -69,29 +69,29 @@ class TestMatchMismatchTable(TestBase):
         self.assertIsNone(mm_table.match_freq_table)
         self.assertIsNone(mm_table.mismatch_freq_table)
 
-    # def test1a_init(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_init(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln, large_alpha_size=self.pair_size,
-    #                        large_alpha_map=self.pair_mapping, large_alpha_reverse=self.pair_reverse,
-    #                        single_to_large=self.single_to_pair, pos_size=1)
-    #
-    # def test1b_init(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_init(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln, large_alpha_size=self.quad_size,
-    #                        large_alpha_map=self.quad_mapping, large_alpha_reverse=self.quad_reverse,
-    #                        single_to_large=self.single_to_quad, pos_size=2)
-    #
-    # def test1c_init(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_init(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln, large_alpha_size=self.pair_size,
-    #                        large_alpha_map=self.pair_mapping, large_alpha_reverse=self.pair_reverse,
-    #                        single_to_large=self.single_to_pair, pos_size=1)
-    #
-    # def test1d_init(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_init(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln, large_alpha_size=self.quad_size,
-    #                        large_alpha_map=self.quad_mapping, large_alpha_reverse=self.quad_reverse,
-    #                        single_to_large=self.single_to_quad, pos_size=2)
+    def test1a_init(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_init(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln, large_alpha_size=self.pair_size,
+                           large_alpha_map=self.pair_mapping, large_alpha_reverse=self.pair_reverse,
+                           single_to_large=self.single_to_pair, pos_size=1)
+
+    def test1b_init(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_init(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln, large_alpha_size=self.quad_size,
+                           large_alpha_map=self.quad_mapping, large_alpha_reverse=self.quad_reverse,
+                           single_to_large=self.single_to_quad, pos_size=2)
+
+    def test1c_init(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_init(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln, large_alpha_size=self.pair_size,
+                           large_alpha_map=self.pair_mapping, large_alpha_reverse=self.pair_reverse,
+                           single_to_large=self.single_to_pair, pos_size=1)
+
+    def test1d_init(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_init(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln, large_alpha_size=self.quad_size,
+                           large_alpha_map=self.quad_mapping, large_alpha_reverse=self.quad_reverse,
+                           single_to_large=self.single_to_quad, pos_size=2)
 
     def evaluate_identify_matches_mismatches(self, seq_len, num_aln, large_alpha_size, large_alpha_map,
                                              large_alpha_reverse, single_to_large, pos_size):
@@ -113,33 +113,33 @@ class TestMatchMismatchTable(TestBase):
                     else:
                         self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], 0)
 
-    # def test2a_identify_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                               large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
-    #                                               large_alpha_reverse=self.pair_reverse,
-    #                                               single_to_large=self.single_to_pair, pos_size=1)
-    #
-    # def test2b_identify_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                               large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
-    #                                               large_alpha_reverse=self.quad_reverse,
-    #                                               single_to_large=self.single_to_quad, pos_size=2)
-    #
-    # def test2c_identify_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
-    #                                               large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
-    #                                               large_alpha_reverse=self.pair_reverse,
-    #                                               single_to_large=self.single_to_pair, pos_size=1)
-    #
-    # def test2d_identify_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
-    #                                               large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
-    #                                               large_alpha_reverse=self.quad_reverse,
-    #                                               single_to_large=self.single_to_quad, pos_size=2)
+    def test2a_identify_matches_mismatches(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                                  large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
+                                                  large_alpha_reverse=self.pair_reverse,
+                                                  single_to_large=self.single_to_pair, pos_size=1)
+
+    def test2b_identify_matches_mismatches(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                                  large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
+                                                  large_alpha_reverse=self.quad_reverse,
+                                                  single_to_large=self.single_to_quad, pos_size=2)
+
+    def test2c_identify_matches_mismatches(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                                  large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
+                                                  large_alpha_reverse=self.pair_reverse,
+                                                  single_to_large=self.single_to_pair, pos_size=1)
+
+    def test2d_identify_matches_mismatches(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_identify_matches_mismatches(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                                  large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
+                                                  large_alpha_reverse=self.quad_reverse,
+                                                  single_to_large=self.single_to_quad, pos_size=2)
 
     def evaluate_single_match_mismatch_freq_tables(self, seq_len, num_aln, match_freq_table, mismatch_freq_table):
         for pos in range(seq_len):
@@ -179,13 +179,13 @@ class TestMatchMismatchTable(TestBase):
         self.evaluate_single_match_mismatch_freq_tables(seq_len=seq_len, num_aln=num_aln, match_freq_table=match_table,
                                                         mismatch_freq_table=mismatch_table)
 
-    # def test3a__characterize_single_mm(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate__characterize_single_mm(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln)
-    #
-    # def test3b__characterize_single_mm(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate__characterize_single_mm(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln)
+    def test3a__characterize_single_mm(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate__characterize_single_mm(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln)
+
+    def test3b__characterize_single_mm(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate__characterize_single_mm(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln)
 
     def evaluate_pair_match_mismatch_freq_tables(self, seq_len, num_aln, match_freq_table, mismatch_freq_table):
         for pos1 in range(seq_len):
@@ -268,13 +268,13 @@ class TestMatchMismatchTable(TestBase):
         self.evaluate_pair_match_mismatch_freq_tables(seq_len=seq_len, num_aln=num_aln, match_freq_table=match_table,
                                                       mismatch_freq_table=mismatch_table)
 
-    # def test3c__characterize_pair_mm(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate__characterize_pair_mm(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln)
-    #
-    # def test3d__characterize_pair_mm(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     self.evaluate__characterize_pair_mm(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln)
+    def test3c__characterize_pair_mm(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate__characterize_pair_mm(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln)
+
+    def test3d__characterize_pair_mm(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate__characterize_pair_mm(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln)
 
     def evaluate_characterize_matches_mismatches(self, match_mismatch_table):
         match_mismatch_table.identify_matches_mismatches()
@@ -295,26 +295,26 @@ class TestMatchMismatchTable(TestBase):
         else:
             raise ValueError('characterize_matches_mismatches() only implemented for pos_size 1 or 2')
 
-    # def test4a_characterize_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
-    #                                   larger_alphabet_mapping=self.pair_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.pair_reverse,
-    #                                   single_to_larger_mapping=self.single_to_pair, pos_size=1)
-    #     self.evaluate_characterize_matches_mismatches(match_mismatch_table=mm_table)
-    #
-    # def test4b_characterize_matches_mismatches(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     print('Seq length: ', self.query_aln_fa_small.seq_length)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
-    #                                   larger_alphabet_mapping=self.quad_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.quad_reverse,
-    #                                   single_to_larger_mapping=self.single_to_quad, pos_size=2)
-    #     self.evaluate_characterize_matches_mismatches(match_mismatch_table=mm_table)
+    def test4a_characterize_matches_mismatches(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
+                                      larger_alphabet_mapping=self.pair_mapping,
+                                      larger_alphabet_reverse_mapping=self.pair_reverse,
+                                      single_to_larger_mapping=self.single_to_pair, pos_size=1)
+        self.evaluate_characterize_matches_mismatches(match_mismatch_table=mm_table)
+
+    def test4b_characterize_matches_mismatches(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        print('Seq length: ', self.query_aln_fa_small.seq_length)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
+                                      larger_alphabet_mapping=self.quad_mapping,
+                                      larger_alphabet_reverse_mapping=self.quad_reverse,
+                                      single_to_larger_mapping=self.single_to_quad, pos_size=2)
+        self.evaluate_characterize_matches_mismatches(match_mismatch_table=mm_table)
 
     def test4c_characterize_matches_mismatches(self):
         num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
@@ -337,49 +337,117 @@ class TestMatchMismatchTable(TestBase):
                                       single_to_larger_mapping=self.single_to_quad, pos_size=2)
         self.evaluate_characterize_matches_mismatches(match_mismatch_table=mm_table)
 
+    def evaluate_get_status_and_character(self, seq_len, num_aln, large_alpha_size, large_alpha_map,
+                                          large_alpha_reverse, single_to_large, pos_size):
+        mm_table = MatchMismatchTable(seq_len=seq_len, num_aln=num_aln, single_alphabet_size=self.single_size,
+                                      single_mapping=self.single_mapping, single_reverse_mapping=self.single_reverse,
+                                      larger_alphabet_size=large_alpha_size, larger_alphabet_mapping=large_alpha_map,
+                                      larger_alphabet_reverse_mapping=large_alpha_reverse,
+                                      single_to_larger_mapping=single_to_large, pos_size=pos_size)
+        mm_table.identify_matches_mismatches()
+        for s1 in range(num_aln.shape[0]):
+            for s2 in range(s1 + 1, num_aln.shape[0]):
+                for i in range(seq_len):
+                    if pos_size == 1:
+                        expected_char1 = self.single_reverse[num_aln[s1, i]]
+                        expected_char2 = self.single_reverse[num_aln[s1, j]]
+                        expected_char = expected_char1 + expected_char2
+                        expected_status = expected_char1 == expected_char2
+                        status, char = mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s2)
+                        self.assertEqual(char, expected_char)
+                        if expected_status:
+                            self.assertEqual(status, 'Match')
+                        else:
+                            self.assertEqual(status, 'Mismatch')
+                        continue
+                    for j in range(i, seq_len):
+                        expected_char1 = self.single_reverse[num_aln[s1, i]]
+                        expected_char2 = self.single_reverse[num_aln[s1, j]]
+                        expected_pair1 = expected_char1 + expected_char2
+                        expected_char3 = self.single_reverse[num_aln[s2, i]]
+                        expected_char4 = self.single_reverse[num_aln[s2, j]]
+                        expected_pair2 = expected_char3 + expected_char4
+                        expected_quad = expected_pair1 + expected_pair2
+                        expected_status = ((expected_pair1 == expected_pair2) or
+                                           ((expected_char1 != expected_char3) and (expected_char2 != expected_char4)))
+                        status, char = mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s2)
+                        self.assertEqual(char, expected_quad)
+                        if expected_status:
+                            self.assertEqual(status, 'Match')
+                        else:
+                            self.assertEqual(status, 'Mismatch')
+
+    def test5a_get_status_and_character(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_get_status_and_character(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                               large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
+                                               large_alpha_reverse=self.pair_reverse,
+                                               single_to_large=self.single_to_pair, pos_size=1)
+
+    def test5b_get_status_and_character(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_get_status_and_character(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                               large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
+                                               large_alpha_reverse=self.quad_reverse,
+                                               single_to_large=self.single_to_quad, pos_size=2)
+
+    def test5c_get_status_and_character(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_get_status_and_character(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                               large_alpha_size=self.pair_size, large_alpha_map=self.pair_mapping,
+                                               large_alpha_reverse=self.pair_reverse,
+                                               single_to_large=self.single_to_pair, pos_size=1)
+
+    def test5d_get_status_and_character(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        self.evaluate_get_status_and_character(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                               large_alpha_size=self.quad_size, large_alpha_map=self.quad_mapping,
+                                               large_alpha_reverse=self.quad_reverse,
+                                               single_to_large=self.single_to_quad, pos_size=2)
+
     def evaluate_get_depth(self, aln, match_mismatch_table):
         self.assertEqual(aln.size, match_mismatch_table.get_depth())
 
-    # def test5a_get_depth(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
-    #                                   larger_alphabet_mapping=self.pair_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.pair_reverse,
-    #                                   single_to_larger_mapping=self.single_to_pair, pos_size=1)
-    #     self.evaluate_get_depth(aln=self.query_aln_fa_small, match_mismatch_table=mm_table)
-    #
-    # def test5b_get_depth(self):
-    #     num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
-    #                                   larger_alphabet_mapping=self.quad_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.quad_reverse,
-    #                                   single_to_larger_mapping=self.single_to_quad, pos_size=2)
-    #     self.evaluate_get_depth(aln=self.query_aln_fa_small, match_mismatch_table=mm_table)
-    #
-    # def test5c_get_depth(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
-    #                                   larger_alphabet_mapping=self.pair_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.pair_reverse,
-    #                                   single_to_larger_mapping=self.single_to_pair, pos_size=1)
-    #     self.evaluate_get_depth(aln=self.query_aln_fa_large, match_mismatch_table=mm_table)
-    #
-    #
-    # def test5d_get_depth(self):
-    #     num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
-    #     mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
-    #                                   larger_alphabet_mapping=self.quad_mapping,
-    #                                   larger_alphabet_reverse_mapping=self.quad_reverse,
-    #                                   single_to_larger_mapping=self.single_to_quad, pos_size=2)
-    #     self.evaluate_get_depth(aln=self.query_aln_fa_large, match_mismatch_table=mm_table)
+    def test6a_get_depth(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
+                                      larger_alphabet_mapping=self.pair_mapping,
+                                      larger_alphabet_reverse_mapping=self.pair_reverse,
+                                      single_to_larger_mapping=self.single_to_pair, pos_size=1)
+        self.evaluate_get_depth(aln=self.query_aln_fa_small, match_mismatch_table=mm_table)
+
+    def test6b_get_depth(self):
+        num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_small.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
+                                      larger_alphabet_mapping=self.quad_mapping,
+                                      larger_alphabet_reverse_mapping=self.quad_reverse,
+                                      single_to_larger_mapping=self.single_to_quad, pos_size=2)
+        self.evaluate_get_depth(aln=self.query_aln_fa_small, match_mismatch_table=mm_table)
+
+    def test6c_get_depth(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.pair_size,
+                                      larger_alphabet_mapping=self.pair_mapping,
+                                      larger_alphabet_reverse_mapping=self.pair_reverse,
+                                      single_to_larger_mapping=self.single_to_pair, pos_size=1)
+        self.evaluate_get_depth(aln=self.query_aln_fa_large, match_mismatch_table=mm_table)
+
+
+    def test6d_get_depth(self):
+        num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
+        mm_table = MatchMismatchTable(seq_len=self.query_aln_fa_large.seq_length, num_aln=num_aln,
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=self.quad_size,
+                                      larger_alphabet_mapping=self.quad_mapping,
+                                      larger_alphabet_reverse_mapping=self.quad_reverse,
+                                      single_to_larger_mapping=self.single_to_quad, pos_size=2)
+        self.evaluate_get_depth(aln=self.query_aln_fa_large, match_mismatch_table=mm_table)
 
 
 if __name__ == '__main__':
