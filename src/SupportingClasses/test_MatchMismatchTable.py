@@ -356,9 +356,9 @@ class TestMatchMismatchTable(TestBase):
                         status, char = mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s2)
                         self.assertEqual(char, expected_char)
                         if expected_status:
-                            self.assertEqual(status, 'Match')
+                            self.assertEqual(status, 'match')
                         else:
-                            self.assertEqual(status, 'Mismatch')
+                            self.assertEqual(status, 'mismatch')
                         continue
                     for j in range(i, seq_len):
                         expected_char1 = self.single_reverse[num_aln[s1, i]]
@@ -373,9 +373,9 @@ class TestMatchMismatchTable(TestBase):
                         status, char = mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s2)
                         self.assertEqual(char, expected_quad)
                         if expected_status:
-                            self.assertEqual(status, 'Match')
+                            self.assertEqual(status, 'match')
                         else:
-                            self.assertEqual(status, 'Mismatch')
+                            self.assertEqual(status, 'mismatch')
 
     def test5a_get_status_and_character(self):
         num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)

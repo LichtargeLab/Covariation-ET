@@ -206,7 +206,7 @@ class MatchMismatchTable(object):
         else:
             return ValueError('Recieved a position with type other than int or tuple.')
         char = self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
-        ret_status = 'Match' if status else 'Mismatch'
+        ret_status = 'match' if status else 'mismatch'
         return ret_status, char
 
     def get_depth(self):
