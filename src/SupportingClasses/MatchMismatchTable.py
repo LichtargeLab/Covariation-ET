@@ -91,137 +91,139 @@ class MatchMismatchTable(object):
         end = time()
         print('It took {} seconds to identify matches and mismatches.'.format(end - start))
 
-    def _characterize_single_mm(self, match_table, mismatch_table):
-        for pos in self.match_mismatch_tables:
-            matches = self.match_mismatch_tables[pos] > 0
-            match_ind = np.nonzero(matches)
-            # match_counts = {}
-            for i in range(len(match_ind[0])):
-                pair = (self.num_aln[match_ind[0][i], pos], self.num_aln[match_ind[1][i], pos])
-                char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-                match_table._increment_count(pos=(pos1, pos2), char=char)
-            #     if char not in match_counts:
-            #         match_counts[char] = 0
-            #     match_counts[char] += 1
-            # for char in match_counts:
-            #     match_table._increment_count(pos=pos, char=char, amount=match_counts[char])
-            mismatches = self.match_mismatch_tables[pos] < 0
-            mismatch_ind = np.nonzero(mismatches)
-            # mismatch_counts = {}
-            for i in range(len(mismatch_ind[0])):
-                pair = (self.num_aln[mismatch_ind[0][i], pos], self.num_aln[mismatch_ind[1][i], pos])
-                char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-                mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-            #     if char not in mismatch_counts:
-            #         mismatch_counts[char] = 0
-            #     mismatch_counts[char] += 1
-            # for char in mismatch_counts:
-            #     mismatch_table._increment_count(pos=pos, char=char, amount=mismatch_counts[char])
-
-    def _characterize_pair_mm(self, match_table, mismatch_table):
-        for pos1 in range(self.seq_len):
-            # print('POS: ', pos1)
-            for pos2 in range(pos1 + 1, self.seq_len):
-                # print('Pos: {}, {}'.format(pos1, pos2))
-                matches1 = self.match_mismatch_tables[pos1] > 0
-                matches2 = self.match_mismatch_tables[pos2] > 0
-                mismatches1 = self.match_mismatch_tables[pos1] < 0
-                mismatches2 = self.match_mismatch_tables[pos2] < 0
-                matches = (matches1 * matches2) + (mismatches1 * mismatches2)
-                match_ind = np.nonzero(matches)
-                # match_counts = {}
-                for i in range(len(match_ind[0])):
-                    quad = (self.num_aln[match_ind[0][i], pos1], self.num_aln[match_ind[1][i], pos1],
-                            self.num_aln[match_ind[0][i], pos2], self.num_aln[match_ind[1][i], pos2])
-                    char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-                    match_table._increment_count(pos=(pos1, pos2), char=char)
-                #     if char not in match_counts:
-                #         match_counts[char] = 0
-                #     match_counts[char] += 1
-                # for char in match_counts:
-                #     match_table._increment_count(pos=(pos1, pos2), char=char, amount=match_counts[char])
-                mismatches = np.triu((1 - matches), k=1)
-                mismatch_ind = np.nonzero(mismatches)
-                # mismatch_counts = {}
-                for i in range(len(mismatch_ind[0])):
-                    quad = (self.num_aln[mismatch_ind[0][i], pos1], self.num_aln[mismatch_ind[1][i], pos1],
-                            self.num_aln[mismatch_ind[0][i], pos2], self.num_aln[mismatch_ind[1][i], pos2])
-                    char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-                    mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-                #     if char not in mismatch_counts:
-                #         mismatch_counts[char] = 0
-                #     mismatch_counts[char] += 1
-                # for char in mismatch_counts:
-                #     mismatch_table._increment_count(pos=(pos1, pos2), char=char, amount=mismatch_counts[char])
-
-    def characterize_matches_mismatches(self):
-        start = time()
-        # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the first
-        # element of the mapping dictionary has the same size as the position since we are looking at something twice
-        # the size of the position (either pairs for single positions or quadruples for pairs of positions) this causes
-        # an error. Therefore I introduced this hack, to use a dummy dictionary to get through proper initialization,
-        # which does expose a vulnerability in the FrequencyTable class (the check could be more stringent) but it
-        # allows for this more flexible behavior.
-        dummy_dict = {('{0}' * self.pos_size).format(next(iter(self.single_mapping))): 0}
-        match_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
-                                     reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
-                                     pos_size=self.pos_size)
-        # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
-        match_table.mapping = self.larger_mapping
-        mismatch_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
-                                        reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
-                                        pos_size=self.pos_size)
-        # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
-        mismatch_table.mapping = self.larger_mapping
-        if self.pos_size == 1:
-            self._characterize_single_mm(match_table, mismatch_table)
-        elif self.pos_size == 2:
-            self._characterize_pair_mm(match_table, mismatch_table)
-        else:
-            raise ValueError('MatchMismatchTable.characterize_matches_mismtaches is only implemented for pos_size 1 or '
-                             '2 at this time!')
-        upper_triangle_count = ((self.seq_len**2) - self.seq_len) / 2.0
-        match_table.set_depth(int(upper_triangle_count))
-        mismatch_table.set_depth(int(upper_triangle_count))
-        match_table.finalize_table()
-        mismatch_table.finalize_table()
-        self.match_freq_table = match_table
-        self.mismatch_freq_table = mismatch_table
-        end = time()
-        print('It took {} seconds to characterize matches and mismatches.'.format(end - start))
+    # def _characterize_single_mm(self, match_table, mismatch_table):
+    #     for pos in self.match_mismatch_tables:
+    #         matches = self.match_mismatch_tables[pos] > 0
+    #         match_ind = np.nonzero(matches)
+    #         # match_counts = {}
+    #         for i in range(len(match_ind[0])):
+    #             pair = (self.num_aln[match_ind[0][i], pos], self.num_aln[match_ind[1][i], pos])
+    #             char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
+    #             match_table._increment_count(pos=(pos1, pos2), char=char)
+    #         #     if char not in match_counts:
+    #         #         match_counts[char] = 0
+    #         #     match_counts[char] += 1
+    #         # for char in match_counts:
+    #         #     match_table._increment_count(pos=pos, char=char, amount=match_counts[char])
+    #         mismatches = self.match_mismatch_tables[pos] < 0
+    #         mismatch_ind = np.nonzero(mismatches)
+    #         # mismatch_counts = {}
+    #         for i in range(len(mismatch_ind[0])):
+    #             pair = (self.num_aln[mismatch_ind[0][i], pos], self.num_aln[mismatch_ind[1][i], pos])
+    #             char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
+    #             mismatch_table._increment_count(pos=(pos1, pos2), char=char)
+    #         #     if char not in mismatch_counts:
+    #         #         mismatch_counts[char] = 0
+    #         #     mismatch_counts[char] += 1
+    #         # for char in mismatch_counts:
+    #         #     mismatch_table._increment_count(pos=pos, char=char, amount=mismatch_counts[char])
+    #
+    # def _characterize_pair_mm(self, match_table, mismatch_table):
+    #     for pos1 in range(self.seq_len):
+    #         # print('POS: ', pos1)
+    #         for pos2 in range(pos1 + 1, self.seq_len):
+    #             # print('Pos: {}, {}'.format(pos1, pos2))
+    #             matches1 = self.match_mismatch_tables[pos1] > 0
+    #             matches2 = self.match_mismatch_tables[pos2] > 0
+    #             mismatches1 = self.match_mismatch_tables[pos1] < 0
+    #             mismatches2 = self.match_mismatch_tables[pos2] < 0
+    #             matches = (matches1 * matches2) + (mismatches1 * mismatches2)
+    #             match_ind = np.nonzero(matches)
+    #             # match_counts = {}
+    #             for i in range(len(match_ind[0])):
+    #                 quad = (self.num_aln[match_ind[0][i], pos1], self.num_aln[match_ind[1][i], pos1],
+    #                         self.num_aln[match_ind[0][i], pos2], self.num_aln[match_ind[1][i], pos2])
+    #                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
+    #                 match_table._increment_count(pos=(pos1, pos2), char=char)
+    #             #     if char not in match_counts:
+    #             #         match_counts[char] = 0
+    #             #     match_counts[char] += 1
+    #             # for char in match_counts:
+    #             #     match_table._increment_count(pos=(pos1, pos2), char=char, amount=match_counts[char])
+    #             mismatches = np.triu((1 - matches), k=1)
+    #             mismatch_ind = np.nonzero(mismatches)
+    #             # mismatch_counts = {}
+    #             for i in range(len(mismatch_ind[0])):
+    #                 quad = (self.num_aln[mismatch_ind[0][i], pos1], self.num_aln[mismatch_ind[1][i], pos1],
+    #                         self.num_aln[mismatch_ind[0][i], pos2], self.num_aln[mismatch_ind[1][i], pos2])
+    #                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
+    #                 mismatch_table._increment_count(pos=(pos1, pos2), char=char)
+    #             #     if char not in mismatch_counts:
+    #             #         mismatch_counts[char] = 0
+    #             #     mismatch_counts[char] += 1
+    #             # for char in mismatch_counts:
+    #             #     mismatch_table._increment_count(pos=(pos1, pos2), char=char, amount=mismatch_counts[char])
+    #
+    # def characterize_matches_mismatches(self):
+    #     start = time()
+    #     # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the first
+    #     # element of the mapping dictionary has the same size as the position since we are looking at something twice
+    #     # the size of the position (either pairs for single positions or quadruples for pairs of positions) this causes
+    #     # an error. Therefore I introduced this hack, to use a dummy dictionary to get through proper initialization,
+    #     # which does expose a vulnerability in the FrequencyTable class (the check could be more stringent) but it
+    #     # allows for this more flexible behavior.
+    #     dummy_dict = {('{0}' * self.pos_size).format(next(iter(self.single_mapping))): 0}
+    #     match_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
+    #                                  reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
+    #                                  pos_size=self.pos_size)
+    #     # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
+    #     match_table.mapping = self.larger_mapping
+    #     mismatch_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
+    #                                     reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
+    #                                     pos_size=self.pos_size)
+    #     # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
+    #     mismatch_table.mapping = self.larger_mapping
+    #     if self.pos_size == 1:
+    #         self._characterize_single_mm(match_table, mismatch_table)
+    #     elif self.pos_size == 2:
+    #         self._characterize_pair_mm(match_table, mismatch_table)
+    #     else:
+    #         raise ValueError('MatchMismatchTable.characterize_matches_mismtaches is only implemented for pos_size 1 or '
+    #                          '2 at this time!')
+    #     upper_triangle_count = ((self.seq_len**2) - self.seq_len) / 2.0
+    #     match_table.set_depth(int(upper_triangle_count))
+    #     mismatch_table.set_depth(int(upper_triangle_count))
+    #     match_table.finalize_table()
+    #     mismatch_table.finalize_table()
+    #     self.match_freq_table = match_table
+    #     self.mismatch_freq_table = mismatch_table
+    #     end = time()
+    #     print('It took {} seconds to characterize matches and mismatches.'.format(end - start))
 
     def get_status_and_character(self, pos, seq_ind1, seq_ind2):
         if isinstance(pos, int):
             char_tup = (self.num_aln[seq_ind1, pos], self.num_aln[seq_ind2, pos])
             status = self.match_mismatch_tables[pos][seq_ind1, seq_ind2] == 1
         elif isinstance(pos, tuple):
-            char_tup = []
+            char_tup = ([], [])
             status = 0
             for x in range(len(pos)):
-                char_tup += [self.num_aln[s, pos[x]] for s in [seq_ind1, seq_ind2]]
+                char_tup[0].append(self.num_aln[seq_ind1, pos[x]])
+                char_tup[1].append(self.num_aln[seq_ind2, pos[x]])
                 status += self.match_mismatch_tables[pos[x]][seq_ind1, seq_ind2]
+            char_tup = tuple(char_tup[0] + char_tup[1])
             status = np.abs(status) == len(pos)
         else:
             return ValueError('Recieved a position with type other than int or tuple.')
-        char = self.larger_reverse_mapping[char_tup]
+        char = self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
         ret_status = 'Match' if status else 'Mismatch'
         return ret_status, char
 
     def get_depth(self):
         return deepcopy(self.__depth)
 
-    def subset_table(self, indices):
-        sub_table = MatchMismatchTable(seq_len=self.seq_len, num_aln=self.num_aln[indices, :],
-                                       single_alphabet_size=self.single_alphabet_size,
-                                       single_mapping=self.single_mapping,
-                                       single_reverse_mapping=self.single_reverse_mapping,
-                                       larger_alphabet_size=self.larger_alphabet_size,
-                                       larger_alphabet_mapping=self.larger_mapping,
-                                       larger_alphabet_reverse_mapping=self.larger_reverse_mapping,
-                                       single_to_larger_mapping=self.single_to_larger_mapping, pos_size=self.pos_size)
-        sub_table.__depth = self.__depth
-        if self.match_mismatch_tables:
-            sub_table.match_mismatch_tables = {pos: self.match_mismatch_tables[pos][indices, :][:, indices]
-                                               for pos in self.match_mismatch_tables}
-        if self.match_freq_table and self.mismatch_freq_table:
-            sub_table.characterize_matches_mismatches()
+    # def subset_table(self, indices):
+    #     sub_table = MatchMismatchTable(seq_len=self.seq_len, num_aln=self.num_aln[indices, :],
+    #                                    single_alphabet_size=self.single_alphabet_size,
+    #                                    single_mapping=self.single_mapping,
+    #                                    single_reverse_mapping=self.single_reverse_mapping,
+    #                                    larger_alphabet_size=self.larger_alphabet_size,
+    #                                    larger_alphabet_mapping=self.larger_mapping,
+    #                                    larger_alphabet_reverse_mapping=self.larger_reverse_mapping,
+    #                                    single_to_larger_mapping=self.single_to_larger_mapping, pos_size=self.pos_size)
+    #     sub_table.__depth = self.__depth
+    #     if self.match_mismatch_tables:
+    #         sub_table.match_mismatch_tables = {pos: self.match_mismatch_tables[pos][indices, :][:, indices]
+    #                                            for pos in self.match_mismatch_tables}
+    #     if self.match_freq_table and self.mismatch_freq_table:
+    #         sub_table.characterize_matches_mismatches()
