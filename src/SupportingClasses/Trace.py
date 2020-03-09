@@ -13,6 +13,7 @@ from Bio.Alphabet import Gapped
 from scipy.stats import rankdata
 from multiprocessing import Manager, Pool, Lock
 from FrequencyTable import FrequencyTable
+from MatchMismatchTable import MatchMismatchTable
 from EvolutionaryTraceAlphabet import MultiPositionAlphabet
 from utils import gap_characters, build_mapping, compute_rank_and_coverage
 
@@ -70,7 +71,8 @@ class Trace(object):
             self.out_dir = output_dir
         self.low_memory = low_memory
 
-    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups_standard(self, unique_dir, single_size, single_mapping, single_reverse, processes=1,
+                                          write_out_sub_aln=True, write_out_freq_table=True):
         """
         Characterize Rank Group
 
@@ -80,28 +82,28 @@ class Trace(object):
         FrequencyTables for pairs of positions are added under the key 'pair').
 
         Args:
+            unique_dir (str/path): The path to the directory where unique node data can be stored.
+            single_size (int): The size of the single letter alphabet being used.
+            single_mapping (dict): A dictionary from character to integer representation.
+            single_reverse (dict): A dictionary from an integer representation back to a single letter character.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
         """
-        unique_dir = os.path.join(self.out_dir, 'unique_node_data')
-        if not os.path.isdir(unique_dir):
-            os.makedirs(unique_dir)
-        single_alphabet = Gapped(self.aln.alphabet)
-        single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
-        pair_size = None
-        pair_mapping = None
-        pair_reverse = None
-        single_to_pair = None
-        gaps = None
         if self.pair_specific:
             pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
             pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
             single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
                               for char in pair_mapping if pair_mapping[char] < pair_size}
             gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
+        else:
+            pair_size = None
+            pair_mapping = None
+            pair_reverse = None
+            single_to_pair = None
+            gaps = None
         visited = {}
         components = False
         to_characterize = []
@@ -147,6 +149,105 @@ class Trace(object):
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         self.unique_nodes = frequency_tables
+
+    def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
+                                                processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+        if self.pos_specific and not self.pair_specific:
+            pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
+            larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=pair_alphabet)
+            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
+                                for char in larger_mapping if larger_mapping[char] < larger_size}
+            gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
+            to_characterize = list(range(self.aln.seq_length))
+        elif self.pair_specific and not self.pos_specific:
+            quad_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=4)
+            larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=quad_alphabet)
+            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
+                              for char in larger_mapping if larger_mapping[char] < larger_size}
+            gaps = {'-'} if '-' in quad_alphabet.letters else gap_characters
+            to_characterize = list(range((((self.aln.seq_length**2) - self.aln.seq_length) / 2.0)
+                                         + self.aln.seq_length))
+        else:
+            raise AttributeError('Match/Mismatch characterization requires that either pos_specific or pair_specific be'
+                                 ' selected but not both.')
+        num_aln = self.aln._alignment_to_num(mapping=single_mapping)
+        match_mismatch_table = MatchMismatchTable(seq_len=self.aln.seq_length, num_aln=num_aln,
+                                                  single_alphabet_size=single_size, single_mapping=single_mapping,
+                                                  single_reverse_mapping=single_reverse,
+                                                  larger_alphabet_size=larger_size,
+                                                  larger_alphabet_mapping=larger_mapping,
+                                                  larger_alphabet_reverse_mapping=larger_reverse,
+                                                  single_to_larger_mapping=single_to_larger,
+                                                  pos_size=(1 if self.pos_specific else 2))
+        match_mismatch_table.identify_matches_mismatches()
+        node_sequences = {}
+        for r in self.assignments.keys():
+            for g in self.assignments[r]:
+                node = self.assignments[r][g]['node']
+                if node.name not in node_sequences:
+                    node_sequences[node.name] = set([self.aln.seq_order.index(s)
+                                                     for s in self.assignments[r][g]['terminals']])
+
+        characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
+
+        def update_characterization(return_pos):
+            """
+            Update Characterization
+
+            This function serves to update the progress bar for characterization.
+
+            Args:
+                return_pos (str): The name of the position which has just finished being characterized.
+            """
+            characterization_pbar.update(1)
+            characterization_pbar.refresh()
+
+        pool_manager = Manager()
+        frequency_tables = pool_manager.dict()
+        tables_lock = Lock()
+        pool = Pool(processes=processes, initializer=init_characterization_pool,
+                    initargs=(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
+                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, visited,
+                              frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
+                              write_out_freq_table, processes))
+        for char_node in to_characterize:
+            pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
+        pool.close()
+        pool.join()
+        characterization_pbar.close()
+        frequency_tables = dict(frequency_tables)
+        self.unique_nodes = frequency_tables
+
+    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True,
+                                 match_mismatch=False):
+        """
+        Characterize Rank Groups:
+
+        This function acts as a switch statement to use the appropriate characterization function (either standard or
+        match mismatch).
+
+        Arguments:
+            processes (int): The maximum number of sequences to use when performing this characterization.
+            write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
+            it.
+            write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
+            characterizing it.
+            match_mismatch (bool): Whether to use the match mismatch characterization (True) or the standard protocol
+            (False).
+        """
+        unique_dir = os.path.join(self.out_dir, 'unique_node_data')
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
+        single_alphabet = Gapped(self.aln.alphabet)
+        single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
+        if match_mismatch:
+            self.characterize_rank_groups_match_mismatch()
+        else:
+            self.characterize_rank_groups_standard(unique_dir=unique_dir, single_size=single_size,
+                                                   single_mapping=single_mapping, single_reverse=single_reverse,
+                                                   processes=processes, write_out_sub_aln=write_out_sub_aln,
+                                                   write_out_freq_table=write_out_freq_table)
+
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
