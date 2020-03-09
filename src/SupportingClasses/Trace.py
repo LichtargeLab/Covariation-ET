@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import networkx as nx
 from tqdm import tqdm
+from copy import deepcopy
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from scipy.stats import rankdata
@@ -158,18 +159,32 @@ class Trace(object):
             single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
                                 for char in larger_mapping if larger_mapping[char] < larger_size}
             gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
-            to_characterize = list(range(self.aln.seq_length))
+            dummy_dict = {'{0}'.format(next(iter(single_mapping))): 0}
+            pos_type = 'position'
+            table_type = 'single'
         elif self.pair_specific and not self.pos_specific:
             quad_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=4)
             larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=quad_alphabet)
             single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
                               for char in larger_mapping if larger_mapping[char] < larger_size}
             gaps = {'-'} if '-' in quad_alphabet.letters else gap_characters
-            to_characterize = list(range((((self.aln.seq_length**2) - self.aln.seq_length) / 2.0)
-                                         + self.aln.seq_length))
+            dummy_dict = {'{0}{0}'.format(next(iter(single_mapping))): 0}
+            pos_type = 'pair'
+            table_type = 'pair'
         else:
             raise AttributeError('Match/Mismatch characterization requires that either pos_specific or pair_specific be'
                                  ' selected but not both.')
+        # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the first
+        # element of the mapping dictionary has the same size as the position since we are looking at something twice
+        # the size of the position (either pairs for single positions or quadruples for pairs of positions) this causes
+        # an error. Therefore I introduced this hack, to use a dummy dictionary to get through proper initialization,
+        # which does expose a vulnerability in the FrequencyTable class (the check could be more stringent) but it
+        # allows for this more flexible behavior.
+        freq_table = FrequencyTable(alphabet_size=larger_size, mapping=dummy_dict, reverse_mapping=larger_reverse,
+                                    seq_len=self.aln.seq_length, pos_size=(1 if self.pos_specific else 2))
+        # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
+        freq_table.mapping = larger_mapping
+        to_characterize = freq_table.get_positions()
         num_aln = self.aln._alignment_to_num(mapping=single_mapping)
         match_mismatch_table = MatchMismatchTable(seq_len=self.aln.seq_length, num_aln=num_aln,
                                                   single_alphabet_size=single_size, single_mapping=single_mapping,
@@ -181,13 +196,20 @@ class Trace(object):
                                                   pos_size=(1 if self.pos_specific else 2))
         match_mismatch_table.identify_matches_mismatches()
         node_sequences = {}
+        pool_manager = Manager()
+        frequency_tables = pool_manager.dict()
+        table_locks = {}
         for r in self.assignments.keys():
             for g in self.assignments[r]:
                 node = self.assignments[r][g]['node']
                 if node.name not in node_sequences:
-                    node_sequences[node.name] = set([self.aln.seq_order.index(s)
-                                                     for s in self.assignments[r][g]['terminals']])
-
+                    node_sequences[node.name] = sorted([self.aln.seq_order.index(s)
+                                                        for s in self.assignments[r][g]['terminals']])
+                    frequency_tables[node.name] = {'match': deepcopy(freq_table), 'mismatch': deepcopy(freq_table)}
+                    table_locks[node.name] = {'match': Lock(), 'mismatch': Lock()}
+                    if write_sub_aln:
+                        sub_aln = self.aln.generate_sub_alignment(sequence_ids=self.assignments[r][g]['terminals'])
+                        sub_aln.write_out_alignment(file_name=os.path.join(unique_dir, '{}.fa'.format(node.name)))
         characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
 
         def update_characterization(return_pos):
@@ -202,20 +224,24 @@ class Trace(object):
             characterization_pbar.update(1)
             characterization_pbar.refresh()
 
-        pool_manager = Manager()
-        frequency_tables = pool_manager.dict()
-        tables_lock = Lock()
-        pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, visited,
-                              frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
+        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
+                    initargs=(self.aln, self.pos_specific, self.pair_specific,
+                              node_sequences, frequency_tables, table_locks, unique_dir, self.low_memory,
                               write_out_freq_table, processes))
-        for char_node in to_characterize:
-            pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
+        for pos in to_characterize:
+            pool.apply_async(func=characterization_mm, args=pos, callback=update_characterization)
         pool.close()
         pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
+        for node_name in frequency_tables:
+            for m in ['match', 'mismatch']:
+                frequency_tables[node_name][m].finalize_table()
+                if write_freq_table:
+                    frequency_tables[node_name][m].to_csv(
+                        os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(pos_type, node_name, m)))
+                save_freq_table(freq_table=frequency_tables[node_name][m], low_memory=low_mem, node_name=node_name,
+                                table_type=table_type, out_dir=unique_dir)
         self.unique_nodes = frequency_tables
 
     def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True,
