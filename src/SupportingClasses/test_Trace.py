@@ -15,12 +15,15 @@ from test_Base import TestBase
 from utils import build_mapping, gap_characters
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
+from FrequencyTable import FrequencyTable
 from PhylogeneticTree import PhylogeneticTree
 from PositionalScorer import PositionalScorer
+from MatchMismatchTable import MatchMismatchTable
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
-from Trace import (Trace, init_characterization_pool, characterization, init_trace_groups, trace_groups,
-                   init_trace_ranks, trace_ranks, load_freq_table, load_numpy_array)
+from Trace import (Trace, init_characterization_pool, init_characterization_mm_pool, characterization,
+                   characterization_mm, init_trace_groups, trace_groups, init_trace_ranks, trace_ranks, load_freq_table,
+                   load_numpy_array)
 
 
 class TestTrace(TestBase):
@@ -66,6 +69,13 @@ class TestTrace(TestBase):
         for char in cls.pair_mapping:
             key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
             cls.single_to_pair[key] = cls.pair_mapping[char]
+        cls.quad_alphabet = MultiPositionAlphabet(alphabet=cls.single_alphabet, size=4)
+        cls.quad_size, _, cls.quad_mapping, cls.quad_reverse = build_mapping(alphabet=cls.quad_alphabet)
+        cls.single_to_quad = {}
+        for char in cls.quad_mapping:
+            key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]], cls.single_mapping[char[2]],
+                   cls.single_mapping[char[3]])
+            cls.single_to_quad[key] = cls.quad_mapping[char]
 
     # @classmethod
     # def tearDownClass(cls):
@@ -244,6 +254,151 @@ class TestTrace(TestBase):
                                                assign=self.assignments_custom_large, single=True, pair=True,
                                                processors=self.max_threads, low_mem=True, write_aln=False,
                                                write_freq_table=False)
+
+    def evaluate_characterize_rank_groups_match_mismatch(self, aln, phylo_tree, assign, single, pair, processors,
+                                                         low_mem, write_aln, write_freq_table):
+        if single:
+            pos_size = 1
+            pos_type = 'position'
+            dummy_map = {'A': 0}
+            larger_size = self.pair_size
+            larger_mapping = self.pair_mapping
+            larger_reverse = self.pair_reverse
+            single_to_larger = self.single_to_pair
+        else:
+            pos_size = 2
+            pos_type = 'pair'
+            dummy_map = {'AA': 0}
+            larger_size = self.quad_size
+            larger_mapping = self.quad_mapping
+            larger_reverse = self.quad_reverse
+            single_to_larger = self.single_to_quad
+        mm_table = MatchMismatchTable(seq_len=aln.seq_length, num_aln=aln._alignment_to_num(self.single_mapping),
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=larger_size,
+                                      larger_alphabet_mapping=larger_mapping,
+                                      larger_alphabet_reverse_mapping=larger_reverse,
+                                      single_to_larger_mapping=single_to_larger, pos_size=pos_size)
+        mm_table.identify_matches_mismatches()
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assign, position_specific=single,
+                      pair_specific=pair, output_dir=os.path.join(self.testing_dir, aln.query_id), low_memory=low_mem)
+        trace.characterize_rank_groups(processes=processors, write_out_sub_aln=write_aln,
+                                       write_out_freq_table=write_freq_table, match_mismatch=True)
+        visited = set()
+        unique_dir = os.path.join(trace.out_dir, 'unique_node_data')
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
+        for rank in trace.assignments:
+            for group in trace.assignments[rank]:
+                node_name = trace.assignments[rank][group]['node'].name
+                self.assertTrue(node_name in trace.unique_nodes)
+                self.assertTrue('match' in trace.unique_nodes[node_name])
+                self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+                if node_name not in visited:
+                    sub_aln = aln.generate_sub_alignment(
+                        sequence_ids=trace.assignments[rank][group]['terminals'])
+                    if write_aln:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
+                    sub_aln_ind = [aln.seq_order.index(s) for s in sub_aln.seq_order]
+                    possible_matches_mismatches = ((sub_aln.size**2) - sub_aln.size) / 2.0
+                    expected_tables = {'match': FrequencyTable(alphabet_size=larger_size, mapping=dummy_map,
+                                                               reverse_mapping=larger_reverse,
+                                                               seq_len=sub_aln.seq_length, pos_size=pos_size)}
+                    expected_tables['match'].mapping = larger_mapping
+                    expected_tables['match'].set_depth(possible_matches_mismatches)
+                    expected_tables['mismatch'] = deepcopy(expected_tables['match'])
+                    for p in expected_tables['match'].get_positions():
+                        char_dict = {'match': {}, 'mismatch': {}}
+                        for i in range(sub_aln.size):
+                            s1 = sub_aln_ind[i]
+                            for j in range(i + 1, sub_aln.size):
+                                s2 = sub_aln_ind[j]
+                                status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
+                                if char not in char_dict[status]:
+                                    char_dict[status][char] = 0
+                                char_dict[status][char] += 1
+                        for status in char_dict:
+                            for char in char_dict[status]:
+                                expected_tables[status]._increment_count(pos=p, char=char,
+                                                                         amount=char_dict[status][char])
+                    expected_tables['match'].finalize_table()
+                    expected_tables['mismatch'].finalize_table()
+                    for m in ['match', 'mismatch']:
+                        m_table = trace.unique_nodes[node_name][m]
+                        m_table = load_freq_table(freq_table=m_table, low_memory=low_mem)
+                        m_table_mat = m_table.get_table()
+                        expected_m_table_mat = expected_tables[m].get_table()
+                        sparse_diff = m_table_mat - expected_m_table_mat
+                        nonzero_check = sparse_diff.count_nonzero() > 0
+                        if nonzero_check: # diff.any():
+                            print(m_table.get_table().toarray())
+                            print(expected_tables[m].get_table().toarray())
+                            print(sparse_diff) #diff)
+                            indices = np.nonzero(sparse_diff) # diff)
+                            print(m_table.get_table().toarray()[indices])
+                            print(expected_tables[m].get_table().toarray()[indices])
+                            print(sparse_diff[indices]) # diff[indices])
+                            print(node_name)
+                            print(sub_aln.alignment)
+                        self.assertFalse(nonzero_check)
+                        if write_freq_table:
+                            expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
+                                node_name, pos_type, m))
+                            self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
+                    visited.add(node_name)
+        rmtree(unique_dir)
+
+    def test2i_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=True,
+            pair=False, processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2j_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=True, pair=False, processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2k_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=True,
+            pair=False, processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2l_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=True, pair=False, processors=1, low_mem=False, write_aln=True, write_freq_table=True)
+
+    def test2m_characterize_rank_groups(self):
+        print('Test 2m')
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_small, single=False,
+            pair=True, processors=self.max_threads, low_mem=True, write_aln=False, write_freq_table=False)
+
+    def test2n_characterize_rank_groups(self):
+        print('Test 2n')
+        # Test characterizing both single and pair positions, small alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, processors=self.max_threads, low_mem=True, write_aln=False, write_freq_table=False)
+
+    def test2o_characterize_rank_groups(self):
+        print('Test 2o')
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_large, single=False,
+            pair=True, processors=self.max_threads, low_mem=True, write_aln=False, write_freq_table=False)
+
+    def test2p_characterize_rank_groups(self):
+        print('Test 2p')
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, processors=self.max_threads, low_mem=True, write_aln=False, write_freq_table=False)
 
     def evaluate_trace(self, aln, phylo_tree, assignments, single, pair, metric, num_proc, out_dir, gap_correction=None,
                        low_mem=True):
@@ -991,6 +1146,191 @@ class TestTrace(TestBase):
             out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
     def test9d_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def evaluate_characterize_rank_groups_mm_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
+                                                               write_sub_aln, write_freq_table):
+        unique_dir = os.path.join(out_dir, 'unique_node_data')
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
+        single_alphabet = Gapped(aln.alphabet)
+        single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
+        if single and not pair:
+            larger_alphabet = MultiPositionAlphabet(alphabet=Gapped(aln.alphabet), size=2)
+            larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=larger_alphabet)
+            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
+                              for char in larger_mapping if larger_mapping[char] < larger_size}
+            dummy_dict = {'A': 0}
+            position_size = 1
+            position_type = 'position'
+            table_type = 'single'
+        elif pair and not single:
+            larger_alphabet = MultiPositionAlphabet(alphabet=Gapped(aln.alphabet), size=4)
+            larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=larger_alphabet)
+            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]], single_mapping[char[2]],
+                                 single_mapping[char[3]]): larger_mapping[char]
+                                for char in larger_mapping if larger_mapping[char] < larger_size}
+            dummy_dict = {'AA': 0}
+            position_size = 2
+            position_type = 'pair'
+            table_type = 'pair'
+        else:
+            raise ValueError('Either single or pair permitted, not both or neither.')
+        mm_table = MatchMismatchTable(seq_len=aln.seq_length,num_aln=aln._alignment_to_num(self.single_mapping),
+                                      single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
+                                      single_reverse_mapping=self.single_reverse, larger_alphabet_size=larger_size,
+                                      larger_alphabet_mapping=larger_mapping,
+                                      larger_alphabet_reverse_mapping=larger_reverse,
+                                      single_to_larger_mapping=single_to_larger, pos_size=position_size)
+        visited = {}
+        components = False
+        to_characterize = []
+        for r in sorted(assign.keys(), reverse=True):
+            for g in assign[r]:
+                node = assign[r][g]['node']
+                if not components:
+                    to_characterize.append((node.name, 'component'))
+                elif node.name not in visited:
+                    to_characterize.append((node.name, 'inner'))
+                else:
+                    continue
+                visited[node.name] = {'terminals': assign[r][g]['terminals'],
+                                      'descendants': assign[r][g]['descendants']}
+            if not components:
+                components = True
+        pool_manager = Manager()
+        lock = Lock()
+        frequency_tables = pool_manager.dict()
+        init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
+                                      larger_reverse, single_to_larger, dummy_dict, mm_table, aln, position_size,
+                                      position_type, table_type, components, frequency_tables, lock,
+                                      unique_dir, low_mem, write_sub_aln, write_freq_table)
+        for to_char in to_characterize:
+            ret_name = characterization_mm(*to_char)
+            self.assertEqual(ret_name, to_char[0])
+        frequency_tables = dict(frequency_tables)
+        for node_name in visited:
+            sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
+            if write_sub_aln:
+                self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
+            sub_aln_ind = [aln.seq_order.index(s) for s in sub_aln.seq_order]
+            possible_matches_mismatches = ((sub_aln.size ** 2) - sub_aln.size) / 2.0
+            expected_tables = {'match': FrequencyTable(alphabet_size=larger_size, mapping=dummy_dict,
+                                                       reverse_mapping=larger_reverse,
+                                                       seq_len=sub_aln.seq_length, pos_size=position_size)}
+            expected_tables['match'].mapping = larger_mapping
+            expected_tables['match'].set_depth(possible_matches_mismatches)
+            expected_tables['mismatch'] = deepcopy(expected_tables['match'])
+            for p in expected_tables['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for i in range(sub_aln.size):
+                    s1 = sub_aln_ind[i]
+                    for j in range(i + 1, sub_aln.size):
+                        s2 = sub_aln_ind[j]
+                        status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
+                        if char not in char_dict[status]:
+                            char_dict[status][char] = 0
+                        char_dict[status][char] += 1
+                for status in char_dict:
+                    for char in char_dict[status]:
+                        expected_tables[status]._increment_count(pos=p, char=char,
+                                                                 amount=char_dict[status][char])
+            expected_tables['match'].finalize_table()
+            expected_tables['mismatch'].finalize_table()
+            for m in ['match', 'mismatch']:
+                m_table = frequency_tables[node_name][m]
+                m_table = load_freq_table(freq_table=m_table, low_memory=low_mem)
+                m_table_mat = m_table.get_table()
+                expected_m_table_mat = expected_tables[m].get_table()
+                sparse_diff = m_table_mat - expected_m_table_mat
+                nonzero_check = sparse_diff.count_nonzero() > 0
+                if nonzero_check:
+                    print(m_table.get_table().toarray())
+                    print(expected_tables[m].get_table().toarray())
+                    print(sparse_diff)
+                    indices = np.nonzero(sparse_diff)
+                    print(m_table.get_table().toarray()[indices])
+                    print(expected_tables[m].get_table().toarray()[indices])
+                    print(sparse_diff[indices])
+                    print(node_name)
+                    print(sub_aln.alignment)
+                self.assertFalse(nonzero_check)
+                if write_freq_table:
+                    expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
+                        node_name, position_type, m))
+                    self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
+        rmtree(unique_dir)
+
+    def test9e_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9f_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9g_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=False, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9h_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=False, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test9i_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=False, aln=self.query_aln_fa_large, assign=self.assignments_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test9j_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=False, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test9k_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=False, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test9l_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=False, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test10a_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test10b_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_custom_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+
+    def test10c_characterize_rank_groups_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, large aln
+        self.evaluate_characterize_rank_groups_pooling_functions(
+            single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
+            out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
+
+    def test10d_characterize_rank_groups_initialize_characterization_pool(self):
         # Test pool initialization function and mappable function (minimal example) for characterization, large aln
         self.evaluate_characterize_rank_groups_pooling_functions(
             single=True, pair=True, aln=self.query_aln_fa_large,  assign=self.assignments_custom_large,
