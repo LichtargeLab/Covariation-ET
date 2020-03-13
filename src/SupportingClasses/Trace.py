@@ -34,13 +34,16 @@ class Trace(object):
         rank_scores (dict): A dictionary to track the the scores at each rank in the assignments dictionary.
         position_specific (bool): Whether this trace will perform position specific analyses or not.
         pair_specific (bool): Whether this trace will perform pair specific analyses or not.
+        match_mismatch (bool): Whether to use the match mismatch characterization (looking at all possible transitions
+        in a position/pair between sequences of an alignment, True) or the standard protocol (looking at each position
+        only once for each sequence in the alignment, False).
         out_dir (str/path): Where results from a trace should be stored.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
     """
 
     def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True,
-                 output_dir=None, low_memory=False):
+                 match_mismatch=False, output_dir=None, low_memory=False):
         """
         Initializer for Trace object.
 
@@ -50,6 +53,8 @@ class Trace(object):
             group_assignments (dict): The group assignments for nodes in the tree.
             position_specific (bool): Whether or not to perform the trace for specific positions.
             pair_specific (bool): Whether or not to perform the trace for pairs of positions.
+            match_mismatch (bool): Whether to use the match mismatch characterization (True) or the standard protocol
+            (False).
             output_dir (str/path): Where results from a trace should be stored.
             low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
             resources.
@@ -64,6 +69,7 @@ class Trace(object):
         self.final_coverage = None
         self.pos_specific = position_specific
         self.pair_specific = pair_specific
+        self.match_mismatch = match_mismatch
         if output_dir is None:
             self.out_dir = os.getcwd()
         else:
@@ -359,8 +365,7 @@ class Trace(object):
         frequency_tables = dict(frequency_tables)
         self.unique_nodes = frequency_tables
 
-    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True,
-                                 match_mismatch=False):
+    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
         """
         Characterize Rank Groups:
 
@@ -373,15 +378,13 @@ class Trace(object):
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
-            match_mismatch (bool): Whether to use the match mismatch characterization (True) or the standard protocol
-            (False).
         """
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         if not os.path.isdir(unique_dir):
             os.makedirs(unique_dir)
         single_alphabet = Gapped(self.aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
-        if match_mismatch:
+        if self.match_mismatch:
             # self.characterize_rank_groups_match_mismatch(unique_dir=unique_dir, single_size=single_size,
             #                                              single_mapping=single_mapping, single_reverse=single_reverse,
             #                                              processes=processes, write_out_sub_aln=write_out_sub_aln,
@@ -448,8 +451,8 @@ class Trace(object):
             group_pbar.refresh()
 
         pool1 = Pool(processes=processes, initializer=init_trace_groups,
-                     initargs=(scorer, self.pos_specific, self.pair_specific, self.unique_nodes, self.low_memory,
-                               unique_dir))
+                     initargs=(scorer, self.pos_specific, self.pair_specific, self.match_mismatch, self.unique_nodes,
+                               self.low_memory, unique_dir))
         for node_name in self.unique_nodes:
             pool1.apply_async(trace_groups, (node_name,), callback=update_group)
         pool1.close()
@@ -908,9 +911,15 @@ def characterization_mm(node_name):
                                           seq_len=aln.seq_length, pos_size=p_size)}
         tables['match'].mapping = l_map
         # The depth for the alignment will not be set since we do not use any of the characterization  functions here,
-        # it needs to be the number of possible matches mismatches when comparing all elements of a colum or pair of
-        # columns to one another (i.e. the upper triangle of the column vs. column matrix).
-        tables['match'].set_depth(((sub_aln.size**2) - sub_aln.size) / 2.0)
+        # it needs to be the number of possible matches mismatches when comparing all elements of a column or pair of
+        # columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
+        # sub-alignments the size of the sub-alignment is 1 and therefor there are no values in the upper triangle
+        # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
+        # matrix and therefore not counted). Setting the depth to 0.0 causes divide by zero issues when calculating
+        # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
+        # the resulting frequencies should be calculated correctly.
+        depth = 1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0)
+        tables['match'].set_depth(depth)
         tables['mismatch'] = deepcopy(tables['match'])
         for pos in tables['match'].get_positions():
             char_dict = {'match': {}, 'mismatch': {}}
@@ -1075,7 +1084,7 @@ def load_numpy_array(mat, low_memory):
     return mat
 
 
-def init_trace_groups(scorer, pos_specific, pair_specific, u_dict, low_memory, unique_dir):
+def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dict, low_memory, unique_dir):
     """
     Init Trace Pool
 
@@ -1086,15 +1095,19 @@ def init_trace_groups(scorer, pos_specific, pair_specific, u_dict, low_memory, u
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
         pos_specific (bool): Whether or not to characterize single positions.
         pair_specific (bool): Whether or not to characterize pairs of positions.
+        match_mismatch (bool): Whether or not characterization was of the match_mismatch type (comparison of all
+        possible transitions for a given position/pair, or considering each position/pair only once for each sequence
+        present).
         u_dict (dict): A dictionary containing the node characterizations.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
         unique_dir (str/path): The directory where group score vectors/matrices can be written.
     """
-    global pos_scorer, single, pair, unique_nodes, low_mem, u_dir
+    global pos_scorer, single, pair, mm_analysis, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
     single = pos_specific
     pair = pair_specific
+    mm_analysis = match_mismatch
     unique_nodes = u_dict
     low_mem = low_memory
     u_dir = unique_dir
@@ -1131,8 +1144,13 @@ def trace_groups(node_name):
         # Using the provided scorer and the characterization for the node found in unique nodes, compute the
         # group score
         if single:
-            single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'],
-                                                low_memory=low_mem)
+            if mm_analysis:
+                single_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
+                                                              low_memory=low_mem),
+                                     'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+                                                                 low_memory=low_mem)}
+            else:
+                single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
             single_group_score = pos_scorer.score_group(single_freq_table)
             single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
                                                   node_name=node_name, pos_type='single',
@@ -1140,7 +1158,13 @@ def trace_groups(node_name):
         else:
             single_group_score = None
         if pair:
-            pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
+            if mm_analysis:
+                pair_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
+                                                            low_memory=low_mem),
+                                   'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+                                                               low_memory=low_mem)}
+            else:
+                pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
             pair_group_score = pos_scorer.score_group(pair_freq_table)
             pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
                                                 node_name=node_name, pos_type='pair',
