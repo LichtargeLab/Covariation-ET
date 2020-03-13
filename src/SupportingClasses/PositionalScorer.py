@@ -461,8 +461,9 @@ def angle_computation(match_table, mismatch_table):
     Returns:
         np.array: The angle computed between the match and mismatch values.
     """
-    ratio = mismatch_table / match_table
+    ratio = np.zeros(match_table.shape)
     div_by_0 = match_table == 0.0
+    ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
     ratio[div_by_0] = np.tan(np.pi / 2.0)
     both_0 = div_by_0 & (mismatch_table == 0.0)
     ratio[both_0] = np.tan(0.0)
