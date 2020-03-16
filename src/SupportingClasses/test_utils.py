@@ -6,7 +6,7 @@ Created on June 17, 2019
 import unittest
 import numpy as np
 from unittest import TestCase
-from Bio.Alphabet import  Gapped
+from Bio.Alphabet import Gapped
 from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from utils import build_mapping, convert_seq_to_numeric, compute_rank_and_coverage
 
