@@ -400,8 +400,7 @@ class SeqAlignment(object):
         else:
             gap_char = None
         if gap_char:
-            reverse_mapping[alpha_size] = gap_char  # Map all gap positions back to the first gap character.
-            reverse_mapping[alpha_size + 1] = gap_char  # Map all skip letter positions back to the first gap character.
+            reverse_mapping = np.hstack([reverse_mapping, np.array([gap_char, gap_char])])
         numeric_aln = self._alignment_to_num(mapping)
         consensus_seq = []
         for i in range(self.seq_length):

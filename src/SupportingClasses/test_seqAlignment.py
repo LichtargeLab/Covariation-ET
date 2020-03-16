@@ -1236,14 +1236,14 @@ class TestSeqAlignment(TestBase):
         single_combined = single_table1 + single_table2
         single_combinedb = single_table1b + single_table2b
         self.assertEqual(single_table3.mapping, single_combined.mapping)
-        self.assertTrue(single_table3.reverse_mapping, single_combined.reverse_mapping)
+        self.assertTrue((single_table3.reverse_mapping == single_combined.reverse_mapping).all())
         self.assertEqual(single_table3.num_pos, single_combined.num_pos)
         self.assertEqual(single_table3.position_size, single_combined.position_size)
         diff = single_table3.get_table() - single_combined.get_table()
         self.assertFalse(diff.toarray().any())
         self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
         self.assertEqual(single_table3b.mapping, single_combinedb.mapping)
-        self.assertTrue(single_table3b.reverse_mapping, single_combinedb.reverse_mapping)
+        self.assertTrue((single_table3b.reverse_mapping == single_combinedb.reverse_mapping).all())
         self.assertEqual(single_table3b.num_pos, single_combinedb.num_pos)
         self.assertEqual(single_table3b.position_size, single_combinedb.position_size)
         diff = single_table3b.get_table() - single_combinedb.get_table()
@@ -1252,14 +1252,14 @@ class TestSeqAlignment(TestBase):
         pair_combined = pair_table1 + pair_table2
         pair_combinedb = pair_table1 + pair_table2
         self.assertEqual(pair_table3.mapping, pair_combined.mapping)
-        self.assertEqual(pair_table3.reverse_mapping, pair_combined.reverse_mapping)
+        self.assertTrue((pair_table3.reverse_mapping == pair_combined.reverse_mapping).all())
         self.assertEqual(pair_table3.num_pos, pair_combined.num_pos)
         self.assertEqual(pair_table3.position_size, pair_combined.position_size)
         diff2 = pair_table3.get_table() - pair_combined.get_table()
         self.assertFalse(diff2.toarray().any())
         self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
         self.assertEqual(pair_table3b.mapping, pair_combinedb.mapping)
-        self.assertEqual(pair_table3b.reverse_mapping, pair_combinedb.reverse_mapping)
+        self.assertTrue((pair_table3b.reverse_mapping == pair_combinedb.reverse_mapping).all())
         self.assertEqual(pair_table3b.num_pos, pair_combinedb.num_pos)
         self.assertEqual(pair_table3b.position_size, pair_combinedb.position_size)
         diff2 = pair_table3b.get_table() - pair_combinedb.get_table()
@@ -1303,7 +1303,7 @@ class TestSeqAlignment(TestBase):
         single_combined = single_table1 + single_table2
         single_combinedb = single_table1b + single_table2b
         self.assertEqual(single_table3.mapping, single_combined.mapping)
-        self.assertEqual(single_table3.reverse_mapping, single_combined.reverse_mapping)
+        self.assertTrue((single_table3.reverse_mapping == single_combined.reverse_mapping).all())
         self.assertEqual(single_table3.num_pos, single_combined.num_pos)
         self.assertEqual(single_table3.position_size, single_combined.position_size)
         diff = single_table3.get_table() - single_combined.get_table()
@@ -1311,7 +1311,7 @@ class TestSeqAlignment(TestBase):
         self.assertEqual(single_table3.get_depth(), single_combined.get_depth())
         self.assertEqual(single_table3.get_positions(), single_combined.get_positions())
         self.assertEqual(single_table3b.mapping, single_combinedb.mapping)
-        self.assertEqual(single_table3b.reverse_mapping, single_combinedb.reverse_mapping)
+        self.assertTrue((single_table3b.reverse_mapping == single_combinedb.reverse_mapping).all())
         self.assertEqual(single_table3b.num_pos, single_combinedb.num_pos)
         self.assertEqual(single_table3b.position_size, single_combinedb.position_size)
         diff = single_table3b.get_table() - single_combinedb.get_table()
@@ -1321,7 +1321,7 @@ class TestSeqAlignment(TestBase):
         pair_combined = pair_table1 + pair_table2
         pair_combinedb = pair_table1b + pair_table2b
         self.assertEqual(pair_table3.mapping, pair_combined.mapping)
-        self.assertEqual(pair_table3.reverse_mapping, pair_combined.reverse_mapping)
+        self.assertTrue((pair_table3.reverse_mapping == pair_combined.reverse_mapping).all())
         self.assertEqual(pair_table3.num_pos, pair_combined.num_pos)
         self.assertEqual(pair_table3.position_size, pair_combined.position_size)
         diff2 = pair_table3.get_table() - pair_combined.get_table()
@@ -1329,7 +1329,7 @@ class TestSeqAlignment(TestBase):
         self.assertEqual(pair_table3.get_depth(), pair_combined.get_depth())
         self.assertEqual(pair_table3.get_positions(), pair_combined.get_positions())
         self.assertEqual(pair_table3b.mapping, pair_combinedb.mapping)
-        self.assertEqual(pair_table3b.reverse_mapping, pair_combinedb.reverse_mapping)
+        self.assertTrue((pair_table3b.reverse_mapping == pair_combinedb.reverse_mapping).all())
         self.assertEqual(pair_table3b.num_pos, pair_combinedb.num_pos)
         self.assertEqual(pair_table3b.position_size, pair_combinedb.position_size)
         diff2 = pair_table3b.get_table() - pair_combinedb.get_table()
