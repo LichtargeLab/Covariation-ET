@@ -42,8 +42,14 @@ class FrequencyTable(object):
             pos_size (int): The size of a position in the alignment to be characterized (single positions = 1, pairs of
             positions = 2, etc.).
         """
-        if len(list(mapping.keys())[0]) != pos_size:
-            raise ValueError('Alphabet size must be equal to pos_size!')
+        check_char = list(mapping.keys())[0]
+        if reverse_mapping[mapping[check_char]] != check_char:
+            raise ValueError('Mapping and reverse mapping do not agree!')
+        if len(mapping) < alphabet_size or len(reverse_mapping) != alphabet_size:
+            raise ValueError('Mapping ({}) and reverse mapping ({}) must match alphabet size ({})!'.format(
+                len(mapping), len(reverse_mapping), alphabet_size))
+        if (len(check_char) % pos_size) != 0:
+            raise ValueError('Alphabet size must be equal to, or a multiple of, pos_size!')
         self.mapping = mapping
         # Issues with gap characters addressed by keeping only character mappings within alphabet_size.
         self.reverse_mapping = reverse_mapping
@@ -73,7 +79,6 @@ class FrequencyTable(object):
         """
         if self.position_size == 1 and not isinstance(pos, (int, np.integer)):
             raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
-        # if (self.position_size > 1) and not isinstance(pos, tuple) and (len(pos) != self.position_size):
         if (self.position_size > 1) and ((not isinstance(pos, tuple)) or (len(pos) != self.position_size)):
             raise TypeError('Positions for FrequencyTable with position_size > 1 must have length == position_size')
         if self.position_size == 1:
@@ -131,7 +136,6 @@ class FrequencyTable(object):
                 # Find each unique character in the column and its count in that column
                 char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
                 # Update the observed characters with their counts
-                # self.__position_table[i, char_pos.reshape(-1)] = counts
                 self.__position_table['values'] += list(counts)
                 self.__position_table['i'] += [i] * len(counts)
                 self.__position_table['j'] += list(char_pos.reshape(-1))
@@ -264,8 +268,8 @@ class FrequencyTable(object):
             list: All characters present at the specified position in the alignment.
         """
         position = self.__convert_pos(pos=pos)
-        character_positions = np.nonzero(self.__position_table[position, :])
-        characters = [self.reverse_mapping[char_pos] for char_pos in character_positions[1]]
+        character_positions = self.__position_table[position, :].nonzero()
+        characters = self.reverse_mapping[character_positions[1]]
         return characters
 
     def get_count(self, pos, char):
@@ -300,7 +304,7 @@ class FrequencyTable(object):
         """
         position = self.__convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
-        indices = np.nonzero(full_column)
+        indices = full_column.nonzero()
         arr = full_column.toarray()[indices].reshape(-1)
         return arr
 
@@ -483,12 +487,11 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same sequence length to be joined.')
         if self.mapping != other.mapping:
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
-        if self.reverse_mapping != other.reverse_mapping:
+        if not (self.reverse_mapping == other.reverse_mapping).all():
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
-        if isinstance(self.__position_table, dict) or isinstance(other.__position_table,dict):
+        if isinstance(self.__position_table, dict) or isinstance(other.__position_table, dict):
             raise AttributeError('Before combining FrequencyTable objects please call finalize_table().')
-        dummy_dict = {('{0}' * self.position_size).format('A'): 0}
-        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=dummy_dict,
+        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
                                    reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
         new_table.mapping = self.mapping

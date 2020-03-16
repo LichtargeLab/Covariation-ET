@@ -44,7 +44,7 @@ class TestFrequencyTable(TestBase):
         freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping, reverse_mapping=reverse,
                                     seq_len=seq_len, pos_size=pos_size)
         self.assertEqual(freq_table.mapping, mapping)
-        self.assertEqual(freq_table.reverse_mapping, reverse)
+        self.assertTrue((freq_table.reverse_mapping == reverse).all())
         self.assertEqual(freq_table.position_size, pos_size)
         self.assertEqual(freq_table.sequence_length, seq_len)
         if pos_size == 1:
@@ -73,7 +73,7 @@ class TestFrequencyTable(TestBase):
     def test1d_init(self):
         with self.assertRaises(ValueError):
             FrequencyTable(alphabet_size=self.pair_size, mapping=self.pair_mapping, reverse_mapping=self.pair_reverse,
-                           seq_len=self.query_aln_fa_small.seq_length, pos_size=1)
+                           seq_len=self.query_aln_fa_small.seq_length, pos_size=3)
 
     def test1e_init(self):
         with self.assertRaises(ValueError):
@@ -231,10 +231,10 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(table2, expected_dict)
         self.assertIsNot(table1, table2)
         freq_table.finalize_table()
-        expected_table = lil_matrix((freq_table.num_pos, self.single_size))
+        expected_table = csc_matrix((freq_table.num_pos, self.single_size))
         table3 = freq_table.get_table()
         diff = table3 - expected_table
-        self.assertFalse(diff.toarray().any())
+        self.assertFalse(diff.count_nonzero() > 0)
 
     def test7_set_depth(self):
         freq_table = FrequencyTable(alphabet_size=self.single_size, mapping=self.single_mapping,
@@ -304,10 +304,11 @@ class TestFrequencyTable(TestBase):
                                 pos_size=2, sequence=self.query_aln_fa_small.query_sequence)
 
     def evaluate_get_count(self, alphabet, alpha_size, mapping, reverse, seq_len, pos_size, sequence):
-        freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping,reverse_mapping=reverse,
+        freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping, reverse_mapping=reverse,
                                     seq_len=seq_len, pos_size=pos_size)
         freq_table.characterize_sequence(seq=sequence)
         freq_table.finalize_table()
+        pos_counts = freq_table.get_table().sum(axis=1).A1
         for pos in freq_table.get_positions():
             if pos_size == 1:
                 curr_char = sequence[pos]
@@ -315,11 +316,9 @@ class TestFrequencyTable(TestBase):
                 curr_char = sequence[pos[0]] + sequence[pos[1]]
             else:
                 raise ValueError('1 or 2 are the only options for pos_size.')
-            for char in alphabet.letters:
-                if char == curr_char:
-                    self.assertEqual(freq_table.get_count(pos=pos, char=char), 1)
-                else:
-                    self.assertEqual(freq_table.get_count(pos=pos, char=char), 0)
+            self.assertEqual(freq_table.get_count(pos=pos, char=curr_char), 1)
+            curr_pos = int(self.convert_pos(pos, seq_len))
+            self.assertEqual(pos_counts[curr_pos], 1)
 
     def test11a_get_count(self):
         self.evaluate_get_count(alphabet=self.single_alphabet, alpha_size=self.single_size, mapping=self.single_mapping,
@@ -378,8 +377,8 @@ class TestFrequencyTable(TestBase):
 
     def test13a_get_count_matrix(self):
         self.evaluate_get_count_matrix(alpha_size=self.single_size, mapping=self.single_mapping,
-                                      reverse=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length,
-                                      pos_size=1, sequence=self.query_aln_fa_small.query_sequence)
+                                       reverse=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length,
+                                       pos_size=1, sequence=self.query_aln_fa_small.query_sequence)
 
     def test13b_get_count_matrix(self):
         self.evaluate_get_count_array(alpha_size=self.pair_size, mapping=self.pair_mapping,
@@ -391,6 +390,7 @@ class TestFrequencyTable(TestBase):
                                     pos_size=pos_size)
         freq_table.characterize_sequence(seq=sequence)
         freq_table.finalize_table()
+        pos_counts = freq_table.get_table().sum(axis=1).A1
         for pos in freq_table.get_positions():
             if pos_size == 1:
                 curr_char = sequence[pos]
@@ -398,11 +398,9 @@ class TestFrequencyTable(TestBase):
                 curr_char = sequence[pos[0]] + sequence[pos[1]]
             else:
                 raise ValueError('1 and 2 are the only accepted values for pos_size.')
-            for char in alphabet.letters:
-                if char == curr_char:
-                    self.assertEqual(freq_table.get_frequency(pos=pos, char=char), 1.0)
-                else:
-                    self.assertEqual(freq_table.get_frequency(pos=pos, char=char), 0.0)
+            self.assertEqual(freq_table.get_frequency(pos=pos, char=curr_char), 1.0)
+            curr_pos = int(self.convert_pos(pos, seq_len))
+            self.assertEqual(pos_counts[curr_pos], 1)
 
     def test14a_get_frequency(self):
         self.evaluate_get_frequency(alphabet=self.single_alphabet, alpha_size=self.single_size,
@@ -526,7 +524,7 @@ class TestFrequencyTable(TestBase):
                                            seq_len=seq_len, pos_size=pos_size)
         loaded_freq_table.load_csv(fn)
         diff = freq_table.get_table() - loaded_freq_table.get_table()
-        self.assertFalse(diff.toarray().any())
+        self.assertFalse(diff.count_nonzero() > 0)
         self.assertEqual(freq_table.get_depth(), loaded_freq_table.get_depth())
         os.remove(fn)
 
@@ -568,7 +566,7 @@ class TestFrequencyTable(TestBase):
         freq_table2.finalize_table()
         freq_table_sum1 = freq_table1 + freq_table2
         self.assertEqual(freq_table.mapping, freq_table_sum1.mapping)
-        self.assertEqual(freq_table.reverse_mapping, freq_table_sum1.reverse_mapping)
+        self.assertTrue((freq_table.reverse_mapping == freq_table_sum1.reverse_mapping).all())
         self.assertEqual(freq_table.num_pos, freq_table_sum1.num_pos)
         self.assertEqual(freq_table.position_size, freq_table_sum1.position_size)
         diff = freq_table.get_table() - freq_table_sum1.get_table()
