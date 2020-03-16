@@ -60,10 +60,10 @@ class TestMatchMismatchTable(TestBase):
         self.assertEqual(mm_table.get_depth(), num_aln.shape[0])
         self.assertEqual(mm_table.single_alphabet_size, self.single_size)
         self.assertEqual(mm_table.single_mapping, self.single_mapping)
-        self.assertEqual(mm_table.single_reverse_mapping, self.single_reverse)
+        self.assertTrue((mm_table.single_reverse_mapping == self.single_reverse).all())
         self.assertEqual(mm_table.larger_alphabet_size, large_alpha_size)
         self.assertEqual(mm_table.larger_mapping, large_alpha_map)
-        self.assertEqual(mm_table.larger_reverse_mapping, large_alpha_reverse)
+        self.assertTrue((mm_table.larger_reverse_mapping == large_alpha_reverse).all())
         self.assertEqual(mm_table.single_to_larger_mapping, single_to_large)
         self.assertIsNone(mm_table.match_mismatch_tables)
         self.assertIsNone(mm_table.match_freq_table)
@@ -437,7 +437,6 @@ class TestMatchMismatchTable(TestBase):
                                       larger_alphabet_reverse_mapping=self.pair_reverse,
                                       single_to_larger_mapping=self.single_to_pair, pos_size=1)
         self.evaluate_get_depth(aln=self.query_aln_fa_large, match_mismatch_table=mm_table)
-
 
     def test6d_get_depth(self):
         num_aln = self.query_aln_fa_large._alignment_to_num(mapping=self.single_mapping)
