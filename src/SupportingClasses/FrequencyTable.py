@@ -487,9 +487,11 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if isinstance(self.__position_table, dict) or isinstance(other.__position_table,dict):
             raise AttributeError('Before combining FrequencyTable objects please call finalize_table().')
-        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
+        dummy_dict = {('{0}' * self.position_size).format('A'): 0}
+        new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=dummy_dict,
                                    reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
+        new_table.mapping = self.mapping
         new_table.__position_table = self.__position_table + other.__position_table
         new_table.__depth = self.__depth + other.__depth
         return new_table
