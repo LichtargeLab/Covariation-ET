@@ -1358,7 +1358,7 @@ class TestPhylogeneticTree(TestBase):
                                   out_dir=wetc_test_dir)
         et_mip_obj.calculate_scores(method='intET', delete_files=False)
         calculator = AlignmentDistanceCalculator(model='blosum62')
-        _, dm, _, _ = calculator.get_et_distance(fa_aln.alignment)
+        _, dm, _, _ = calculator.get_et_distance(fa_aln.remove_gaps().alignment)
         phylo_tree = PhylogeneticTree(tree_building_method='et')
         phylo_tree.construct_tree(dm=dm)
         wetc_iter = et_mip_obj.tree.traverse_by_rank()
