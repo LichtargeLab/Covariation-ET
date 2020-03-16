@@ -54,7 +54,6 @@ def build_mapping(alphabet, skip_letters=None):
     gap_map = {char: alphabet_size for char in curr_gaps}
     alpha_map.update(gap_map)
     reverse_map = np.array(list(letters))
-    print(reverse_map)
     return alphabet_size, curr_gaps, alpha_map, reverse_map
 
 
