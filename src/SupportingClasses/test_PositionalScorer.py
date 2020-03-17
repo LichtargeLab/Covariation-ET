@@ -84,9 +84,8 @@ class TestPositionalScorer(TestBase):
                                           larger_alphabet_reverse_mapping=cls.quad_reverse,
                                           single_to_larger_mapping=cls.single_to_quad, pos_size=2)
         cls.mm_table.identify_matches_mismatches()
-        pair_dummy = {'AA': 0}
         for x in cls.terminals:
-            cls.terminals[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=pair_dummy,
+            cls.terminals[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=cls.quad_mapping,
                                                        reverse_mapping=cls.quad_reverse,
                                                        seq_len=cls.query_aln_fa_small.seq_length, pos_size=2)
             cls.terminals[x]['match'].mapping = cls.quad_mapping
@@ -108,7 +107,7 @@ class TestPositionalScorer(TestBase):
             for m in ['match', 'mismatch']:
                 cls.terminals[x][m].finalize_table()
         for x in cls.first_parents:
-            cls.first_parents[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=pair_dummy,
+            cls.first_parents[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=cls.quad_mapping,
                                                            reverse_mapping=cls.quad_reverse,
                                                            seq_len=cls.query_aln_fa_small.seq_length, pos_size=2)
             cls.first_parents[x]['match'].mapping = cls.quad_mapping
@@ -779,9 +778,9 @@ class TestPositionalScorer(TestBase):
     def evaluate_group_match_mismatch_entropy_angle(self, node_dict):
         for x in node_dict:
             dim_pair = (self.seq_len, self.seq_len)
-            observed_angles = group_match_mismatch_entropy_angle(match_freq_table=node_dict[x]['match'],
-                                                           mismatch_freq_table=node_dict[x]['mismatch'],
-                                                           dimensions=dim_pair)
+            observed_angles = group_match_mismatch_entropy_angle(freq_tables={'match': node_dict[x]['match'],
+                                                                              'mismatch': node_dict[x]['mismatch']},
+                                                                 dimensions=dim_pair)
             expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
             expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
                                                                   dimensions=dim_pair)
@@ -801,10 +800,10 @@ class TestPositionalScorer(TestBase):
             self.assertFalse(cos_diff.any())
 
     def test13a_group_match_mismatch_entropy_angle(self):
-        self.evaluate_match_mismatch_entropy_angle(node_dict=self.terminals)
+        self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.terminals)
 
     def test13b_group_match_mismatch_entropy_angle(self):
-        self.evaluate_match_mismatch_entropy_angle(node_dict=self.first_parents)
+        self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.first_parents)
 
 
 if __name__ == '__main__':
