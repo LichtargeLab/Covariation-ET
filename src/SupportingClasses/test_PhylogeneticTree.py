@@ -99,62 +99,6 @@ class TestPhylogeneticTree(TestBase):
         self.evaluate__custome_tree(query_id=self.query_aln_fa_large.query_id, aln_fn=self.query_aln_fa_large.file_name,
                                     aln=self.query_aln_fa_large)
 
-    # def test2a__custom_tree_small(self):
-    #     wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id)
-    #     if not os.path.isdir(wetc_test_dir):
-    #         os.makedirs(wetc_test_dir)
-    #     et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
-    #                               out_dir=wetc_test_dir)
-    #     et_mip_obj.calculate_scores(method='intET', delete_files=False)
-    #     # Distance matrix is imported inside of et_mip_obj using the correct path.
-    #     nhx_path = os.path.join(wetc_test_dir, 'intET', 'etc_out_intET.nhx')
-    #     phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
-    #     self.assertEqual(phylo_tree.tree_method, 'custom')
-    #     self.assertEqual(phylo_tree.tree_args, {'tree_path': nhx_path})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
-    #     self.assertEqual(phylo_tree.tree_method, 'custom')
-    #     self.assertEqual(phylo_tree.tree_args, {'tree_path': nhx_path})
-    #     self.assertEqual(phylo_tree.distance_matrix, et_mip_obj.distance_matrix)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_msf_small.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_msf_small.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), phylo_tree.size)
-    #     self.evaluate_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_msf_small)
-    #
-    # def test2b__custom_tree_large(self):
-    #     wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
-    #     if not os.path.isdir(wetc_test_dir):
-    #         os.makedirs(wetc_test_dir)
-    #     et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
-    #                               out_dir=wetc_test_dir)
-    #     et_mip_obj.calculate_scores(method='intET', delete_files=False)
-    #     # Distance matrix is imported inside of et_mip_obj using the correct path.
-    #     nhx_path = os.path.join(wetc_test_dir, 'intET', 'etc_out_intET.nhx')
-    #     phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_path})
-    #     self.assertEqual(phylo_tree.tree_method, 'custom')
-    #     self.assertEqual(phylo_tree.tree_args, {'tree_path': nhx_path})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=et_mip_obj.distance_matrix)
-    #     self.assertEqual(phylo_tree.tree_method, 'custom')
-    #     self.assertEqual(phylo_tree.tree_args, {'tree_path': nhx_path})
-    #     self.assertEqual(phylo_tree.distance_matrix, et_mip_obj.distance_matrix)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_msf_large.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_msf_large.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), phylo_tree.size)
-    #     self.evaluate_leaf_nodes(leaf_nodes=terminal_nodes, aln=self.query_aln_msf_large)
-
     def check_nodes(self, node1, node2):
         if node1.is_terminal():
             self.assertTrue(node2.is_terminal(), 'Node1: {} vs Node2: {}'.format(node1.name, node2.name))
@@ -229,130 +173,8 @@ class TestPhylogeneticTree(TestBase):
     def test3a__upgma_tree(self):
         self.evaluate__upgma_tree(aln=self.query_aln_fa_small)
 
-    # def test3a__upgma_tree_small(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     self.assertEqual(phylo_tree.tree_method, 'upgma')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     start = time()
-    #     phylo_tree.construct_tree(dm=dm)
-    #     end = time()
-    #     print('Current implementation: {} min'.format((end - start) / 60.0))
-    #     self.assertEqual(phylo_tree.tree_method, 'upgma')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
-    #     constructor = DistanceTreeConstructor()
-    #     start2 = time()
-    #     upgma_tree = constructor.upgma(distance_matrix=dm)
-    #     end2 = time()
-    #     print('Official implementation: {} min'.format((end2 - start2) / 60.0))
-    #     phylo_tree_official = PhylogeneticTree()
-    #     phylo_tree_official.tree = upgma_tree
-    #     phylo_tree_official.size = len(dm)
-    #     phylo_tree_official.rename_internal_nodes()
-    #     py_iter = phylo_tree.traverse_by_rank()
-    #     official_iter = phylo_tree_official.traverse_by_rank()
-    #     try:
-    #         official_nodes = next(official_iter)
-    #     except StopIteration:
-    #         official_nodes = None
-    #     try:
-    #         py_nodes = next(py_iter)
-    #     except StopIteration:
-    #         py_nodes = None
-    #     while official_nodes and py_nodes:
-    #         if official_nodes is None:
-    #             self.assertIsNone(py_nodes)
-    #         else:
-    #             sorted_official_nodes = sorted(official_nodes, key=compare_nodes_key(compare_nodes))
-    #             sorted_py_nodes = sorted(py_nodes, key=compare_nodes_key(compare_nodes))
-    #             self.assertEqual(len(sorted_official_nodes), len(sorted_py_nodes))
-    #             for i in range(len(sorted_py_nodes)):
-    #                 self.check_nodes(sorted_official_nodes[i], sorted_py_nodes[i])
-    #         try:
-    #             official_nodes = next(official_iter)
-    #         except StopIteration:
-    #             official_nodes = None
-    #         try:
-    #             py_nodes = next(py_iter)
-    #         except StopIteration:
-    #             py_nodes = None
-
     def test3b__upgma_tree(self):
         self.evaluate__upgma_tree(aln=self.query_aln_fa_large)
-
-    # def test3b__upgma_tree_large(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     self.assertEqual(phylo_tree.tree_method, 'upgma')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     start = time()
-    #     phylo_tree.construct_tree(dm=dm)
-    #     end = time()
-    #     print('Current implementation: {} min'.format((end - start) / 60.0))
-    #     self.assertEqual(phylo_tree.tree_method, 'upgma')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
-    #     constructor = DistanceTreeConstructor()
-    #     start2 = time()
-    #     upgma_tree = constructor.upgma(distance_matrix=dm)
-    #     end2 = time()
-    #     print('Official implementation: {} min'.format((end2 - start2) / 60.0))
-    #     phylo_tree_official = PhylogeneticTree()
-    #     phylo_tree_official.tree = upgma_tree
-    #     phylo_tree_official.size = len(dm)
-    #     phylo_tree_official.rename_internal_nodes()
-    #     py_iter = phylo_tree.traverse_by_rank()
-    #     official_iter = phylo_tree_official.traverse_by_rank()
-    #     try:
-    #         official_nodes = next(official_iter)
-    #     except StopIteration:
-    #         official_nodes = None
-    #     try:
-    #         py_nodes = next(py_iter)
-    #     except StopIteration:
-    #         py_nodes = None
-    #     while official_nodes and py_nodes:
-    #         if official_nodes is None:
-    #             self.assertIsNone(py_nodes)
-    #         else:
-    #             sorted_official_nodes = sorted(official_nodes, key=compare_nodes_key(compare_nodes))
-    #             sorted_py_nodes = sorted(py_nodes, key=compare_nodes_key(compare_nodes))
-    #             self.assertEqual(len(sorted_official_nodes), len(sorted_py_nodes))
-    #             for i in range(len(sorted_py_nodes)):
-    #                 self.check_nodes(sorted_official_nodes[i], sorted_py_nodes[i])
-    #         try:
-    #             official_nodes = next(official_iter)
-    #         except StopIteration:
-    #             official_nodes = None
-    #         try:
-    #             py_nodes = next(py_iter)
-    #         except StopIteration:
-    #             py_nodes = None
 
     def evaluate__et_tree(self, aln):
         calculator = AlignmentDistanceCalculator()
@@ -379,52 +201,8 @@ class TestPhylogeneticTree(TestBase):
     def test4a__et_tree(self):
         self.evaluate__et_tree(aln=self.query_aln_fa_small)
 
-    # def test4a__et_tree_small(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
-    #     self.assertEqual(phylo_tree.tree_method, 'et')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.tree_method, 'et')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
-
     def test4b__et_tree(self):
         self.evaluate__et_tree(aln=self.query_aln_fa_large)
-
-    # def test4b__et_tree_large(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
-    #     self.assertEqual(phylo_tree.tree_method, 'et')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.tree_method, 'et')
-    #     self.assertEqual(phylo_tree.tree_args, {})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
 
     def evaluate__agglomerative_tree(self, aln):
         calculator = AlignmentDistanceCalculator()
@@ -455,60 +233,8 @@ class TestPhylogeneticTree(TestBase):
     def test5a_agglomerative_tree(self):
         self.evaluate__agglomerative_tree(aln=self.query_aln_fa_small)
 
-    # def test5a_agglomerative_tree_small(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-    #                                   tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
-    #                                                       'cache_dir': self.testing_dir})
-    #     self.assertEqual(phylo_tree.tree_method, 'agglomerative')
-    #     self.assertEqual(phylo_tree.tree_args, {'affinity': 'euclidean', 'linkage': 'ward',
-    #                                             'cache_dir': self.testing_dir})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.tree_method, 'agglomerative')
-    #     self.assertEqual(phylo_tree.tree_args, {'affinity': 'euclidean', 'linkage': 'ward',
-    #                                             'cache_dir': self.testing_dir})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_small.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_small.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_small.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_small)
-
     def test5b_agglomerative_tree(self):
         self.evaluate__agglomerative_tree(aln=self.query_aln_fa_large)
-
-    # def test5b_agglomerative_tree_large(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-    #                                   tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
-    #                                                       'cache_dir': self.testing_dir})
-    #     self.assertEqual(phylo_tree.tree_method, 'agglomerative')
-    #     self.assertEqual(phylo_tree.tree_args, {'affinity': 'euclidean', 'linkage': 'ward',
-    #                                             'cache_dir': self.testing_dir})
-    #     self.assertIsNone(phylo_tree.distance_matrix)
-    #     self.assertIsNone(phylo_tree.tree)
-    #     self.assertIsNone(phylo_tree.size)
-    #     phylo_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.tree_method, 'agglomerative')
-    #     self.assertEqual(phylo_tree.tree_args, {'affinity': 'euclidean', 'linkage': 'ward',
-    #                                             'cache_dir': self.testing_dir})
-    #     self.assertEqual(phylo_tree.distance_matrix, dm)
-    #     self.assertEqual(phylo_tree.size, self.query_aln_fa_large.size)
-    #     self.assertIsNotNone(phylo_tree.tree)
-    #     non_terminal_nodes = phylo_tree.tree.get_nonterminals()
-    #     self.assertEqual(len(non_terminal_nodes), self.query_aln_fa_large.size - 1)
-    #     self.evaluate_internal_nodes(internal_nodes=non_terminal_nodes)
-    #     terminal_nodes = phylo_tree.tree.get_terminals()
-    #     self.assertEqual(len(terminal_nodes), self.query_aln_fa_large.size)
-    #     self.evaluate_leaf_nodes(terminal_nodes, self.query_aln_fa_large)
 
     # Construct tree tested throughout each of the specific construction method tests.
 
@@ -549,50 +275,8 @@ class TestPhylogeneticTree(TestBase):
     def test6a_write_out_tree(self):
         self.evaluate_write_out_tree(save_fn='UPGMA_Newcki_tree.nhx', aln=self.query_aln_fa_small)
 
-    # def test6a_write_out_tree(self):
-    #     nhx_fn = os.path.join(self.testing_dir, 'UPGMA_Newcki_tree.nhx')
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     self.assertFalse(os.path.isfile(nhx_fn))
-    #     with self.assertRaises(ValueError):
-    #         phylo_tree.write_out_tree(filename=nhx_fn)
-    #     self.assertFalse(os.path.isfile(nhx_fn))
-    #     phylo_tree.construct_tree(dm=dm)
-    #     phylo_tree.write_out_tree(filename=nhx_fn)
-    #     self.assertTrue(os.path.isfile(nhx_fn))
-    #     loaded_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_fn})
-    #     loaded_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.distance_matrix, loaded_tree.distance_matrix)
-    #     self.assertEqual(phylo_tree.size, loaded_tree.size)
-    #     phylo_nodes = list(phylo_tree.traverse_by_rank())
-    #     loaded_nodes = list(loaded_tree.traverse_by_rank())
-    #     self.check_lists_of_nodes_for_equality(list1=phylo_nodes, list2=loaded_nodes)
-    #     os.remove(nhx_fn)
-
     def test6b_write_out_tree(self):
         self.evaluate_write_out_tree(save_fn='UPGMA_Newcki_tree.nhx', aln=self.query_aln_fa_large)
-
-    # def test6b_write_out_tree(self):
-    #     nhx_fn = os.path.join(self.testing_dir, 'UPGMA_Newcki_tree.nhx')
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     self.assertFalse(os.path.isfile(nhx_fn))
-    #     with self.assertRaises(ValueError):
-    #         phylo_tree.write_out_tree(filename=nhx_fn)
-    #     self.assertFalse(os.path.isfile(nhx_fn))
-    #     phylo_tree.construct_tree(dm=dm)
-    #     phylo_tree.write_out_tree(filename=nhx_fn)
-    #     self.assertTrue(os.path.isfile(nhx_fn))
-    #     loaded_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': nhx_fn})
-    #     loaded_tree.construct_tree(dm=dm)
-    #     self.assertEqual(phylo_tree.distance_matrix, loaded_tree.distance_matrix)
-    #     self.assertEqual(phylo_tree.size, loaded_tree.size)
-    #     phylo_nodes = list(phylo_tree.traverse_by_rank())
-    #     loaded_nodes = list(loaded_tree.traverse_by_rank())
-    #     self.check_lists_of_nodes_for_equality(list1=phylo_nodes, list2=loaded_nodes)
-    #     os.remove(nhx_fn)
 
     def get_path_length(self, node, tree):
         path = tree.get_path(node)
@@ -861,8 +545,18 @@ class TestPhylogeneticTree(TestBase):
         old_inner = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
         old_terminal = {t.name: t for t in phylo_tree.tree.get_terminals()}
         phylo_tree.rename_internal_nodes()
-        for nt_name in old_inner:
-            self.assertEqual(nt_name,  old_inner[nt_name].name)
+        try:
+            for nt_name in old_inner:
+                self.assertEqual(nt_name,  old_inner[nt_name].name, (nt_name, ))
+        except AssertionError:
+            count_equal = 0
+            count_not_equal = 0
+            for nt_name in old_inner:
+                if nt_name == old_inner[nt_name].name:
+                    count_equal += 1
+                else:
+                    count_not_equal += 1
+                self.assertGreaterEqual(count_not_equal, count_equal)
         for t_name in old_terminal:
             self.assertEqual(t_name, old_terminal[t_name].name)
         new_inner = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
@@ -899,32 +593,6 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
         self.evaluate_rename_internal_nodes(phylo_tree=et_mip_obj.tree, flip=False)
 
-    # def test10a_rename_internal_nodes(self):
-    #     wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.small_structure_id, 'intET')
-    #     if not os.path.isdir(wetc_test_dir):
-    #         os.makedirs(wetc_test_dir)
-    #     et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_small.query_id, aln_file=self.query_aln_fa_small.file_name,
-    #                               out_dir=wetc_test_dir)
-    #     et_mip_obj.calculate_scores(method='intET', delete_files=False)
-    #     # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
-    #     expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
-    #     # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
-    #     # the construction is repeated using the specific (custom_tree) method.
-    #     et_mip_obj.tree.size = len(et_mip_obj.distance_matrix)
-    #     et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
-    #     self.assertEqual(et_mip_obj.tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
-    #     et_mip_obj.tree.rename_internal_nodes()
-    #     for nt_name in non_terminal_nodes:
-    #         self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, et_mip_obj.tree.size)
-
     def test10b_rename_internal_nodes(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
         if not os.path.isdir(wetc_test_dir):
@@ -940,32 +608,6 @@ class TestPhylogeneticTree(TestBase):
         et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
         self.evaluate_rename_internal_nodes(phylo_tree=et_mip_obj.tree, flip=False)
 
-    # def test10b_rename_internal_nodes(self):
-    #     wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id, 'intET')
-    #     if not os.path.isdir(wetc_test_dir):
-    #         os.makedirs(wetc_test_dir)
-    #     et_mip_obj = ETMIPWrapper(query=self.query_aln_fa_large.query_id, aln_file=self.query_aln_fa_large.file_name,
-    #                               out_dir=wetc_test_dir)
-    #     et_mip_obj.calculate_scores(method='intET', delete_files=False)
-    #     # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
-    #     expected_tree_fn = os.path.join(wetc_test_dir, '{}.nhx'.format('etc_out_intET'))
-    #     # However, now that the construct_tree method renames internal nodes, this test would not work as intended so
-    #     # the construction is repeated using the specific (custom_tree) method.
-    #     et_mip_obj.tree.size = len(et_mip_obj.distance_matrix)
-    #     et_mip_obj.tree.tree = et_mip_obj.tree._custom_tree(tree_path=expected_tree_fn)
-    #     self.assertEqual(et_mip_obj.tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
-    #     et_mip_obj.tree.rename_internal_nodes()
-    #     for nt_name in non_terminal_nodes:
-    #         self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in et_mip_obj.tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in et_mip_obj.tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, et_mip_obj.tree.size)
-
     def test10c_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
@@ -976,35 +618,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.size = len(dm)
         phylo_tree.tree = phylo_tree._upgma_tree()
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=True)
-
-    # def test10c_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (upgma_tree) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._upgma_tree()
-    #     self.assertNotEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     count_equal = 0
-    #     count_not_equal = 0
-    #     for nt_name in non_terminal_nodes:
-    #         if nt_name == non_terminal_nodes[nt_name].name:
-    #             count_equal += 1
-    #         else:
-    #             count_not_equal += 1
-    #     self.assertGreaterEqual(count_not_equal, count_equal)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, True, phylo_tree.size)
 
     def test10d_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -1017,35 +630,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.tree = phylo_tree._upgma_tree()
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=True)
 
-    # def test10d_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree()
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (upgma_tree) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._upgma_tree()
-    #     self.assertNotEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     count_equal = 0
-    #     count_not_equal = 0
-    #     for nt_name in non_terminal_nodes:
-    #         if nt_name == non_terminal_nodes[nt_name].name:
-    #             count_equal += 1
-    #         else:
-    #             count_not_equal += 1
-    #     self.assertGreaterEqual(count_not_equal, count_equal)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, True, phylo_tree.size)
-
     def test10e_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_small.alignment)
@@ -1057,36 +641,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.tree = phylo_tree._et_tree()
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=False)
 
-    # def test10e_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (et_tree) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._et_tree()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     count_equal = 0
-    #     count_not_equal = 0
-    #     for nt_name in non_terminal_nodes:
-    #         if nt_name == non_terminal_nodes[nt_name].name:
-    #             count_equal += 1
-    #         else:
-    #             count_not_equal += 1
-    #     self.assertEqual(count_equal, self.query_aln_fa_small.size - 1)
-    #     self.assertGreaterEqual(count_not_equal, 0)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, phylo_tree.size)
-
     def test10f_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
@@ -1097,36 +651,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.size = len(dm)
         phylo_tree.tree = phylo_tree._et_tree()
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=False)
-
-    # def test10f_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='et')
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (et_tree) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._et_tree()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     count_equal = 0
-    #     count_not_equal = 0
-    #     for nt_name in non_terminal_nodes:
-    #         if nt_name == non_terminal_nodes[nt_name].name:
-    #             count_equal += 1
-    #         else:
-    #             count_not_equal += 1
-    #     self.assertGreaterEqual(count_equal, self.query_aln_fa_large.size - 1)
-    #     self.assertGreaterEqual(count_not_equal, 0)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, phylo_tree.size)
 
     def test10g_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
@@ -1141,30 +665,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=False)
 
-    # def test10g_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_small.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-    #                                   tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
-    #                                                       'cache_dir': self.testing_dir})
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (agglomerative_clustering) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     for nt_name in non_terminal_nodes:
-    #         self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, phylo_tree.size)
-
     def test10h_rename_internal_nodes(self):
         calculator = AlignmentDistanceCalculator()
         dm = calculator.get_distance(self.query_aln_fa_large.alignment)
@@ -1177,30 +677,6 @@ class TestPhylogeneticTree(TestBase):
         phylo_tree.size = len(dm)
         phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
         self.evaluate_rename_internal_nodes(phylo_tree=phylo_tree, flip=False)
-
-    # def test10h_rename_internal_nodes(self):
-    #     calculator = AlignmentDistanceCalculator()
-    #     dm = calculator.get_distance(self.query_aln_fa_large.alignment)
-    #     phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-    #                                   tree_building_args={'affinity': 'euclidean', 'linkage': 'ward',
-    #                                                       'cache_dir': self.testing_dir})
-    #     # Now that the construct_tree method renames internal nodes, this test would not work as intended so the
-    #     # construction is performed manually using the specific (agglomerative_clustering) method.
-    #     phylo_tree.distance_matrix = dm
-    #     phylo_tree.size = len(dm)
-    #     phylo_tree.tree = phylo_tree._agglomerative_clustering(affinity='euclidean', linkage='ward')
-    #     self.assertEqual(phylo_tree.tree.root.name, 'Inner1')
-    #     non_terminal_nodes = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     phylo_tree.rename_internal_nodes()
-    #     for nt_name in non_terminal_nodes:
-    #         self.assertEqual(nt_name, non_terminal_nodes[nt_name].name)
-    #     for t_name in terminal_nodes:
-    #         self.assertEqual(t_name, terminal_nodes[t_name].name)
-    #     non_terminal_nodes_update = {i.name: i for i in phylo_tree.tree.get_nonterminals()}
-    #     terminal_nodes_update = {t.name: t for t in phylo_tree.tree.get_terminals()}
-    #     self.evaluate_rename_internal_nodes(non_terminal_nodes, terminal_nodes, non_terminal_nodes_update,
-    #                                         terminal_nodes_update, False, phylo_tree.size)
 
     def evaulate_rank_group_assignments(self, assignment, alignment):
         expected_terminals = set(alignment.seq_order)
@@ -1630,11 +1106,6 @@ class TestPhylogeneticTree(TestBase):
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank()
         self.evaluate_rank(assignments1=assignments, assignments2=et_mip_obj.rank_group_assignments)
-        # self.assertEqual(len(assignments.keys()), len(et_mip_obj.rank_group_assignments.keys()))
-        # for rank in assignments:
-        #     self.assertTrue(rank in et_mip_obj.rank_group_assignments)
-        #     self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
-        #     self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
     def test13b_compare_assignments_large(self):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', self.large_structure_id)
@@ -1651,11 +1122,6 @@ class TestPhylogeneticTree(TestBase):
         # Tree is imported inside of et_mip_obj using PhylogeneticTree with method custom and the correct path.
         assignments = et_mip_obj.tree.assign_group_rank()
         self.evaluate_rank(assignments1=assignments, assignments2=et_mip_obj.rank_group_assignments)
-        # self.assertEqual(len(assignments.keys()), len(et_mip_obj.rank_group_assignments.keys()))
-        # for rank in assignments:
-        #     self.assertTrue(rank in et_mip_obj.rank_group_assignments)
-        #     self.assertEqual(len(assignments[rank].keys()), len(et_mip_obj.rank_group_assignments[rank].keys()))
-        #     self.evaluate_rank(rank, assignments[rank], et_mip_obj.rank_group_assignments[rank])
 
     def compare_tree_and_wetc_tree(self, p_id, fa_aln):
         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
