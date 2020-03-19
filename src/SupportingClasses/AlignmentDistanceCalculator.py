@@ -81,10 +81,11 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             numpy.array: The substitution matrix for the specified model.
         """
         scoring_matrix = np.array(self.scoring_matrix)
-        substitution_matrix = np.insert(scoring_matrix, obj=scoring_matrix.shape[0], values=0, axis=0)
-        substitution_matrix = np.insert(substitution_matrix, obj=scoring_matrix.shape[1], values=0, axis=1)
-        substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[0], values=0, axis=0)
-        substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
+        substitution_matrix = np.pad(scoring_matrix, pad_width=((0, 2), (0, 2)), mode='constant', constant_values=0)
+        # substitution_matrix = np.insert(scoring_matrix, obj=scoring_matrix.shape[0], values=0, axis=0)
+        # substitution_matrix = np.insert(substitution_matrix, obj=scoring_matrix.shape[1], values=0, axis=1)
+        # substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[0], values=0, axis=0)
+        # substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
         return substitution_matrix
 
     def _update_scoring_matrix(self):
