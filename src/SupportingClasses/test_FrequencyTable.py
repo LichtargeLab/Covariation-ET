@@ -35,10 +35,13 @@ class TestFrequencyTable(TestBase):
         cls.single_size, _, cls.single_mapping, cls.single_reverse = build_mapping(alphabet=cls.single_alphabet)
         cls.pair_alphabet = MultiPositionAlphabet(alphabet=cls.single_alphabet, size=2)
         cls.pair_size, _, cls.pair_mapping, cls.pair_reverse = build_mapping(alphabet=cls.pair_alphabet)
-        cls.single_to_pair = {}
+        # cls.single_to_pair = {}
+        # for char in cls.pair_mapping:
+        #     key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
+        #     cls.single_to_pair[key] = cls.pair_mapping[char]
+        cls.single_to_pair = np.zeros((len(set(cls.single_mapping.values())), len(set(cls.single_mapping.values()))))
         for char in cls.pair_mapping:
-            key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
-            cls.single_to_pair[key] = cls.pair_mapping[char]
+            cls.single_to_pair[cls.single_mapping[char[0]], cls.single_mapping[char[1]]] = cls.pair_mapping[char]
 
     def evaluate_init(self, alpha_size, mapping, reverse, seq_len, pos_size):
         freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping, reverse_mapping=reverse,
@@ -254,7 +257,7 @@ class TestFrequencyTable(TestBase):
         self.assertEqual(depth1, 0)
         self.assertEqual(depth1, depth2)
 
-    def evalaute_get_positions(self, alpha_size, mapping, reverse, seq_len, pos_size, sequence):
+    def evaluate_get_positions(self, alpha_size, mapping, reverse, seq_len, pos_size, sequence):
         freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping, reverse_mapping=reverse,
                                     seq_len=seq_len, pos_size=pos_size)
         freq_table.characterize_sequence(sequence)
@@ -271,12 +274,12 @@ class TestFrequencyTable(TestBase):
                 count += 1
 
     def test9a_get_positions(self):
-        self.evalaute_get_positions(alpha_size=self.single_size, mapping=self.single_mapping,
+        self.evaluate_get_positions(alpha_size=self.single_size, mapping=self.single_mapping,
                                     reverse=self.single_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=1, sequence=self.query_aln_fa_small.query_sequence)
 
     def test9b_get_positions(self):
-        self.evalaute_get_positions(alpha_size=self.pair_size, mapping=self.pair_mapping,
+        self.evaluate_get_positions(alpha_size=self.pair_size, mapping=self.pair_mapping,
                                     reverse=self.pair_reverse, seq_len=self.query_aln_fa_small.seq_length,
                                     pos_size=2, sequence=self.query_aln_fa_small.query_sequence)
 
@@ -499,19 +502,9 @@ class TestFrequencyTable(TestBase):
                              sequence=self.query_aln_fa_small.query_sequence, fn='small_query_seq_freq_table.tsv')
 
     def test17b_to_csv(self):
-        self.evaluate_to_csv(alpha_size=self.single_size, mapping=self.single_mapping, reverse=self.single_reverse,
-                             seq_len=self.query_aln_fa_large.seq_length, pos_size=1,
-                             sequence=self.query_aln_fa_large.query_sequence, fn='large_query_seq_freq_table.tsv')
-
-    def test17c_to_csv(self):
         self.evaluate_to_csv(alpha_size=self.pair_size, mapping=self.pair_mapping, reverse=self.pair_reverse,
                              seq_len=self.query_aln_fa_small.seq_length, pos_size=2,
                              sequence=self.query_aln_fa_small.query_sequence, fn='small_query_seq_freq_table.tsv')
-
-    def test17d_to_csv(self):
-        self.evaluate_to_csv(alpha_size=self.pair_size, mapping=self.pair_mapping, reverse=self.pair_reverse,
-                             seq_len=self.query_aln_fa_large.seq_length, pos_size=2,
-                             sequence=self.query_aln_fa_large.query_sequence, fn='large_query_seq_freq_table.tsv')
 
     def evaluate_load_csv(self, alpha_size, mapping, reverse, seq_len, pos_size, sequence, fn):
         freq_table = FrequencyTable(alphabet_size=alpha_size, mapping=mapping, reverse_mapping=reverse,
@@ -534,19 +527,9 @@ class TestFrequencyTable(TestBase):
                                sequence=self.query_aln_fa_small.query_sequence, fn='small_query_seq_freq_table.tsv')
 
     def test18b_load_csv(self):
-        self.evaluate_load_csv(alpha_size=self.single_size, mapping=self.single_mapping, reverse=self.single_reverse,
-                               seq_len=self.query_aln_fa_large.seq_length, pos_size=1,
-                               sequence=self.query_aln_fa_large.query_sequence, fn='large_query_seq_freq_table.tsv')
-
-    def test18c_load_csv(self):
         self.evaluate_load_csv(alpha_size=self.pair_size, mapping=self.pair_mapping, reverse=self.pair_reverse,
                                seq_len=self.query_aln_fa_small.seq_length, pos_size=2,
                                sequence=self.query_aln_fa_small.query_sequence, fn='small_query_seq_freq_table.tsv')
-
-    def test18d_load_csv(self):
-        self.evaluate_load_csv(alpha_size=self.pair_size, mapping=self.pair_mapping, reverse=self.pair_reverse,
-                               seq_len=self.query_aln_fa_large.seq_length, pos_size=2,
-                               sequence=self.query_aln_fa_large.query_sequence, fn='large_query_seq_freq_table.tsv')
 
     def evaluate_add(self, aln, alpha_size, mapping, reverse, pos_size):
         query_seq_index = aln.seq_order.index(aln.query_id)

@@ -104,6 +104,8 @@ class FrequencyTable(object):
             char (str): The character in the alignment's alphabet to update at the specified position.
             amount (int): The number of occurrences of the alphabet character observed at that specified position.
         """
+        if isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('FrequencyTable has already been finalized and cannot be updated.')
         position = self.__convert_pos(pos=pos)
         char_pos = self.mapping[char]
         self.__position_table['values'].append(amount)
@@ -133,12 +135,16 @@ class FrequencyTable(object):
         for i in range(self.sequence_length):
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
-                # Find each unique character in the column and its count in that column
-                char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
-                # Update the observed characters with their counts
-                self.__position_table['values'] += list(counts)
-                self.__position_table['i'] += [i] * len(counts)
-                self.__position_table['j'] += list(char_pos.reshape(-1))
+                # # Find each unique character in the column and its count in that column
+                # char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
+                # # Update the observed characters with their counts
+                # self.__position_table['values'] += list(counts)
+                # self.__position_table['i'] += [i] * len(counts)
+                # self.__position_table['j'] += list(char_pos.reshape(-1))
+
+                self.__position_table['values'] += [1] * num_aln.shape[0]
+                self.__position_table['i'] += [i] * num_aln.shape[0]
+                self.__position_table['j'] += list(num_aln[:, i])
             # If pair is not specified continue to the next position
             if self.position_size != 2:
                 continue
@@ -147,14 +153,18 @@ class FrequencyTable(object):
             for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
                 position = self.__convert_pos(pos=(i, j))
-                # Find each unique pair of characters in two columns and their count
-                char_pos, counts = np.unique(num_aln[:, [i, j]], axis=0, return_counts=True)
-                # Map the individual character alphabet observations to the pair alphabet positions
-                char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
-                # Update the observed pairs of characters for the pair of columns using the counts.
-                self.__position_table['values'] += list(counts)
-                self.__position_table['i'] += [position] * len(counts)
-                self.__position_table['j'] += list(char_pos)
+                # # Find each unique pair of characters in two columns and their count
+                # char_pos, counts = np.unique(num_aln[:, [i, j]], axis=0, return_counts=True)
+                # # Map the individual character alphabet observations to the pair alphabet positions
+                # char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
+                # # Update the observed pairs of characters for the pair of columns using the counts.
+                # self.__position_table['values'] += list(counts)
+                # self.__position_table['i'] += [position] * len(counts)
+                # self.__position_table['j'] += list(char_pos)
+
+                self.__position_table['values'] += [1] * num_aln.shape[0]
+                self.__position_table['i'] += [position] * num_aln.shape[0]
+                self.__position_table['j'] += list(single_to_pair[num_aln[:, i], num_aln[:, j]])
         # Update the depth to the number of sequences in the characterized alignment
         self.__depth = num_aln.shape[0]
         self.finalize_table()
