@@ -130,85 +130,62 @@ class TestPositionalScorer(TestBase):
             for m in ['match', 'mismatch']:
                 cls.first_parents[x][m].finalize_table()
 
+    def evaluate__init(self, seq_len, pos_size, metric, metric_type, rank_type):
+        if metric == 'fake':
+            with self.assertRaises(ValueError):
+                PositionalScorer(seq_length=seq_len, pos_size=pos_size, metric=metric)
+        else:
+            pos_scorer = PositionalScorer(seq_length=seq_len, pos_size=pos_size, metric=metric)
+            self.assertEqual(pos_scorer.sequence_length, seq_len)
+            self.assertEqual(pos_scorer.position_size, pos_size)
+            if pos_size == 1:
+                self.assertEqual(pos_scorer.dimensions, (seq_len,))
+            else:
+                self.assertEqual(pos_scorer.dimensions, (seq_len, seq_len))
+            self.assertEqual(pos_scorer.metric, metric)
+            self.assertEqual(pos_scorer.metric_type, metric_type)
+            self.assertEqual(pos_scorer.rank_type, rank_type)
+
     def test1a_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='identity')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 1)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
-        self.assertEqual(pos_scorer.metric, 'identity')
-        self.assertEqual(pos_scorer.metric_type, 'integer')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='identity', metric_type='integer', rank_type='min')
 
     def test1b_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='identity')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'identity')
-        self.assertEqual(pos_scorer.metric_type, 'integer')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='identity', metric_type='integer', rank_type='min')
 
     def test1c_init(self):
-        with self.assertRaises(ValueError):
-            PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='fake')
-        with self.assertRaises(ValueError):
-            PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='fake')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='fake', metric_type='integer', rank_type='min')
 
     def test1d_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='plain_entropy')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 1)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
-        self.assertEqual(pos_scorer.metric, 'plain_entropy')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='fake', metric_type='integer', rank_type='min')
 
     def test1e_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='plain_entropy')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'plain_entropy')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='plain_entropy', metric_type='real',
+                            rank_type='min')
 
     def test1f_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='plain_entropy', metric_type='real',
+                            rank_type='min')
 
     def test1g_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='normalized_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'normalized_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='mutual_information', metric_type='real',
+                            rank_type='max')
 
     def test1h_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
-                                      metric='average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='normalized_mutual_information',
+                            metric_type='real', rank_type='max')
 
     def test1i_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
-                                      metric='filtered_average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'filtered_average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='average_product_corrected_mutual_information',
+                            metric_type='real', rank_type='max')
+
+    def test1j_init(self):
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            metric_type='real', rank_type='max')
+
+    def test1k_init(self):
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='match_mismatch_entropy_angle', metric_type='real',
+                            rank_type='min')
 
     def evaluate_score_group_ambiguous(self, node_dict, metric):
         pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
@@ -756,13 +733,17 @@ class TestPositionalScorer(TestBase):
                                                 mismatch_table=expected_mismatch_entropy)
             expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
                                                  axis=0)
-            expected_sin_ratio = expected_mismatch_entropy / expected_hypotenuse
+            expected_sin_ratio = np.zeros(expected_match_entropy.shape)
+            sin_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_sin_ratio[sin_indices] = expected_mismatch_entropy[sin_indices] / expected_hypotenuse[sin_indices]
             expected_sin_ratio[expected_match_entropy == 0] = np.sin(90.0)
             expected_sin_ratio[expected_mismatch_entropy == 0] = np.sin(0.0)
             expected_sin_angle = np.arcsin(expected_sin_ratio)
             sin_diff = observed_angles - expected_sin_angle
             self.assertFalse(sin_diff.any())
-            expected_cos_ratio = expected_match_entropy / expected_hypotenuse
+            cos_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_cos_ratio = np.zeros(expected_match_entropy.shape)
+            expected_cos_ratio[cos_indices] = expected_match_entropy[cos_indices] / expected_hypotenuse[cos_indices]
             expected_cos_ratio[expected_match_entropy == 0.0] = np.cos(90.0)
             expected_cos_ratio[expected_mismatch_entropy == 0] = np.cos(0.0)
             expected_cos_angle = np.arccos(expected_cos_ratio)
@@ -786,13 +767,17 @@ class TestPositionalScorer(TestBase):
                                                                   dimensions=dim_pair)
             expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
                                                  axis=0)
-            expected_sin_ratio = expected_mismatch_entropy / expected_hypotenuse
+            expected_sin_ratio = np.zeros(expected_match_entropy.shape)
+            sin_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_sin_ratio[sin_indices] = expected_mismatch_entropy[sin_indices] / expected_hypotenuse[sin_indices]
             expected_sin_ratio[expected_match_entropy == 0] = np.sin(90.0)
             expected_sin_ratio[expected_mismatch_entropy == 0] = np.sin(0.0)
             expected_sin_angle = np.arcsin(expected_sin_ratio)
             sin_diff = observed_angles - expected_sin_angle
             self.assertFalse(sin_diff.any())
-            expected_cos_ratio = expected_match_entropy / expected_hypotenuse
+            cos_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_cos_ratio = np.zeros(expected_match_entropy.shape)
+            expected_cos_ratio[cos_indices] = expected_match_entropy[cos_indices] / expected_hypotenuse[cos_indices]
             expected_cos_ratio[expected_match_entropy == 0.0] = np.cos(90.0)
             expected_cos_ratio[expected_mismatch_entropy == 0] = np.cos(0.0)
             expected_cos_angle = np.arccos(expected_cos_ratio)
