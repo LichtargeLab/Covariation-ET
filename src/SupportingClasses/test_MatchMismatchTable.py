@@ -104,14 +104,12 @@ class TestMatchMismatchTable(TestBase):
         self.assertEqual(list(sorted(mm_table.match_mismatch_tables.keys())), list(range(seq_len)))
         for pos in mm_table.match_mismatch_tables:
             for i in range(num_aln.shape[0]):
-                for j in range(num_aln.shape[0]):
-                    if i < j:
-                        if num_aln[i, pos] == num_aln[j, pos]:
-                            self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], 1)
-                        else:
-                            self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], -1)
+                for j in range(i + 1, num_aln.shape[0]):
+                    if num_aln[i, pos] == num_aln[j, pos]:
+                        self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], 1)
                     else:
-                        self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], 0)
+                        self.assertEqual(mm_table.match_mismatch_tables[pos][i, j], -1)
+            self.assertFalse(np.tril(mm_table.match_mismatch_tables[pos]).any())
 
     def test2a_identify_matches_mismatches(self):
         num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
@@ -345,37 +343,47 @@ class TestMatchMismatchTable(TestBase):
                                       larger_alphabet_reverse_mapping=large_alpha_reverse,
                                       single_to_larger_mapping=single_to_large, pos_size=pos_size)
         mm_table.identify_matches_mismatches()
-        for s1 in range(num_aln.shape[0]):
-            for s2 in range(s1 + 1, num_aln.shape[0]):
-                for i in range(seq_len):
-                    if pos_size == 1:
-                        expected_char1 = self.single_reverse[num_aln[s1, i]]
-                        expected_char2 = self.single_reverse[num_aln[s2, i]]
-                        expected_char = expected_char1 + expected_char2
-                        expected_status = expected_char1 == expected_char2
-                        status, char = mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s2)
-                        self.assertEqual(char, expected_char)
-                        if expected_status:
-                            self.assertEqual(status, 'match')
-                        else:
-                            self.assertEqual(status, 'mismatch')
-                        continue
-                    for j in range(i, seq_len):
-                        expected_char1 = self.single_reverse[num_aln[s1, i]]
-                        expected_char2 = self.single_reverse[num_aln[s1, j]]
-                        expected_pair1 = expected_char1 + expected_char2
-                        expected_char3 = self.single_reverse[num_aln[s2, i]]
-                        expected_char4 = self.single_reverse[num_aln[s2, j]]
-                        expected_pair2 = expected_char3 + expected_char4
-                        expected_quad = expected_pair1 + expected_pair2
-                        expected_status = ((expected_pair1 == expected_pair2) or
-                                           ((expected_char1 != expected_char3) and (expected_char2 != expected_char4)))
-                        status, char = mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s2)
-                        self.assertEqual(char, expected_quad)
-                        if expected_status:
-                            self.assertEqual(status, 'match')
-                        else:
-                            self.assertEqual(status, 'mismatch')
+        for s1 in range(num_aln.shape[0] - 1):
+            s2 = np.random.choice(list(range(s1 + 1, num_aln.shape[0])), 1)[0]
+            for i in range(seq_len):
+                if pos_size == 1:
+                    if s1 > 1:
+                        with self.assertRaises(ValueError):
+                            mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s1 - 1)
+                    with self.assertRaises(ValueError):
+                        mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s1)
+                    expected_char1 = self.single_reverse[num_aln[s1, i]]
+                    expected_char2 = self.single_reverse[num_aln[s2, i]]
+                    expected_char = expected_char1 + expected_char2
+                    expected_status = expected_char1 == expected_char2
+                    status, char = mm_table.get_status_and_character(pos=i, seq_ind1=s1, seq_ind2=s2)
+                    self.assertEqual(char, expected_char)
+                    if expected_status:
+                        self.assertEqual(status, 'match')
+                    else:
+                        self.assertEqual(status, 'mismatch')
+                    continue
+                for j in range(i, seq_len):
+                    if s1 > 1:
+                        with self.assertRaises(ValueError):
+                            mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s1 - 1)
+                    with self.assertRaises(ValueError):
+                        mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s1)
+                    expected_char1 = self.single_reverse[num_aln[s1, i]]
+                    expected_char2 = self.single_reverse[num_aln[s1, j]]
+                    expected_pair1 = expected_char1 + expected_char2
+                    expected_char3 = self.single_reverse[num_aln[s2, i]]
+                    expected_char4 = self.single_reverse[num_aln[s2, j]]
+                    expected_pair2 = expected_char3 + expected_char4
+                    expected_quad = expected_pair1 + expected_pair2
+                    expected_status = ((expected_pair1 == expected_pair2) or
+                                       ((expected_char1 != expected_char3) and (expected_char2 != expected_char4)))
+                    status, char = mm_table.get_status_and_character(pos=(i, j), seq_ind1=s1, seq_ind2=s2)
+                    self.assertEqual(char, expected_quad)
+                    if expected_status:
+                        self.assertEqual(status, 'match')
+                    else:
+                        self.assertEqual(status, 'mismatch')
 
     def test5a_get_status_and_character(self):
         num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)

@@ -191,6 +191,9 @@ class MatchMismatchTable(object):
     #     print('It took {} seconds to characterize matches and mismatches.'.format(end - start))
 
     def get_status_and_character(self, pos, seq_ind1, seq_ind2):
+        if seq_ind1 >= seq_ind2:
+            raise ValueError('Matches and mismatches are defined only for the upper triangle of sequence comparisons, '
+                             'please provide sequence indices such that seq_ind1 < seq_ind2.')
         if isinstance(pos, int):
             char_tup = (self.num_aln[seq_ind1, pos], self.num_aln[seq_ind2, pos])
             status = self.match_mismatch_tables[pos][seq_ind1, seq_ind2] == 1
@@ -204,7 +207,7 @@ class MatchMismatchTable(object):
             char_tup = tuple(char_tup[0] + char_tup[1])
             status = np.abs(status) == len(pos)
         else:
-            return ValueError('Recieved a position with type other than int or tuple.')
+            return ValueError('Received a position with type other than int or tuple.')
         char = self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
         ret_status = 'match' if status else 'mismatch'
         return ret_status, char
