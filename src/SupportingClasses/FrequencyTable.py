@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from copy import deepcopy
-from scipy.sparse import lil_matrix, csc_matrix
+from scipy.sparse import csc_matrix
 
 
 class FrequencyTable(object):
@@ -17,13 +17,13 @@ class FrequencyTable(object):
 
     Attributes:
         mapping (dict): A dictionary mapping the alphabet of the alignment being characterized to numerical positions.
-        reverse_mapping (dict): A dictionary mapping positions back to alphabet characterized.
+        reverse_mapping (np.array): An array mapping positions back to alphabet characterized.
         position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
         be 1, if it measures pairs of positions this should be 2, etc.
         num_pos (int): The number of positions being characterized.
         __position_table (dict/csc_matrix): A structure storing the position specific counts for nucleic/amino acids
         found in the alignment. This attribute begins as a dictionary holding all of the values needed to initialize a
-        csc_matrix (including empty lists for values and i and j positions). When the seqeunce/alignment
+        csc_matrix (including empty lists for values and i and j positions). When the sequence/alignment
         characterization has been concluded this can be converted to a csc_matrix using the finalize_table() method.
         __depth (int): The number of possible observations per positions (the normalization count for calculating
         frequency).
@@ -95,7 +95,7 @@ class FrequencyTable(object):
         """
         Increment Count
 
-        This method updates the position and character by the specified amount, keeping track of the occurrence of of
+        This method updates the position and character by the specified amount, keeping track of the occurrence of
         alphabet characters at each position in an alignment.
 
         Args:
@@ -124,10 +124,8 @@ class FrequencyTable(object):
         Args:
             num_aln (np.array): Array representing an alignment with dimensions sequence_length by alignment size where
             the values are integers representing nucleic/amino acids and gaps from the desired alignment.
-            single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
-            consist of the position of the first character in a pair of letters to its numerical position and the
-            position of the second character in a pair of letters to its numerical position. The value that this tuple
-            maps to should be the integer value that a pair of letters maps to.
+            single_to_pair (np.array): An array mapping single letter numerical representations (axes 0 and 1) to a
+            numerical representations of pairs of residues (value).
         """
         if self.position_size == 2 and single_to_pair is None:
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
@@ -135,13 +133,8 @@ class FrequencyTable(object):
         for i in range(self.sequence_length):
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
-                # # Find each unique character in the column and its count in that column
-                # char_pos, counts = np.unique(num_aln[:, i], axis=0, return_counts=True)
-                # # Update the observed characters with their counts
-                # self.__position_table['values'] += list(counts)
-                # self.__position_table['i'] += [i] * len(counts)
-                # self.__position_table['j'] += list(char_pos.reshape(-1))
-
+                # Add all characters observed at this position to the frequency table (this is inefficient in terms of
+                # space but reduces the time required to identify and count individual characters.
                 self.__position_table['values'] += [1] * num_aln.shape[0]
                 self.__position_table['i'] += [i] * num_aln.shape[0]
                 self.__position_table['j'] += list(num_aln[:, i])
@@ -153,15 +146,8 @@ class FrequencyTable(object):
             for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
                 position = self.__convert_pos(pos=(i, j))
-                # # Find each unique pair of characters in two columns and their count
-                # char_pos, counts = np.unique(num_aln[:, [i, j]], axis=0, return_counts=True)
-                # # Map the individual character alphabet observations to the pair alphabet positions
-                # char_pos = [single_to_pair[tuple(pos)] for pos in char_pos]
-                # # Update the observed pairs of characters for the pair of columns using the counts.
-                # self.__position_table['values'] += list(counts)
-                # self.__position_table['i'] += [position] * len(counts)
-                # self.__position_table['j'] += list(char_pos)
-
+                # Add all characters observed at this position to the frequency table (this is inefficient in terms of
+                # space but reduces the time required to identify and count individual characters.
                 self.__position_table['values'] += [1] * num_aln.shape[0]
                 self.__position_table['i'] += [position] * num_aln.shape[0]
                 self.__position_table['j'] += list(single_to_pair[num_aln[:, i], num_aln[:, j]])
@@ -200,7 +186,7 @@ class FrequencyTable(object):
         """
         Finalize Table
 
-        When all sequences from an alignment have been characterized the table is saved from a scipy.sparse.lil_matrix
+        When all sequences from an alignment have been characterized the table is saved from a dictionary of values
         to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
         behavior from other functions such as get_count_array() and get_frequency_array().
         """
@@ -212,7 +198,8 @@ class FrequencyTable(object):
         """
         Set Depth
 
-        This function is intended to update the depth attribute if the existing methods do not suffice.
+        This function is intended to update the depth attribute if the existing methods do not suffice (i.e. if
+        characterize_alignment or characterize_sequence are not used.).
 
         Arguments
             depth (int): The number of observations for all positions (normalization factor when turning count into
@@ -227,9 +214,10 @@ class FrequencyTable(object):
         Returns the matrix storing the position specific counts for the characters present in the alignment.
 
         Returns:
-            scipy.sparse.lil_matrix/csc_matrix: A sparse matrix where one axis represents positions in the MSA
-            and the other axis represents the characters from the alphabet of interest mapping. Each cell stores the
-            count of that character at that position.
+            dict/scipy.sparse.csc_matrix: A dictionary containing the values needed to populate a
+            scipy.sparse.csc_matrix. If the table has already been finazed, a sparse matrix where one axis represents
+            positions in the MSA and the other axis represents the characters from the alphabet of interest mapping.
+            Each cell stores the count of that character at that position.
         """
         table = deepcopy(self.__position_table)
         return table
@@ -253,7 +241,8 @@ class FrequencyTable(object):
         Provides the positions tracked in this frequency table.
 
         Returns:
-            list: The positions tracked in this frequency table.
+            list: The positions tracked in this frequency table. If the position size is 1, then the list contains
+            integers describing each position, if it is 2, the list contains tuples describing pairs of positions.
         """
         if self.position_size == 1:
             positions = list(range(self.sequence_length))
@@ -280,7 +269,7 @@ class FrequencyTable(object):
         position = self.__convert_pos(pos=pos)
         character_positions = self.__position_table[position, :].nonzero()
         characters = self.reverse_mapping[character_positions[1]]
-        return characters
+        return list(characters)
 
     def get_count(self, pos, char):
         """
@@ -295,6 +284,8 @@ class FrequencyTable(object):
         Returns:
             int: The count of the specified character at the specified position.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count.')
         position = self.__convert_pos(pos=pos)
         char_pos = self.mapping[char]
         count = self.__position_table[position, char_pos]
@@ -312,6 +303,8 @@ class FrequencyTable(object):
         Returns:
             np.array: An array of the counts for characters at a given position.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count_array.')
         position = self.__convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
         indices = full_column.nonzero()
@@ -330,6 +323,8 @@ class FrequencyTable(object):
             and m is the length of the sequences in the alignment. Each position in the matrix specifies the count of a
             character at a given position.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count_matrix.')
         mat = self.__position_table.toarray()
         return mat
 
@@ -435,7 +430,6 @@ class FrequencyTable(object):
                 pos_str = elements[indices['Position']]
                 try:
                     pos = int(pos_str)
-                    # if pos > (self.sequence_length - 1):
                     if pos > (self.num_pos - 1):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
@@ -446,7 +440,6 @@ class FrequencyTable(object):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
                     position = self.__convert_pos(pos=pos)
-                # position = self.__convert_pos(pos=pos)
                 chars = elements[indices['Characters']].split(',')
                 counts = [int(x) for x in elements[indices['Counts']].split(',')]
                 if len(chars) != len(counts):
@@ -458,7 +451,6 @@ class FrequencyTable(object):
                     except KeyError as e:
                         print(self.mapping)
                         raise e
-                    # self.__position_table[position, char_pos] = counts[i]
                     self.__position_table['values'].append(counts[i])
                     self.__position_table['i'].append(position)
                     self.__position_table['j'].append(char_pos)

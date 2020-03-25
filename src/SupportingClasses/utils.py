@@ -29,7 +29,7 @@ def build_mapping(alphabet, skip_letters=None):
         present in the returned set).
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
-        dict: Dictionary mapping a number to character such that the character can be decoded from a position in an
+        np.array: Array mapping a number to character such that the character can be decoded from a position in an
         array or table built based on the alphabet.
     """
     if isinstance(alphabet, Alphabet) or isinstance(alphabet, Gapped):
