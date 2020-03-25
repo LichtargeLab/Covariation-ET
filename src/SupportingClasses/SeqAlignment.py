@@ -81,7 +81,7 @@ class SeqAlignment(object):
         """
         Import Alignment
 
-        This method imports the alignments using the AlignIO.read method expecting the 'fasta' format. It then updates
+        This method imports the alignment using the AlignIO.read method expecting the 'fasta' format. It then updates
         the alignment, seq_order, query_sequence, seq_length, size, and marked class attributes.
 
         Args:
@@ -90,8 +90,7 @@ class SeqAlignment(object):
             pickle instead of reprocessing the the file in the file_name attribute.
             verbose (bool, optional): Whether or not to print the time spent while importing the alignment or not.
         """
-        if verbose:
-            start = time()
+        start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
             alignment, seq_order, query_sequence = pickle.load(open(save_file, 'r'))
         else:
@@ -108,8 +107,8 @@ class SeqAlignment(object):
             if save_file is not None:
                 with open(save_file, 'wb') as save_handle:
                     pickle.dump((alignment, seq_order, query_sequence), save_handle, protocol=pickle.HIGHEST_PROTOCOL)
+        end = time()
         if verbose:
-            end = time()
             print('Importing alignment took {} min'.format((end - start) / 60.0))
         self.alignment = alignment
         self.seq_order = seq_order
@@ -129,7 +128,7 @@ class SeqAlignment(object):
             file_name (str): Path to file where the alignment should be written.
         """
         if self.alignment is None:
-            raise TypeError('Alignment must be Bio.Align.MultipleSequenceALignment not None.')
+            raise TypeError('Alignment must be Bio.Align.MultipleSequenceAlignment not None.')
         if os.path.exists(file_name):
             return
         with open(file_name, 'w') as file_handle:
@@ -216,16 +215,16 @@ class SeqAlignment(object):
         Remove Gaps
 
         Removes all gaps from the query sequence and removes characters at the corresponding positions in all other
-        sequences. Instead of updating the current object a new object is returned with updated alignment and
-        seq_length fields.
+        sequences. Instead of updating the current object, a new object is returned with updated alignment and
+        query_sequence, and seq_length fields.
 
         Args:
             save_file (str): Path to a file where the alignment with gaps in the query sequence removed should be stored
             or was stored previously. If the updated alignment was stored previously it will be loaded from the
             specified save_file instead of processing the current alignment.
         Returns:
-            Bio.Align.MultipleSeqAlignment: A new alignment which is a subset of self.alignment, with only columns in
-            the alignment which were not gaps in the query sequence.
+            SeqAlignmentq: A new alignment which is a subset of the current alignment, with only columns in the
+            alignment which were not gaps in the query sequence.
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
@@ -308,12 +307,11 @@ class SeqAlignment(object):
         the current alignment. The equation (given below) and default threshold (62% identity) are taken from
         PMID:29047157.
             Meff = SUM_(i=0)^(N) of 1/n_i
-            where n_i are the number of sequences sequence identity >= the identity threshold
+            where n_i are the number of sequences where sequence identity >= the identity threshold
         Args:
             identity_threshold (float): The threshold for what is considered an identical (non-unique) sequence.
             distance_matrix (Bio.Phylo.TreeConstruction.DistanceMatrix): A precomputed identity distance matrix for this
             alignment.
-            alignment can be saved. The file created will be <model>.npz.
             processes (int): The number of processes which can be used to compute the identity distance for determining
             effective alignment size.
         Returns:
@@ -607,10 +605,10 @@ class SeqAlignment(object):
             alignment.
             single_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
             single_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
-            single_reverse (dict): Dictionary mapping numerical positions back to the single letter alphabet.
+            single_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
             pair_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
             pair_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
-            pair_reverse (dict): Dictionary mapping numerical positions back to the pairs of letters alphabet.
+            pair_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
         Returns:
             FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
@@ -660,10 +658,10 @@ class SeqAlignment(object):
             alignment.
             single_letter_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
             single_letter_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
-            single_letter_reverse (dict): Dictionary mapping numerical positions back to the single letter alphabet.
+            single_letter_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
             pair_letter_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
             pair_letter_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
-            pair_letter_reverse (dict): Dictionary mapping numerical positions back to the pairs of letters alphabet.
+            pair_letter_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
             single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
             consist of the position of the first character in a pair of letters to its numerical position and the
             position of the second character in a pair of letters to its numerical position (single_letter_mapping).
