@@ -11,7 +11,6 @@ from tqdm import tqdm
 from copy import deepcopy
 from time import sleep, time
 from Bio.Alphabet import Gapped
-from scipy.stats import rankdata
 from multiprocessing import Manager, Pool, Lock
 from FrequencyTable import FrequencyTable
 from MatchMismatchTable import MatchMismatchTable
@@ -92,7 +91,8 @@ class Trace(object):
             unique_dir (str/path): The path to the directory where unique node data can be stored.
             single_size (int): The size of the single letter alphabet being used.
             single_mapping (dict): A dictionary from character to integer representation.
-            single_reverse (dict): A dictionary from an integer representation back to a single letter character.
+            single_reverse (np.array): An array mapping from an integer (index) representation back to a single letter
+            character.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
@@ -102,15 +102,14 @@ class Trace(object):
         if self.pair_specific:
             pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
             pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
-            single_to_pair = {(single_mapping[char[0]], single_mapping[char[1]]): pair_mapping[char]
-                              for char in pair_mapping if pair_mapping[char] < pair_size}
-            gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
+            single_to_pair = np.zeros((len(set(single_mapping.values())), len(set(single_mapping.values()))))
+            for char in pair_mapping:
+                single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
         else:
             pair_size = None
             pair_mapping = None
             pair_reverse = None
             single_to_pair = None
-            gaps = None
         visited = {}
         components = False
         to_characterize = []
@@ -276,18 +275,19 @@ class Trace(object):
     def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
                                                 processes=1, write_out_sub_aln=True, write_out_freq_table=True):
         """
-        Characterize Rank Group
+        Characterize Rank Groups Match Mismatch
 
         This function iterates over the rank and group assignments and characterizes all positions for each sub
         alignment. Characterization consists of FrequencyTable objects which are added to the group_assignments
-        dictionary provided at initialization (single position FrequencyTables are added under the key 'single', while
-        FrequencyTables for pairs of positions are added under the key 'pair').
+        dictionary provided at initialization (the match FrequencyTable can be found with the key 'match' and the
+        mismatch FrequencyTable with the key 'mismatch').
 
         Args:
             unique_dir (str/path): The path to the directory where unique node data can be stored.
             single_size (int): The size of the single letter alphabet being used.
             single_mapping (dict): A dictionary from character to integer representation.
-            single_reverse (dict): A dictionary from an integer representation back to a single letter character.
+            single_reverse (np.array): An array mapping from an integer (index) representation back to a single letter
+            character.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
@@ -299,8 +299,6 @@ class Trace(object):
             larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=pair_alphabet)
             single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
                                 for char in larger_mapping if larger_mapping[char] < larger_size}
-            gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
-            dummy_dict = {'{0}'.format(next(iter(single_mapping))): 0}
             pos_size = 1
             pos_type = 'position'
             table_type = 'single'
@@ -310,8 +308,6 @@ class Trace(object):
             single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]], single_mapping[char[2]],
                                  single_mapping[char[3]]): larger_mapping[char]
                                 for char in larger_mapping if larger_mapping[char] < larger_size}
-            gaps = {'-'} if '-' in quad_alphabet.letters else gap_characters
-            dummy_dict = {'{0}{0}'.format(next(iter(single_mapping))): 0}
             pos_size = 2
             pos_type = 'pair'
             table_type = 'pair'
@@ -354,7 +350,7 @@ class Trace(object):
         tables_lock = Lock()
         pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
                     initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
-                              single_to_larger, dummy_dict, match_mismatch_table, self.aln, pos_size, pos_type,
+                              single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
                               table_type, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
                               write_out_sub_aln, write_out_freq_table))
         for char_node in to_characterize:
@@ -417,7 +413,11 @@ class Trace(object):
             this correction please set gap_correction to None.
             processes (int): The maximum number of sequences to use when performing this characterization.
         Returns:
+            np.array: A properly dimensioned vector/matrix/tensor of ranks for each position in the alignment being
+            traced.
             np.array: A properly dimensioned vector/matrix/tensor of importance scores for each position in the
+            alignment being traced.
+            np.array: A properly dimensioned vector/matrix/tensor of coverage scores for each position in the
             alignment being traced.
         pseudocode:
             final_scores = np.zeros(scorer.dimensions)
@@ -529,7 +529,7 @@ def check_freq_table(low_memory, node_name, table_type, out_dir):
     """
     Check Frequency Table
 
-    This function is used to check wither the desired FrequencyTable has already been produced and stored or not.
+    This function is used to check whether the desired FrequencyTable has already been produced and stored or not.
 
     Args:
         low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
@@ -618,21 +618,17 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
         single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
         gap character).
         single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (dict): A dictionary mapping numerical positions back to the single letter alphabet.
+        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
         pair_size (int): The size of the paired letter alphabet for the alignment being characterized (including the
         gap character).
         pair_mapping (dict): A dictionary mapping the paired letter alphabet to numerical positions.
-        pair_reverse (dict): A dictionary mapping numerical positions back to the paired letter alphabet.
-        single_to_pair (dict): A dictionary mapping single letter numeric positions to paired letter numeric positions.
+        pair_reverse (np.array): An array mapping numerical positions back to the paired letter alphabet.
+        single_to_pair (np.array): A two dimensional array mapping single letter numeric positions to paired letter
+        numeric positions.
         alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
         sub alignments for the terminal nodes in the tree.
         pos_specific (bool): Whether or not to characterize single positions.
         pair_specific (bool): Whether or not to characterize pairs of positions.
-        queue1 (multiprocessing.Queue): A queue which contains all nodes in the lowest rank (i.e. most nodes) of the
-        phylogenetic tree over which the trace is being performed.
-        queue2 (multiprocessing.Queue): A queue which contains all nodes in the phylogenetic tree for higher ranks over
-        which the trace is being performed. The nodes should be inserted in an order which makes sense for the efficient
-        characterization of nodes (i.e. leaves to root).
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
@@ -792,11 +788,11 @@ def characterization(node_name, node_type):
 
 
 def init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
-                                  larger_reverse, single_to_larger, dummy_dict, match_mismatch_table, alignment,
+                                  larger_reverse, single_to_larger, match_mismatch_table, alignment,
                                   position_size, position_type, table_type, components, sharable_dict, sharable_lock,
                                   unique_dir, low_memory, write_out_sub_aln, write_out_freq_table):
     """
-    Init Characterization Pool
+    Init Characterization Match Mismatch Pool
 
     This function initializes a pool of workers with shared resources so that they can quickly characterize the matches
     and mismatches of sub-alignments for each node in the phylogenetic tree.
@@ -805,20 +801,13 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
         gap character).
         single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (dict): A dictionary mapping numerical positions back to the single letter alphabet.
+        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
         larger_size (int): The size of the pair, quad, or larger letter alphabet for the alignment being characterized
         (including the gap character).
         larger_mapping (dict): A dictionary mapping the pair, quad, or larger letter alphabet to numerical positions.
-        larger_reverse (dict): A dictionary mapping numerical positions back to the pair, quad, or larger letter
-        alphabet.
+        larger_reverse (np.array): An array mapping numerical positions back to the larger letter alphabet.
         single_to_larger (dict): A dictionary mapping single letter numeric positions to pair, quad, or larger letter
         alphabet numeric positions.
-        dummy_dict (dict): A place holder used for initializing FrequencyTable objects, it should have one entry mapping
-        a string with the size of the position being considered (1 for single positions, 2 for pairs, etc., e.g. 'A' or
-        'AA') to an integer (0). This is used to bypass checks on FrequencyTable initialization that enforce the
-        alphabet character size to match the position size being characterized (these are performed on the mapping).
-        This allows for the characterization of all pairs of sequences at a given position(s) in the alignment which
-        doubles the size of the alphabet.
         match_mismatch_table (MatchMismatchTable): A characterization of all the matches and mismatches of single
         positions in the full alignment being characterized, which can be used to check the match/mismatch status and
         character at a given position and pair of sequences.
@@ -839,7 +828,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
     """
-    global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, d_map, mm_table, aln, p_size, p_type, t_type, comps,\
+    global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, mm_table, aln, p_size, p_type, t_type, comps,\
         freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table
     s_size = single_size
     s_map = single_mapping
@@ -848,7 +837,6 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     l_map = larger_mapping
     l_rev = larger_reverse
     s_to_l = single_to_larger
-    d_map = dummy_dict
     mm_table = match_mismatch_table
     aln = alignment
     p_size = position_size
@@ -865,7 +853,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
 
 def characterization_mm(node_name):
     """
-    Characterization
+    Characterization Match Mismatch
 
     This function accepts a node characterizes its sub-alignment's matches and mismatches. For each node a sub-alignment
     is generated from the full alignment (provided by init_characterization_pool) and the individual positions (if
@@ -899,17 +887,8 @@ def characterization_mm(node_name):
         # If specified write the alignment to file.
         if write_sub_aln:
             sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
-        # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the
-        # first element of the mapping dictionary has the same size as the position since we are looking at
-        # something twice the size of the position (either pairs for single positions or quadruples for pairs of
-        # positions) this causes an error. Therefore I introduced this hack, to use a dummy dictionary to get
-        # through proper initialization, which does expose a vulnerability in the FrequencyTable class (the check
-        # could be more stringent) but it allows for this more flexible behavior.
-        # Completes the hack just described, providing the correct mapping table to replace the dummy table
-        # provided.
-        tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=d_map, reverse_mapping=l_rev,
+        tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
                                           seq_len=aln.seq_length, pos_size=p_size)}
-        tables['match'].mapping = l_map
         # The depth for the alignment will not be set since we do not use any of the characterization  functions here,
         # it needs to be the number of possible matches mismatches when comparing all elements of a column or pair of
         # columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
