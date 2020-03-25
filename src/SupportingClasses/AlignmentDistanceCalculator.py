@@ -80,12 +80,11 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         Returns:
             numpy.array: The substitution matrix for the specified model.
         """
+        # Convert the current scoring matrix, initialized by Bio.Phylo.TreeConstruction.DistanceCalculator, and convert
+        # it to a np.array.
         scoring_matrix = np.array(self.scoring_matrix)
+        # Pad the array to account for gap and skip characters.
         substitution_matrix = np.pad(scoring_matrix, pad_width=((0, 2), (0, 2)), mode='constant', constant_values=0)
-        # substitution_matrix = np.insert(scoring_matrix, obj=scoring_matrix.shape[0], values=0, axis=0)
-        # substitution_matrix = np.insert(substitution_matrix, obj=scoring_matrix.shape[1], values=0, axis=1)
-        # substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[0], values=0, axis=0)
-        # substitution_matrix = np.insert(substitution_matrix, obj=substitution_matrix.shape[1], values=0, axis=1)
         return substitution_matrix
 
     def _update_scoring_matrix(self):
@@ -189,16 +188,16 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         seq_pairs = list(combinations(msa, 2))
         dist_pbar = tqdm(total=len(seq_pairs), unit='distances')
 
-        def update_dm(res):
+        def update_dm(result):
             """
             This function receives the output of a single call to pairwise and stores that in the current distance
             matrix, and then updates the progress bar for the distance calculation process.
 
             Args:
-                res (tuple): The return from pairwise, consisting of the two identifiers for the sequences whose
+                result (tuple): The return from pairwise, consisting of the two identifiers for the sequences whose
                 distance has been calculated, and the final distance.
             """
-            seq1_id, seq2_id, final_score = res
+            seq1_id, seq2_id, final_score = result
             dm[seq1_id, seq2_id] = final_score
             dist_pbar.update(1)
             dist_pbar.refresh()
@@ -306,22 +305,22 @@ class AlignmentDistanceCalculator(DistanceCalculator):
         seq_pairs = list(combinations(names, 2))
         dist_pbar = tqdm(total=len(seq_pairs), unit='distances')
 
-        def update_distances(res):
+        def update_distances(result):
             """
             This function receives the output of a single call to pairwise and stores that in the current distance
             matrix, and then updates the progress bar for the distance calculation process.
 
             Args:
-                res (tuple): The return from similarity, consisting of the two identifiers for the sequences whose
+                result (tuple): The return from similarity, consisting of the two identifiers for the sequences whose
                 distance have been calculated, their identity similarity distance, their scoring matrix similarity
                 distance, and the sequence length, identity count, and scoring matrix count determined during their
                 scoring.
             """
-            seq_id1, seq_id2, id_score, similarity_score, seq_length, identity_count, scoring_matrix_count = res
-            plain_identity[seq_id1, seq_id2] = id_score
-            psuedo_identity[seq_id1, seq_id2] = similarity_score
-            data_dict['Seq1'].append(seq_id1)
-            data_dict['Seq2'].append(seq_id2)
+            id1, id2, id_score, similarity_score, seq_length, identity_count, scoring_matrix_count = result
+            plain_identity[id1, id2] = id_score
+            psuedo_identity[id1, id2] = similarity_score
+            data_dict['Seq1'].append(id1)
+            data_dict['Seq2'].append(id2)
             data_dict['Min_Seq_Length'].append(seq_length)
             data_dict['Id_Count'].append(identity_count)
             data_dict['Threshold_Count'].append(scoring_matrix_count)
@@ -348,7 +347,7 @@ def init_identity(num_aln):
     """
     Initialize Identity
 
-    This function initializes global variables requires by identity for scoring teh distance between two sequences.
+    This function initializes global variables required by identity for scoring the distance between two sequences.
 
     Args:
         num_aln (np.array): The numerical representation of a sequence alignment.
@@ -361,7 +360,7 @@ def identity(i):
     """
     Identity
 
-    This function calculates the distances between one sequences in an alignemnt and all other sequences in the
+    This function calculates the distances between one sequences in an alignment and all other sequences in the
     alignment according to the identity distance metric.
 
     Args:
