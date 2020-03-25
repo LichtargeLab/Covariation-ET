@@ -39,7 +39,7 @@ class TestFrequencyTable(TestBase):
         # for char in cls.pair_mapping:
         #     key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
         #     cls.single_to_pair[key] = cls.pair_mapping[char]
-        cls.single_to_pair = np.zeros((len(set(cls.single_mapping.values())), len(set(cls.single_mapping.values()))))
+        cls.single_to_pair = np.zeros((max(cls.single_mapping.values()) + 1, max(cls.single_mapping.values()) + 1))
         for char in cls.pair_mapping:
             cls.single_to_pair[cls.single_mapping[char[0]], cls.single_mapping[char[1]]] = cls.pair_mapping[char]
 
