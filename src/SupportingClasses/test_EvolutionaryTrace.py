@@ -17,7 +17,6 @@ from test_PhylogeneticTree import compare_nodes, compare_nodes_key
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
 from ETMIPWrapper import ETMIPWrapper
-from FrequencyTable import FrequencyTable
 from PhylogeneticTree import PhylogeneticTree
 from PositionalScorer import PositionalScorer
 from Trace import Trace, load_freq_table, load_numpy_array
@@ -144,37 +143,47 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_init(query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn,
                            et_distance=True, distance_model='blosum62', tree_building_method='et',
                            tree_building_options={}, ranks=None, position_type='pair',
-                           scoring_metric='filtered_average_product_corrected_mutual_information',
+                           scoring_metric='mutual_information',
                            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads,
                            low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
                            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
                            expected_sequence=self.data_set.protein_data[self.small_structure_id]['Sequence'].seq)
 
     def test_1d_init(self):
-        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+        self.evaluate_init(query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn,
                            et_distance=True, distance_model='blosum62', tree_building_method='et',
-                           tree_building_options={}, ranks=None, position_type='single', scoring_metric='identity',
-                           gap_correction=None, out_dir=self.out_large_dir,
-                           output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
-                           processors=self.max_threads, low_memory=True,
-                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-                           expected_sequence=self.data_set.protein_data[self.large_structure_id]['Sequence'].seq)
+                           tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='normalized_mutual_information',
+                           gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.small_structure_id]['Sequence'].seq)
 
     def test_1e_init(self):
-        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+        self.evaluate_init(query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn,
                            et_distance=True, distance_model='blosum62', tree_building_method='et',
-                           tree_building_options={}, ranks=None, position_type='single', scoring_metric='plain_entropy',
-                           gap_correction=None, out_dir=self.out_large_dir,
-                           output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
-                           processors=self.max_threads, low_memory=True,
-                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-                           expected_sequence=self.data_set.protein_data[self.large_structure_id]['Sequence'].seq)
+                           tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='average_product_corrected_mutual_information',
+                           gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.small_structure_id]['Sequence'].seq)
 
     def test_1f_init(self):
-        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+        self.evaluate_init(query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn,
                            et_distance=True, distance_model='blosum62', tree_building_method='et',
                            tree_building_options={}, ranks=None, position_type='pair',
                            scoring_metric='filtered_average_product_corrected_mutual_information',
+                           gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.small_structure_id]['Sequence'].seq)
+
+    def test_1g_init(self):
+        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+                           et_distance=True, distance_model='blosum62', tree_building_method='et',
+                           tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='match_mismatch_entropy_angle',
                            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads,
                            low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
                            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
@@ -285,13 +294,21 @@ class TestEvoultionaryTrace(TestBase):
 
     def test_2d_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2e_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='single', scoring_metric='identity', gap_correction=None, out_dir=self.out_large_dir,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
             low_memory=True)
 
-    def test_2e_compute_distance_matrix_tree_and_assignments(self):
+    def test_2f_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
@@ -299,11 +316,19 @@ class TestEvoultionaryTrace(TestBase):
             processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
                                                                         'scores'})
 
-    def test_2f_compute_distance_matrix_tree_and_assignments(self):
+    def test_2g_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2h_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
@@ -327,8 +352,14 @@ class TestEvoultionaryTrace(TestBase):
         else:
             raise ValueError('Cannot evaluate EvolutionaryTrace instance with position_type: {}'.format(et.position_type))
         root_name = et.assignments[1][1]['node'].name
-        root_freq_table = load_freq_table(freq_table=et.trace.unique_nodes[root_name][et.position_type],
-                                          low_memory=et.low_memory)
+        if et.trace.match_mismatch:
+            root_freq_table = (load_freq_table(freq_table=et.trace.unique_nodes[root_name]['match'],
+                                               low_memory=et.low_memory) +
+                               load_freq_table(freq_table=et.trace.unique_nodes[root_name]['mismatch'],
+                                               low_memory=et.low_memory))
+        else:
+            root_freq_table = load_freq_table(freq_table=et.trace.unique_nodes[root_name][et.position_type],
+                                              low_memory=et.low_memory)
         for ind in et_df.index:
             if et.position_type == 'single':
                 position = et_df.loc[ind, 'Position'] - 1
@@ -390,7 +421,8 @@ class TestEvoultionaryTrace(TestBase):
         et.perform_trace()
         expected_trace = Trace(alignment=et.non_gapped_aln, phylo_tree=et.phylo_tree, group_assignments=et.assignments,
                                position_specific=(position_type == 'single'), pair_specific=(position_type == 'pair'),
-                               output_dir=out_dir, low_memory=low_memory)
+                               output_dir=out_dir, low_memory=low_memory,
+                               match_mismatch=(scoring_metric == 'match_mismatch_entropy_angle'))
         self.assertEqual(et.trace.aln.query_id, expected_trace.aln.query_id)
         self.assertEqual(et.trace.aln.size, expected_trace.aln.size)
         self.assertEqual(et.trace.aln.seq_length, expected_trace.aln.seq_length)
@@ -442,42 +474,67 @@ class TestEvoultionaryTrace(TestBase):
             self.assertTrue(node_name in et.trace.unique_nodes)
             if 'sub-alignments' in output_files:
                 self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
-            self.assertTrue('single' in et.trace.unique_nodes[node_name])
-            self.assertTrue('single' in expected_trace.unique_nodes[node_name])
-            if position_type == 'single':
-                expected_single_table = expected_trace.unique_nodes[node_name]['single']
-                single_table = et.trace.unique_nodes[node_name]['single']
-                if low_memory:
-                    expected_single_table = load_freq_table(freq_table=expected_single_table, low_memory=low_memory)
-                    single_table = load_freq_table(freq_table=single_table, low_memory=low_memory)
-                expected_single_array = expected_single_table.get_table().toarray()
-                single_array = single_table.get_table().toarray()
-                single_diff = single_array - expected_single_array
-                self.assertFalse(single_diff.any())
+            if et.trace.match_mismatch:
+                self.assertTrue('match' in et.trace.unique_nodes[node_name])
+                self.assertTrue('match' in expected_trace.unique_nodes[node_name])
+                self.assertTrue('mismatch' in et.trace.unique_nodes[node_name])
+                self.assertTrue('mismatch' in expected_trace.unique_nodes[node_name])
+                expected_m_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['match'],
+                                                   low_memory=low_memory)
+                single_m_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['match'],
+                                                 low_memory=low_memory)
+                sparse_diff_m = expected_m_table.get_table() - single_m_table.get_table()
+                nonzero_check_m = sparse_diff_m.count_nonzero() > 0
+                self.assertFalse(nonzero_check_m)
+                expected_mm_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['mismatch'],
+                                                    low_memory=low_memory)
+                single_mm_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['mismatch'],
+                                                  low_memory=low_memory)
+                sparse_diff_mm = expected_mm_table.get_table() - single_mm_table.get_table()
+                nonzero_check_mm = sparse_diff_mm.count_nonzero() > 0
+                self.assertFalse(nonzero_check_mm)
                 if 'frequency_tables' in output_files:
-                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
-                                                                '{}_position_freq_table.tsv'.format(node_name))))
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        unique_dir, '{}_position_match_freq_table.tsv'.format(node_name))))
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        unique_dir, '{}_position_mismatch_freq_table.tsv'.format(node_name))))
             else:
-                self.assertIsNone(expected_trace.unique_nodes[node_name]['single'])
-                self.assertIsNone(et.trace.unique_nodes[node_name]['single'])
-            self.assertTrue('pair' in expected_trace.unique_nodes[node_name])
-            self.assertTrue('pair' in et.trace.unique_nodes[node_name])
-            if position_type == 'pair':
-                expected_pair_table = expected_trace.unique_nodes[node_name]['pair']
-                pair_table = et.trace.unique_nodes[node_name]['pair']
-                if low_memory:
-                    expected_pair_table = load_freq_table(freq_table=expected_pair_table, low_memory=low_memory)
-                    pair_table = load_freq_table(freq_table=pair_table, low_memory=low_memory)
-                expected_pair_array = expected_pair_table.get_table().toarray()
-                pair_array = pair_table.get_table().toarray()
-                pair_diff = pair_array - expected_pair_array
-                self.assertFalse(pair_diff.any())
-                if 'frequency_tables' in output_files:
-                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
-                                                                '{}_pair_freq_table.tsv'.format(node_name))))
-            else:
-                self.assertIsNone(expected_trace.unique_nodes[node_name]['pair'])
-                self.assertIsNone(et.trace.unique_nodes[node_name]['pair'])
+                self.assertTrue('single' in et.trace.unique_nodes[node_name])
+                self.assertTrue('single' in expected_trace.unique_nodes[node_name])
+                if position_type == 'single':
+                    expected_single_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['single'],
+                                                            low_memory=low_memory)
+                    single_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['single'],
+                                                   low_memory=low_memory)
+                    expected_single_array = expected_single_table.get_table()
+                    single_array = single_table.get_table()
+                    sparse_diff = single_array - expected_single_array
+                    nonzero_check = sparse_diff.count_nonzero() > 0
+                    self.assertFalse(nonzero_check)
+                    if 'frequency_tables' in output_files:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                    '{}_position_freq_table.tsv'.format(node_name))))
+                else:
+                    self.assertIsNone(expected_trace.unique_nodes[node_name]['single'])
+                    self.assertIsNone(et.trace.unique_nodes[node_name]['single'])
+                self.assertTrue('pair' in expected_trace.unique_nodes[node_name])
+                self.assertTrue('pair' in et.trace.unique_nodes[node_name])
+                if position_type == 'pair':
+                    expected_pair_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['pair'],
+                                                          low_memory=low_memory)
+                    pair_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['pair'],
+                                                 low_memory=low_memory)
+                    expected_pair_array = expected_pair_table.get_table()
+                    pair_array = pair_table.get_table()
+                    sparse_diff = pair_array - expected_pair_array
+                    nonzero_check = sparse_diff.count_nonzero() > 0
+                    self.assertFalse(nonzero_check)
+                    if 'frequency_tables' in output_files:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                    '{}_pair_freq_table.tsv'.format(node_name))))
+                else:
+                    self.assertIsNone(expected_trace.unique_nodes[node_name]['pair'])
+                    self.assertIsNone(et.trace.unique_nodes[node_name]['pair'])
         expected_scorer = PositionalScorer(seq_length=et.non_gapped_aln.seq_length,
                                            pos_size=(1 if position_type == 'single' else 2), metric=scoring_metric)
         self.assertEqual(et.scorer.sequence_length, expected_scorer.sequence_length)
@@ -603,6 +660,22 @@ class TestEvoultionaryTrace(TestBase):
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
+    def test_3g_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3h_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
     def evaluate_calculate_scores(self, query_id, polymer_type, aln_fn, et_distance, distance_model,
                                   tree_building_method, tree_building_options, ranks, position_type, scoring_metric,
                                   gap_correction, out_dir, output_files, processors, low_memory):
@@ -688,7 +761,8 @@ class TestEvoultionaryTrace(TestBase):
         self.assertTrue(os.path.isfile(serial_fn))
         expected_trace = Trace(alignment=et.non_gapped_aln, phylo_tree=et.phylo_tree, group_assignments=et.assignments,
                                position_specific=(position_type == 'single'), pair_specific=(position_type == 'pair'),
-                               output_dir=out_dir, low_memory=low_memory)
+                               output_dir=out_dir, low_memory=low_memory,
+                               match_mismatch=(scoring_metric == 'match_mismatch_entropy_angle'))
         self.assertEqual(et.trace.aln.query_id, expected_trace.aln.query_id)
         self.assertEqual(et.trace.aln.size, expected_trace.aln.size)
         self.assertEqual(et.trace.aln.seq_length, expected_trace.aln.seq_length)
@@ -740,42 +814,63 @@ class TestEvoultionaryTrace(TestBase):
             self.assertTrue(node_name in et.trace.unique_nodes)
             if 'sub-alignments' in output_files:
                 self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
-            self.assertTrue('single' in et.trace.unique_nodes[node_name])
-            self.assertTrue('single' in expected_trace.unique_nodes[node_name])
-            if position_type == 'single':
-                expected_single_table = expected_trace.unique_nodes[node_name]['single']
-                single_table = et.trace.unique_nodes[node_name]['single']
-                if low_memory:
-                    expected_single_table = load_freq_table(freq_table=expected_single_table, low_memory=low_memory)
-                    single_table = load_freq_table(freq_table=single_table, low_memory=low_memory)
-                expected_single_array = expected_single_table.get_table().toarray()
-                single_array = single_table.get_table().toarray()
-                single_diff = single_array - expected_single_array
-                self.assertFalse(single_diff.any())
+            if et.trace.match_mismatch:
+                self.assertTrue('match' in et.trace.unique_nodes[node_name])
+                self.assertTrue('match' in expected_trace.unique_nodes[node_name])
+                self.assertTrue('mismatch' in et.trace.unique_nodes[node_name])
+                self.assertTrue('mismatch' in expected_trace.unique_nodes[node_name])
+                expected_m_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['match'],
+                                                   low_memory=low_memory)
+                single_m_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['match'],
+                                                 low_memory=low_memory)
+                sparse_diff_m = expected_m_table.get_table() - single_m_table.get_table()
+                nonzero_check_m = sparse_diff_m.count_nonzero() > 0
+                self.assertFalse(nonzero_check_m)
+                expected_mm_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['mismatch'],
+                                                    low_memory=low_memory)
+                single_mm_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['mismatch'],
+                                                  low_memory=low_memory)
+                sparse_diff_mm = expected_mm_table.get_table() - single_mm_table.get_table()
+                nonzero_check_mm = sparse_diff_mm.count_nonzero() > 0
+                self.assertFalse(nonzero_check_mm)
                 if 'frequency_tables' in output_files:
-                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
-                                                                '{}_position_freq_table.tsv'.format(node_name))))
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        unique_dir, '{}_position_match_freq_table.tsv'.format(node_name))))
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        unique_dir, '{}_position_mismatch_freq_table.tsv'.format(node_name))))
             else:
-                self.assertIsNone(expected_trace.unique_nodes[node_name]['single'])
-                self.assertIsNone(et.trace.unique_nodes[node_name]['single'])
-            self.assertTrue('pair' in expected_trace.unique_nodes[node_name])
-            self.assertTrue('pair' in et.trace.unique_nodes[node_name])
-            if position_type == 'pair':
-                expected_pair_table = expected_trace.unique_nodes[node_name]['pair']
-                pair_table = et.trace.unique_nodes[node_name]['pair']
-                if low_memory:
-                    expected_pair_table = load_freq_table(freq_table=expected_pair_table, low_memory=low_memory)
-                    pair_table = load_freq_table(freq_table=pair_table, low_memory=low_memory)
-                expected_pair_array = expected_pair_table.get_table().toarray()
-                pair_array = pair_table.get_table().toarray()
-                pair_diff = pair_array - expected_pair_array
-                self.assertFalse(pair_diff.any())
-                if 'frequency_tables' in output_files:
-                    self.assertTrue(os.path.isfile(os.path.join(unique_dir,
-                                                                '{}_pair_freq_table.tsv'.format(node_name))))
-            else:
-                self.assertIsNone(expected_trace.unique_nodes[node_name]['pair'])
-                self.assertIsNone(et.trace.unique_nodes[node_name]['pair'])
+                self.assertTrue('single' in et.trace.unique_nodes[node_name])
+                self.assertTrue('single' in expected_trace.unique_nodes[node_name])
+                self.assertTrue('pair' in expected_trace.unique_nodes[node_name])
+                self.assertTrue('pair' in et.trace.unique_nodes[node_name])
+                if position_type == 'single':
+                    expected_single_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['single'],
+                                                            low_memory=low_memory)
+                    single_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['single'],
+                                                   low_memory=low_memory)
+                    sparse_diff = expected_single_table.get_table() - single_table.get_table()
+                    nonzero_check = sparse_diff.count_nonzero() > 0
+                    self.assertFalse(nonzero_check)
+                    if 'frequency_tables' in output_files:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                    '{}_position_freq_table.tsv'.format(node_name))))
+                else:
+                    self.assertIsNone(expected_trace.unique_nodes[node_name]['single'])
+                    self.assertIsNone(et.trace.unique_nodes[node_name]['single'])
+                if position_type == 'pair':
+                    expected_pair_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['pair'], low_memory=low_memory)
+                    pair_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['pair'], low_memory=low_memory)
+                    expected_pair_array = expected_pair_table.get_table()
+                    pair_array = pair_table.get_table()
+                    sparse_diff = expected_pair_table.get_table() - pair_table.get_table()
+                    nonzero_check = sparse_diff.count_nonzero() > 0
+                    self.assertFalse(nonzero_check)
+                    if 'frequency_tables' in output_files:
+                        self.assertTrue(os.path.isfile(os.path.join(unique_dir,
+                                                                    '{}_pair_freq_table.tsv'.format(node_name))))
+                else:
+                    self.assertIsNone(expected_trace.unique_nodes[node_name]['pair'])
+                    self.assertIsNone(et.trace.unique_nodes[node_name]['pair'])
         expected_scorer = PositionalScorer(seq_length=et.non_gapped_aln.seq_length,
                                            pos_size=(1 if position_type == 'single' else 2), metric=scoring_metric)
         self.assertEqual(et.scorer.sequence_length, expected_scorer.sequence_length)
@@ -898,6 +993,22 @@ class TestEvoultionaryTrace(TestBase):
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='pair', scoring_metric='filtered_average_product_corrected_mutual_information',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4g_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4h_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
