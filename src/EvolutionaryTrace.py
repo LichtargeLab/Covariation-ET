@@ -19,7 +19,6 @@ from matplotlib.gridspec import GridSpec
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Predictor import Predictor
-from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.Trace import Trace, load_freq_table
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
@@ -342,17 +341,19 @@ class EvolutionaryTrace(Predictor):
         print('Full visualization took {} sec.'.format(end - start))
 
 
-def init_var_pool(aln, frequence_table):
+def init_var_pool(aln, frequency_table):
     """
     Initialize Variability Pool
 
     Args:
         aln (SeqAlignment): The root level SeqAlignment (gaps removed for the query sequence) for the trace which is
         being written to file.
+        frequency_table (FrequencyTable): The root level FrequencyTable (combined if using match/mismatch analysis) for
+        the trace being written to file (will be used to identify the variation at each position).
     """
     global var_aln, freq_table
     var_aln = aln
-    freq_table = frequence_table
+    freq_table = frequency_table
 
 
 def get_var_pool(pos):
@@ -373,28 +374,23 @@ def get_var_pool(pos):
     if len(pos) not in [1, 2]:
         raise ValueError('Only single positions or pairs of positions accepted at this time.')
     pos_i = int(pos[0])
-    # col_i = list(var_aln.alignment[:, pos_i])
     query_i = var_aln.query_sequence[pos_i]
     if len(pos) == 1:
         pos_final = (pos_i, )
         query_final = (query_i, )
-        # col_final = list(set(col_i))
         col_final = freq_table.get_chars(pos=pos_i)
     else:
         pos_j = int(pos[1])
-        # col_j = list(var_aln.alignment[:, pos_j])
         query_j = var_aln.query_sequence[pos_j]
         pos_final = (pos_i, pos_j)
         query_final = (query_i, query_j)
-        # col_final = list(set(i + j for i, j in zip(col_i, col_j)))
         col_final = freq_table.get_chars(pos=pos)
     character_str = ','.join(sorted(col_final))
     character_count = len(col_final)
     return pos_final, query_final, character_str, character_count
 
 
-def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, coverages, precision=3, processors=1): # ,
-                        # low_memory=False):
+def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores, coverages, precision=3, processors=1):
     """
     Write Out Evolutionary Trace Scores
 
@@ -404,7 +400,7 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         file_name (str): The name to write the results to.
         out_dir (str): The directory to write the results file to.
         aln (SeqAlignment): The non-gapped sequence alignment used to perform the trace which is being written out.
-        freq_table (FrequencyTable): The characterization of the root node of the phylogenetic tree (full alignment).
+        frequency_table (FrequencyTable): The characterization of the root node of the phylogenetic tree (full alignment).
         ranks (np.array): The ranking of each position analyzed in the trace.
         scores (np.array): The score for each position analyzed in the trace.
         coverages (np.array): The coverage for each position analyzed in the trace.
@@ -413,22 +409,19 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         processors (int): If pairs of residues were scored in the trace being written to file, then this will be the
         size of the multiprocessing pool used to speed up the slowest step (retrieving characters at each position to
         describe its variability).
-        low_memory (bool): Whether the low memory option was used while producing these results (required for loading
-        the frequency table if necessary).
     """
     full_path = os.path.join(out_dir, file_name)
     if os.path.isfile(full_path):
         print('Evolutionary Trace analysis with the same parameters already saved to this location.')
         return
     start = time()
-    # freq_table = load_freq_table(freq_table=freq_table, low_memory=low_memory)
-    if freq_table.position_size not in [1, 2]:
+    if frequency_table.position_size not in [1, 2]:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
     scoring_dict = {}
     columns = []
     # Define indices for writing
-    if freq_table.position_size == 1:
+    if frequency_table.position_size == 1:
         indices = np.r_[0:aln.seq_length]
         total = len(indices)
     else:
@@ -454,8 +447,8 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
         var_pbar.update(1)
         var_pbar.refresh()
 
-    pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln, freq_table))
-    if freq_table.position_size == 1:
+    pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln, frequency_table))
+    if frequency_table.position_size == 1:
         for x in indices:
             pool.apply_async(get_var_pool, ((int(x),),), callback=update_variation)
     else:
@@ -468,7 +461,7 @@ def write_out_et_scores(file_name, out_dir, aln, freq_table, ranks, scores, cove
     positions, queries, var_strings, var_counts = zip(*var_data)
     # Fill in the data dictionary for writing, starting with Position and Query data which differs for one and two
     # position traces.
-    if freq_table.position_size == 1:
+    if frequency_table.position_size == 1:
         scoring_dict['Position'] = list(indices + 1)
         scoring_dict['Query'] = [q[0] for q in queries]
         columns += ['Position', 'Query']
@@ -566,7 +559,7 @@ def parse_args():
                              "the specified position_type:\n\tsingle:\n\t\tidentity\n\t\tplain_entropy\n\tpair:\n\t\t"
                              "identity\n\t\tplain_entropy\n\t\tmutual_information\n\t\tnormalized_mutual_information"
                              "\n\t\taverage_product_corrected_mutual_information\n\t\t"
-                             "filtered_average_product_corrected_mutual_information")
+                             "filtered_average_product_corrected_mutual_information\n\t\tmatch_mismatch_entropy_angle")
     parser.add_argument('--gap_correction', metavar='G', type=float, default=None, nargs='?',
                         help="The fraction of rows in a column which should be a gap for a position to be correct. The"
                              "correction simply leads to that position being assigned the worst value found among all "
