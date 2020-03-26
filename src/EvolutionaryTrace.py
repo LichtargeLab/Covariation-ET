@@ -231,9 +231,8 @@ class EvolutionaryTrace(Predictor):
             self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
-                            freq_table=root_freq_table, ranks=self.rankings, scores=self.scores,
-                            coverages=self.coverages, precision=3, processors=self.processors) # ,
-                            # low_memory=self.low_memory)
+                            frequency_table=root_freq_table, ranks=self.rankings, scores=self.scores,
+                            coverages=self.coverages, precision=3, processors=self.processors)
 
     def calculate_scores(self):
         """
@@ -375,16 +374,24 @@ def get_var_pool(pos):
         raise ValueError('Only single positions or pairs of positions accepted at this time.')
     pos_i = int(pos[0])
     query_i = var_aln.query_sequence[pos_i]
+    col_i = list(var_aln.alignment[:, pos_i])
     if len(pos) == 1:
         pos_final = (pos_i, )
         query_final = (query_i, )
-        col_final = freq_table.get_chars(pos=pos_i)
+        if len(list(freq_table.mapping.keys())[0]) == len(pos):
+            col_final = list(set(col_i))
+        else:
+            col_final = freq_table.get_chars(pos=pos_i)
     else:
         pos_j = int(pos[1])
         query_j = var_aln.query_sequence[pos_j]
+        col_j = list(var_aln.alignment[:, pos_j])
         pos_final = (pos_i, pos_j)
         query_final = (query_i, query_j)
-        col_final = freq_table.get_chars(pos=pos)
+        if len(list(freq_table.mapping.keys())[0]) == len(pos):
+            col_final = list(set(i + j for i, j in zip(col_i, col_j)))
+        else:
+            col_final = freq_table.get_chars(pos=pos)
     character_str = ','.join(sorted(col_final))
     character_count = len(col_final)
     return pos_final, query_final, character_str, character_count
