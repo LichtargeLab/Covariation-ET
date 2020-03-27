@@ -325,12 +325,21 @@ class Trace(object):
                                                   pos_size=pos_size)
         match_mismatch_table.identify_matches_mismatches()
         visited = {}
+        components = False
         to_characterize = []
         for r in sorted(self.assignments.keys(), reverse=True):
             for g in self.assignments[r]:
                 node = self.assignments[r][g]['node']
-                to_characterize.append((node.name,))
-                visited[node.name] = {'terminals': self.assignments[r][g]['terminals']}
+                if not components:
+                    to_characterize.append((node.name, 'component'))
+                elif node.name not in visited:
+                    to_characterize.append((node.name, 'inner'))
+                else:
+                    continue
+                visited[node.name] = {'terminals': self.assignments[r][g]['terminals'],
+                                      'descendants': self.assignments[r][g]['descendants']}
+            if not components:
+                components = True
         characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
 
         def update_characterization(return_name):
@@ -851,7 +860,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     write_freq_table = write_out_freq_table
 
 
-def characterization_mm(node_name):
+def characterization_mm(node_name, node_type):
     """
     Characterization Match Mismatch
 
@@ -869,6 +878,9 @@ def characterization_mm(node_name):
         if the low memory option is being used. It will also be used to identify which sequences contribute to the node
         (to generate the sub alignment). Finally, the node name is used to store the characterization into a single
         structure which will be returned at the end of processing.
+        node_type (str): Accepted values are 'component' or 'inner'. A component will be processed from scratch while an
+        inner node will be processed by retrieving the frequency tables of previously characterized nodes and adding
+        them up, as well as characterizing the section not previously covered by those nodes.
     Return:
         node_name (str): The node name is returned to keep track of which node has been most recently processed (in the
         multiprocessing context).
@@ -900,19 +912,67 @@ def characterization_mm(node_name):
         depth = 1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0)
         tables['match'].set_depth(depth)
         tables['mismatch'] = deepcopy(tables['match'])
-        for pos in tables['match'].get_positions():
-            char_dict = {'match': {}, 'mismatch': {}}
-            for i in range(sub_aln.size):
-                s1 = aln.seq_order.index(sub_aln.seq_order[i])
-                for j in range(i+1, sub_aln.size):
-                    s2 = aln.seq_order.index(sub_aln.seq_order[j])
-                    status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
-                    if char not in char_dict[status]:
-                        char_dict[status][char] = 0
-                    char_dict[status][char] += 1
-            for m in char_dict:
-                for char in char_dict[m]:
-                    tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+        if node_type == 'component':
+            for pos in tables['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for i in range(sub_aln.size):
+                    s1 = aln.seq_order.index(sub_aln.seq_order[i])
+                    for j in range(i+1, sub_aln.size):
+                        s2 = aln.seq_order.index(sub_aln.seq_order[j])
+                        status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                        if char not in char_dict[status]:
+                            char_dict[status][char] = 0
+                        char_dict[status][char] += 1
+                for m in char_dict:
+                    for char in char_dict[m]:
+                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+        elif node_type == 'inner':
+            # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
+            # descendants, then retrieve its descendants' characterizations and merge all to get the parent
+            # characterization.
+            descendants = set()
+            terminal_indices = []
+            for d in comps[node_name]['descendants']:
+                descendants.add(d.name)
+                curr_indices = [aln.seq_order.index(t) for t in comps[d.name]['terminals']]
+                terminal_indices.append(curr_indices)
+            print('Len descendants: ', len(descendants))
+            print('Len terminal indices: ', len(terminal_indices))
+            for pos in tables['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for r1 in terminal_indices[0]:
+                    for r2 in terminal_indices[1]:
+                        first, second = (r1, r2) if r1 < r2 else (r2, r1)
+                        status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
+                        if char not in char_dict[status]:
+                            char_dict[status][char] = 0
+                        char_dict[status][char] += 1
+                for m in char_dict:
+                    for char in char_dict[m]:
+                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+            # tries = 0
+            components = []
+            while len(descendants) > 0:
+                descendant = descendants.pop()
+                # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
+                # the dictionary (i.e. another process is still characterizing that descendant), until all are
+                # successfully retrieved.
+                try:
+                    component = freq_tables[descendant]
+                    components.append(component)
+                except KeyError:
+                    descendants.add(descendant)
+                    sleep(sleep_time)
+            # Merge the descendants' FrequencyTable(s) to generate the one for this node.
+            for i in range(len(components)):
+                for m in tables:
+                    curr_pos_table = load_freq_table(components[i][m], low_memory=low_mem)
+                    tables[m] += curr_pos_table
+            for m in tables:
+                # Since addition of FrequencyTable objects leads to
+                tables[m].set_depth(1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0))
+        else:
+            raise ValueError("node_type must be either 'component' or 'inner'.")
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
         for m in tables:
             tables[m].finalize_table()
