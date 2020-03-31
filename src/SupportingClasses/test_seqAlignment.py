@@ -48,10 +48,11 @@ class TestSeqAlignment(TestBase):
             alphabet=Gapped(cls.query_aln_fa_small.alphabet))
         cls.pair_letter_size, _, cls.pair_letter_mapping, cls.pair_letter_reverse = build_mapping(
             alphabet=MultiPositionAlphabet(alphabet=Gapped(cls.query_aln_fa_small.alphabet), size=2))
-        cls.single_to_pair = {}
+        cls.single_to_pair = np.zeros((max(cls.single_letter_mapping.values()) + 1,
+                                       max(cls.single_letter_mapping.values()) + 1))
         for char in cls.pair_letter_mapping:
-            key = (cls.single_letter_mapping[char[0]], cls.single_letter_mapping[char[1]])
-            cls.single_to_pair[key] = cls.pair_letter_mapping[char]
+            cls.single_to_pair[cls.single_letter_mapping[char[0]],
+                               cls.single_letter_mapping[char[1]]] = cls.pair_letter_mapping[char]
 
     def tearDown(self):
         try:
