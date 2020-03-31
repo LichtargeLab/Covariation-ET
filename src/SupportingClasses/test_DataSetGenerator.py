@@ -127,7 +127,7 @@ class TestDataSetGenerator(TestCase):
                 rmtree(os.path.join(self.input_path, fn))
         test_generator = DataSetGenerator(input_path=self.input_path)
         test_generator.build_pdb_alignment_dataset(protein_list_fn=self.protein_list_fn, processes=self.max_threads,
-                                                   max_target_seqs=self.max_target_seqs)
+                                                   max_target_seqs=self.max_target_seqs, sources=['UNP', 'GB', 'PDB'])
         self.assertTrue(self.small_structure_id in test_generator.protein_data)
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['Chain'], 'A')
         self.assertEqual(test_generator.protein_data[self.small_structure_id]['PDB'], self.expected_pdb_fn_small)
@@ -225,7 +225,7 @@ class TestDataSetGenerator(TestCase):
             self.test4a_pdb_processing_download_pdb()
         seq_small, len_small, seq_fn_small, chain_small, unp_small = parse_query_sequence(
             protein_id=self.small_structure_id, chain_id='A', sequence_path=self.sequence_path,
-            pdb_fn=self.expected_pdb_fn_small)
+            pdb_fn=self.expected_pdb_fn_small, sources=['UNP', 'GB', 'PDB'])
         self.assertTrue(os.path.isdir(self.sequence_path))
         self.assertEqual(str(self.small_query_seq_uniprot.seq), str(seq_small.seq))
         self.assertEqual(len_small, len(seq_small))
@@ -247,7 +247,7 @@ class TestDataSetGenerator(TestCase):
     def test4c_pdb_processing(self):
         test_lock = Lock()
         init_pdb_processing_pool(pdb_path=self.pdb_path, sequence_path=self.sequence_path, lock=test_lock,
-                                 verbose=False)
+                                 sources=['UNP', 'GB', 'PDB'], verbose=False)
         p_id, p_data = pdb_processing(in_tuple=(self.small_structure_id, 'A'))
         self.assertEqual(p_id, self.small_structure_id)
         self.assertEqual(p_data['PDB'], self.expected_pdb_fn_small)
@@ -261,7 +261,7 @@ class TestDataSetGenerator(TestCase):
     def test4d_pdb_processing(self):
         test_lock = Lock()
         init_pdb_processing_pool(pdb_path=self.pdb_path, sequence_path=self.sequence_path, lock=test_lock,
-                                 verbose=False)
+                                 sources=['UNP', 'GB', 'PDB'], verbose=False)
         p_id, p_data = pdb_processing(in_tuple=(self.large_structure_id, 'A'))
         self.assertEqual(p_id, self.large_structure_id)
         self.assertEqual(p_data['PDB'], self.expected_pdb_fn_large)
