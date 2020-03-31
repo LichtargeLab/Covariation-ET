@@ -29,7 +29,7 @@ def build_mapping(alphabet, skip_letters=None):
         present in the returned set).
         dict: Dictionary mapping a character to a number corresponding to its position in the alphabet and/or in the
         scoring/substitution matrix.
-        dict: Dictionary mapping a number to character such that the character can be decoded from a position in an
+        np.array: Array mapping a number to character such that the character can be decoded from a position in an
         array or table built based on the alphabet.
     """
     if isinstance(alphabet, Alphabet) or isinstance(alphabet, Gapped):
@@ -53,7 +53,7 @@ def build_mapping(alphabet, skip_letters=None):
     curr_gaps = curr_gaps - set(letters)
     gap_map = {char: alphabet_size for char in curr_gaps}
     alpha_map.update(gap_map)
-    reverse_map = {value: char for char, value in alpha_map.items() if value < alphabet_size}
+    reverse_map = np.array(list(letters))
     return alphabet_size, curr_gaps, alpha_map, reverse_map
 
 
@@ -65,6 +65,8 @@ def convert_seq_to_numeric(seq, mapping):
 
     Args:
         seq (Bio.Seq|Bio.SeqRecord|str): A protein or DNA sequence.
+        mapping (dict): A dictionary mapping a character to its position in the alphabet (can be produced using
+        build_mapping).
     Return:
         numpy.array: A 1D array containing the numerical representation of the passed in sequence.
     """

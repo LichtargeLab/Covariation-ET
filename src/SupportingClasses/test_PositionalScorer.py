@@ -5,17 +5,21 @@ Created on July 12, 2019
 """
 import unittest
 import numpy as np
+from copy import deepcopy
 from Bio.Alphabet import Gapped
 from test_Base import TestBase
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
+from FrequencyTable import FrequencyTable
 from PhylogeneticTree import PhylogeneticTree
+from MatchMismatchTable import MatchMismatchTable
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 from PositionalScorer import (PositionalScorer, rank_integer_value_score, rank_real_value_score, group_identity_score,
                               group_plain_entropy_score, mutual_information_computation, group_mutual_information_score,
                               group_normalized_mutual_information_score, average_product_correction,
-                              filtered_average_product_correction)
+                              filtered_average_product_correction, angle_computation, group_match_mismatch_entropy_angle)
+from Trace import init_characterization_mm_pool, characterization_mm
 
 
 class TestPositionalScorer(TestBase):
@@ -32,6 +36,13 @@ class TestPositionalScorer(TestBase):
         for char in cls.pair_mapping:
             key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]])
             cls.single_to_pair[key] = cls.pair_mapping[char]
+        cls.quad_alphabet = MultiPositionAlphabet(alphabet=cls.single_alphabet, size=4)
+        cls.quad_size, _, cls.quad_mapping, cls.quad_reverse = build_mapping(alphabet=cls.quad_alphabet)
+        cls.single_to_quad = {}
+        for char in cls.quad_mapping:
+            key = (cls.single_mapping[char[0]], cls.single_mapping[char[1]], cls.single_mapping[char[2]],
+                   cls.single_mapping[char[3]])
+            cls.single_to_quad[key] = cls.quad_mapping[char]
 
         cls.query_aln_fa_small = SeqAlignment(
             file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
@@ -65,86 +76,116 @@ class TestPositionalScorer(TestBase):
                 cls.first_parents[parent.name]['pair'] = (cls.terminals[parent.clades[0].name]['pair'] +
                                                           cls.terminals[parent.clades[1].name]['pair'])
         cls.seq_len = cls.query_aln_fa_small.seq_length
+        cls.mm_table = MatchMismatchTable(seq_len=cls.query_aln_fa_small.seq_length,
+                                          num_aln=cls.query_aln_fa_small._alignment_to_num(cls.single_mapping),
+                                          single_alphabet_size=cls.single_size, single_mapping=cls.single_mapping,
+                                          single_reverse_mapping=cls.single_reverse, larger_alphabet_size=cls.quad_size,
+                                          larger_alphabet_mapping=cls.quad_mapping,
+                                          larger_alphabet_reverse_mapping=cls.quad_reverse,
+                                          single_to_larger_mapping=cls.single_to_quad, pos_size=2)
+        cls.mm_table.identify_matches_mismatches()
+        for x in cls.terminals:
+            cls.terminals[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=cls.quad_mapping,
+                                                       reverse_mapping=cls.quad_reverse,
+                                                       seq_len=cls.query_aln_fa_small.seq_length, pos_size=2)
+            cls.terminals[x]['match'].mapping = cls.quad_mapping
+            cls.terminals[x]['match'].set_depth(1)
+            cls.terminals[x]['mismatch'] = deepcopy(cls.terminals[x]['match'])
+            for pos in cls.terminals[x]['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for i in range(cls.terminals[x]['aln'].size):
+                    s1 = cls.query_aln_fa_small.seq_order.index(cls.terminals[x]['aln'].seq_order[i])
+                    for j in range(i + 1, cls.terminals[x]['aln'].size):
+                        s2 = cls.query_aln_fa_small.seq_order.index(cls.terminals[x]['aln'].seq_order[j])
+                        status, char = cls.mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                        if char not in char_dict[status]:
+                            char_dict[status][char] = 0
+                        char_dict[status][char] += 1
+                for m in char_dict:
+                    for char in char_dict[m]:
+                        cls.terminals[x][m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
+            for m in ['match', 'mismatch']:
+                cls.terminals[x][m].finalize_table()
+        for x in cls.first_parents:
+            cls.first_parents[x]['match'] = FrequencyTable(alphabet_size=cls.quad_size, mapping=cls.quad_mapping,
+                                                           reverse_mapping=cls.quad_reverse,
+                                                           seq_len=cls.query_aln_fa_small.seq_length, pos_size=2)
+            cls.first_parents[x]['match'].mapping = cls.quad_mapping
+            cls.first_parents[x]['match'].set_depth(((cls.first_parents[x]['aln'].size**2) -
+                                                     cls.first_parents[x]['aln'].size) / 2.0)
+            cls.first_parents[x]['mismatch'] = deepcopy(cls.first_parents[x]['match'])
+            for pos in cls.first_parents[x]['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for i in range(cls.first_parents[x]['aln'].size):
+                    s1 = cls.query_aln_fa_small.seq_order.index(cls.first_parents[x]['aln'].seq_order[i])
+                    for j in range(i + 1, cls.first_parents[x]['aln'].size):
+                        s2 = cls.query_aln_fa_small.seq_order.index(cls.first_parents[x]['aln'].seq_order[j])
+                        status, char = cls.mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                        if char not in char_dict[status]:
+                            char_dict[status][char] = 0
+                        char_dict[status][char] += 1
+                for m in char_dict:
+                    for char in char_dict[m]:
+                        cls.first_parents[x][m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
+            for m in ['match', 'mismatch']:
+                cls.first_parents[x][m].finalize_table()
+
+    def evaluate__init(self, seq_len, pos_size, metric, metric_type, rank_type):
+        if metric == 'fake':
+            with self.assertRaises(ValueError):
+                PositionalScorer(seq_length=seq_len, pos_size=pos_size, metric=metric)
+        else:
+            pos_scorer = PositionalScorer(seq_length=seq_len, pos_size=pos_size, metric=metric)
+            self.assertEqual(pos_scorer.sequence_length, seq_len)
+            self.assertEqual(pos_scorer.position_size, pos_size)
+            if pos_size == 1:
+                self.assertEqual(pos_scorer.dimensions, (seq_len,))
+            else:
+                self.assertEqual(pos_scorer.dimensions, (seq_len, seq_len))
+            self.assertEqual(pos_scorer.metric, metric)
+            self.assertEqual(pos_scorer.metric_type, metric_type)
+            self.assertEqual(pos_scorer.rank_type, rank_type)
 
     def test1a_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='identity')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 1)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
-        self.assertEqual(pos_scorer.metric, 'identity')
-        self.assertEqual(pos_scorer.metric_type, 'integer')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='identity', metric_type='integer', rank_type='min')
 
     def test1b_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='identity')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'identity')
-        self.assertEqual(pos_scorer.metric_type, 'integer')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='identity', metric_type='integer', rank_type='min')
 
     def test1c_init(self):
-        with self.assertRaises(ValueError):
-            PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='fake')
-        with self.assertRaises(ValueError):
-            PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='fake')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='fake', metric_type='integer', rank_type='min')
 
     def test1d_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric='plain_entropy')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 1)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len,))
-        self.assertEqual(pos_scorer.metric, 'plain_entropy')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='fake', metric_type='integer', rank_type='min')
 
     def test1e_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='plain_entropy')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'plain_entropy')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'min')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=1, metric='plain_entropy', metric_type='real',
+                            rank_type='min')
 
     def test1f_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='plain_entropy', metric_type='real',
+                            rank_type='min')
 
     def test1g_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='normalized_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'normalized_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='mutual_information', metric_type='real',
+                            rank_type='max')
 
     def test1h_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
-                                      metric='average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='normalized_mutual_information',
+                            metric_type='real', rank_type='max')
 
     def test1i_init(self):
-        pos_scorer = PositionalScorer(seq_length=self.seq_len, pos_size=2,
-                                      metric='filtered_average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.sequence_length, self.seq_len)
-        self.assertEqual(pos_scorer.position_size, 2)
-        self.assertEqual(pos_scorer.dimensions, (self.seq_len, self.seq_len))
-        self.assertEqual(pos_scorer.metric, 'filtered_average_product_corrected_mutual_information')
-        self.assertEqual(pos_scorer.metric_type, 'real')
-        self.assertEqual(pos_scorer.rank_type, 'max')
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='average_product_corrected_mutual_information',
+                            metric_type='real', rank_type='max')
+
+    def test1j_init(self):
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2,
+                            metric='filtered_average_product_corrected_mutual_information',
+                            metric_type='real', rank_type='max')
+
+    def test1k_init(self):
+        self.evaluate__init(seq_len=self.seq_len, pos_size=2, metric='match_mismatch_entropy_angle', metric_type='real',
+                            rank_type='min')
 
     def evaluate_score_group_ambiguous(self, node_dict, metric):
         pos_scorer_single = PositionalScorer(seq_length=self.seq_len, pos_size=1, metric=metric)
@@ -282,6 +323,23 @@ class TestPositionalScorer(TestBase):
     def test2j_score_group(self):
         # Score group using average product correction mutual information metric parents
         self.evaluate_score_group_average_product_corrected_mi(node_dict=self.first_parents)
+
+    def evaluate_score_group_angle(self, node_dict):
+        pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='match_mismatch_entropy_angle')
+        dim_pair = (self.seq_len, self.seq_len)
+        for x in node_dict:
+            freq_table_dict = {'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}
+            group_pair_scores = pos_scorer_pair.score_group(freq_table=freq_table_dict)
+            pair_scores = group_match_mismatch_entropy_angle(freq_tables=freq_table_dict, dimensions=dim_pair)
+            for i in range(node_dict[x]['aln'].seq_length):
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
+
+    def test2k_score_group_angle(self):
+        self.evaluate_score_group_angle(node_dict=self.terminals)
+
+    def test2l_score_group_angle(self):
+        self.evaluate_score_group_angle(node_dict=self.first_parents)
 
     def evaluate_score_rank_ambiguous(self, node_dict, metric, single=True, pair=True):
         group_scores_single = []
@@ -664,6 +722,73 @@ class TestPositionalScorer(TestBase):
 
     def test11d_heuristic_average_product_correction(self):
         self.evaluate_filtered_average_product_correction(node_dict=self.first_parents)
+
+    def evaluate_angle_computation(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            observed_angles = angle_computation(match_table=expected_match_entropy,
+                                                mismatch_table=expected_mismatch_entropy)
+            expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
+                                                 axis=0)
+            expected_sin_ratio = np.zeros(expected_match_entropy.shape)
+            sin_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_sin_ratio[sin_indices] = expected_mismatch_entropy[sin_indices] / expected_hypotenuse[sin_indices]
+            expected_sin_ratio[expected_match_entropy == 0] = np.sin(90.0)
+            expected_sin_ratio[expected_mismatch_entropy == 0] = np.sin(0.0)
+            expected_sin_angle = np.arcsin(expected_sin_ratio)
+            sin_diff = observed_angles - expected_sin_angle
+            self.assertFalse(sin_diff.any())
+            cos_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_cos_ratio = np.zeros(expected_match_entropy.shape)
+            expected_cos_ratio[cos_indices] = expected_match_entropy[cos_indices] / expected_hypotenuse[cos_indices]
+            expected_cos_ratio[expected_match_entropy == 0.0] = np.cos(90.0)
+            expected_cos_ratio[expected_mismatch_entropy == 0] = np.cos(0.0)
+            expected_cos_angle = np.arccos(expected_cos_ratio)
+            cos_diff = observed_angles - expected_cos_angle
+            self.assertFalse(cos_diff.any())
+
+    def test12a_angle_computation(self):
+        self.evaluate_angle_computation(node_dict=self.terminals)
+
+    def test12b_angle_computation(self):
+        self.evaluate_angle_computation(node_dict=self.first_parents)
+
+    def evaluate_group_match_mismatch_entropy_angle(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            observed_angles = group_match_mismatch_entropy_angle(freq_tables={'match': node_dict[x]['match'],
+                                                                              'mismatch': node_dict[x]['mismatch']},
+                                                                 dimensions=dim_pair)
+            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
+                                                 axis=0)
+            expected_sin_ratio = np.zeros(expected_match_entropy.shape)
+            sin_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_sin_ratio[sin_indices] = expected_mismatch_entropy[sin_indices] / expected_hypotenuse[sin_indices]
+            expected_sin_ratio[expected_match_entropy == 0] = np.sin(90.0)
+            expected_sin_ratio[expected_mismatch_entropy == 0] = np.sin(0.0)
+            expected_sin_angle = np.arcsin(expected_sin_ratio)
+            sin_diff = observed_angles - expected_sin_angle
+            self.assertFalse(sin_diff.any())
+            cos_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
+            expected_cos_ratio = np.zeros(expected_match_entropy.shape)
+            expected_cos_ratio[cos_indices] = expected_match_entropy[cos_indices] / expected_hypotenuse[cos_indices]
+            expected_cos_ratio[expected_match_entropy == 0.0] = np.cos(90.0)
+            expected_cos_ratio[expected_mismatch_entropy == 0] = np.cos(0.0)
+            expected_cos_angle = np.arccos(expected_cos_ratio)
+            cos_diff = observed_angles - expected_cos_angle
+            self.assertFalse(cos_diff.any())
+
+    def test13a_group_match_mismatch_entropy_angle(self):
+        self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.terminals)
+
+    def test13b_group_match_mismatch_entropy_angle(self):
+        self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.first_parents)
 
 
 if __name__ == '__main__':

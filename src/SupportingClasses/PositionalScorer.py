@@ -10,7 +10,7 @@ integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information',
-                       'filtered_average_product_corrected_mutual_information'}
+                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_angle'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
 
@@ -18,9 +18,9 @@ single_only_metrics = set()
 
 pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
                      'average_product_corrected_mutual_information',
-                     'filtered_average_product_corrected_mutual_information'}
+                     'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_angle'}
 
-min_metrics = {'identity', 'plain_entropy'}
+min_metrics = {'identity', 'plain_entropy', 'match_mismatch_entropy_angle'}
 
 max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
                'filtered_average_product_corrected_mutual_information'}
@@ -35,12 +35,30 @@ class PositionalScorer(object):
         sequence_length (int): The length of the sequence being analysed.
         position_size (int): The size of the the positions being analyzed (expecting 1 single position scores or 2 pair
         position scores).
-        dimensions (tuple):
+        dimensions (tuple): The dimensions expected for the scoring arrays to be generated at the group and rank levels.
         metric (str): Which metric to use when computing group and rank level scores. Currently available metrics:
             identity: Whether a position is fully conserved within a group and across all groups (resulting in a score
             of 0), or not (resulting in a score of 1).
+            plain_entropy: Entropy score for a position in the alignment (0.0 means invariant while the higher the score
+            the more variable the position is).
+            mutual_information: Mutual information score for pairs of positions in the alignment (0.0 means invariant or
+            random while the higher the score the more covarying the position is).
+            normalized_mutual_information: Normalized mutual information score for pairs of positions in the alignment
+            (0.0 means invariant or random while the closer to 1.0 the score the more covarying the position is).
+            average_product_corrected_mutual_information: Mutual information score corrected with the APC for pairs of
+            positions in the alignment (the lower the value, it may become negative, the more invariant or random while
+            the higher the score the more covarying the position is).
+            filtered_average_product_corrected_mutual_information: Mutual information score corrected with the APC with
+            very low scores squashed to 0.0 for pairs of positions in the alignment (a score of 0.0 means the position
+            is invariant or random while the higher the score the more covarying the position is).
+            match_mismatch_entropy_angle: A new metric which measures the angle between a vector describing match
+            entropy (one axis) and mismatch entropy (a second axis). An angle of 0 corresponds to either fully invariant
+            or fully covarying positions while an angle of 90 corresponds to a randomly varying position.
         metric_type (str): Whether the metric provided is an integer or real valued metric. This is used to determine
         rank scoring.
+        rank_type (str): Whether the metric provided has its best score at its 'min' or 'max' (e.g. an identity of 0
+        is good, it corresponds to a invariance while 1 is bad and corresponds with variance, while for mutual
+        information a low score signifies lack of covariation while a high score corresponds to covariation.
     """
 
     def __init__(self, seq_length, pos_size, metric):
@@ -84,10 +102,13 @@ class PositionalScorer(object):
 
         This function is intended to generate a score vector/matrix/tensor for a single group. It does so by scoring
         each position characterized in a FrequencyTable and using those scores to fill in a properly dimensioned
-        vector/matrix/tensor.
+        vector/matrix/tensor. This function acts as a switch statement calling the proper scoring function on the input
+        to determine the desired scores.
 
         Args:
-            freq_table (FrequencyTable): The table characterizing the character counts at each position in an alignment.
+            freq_table (FrequencyTable/dict): The table characterizing the character counts at each position in an
+            alignment. If the match_mismatch_entropy_angle is being calculated then a dictionary should be provided
+            which contains the keys 'match' and 'mismatch' mapped to the appropriate FrequencyTables.
         Returns:
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
@@ -96,7 +117,8 @@ class PositionalScorer(object):
                              'mutual_information': group_mutual_information_score,
                              'normalized_mutual_information': group_normalized_mutual_information_score,
                              'average_product_corrected_mutual_information': group_mutual_information_score,
-                             'filtered_average_product_corrected_mutual_information': group_mutual_information_score}
+                             'filtered_average_product_corrected_mutual_information': group_mutual_information_score,
+                             'match_mismatch_entropy_angle': group_match_mismatch_entropy_angle}
         scores = scoring_functions[self.metric](freq_table, self.dimensions)
         if self.metric == 'average_product_corrected_mutual_information':
             scores = average_product_correction(scores)
@@ -345,8 +367,7 @@ def average_product_correction(mutual_information_matrix):
         mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
         mutual information with average product correction.
     Returns:
-        np.array: An upper triangle matrix with mutual information with average product correction scores. If the
-        average over the
+        np.array: An upper triangle matrix with mutual information with average product correction scores.
     """
     if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
         raise ValueError('Mutual information matrix is expected to be square!')
@@ -383,7 +404,7 @@ def average_product_correction(mutual_information_matrix):
 
 def filtered_average_product_correction(mutual_information_matrix):
     """
-    Average Product Correction
+    Filtered Average Product Correction
 
     This function uses a mutual information matrix to calculate average product corrected mutual information. Average
     product correction includes division by the average mutual information of the unique off diagonal terms in the
@@ -392,7 +413,8 @@ def filtered_average_product_correction(mutual_information_matrix):
     mutual information scores should fall in the range between 0 and 1 and thus there should be no negatives which could
     cause a zero average while other positions are non-zero). If this check fails a ValueError will be raised. If the
     average is not zero then the rest of the average product correction is computed and applied to the mutual
-    information matrix in order to generate final scores.
+    information matrix in order to generate final scores. This function also a check for low mutual information values
+    (<0.001) and coerces all final scores for those positions to 0.0 as opposed to the average product corrected values.
 
     Args:
         mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
@@ -435,3 +457,78 @@ def filtered_average_product_correction(mutual_information_matrix):
         positions = mutual_information_matrix <= 0.0001
         apc_corrected[positions] = 0.0
     return apc_corrected
+
+
+def angle_computation(match_table, mismatch_table):
+    """
+    Angle Computation
+
+    This function accepts matrices of values for match and mismatches and computes the angle between the vector
+    described by the match/mismatch values (from the match y axis). This is achieved using the formula:
+
+    theta = arctan(mismatch / match)
+
+    Two special cases are handled by this computation. If the match values is 0.0 (resulting in a divide by 0 warning)
+    for a given position, then the only signal must come from the mismatches meaning that the vector is a running
+    parallel to the x-axis so pi/2.0 or 90 degrees is returned. If the mismatch value is 0.0 (or is also 0.0) the value
+    returned is an angle of 0.0 because the position must not have mismatches, or be one of two edge cases where there
+    are either 2 or 1 sequences.
+
+    Arguments:
+        match_table (np.array): The match values for each position being scored in a given group (e.g. entropy).
+        mismatch_table (np.array): The mismatch values for each position being scored in a given group (e.g. entropy).
+    Returns:
+        np.array: The angle computed between the match and mismatch values.
+    """
+    ratio = np.zeros(match_table.shape)
+    div_by_0 = match_table == 0.0
+    ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
+    ratio[div_by_0] = np.tan(np.pi / 2.0)
+    both_0 = div_by_0 & (mismatch_table == 0.0)
+    ratio[both_0] = np.tan(0.0)
+    angles = np.arctan(ratio)
+    return angles
+
+
+def group_match_mismatch_entropy_angle(freq_tables, dimensions):
+    """
+    Group Match Mismatch Entropy Angle
+
+    This function computes the angle that each position in a group is from the optimal invariant or covariant signal. An
+    angle of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
+    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
+    Returns:
+        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
+        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
+        corresponding to closeness to the mismatch axis.
+    """
+    match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
+    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    angles = angle_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+    return angles
+
+
+# def diversity_computation(freq_table, dimensions):
+#     entropies = group_plain_entropy_score(feq_table=freq_table, dimensions=dimensions)
+#     diversities = np.exp(entropies)
+#     return diversities
+
+
+# def match_diversity_mismatch_entropy_angle(match_freq_table, mismatch_freq_table, dimensions):
+#     match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
+#     mismatch_entropy = group_plain_entropy_score(freq_table=mismatch_freq_table, dimensions=dimensions)
+#     angles = angle_computation(match_table=match_diversity, mismatch_table=mismatch_entropy)
+#     return angles
+#
+#
+# def match_mismatch_diversity_angle(match_freq_table, mismatch_freq_table, dimensions):
+#     match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
+#     mismatch_diversity = diversity_computation(freq_table=mismatch_freq_table, dimensions=dimensions)
+#     angles = angle_computation(match_table=match_diversity, mismatch_table=mismatch_diversity)
+#     return angles
