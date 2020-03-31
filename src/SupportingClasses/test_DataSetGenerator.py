@@ -235,7 +235,7 @@ class TestDataSetGenerator(TestCase):
         self.assertTrue(unp_small in {'P00703', 'LYSC_MELGA'})
         seq_large, len_large, seq_fn_large, chain_large, unp_large = parse_query_sequence(
             protein_id=self.large_structure_id, chain_id='A', sequence_path=self.sequence_path,
-            pdb_fn=self.expected_pdb_fn_large)
+            pdb_fn=self.expected_pdb_fn_large, sources=['UNP', 'GB', 'PDB'])
         self.assertTrue(os.path.isdir(self.sequence_path))
         self.assertEqual(str(self.large_query_seq_uniprot.seq), str(seq_large.seq))
         self.assertEqual(len_large, len(seq_large))
