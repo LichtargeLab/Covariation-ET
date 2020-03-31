@@ -98,7 +98,7 @@ class DataSetGenerator(object):
 
     def build_pdb_alignment_dataset(self, protein_list_fn, processes=1, max_target_seqs=2500, e_value_threshold=0.05,
                                     database='customuniref90.fasta', remote=False, min_fraction=0.7, min_identity=0.40,
-                                    max_identity=0.98, msf=True, fasta=True, verbose=False):
+                                    max_identity=0.98, msf=True, fasta=True, sources=['PDB'], verbose=False):
         """
         Build Dataset
 
@@ -118,6 +118,9 @@ class DataSetGenerator(object):
             max_identity (float): The absolute maximum identity for a passing hit.
             msf (bool): Whether or not to create an msf version of the ClustalW alignment.
             fasta (bool): Whether or not to create an fasta version of the ClustalW alignment.
+            sources (list): A list of sources in order of preference, sequences will be parsed from sources in that
+            order until one is retrieved successfully. Current options are: 'UNP' for Swiss/Uniprot, 'GB' for GenBank,
+            and 'PDB' to use the sequence of the PDB being used the the specified chain.
             verbose (bool): Whether to write out information during processing.
         Return:
             pandas.DataFrame: Summary of sequence counts at the BLAST, filtered BLAST, and filtered alignment stages as
@@ -132,7 +135,7 @@ class DataSetGenerator(object):
         # Download the PDBs and parse out the query sequences.
         print('Downloading structures and parsing in query sequences')
         pool1 = Pool(processes, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
-                                                                                Lock(), verbose))
+                                                                                Lock(), sources, verbose))
         res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
         pool1.close()
         pool1.join()
@@ -259,7 +262,7 @@ def download_pdb(pdb_path, protein_id, verbose=False):
     return pdb_file
 
 
-def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=False):
+def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, verbose=False):
     """
     Parse Query Sequence
 
@@ -277,6 +280,9 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
         chain_id (str/char): A single letter code for the chain to be extracted.
         sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
         pdb_fn (str): The full path to the PDB from which the sequence should be extracted.
+        sources (list): A list of sources in order of preference, sequences will be parsed from sources in that order
+        until one is retrieved successfully. Current options are: 'UNP' for Swiss/Uniprot, 'GB' for GenBank, and 'PDB'
+        to use the sequence of the PDB being used the the specified chain.
         verbose (bool): Whether or not to write out warnings from PDB parsing.
     Returns:
         str: The sequence parsed from the PDB file of the specified protein id.
@@ -293,7 +299,7 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             print('Making dir: {}'.format(sequence_path))
         os.makedirs(sequence_path)
     protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
-    final_external_id = None
+    accession = None
     if os.path.isfile(protein_fasta_fn):
         if verbose:
             print('Loading query sequence from file: {}'.format(protein_fasta_fn))
@@ -303,102 +309,39 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, verbose=Fa
             sequence.alphabet = FullIUPACProtein()
             match = re.match(r'.*Target Query: Chain: ([A-Z])(: From ((UniProt)|(GenBank)) Accession: (.*))?$',
                              sequence.description)
-            inner_chain_id = match.group(1)
+            chain = match.group(1)
             try:
-                final_external_id = match.group(6)
+                accession = match.group(6)
             except IndexError:
-                final_external_id = None
+                accession = None
     else:
-        final_unp_id = None
-        final_gb_id = None
-        if verbose:
-            print('Parsing query sequence from file: {}'.format(pdb_fn))
-        # Parse the UniProt accession data out of the PDB file (if available)
-        chain_uniprot = {}
-        chain_genbank = {}
-        for record in parse(pdb_fn, 'pdb-seqres'):
-            for ref in record.dbxrefs:
-                xref_db, xref_acc = ref.split(':')
-                if xref_db == 'UNP':
-                    if record.annotations['chain'] not in chain_uniprot:
-                        chain_uniprot[record.annotations['chain']] = []
-                    chain_uniprot[record.annotations['chain']].append(xref_acc)
-                elif xref_db == 'GB':
-                    if record.annotations['chain'] not in chain_genbank:
-                        chain_genbank[record.annotations['chain']] = []
-                    chain_genbank[record.annotations['chain']].append(xref_acc)
-                else:
-                    continue
-        # Identify the UniProt id(s) for the specified chain or the first (alphabetically) available chain.
+        curr_pdb = PDBReference(pdb_file=pdb_fn)
+        curr_pdb.import_pdb(structure_id=protein_id)
+        accession = None
         seq = None
-        if chain_uniprot:
-            if (chain_id in chain_uniprot) and chain_uniprot[chain_id]:
-                unp_ids = chain_uniprot[chain_id]
-                inner_chain_id = chain_id
-            else:
-                inner_chain_id = sorted(chain_uniprot.keys())[0]
-                unp_ids = chain_uniprot[inner_chain_id]
-            # Attempt to retrieve the identified chain's sequence from Swiss/UniProt.
-            for unp_id in unp_ids:
-                try:
-                    handle = get_sprot_raw(unp_id)
-                except HTTPError:
-                    continue
-                try:
-                    print('TROUBLESHOOTING')
-                    print(unp_id)
-                    print(handle)
-                    record = spread(handle)
-                except ValueError:
-                    continue
-                final_unp_id = unp_id
-                final_external_id = unp_id
-                seq = record.sequence
-        # If there is no UniProt id(s) for the specified chain or the first (alphabetically) available chain but there
-        # are available GenBank id(s) try to identify one for this structure.
-        if (seq is None) and chain_genbank:
-            Entrez.email = os.environ.get('EMAIL')
-            if (chain_id in chain_genbank) and chain_genbank[chain_id]:
-                gb_ids = chain_genbank[chain_id]
-                inner_chain_id = chain_id
-            else:
-                inner_chain_id = sorted(chain_genbank.keys())[0]
-                gb_ids = chain_genbank[inner_chain_id]
-            for gb_id in gb_ids:
-                try:
-                    handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=gb_id)
-                except IOError:
-                    continue
-                try:
-                    record = read(handle, format='fasta')
-                except ValueError:
-                    continue
-                final_gb_id = gb_id
-                final_external_id = gb_id
-                seq = str(record.seq)
-        # If this fails, use the sequence from the PDB structure itself.
-        if seq is None:
-            pdb_struct = PDBReference(pdb_file=pdb_fn)
-            pdb_struct.import_pdb(structure_id=protein_id)
-            try:
-                seq = pdb_struct.seq[chain_id]
-                inner_chain_id = chain_id
-            except KeyError:
-                inner_chain_id = sorted(pdb_struct.seq.keys())
-                seq = pdb_struct.seq[inner_chain_id]
-        desc = ('Target Query: Chain: {}'.format(inner_chain_id) +
-                (': From UniProt Accession: {}'.format(final_unp_id) if final_unp_id else '') +
-                (': From GenBank Accession: {}'.format(final_gb_id) if final_gb_id else ''))
+        chain = None
+        source = None
+        remaining_chains = curr_pdb.chains.remove(chain_id)
+        for chain in [chain_id] + (list(sorted(curr_pdb.chains.remove(chain_id))) if remaining_chains else []):
+            for source in sources:
+                accession, seq = curr_pdb.get_sequence(chain=chain_id, source=source)
+                if seq:
+                    break
+            if seq:
+                break
+        desc = ('Target Query: Chain: {}'.format(chain) +
+                (': From UniProt Accession: {}'.format(accession) if source == 'UNP' else '') +
+                (': From GenBank Accession: {}'.format(accession) if source == 'GB' else ''))
         sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
         seq_records = [sequence]
         with open(protein_fasta_fn, 'w') as protein_fasta_handle:
             write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
     if verbose:
         print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn, inner_chain_id, final_external_id
+    return sequence, len(sequence), protein_fasta_fn, chain, accession
 
 
-def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
+def init_pdb_processing_pool(pdb_path, sequence_path, lock, sources, verbose):
     """
     Init PDB Processing Pool
 
@@ -409,6 +352,9 @@ def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
         sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
         lock (multiprocessing.Lock): A lock to control filesystem access while downloading PDBs since many folders need
         to be checked for and created.
+        sources (list): A list of sources in order of preference, sequences will be parsed from sources in that order
+        until one is retrieved successfully. Current options are: 'UNP' for Swiss/Uniprot, 'GB' for GenBank, and 'PDB'
+        to use the sequence of the PDB being used the the specified chain.
         verbose (bool): Whether or not to write out verbose output.
     """
     global pdb_dir
@@ -417,6 +363,8 @@ def init_pdb_processing_pool(pdb_path, sequence_path, lock, verbose):
     sequence_dir = sequence_path
     global fs_lock
     fs_lock = lock
+    global allowed_src
+    allowed_src = sources
     global verbose_out
     verbose_out = verbose
 
@@ -451,7 +399,7 @@ def pdb_processing(in_tuple):
     else:
         seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
                                                                      sequence_path=sequence_dir, pdb_fn=pdb_fn,
-                                                                     verbose=verbose_out)
+                                                                     sources=allowed_src, verbose=verbose_out)
     data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
             'Accession': ext_id}
     return protein_id, data
