@@ -26,6 +26,8 @@ class TestAlignmentDistanceCalculator(TestBase):
             file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
             query_id=cls.small_structure_id)
         cls.query_aln_fa_small.import_alignment()
+        cls.out_small_dir = os.path.join(cls.testing_dir, cls.small_structure_id)
+        cls.out_large_dir = os.path.join(cls.testing_dir, cls.large_structure_id)
 
     def setUp(self):
         self.query_aln_fa_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
@@ -238,11 +240,8 @@ class TestAlignmentDistanceCalculator(TestBase):
         # large blosum62
         self.evaluate_get_distance(model='blosum62', aln=self.query_aln_fa_large.alignment)
 
-    def evaluate_get_et_distance(self, query_id, aln_fn, aln, processes):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', query_id, 'intET')
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(query=query_id, aln_file=aln_fn, out_dir=wetc_test_dir)
+    def evaluate_get_et_distance(self, query_id, aln_fn, aln, processes, out_dir):
+        et_mip_obj = ETMIPWrapper(query=query_id, aln_file=aln_fn, out_dir=out_dir)
         et_mip_obj.calculate_scores(method='intET', delete_files=False)
         aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(prefix='etc_out_intET')
         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
@@ -266,19 +265,23 @@ class TestAlignmentDistanceCalculator(TestBase):
 
     def test10a_get_et_distance_small(self):
         self.evaluate_get_et_distance(query_id=self.small_structure_id, aln_fn=self.query_aln_fa_small.file_name,
-                                      aln=self.query_aln_fa_small.remove_gaps().alignment, processes=1)
+                                      aln=self.query_aln_fa_small.remove_gaps().alignment, processes=1,
+                                      out_dir=self.out_small_dir)
 
     def test10b_get_et_distance_small(self):
         self.evaluate_get_et_distance(query_id=self.small_structure_id, aln_fn=self.query_aln_fa_small.file_name,
-                                      aln=self.query_aln_fa_small.remove_gaps().alignment, processes=self.max_threads)
+                                      aln=self.query_aln_fa_small.remove_gaps().alignment, processes=self.max_threads,
+                                      out_dir=self.out_small_dir)
 
     def test10c_get_et_distance_small(self):
         self.evaluate_get_et_distance(query_id=self.large_structure_id, aln_fn=self.query_aln_fa_large.file_name,
-                                      aln=self.query_aln_fa_large.remove_gaps().alignment, processes=1)
+                                      aln=self.query_aln_fa_large.remove_gaps().alignment, processes=1,
+                                      out_dir=self.out_large_dir)
 
     def test10d_get_et_distance_small(self):
         self.evaluate_get_et_distance(query_id=self.large_structure_id, aln_fn=self.query_aln_fa_large.file_name,
-                                      aln=self.query_aln_fa_large.remove_gaps().alignment, processes=self.max_threads)
+                                      aln=self.query_aln_fa_large.remove_gaps().alignment, processes=self.max_threads,
+                                      out_dir=self.out_large_dir)
 
 
 if __name__ == '__main__':
