@@ -66,8 +66,6 @@ class TestMatchMismatchTable(TestBase):
         self.assertTrue((mm_table.larger_reverse_mapping == large_alpha_reverse).all())
         self.assertEqual(mm_table.single_to_larger_mapping, single_to_large)
         self.assertIsNone(mm_table.match_mismatch_tables)
-        self.assertIsNone(mm_table.match_freq_table)
-        self.assertIsNone(mm_table.mismatch_freq_table)
 
     def test1a_init(self):
         num_aln = self.query_aln_fa_small._alignment_to_num(mapping=self.single_mapping)
