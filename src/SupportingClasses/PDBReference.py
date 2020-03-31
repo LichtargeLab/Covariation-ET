@@ -42,6 +42,9 @@ class PDBReference(object):
         residue_pos (dict): A dictionary mapping chain identifier to another dictionary that maps residue number to the
         name of the residue (amino acid) at that position.
         size (dict): The length (dict value) of each amino acid chain (dict key) defining this structure.
+        external_seq (dict): A multi-level dictionary where the first level key is the source ('UNP' for Swiss/Uniprot
+        or 'GB' for GenBank), and the second level key is the chain identifier while its value is a tuple where the
+        first position is the accession identifier and the second value is the amino acid sequence.
     """
 
     def __init__(self, pdb_file):
