@@ -4,11 +4,24 @@ Created on Aug 17, 2017
 @author: daniel
 """
 import os
+import re
 import pickle
 from time import time
+from urllib.error import HTTPError
+from Bio import Entrez
+from Bio.SeqIO import parse, read
+# This tool no longer works correctly so I have written my own regular expression based parser for amino acid sequences
+# from Swiss/Uniprot.
+# from Bio.SwissProt import read as sp_read
+from Bio.ExPASy import get_sprot_raw
 from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.Polypeptide import three_to_one
-from Bio.PDB.Polypeptide import is_aa
+from Bio.PDB.Polypeptide import three_to_one, is_aa
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
 
 
 class PDBReference(object):
@@ -49,6 +62,7 @@ class PDBReference(object):
         self.pdb_residue_list = None
         self.residue_pos = None
         self.size = None
+        self.external_seq = None
 
     def import_pdb(self, structure_id, save_file=None):
         """
@@ -96,3 +110,176 @@ class PDBReference(object):
         self.size = {chain: len(seq[chain]) for chain in self.chains}
         end = time()
         print('Importing the PDB file took {} min'.format((end - start) / 60.0))
+
+    @staticmethod
+    def _parse_external_sequence_accessions(pdb_fn):
+        """
+        Parse External Sequence Accessions
+
+        This function parses the PDB file again looking for external sequence accession identifiers. At the moment only
+        Swiss/Uniprot and GenBank accessions are identified.
+
+        Argument:
+            pdb_fn (str/path): The path to the PDB file to parse.
+        Return:
+            dict: A two tiered dictionary where the first level key is the source, and the second level dictionary has
+            chain identifiers as the keys and a list of identifiers as the values.
+        """
+        external_accessions = {}
+        for record in parse(pdb_fn, 'pdb-seqres'):
+            for ref in record.dbxrefs:
+                xref_db, xref_acc = ref.split(':')
+                if xref_db == 'UNP':
+                    if 'UNP' not in external_accessions:
+                        external_accessions['UNP'] = {}
+                    if record.annotations['chain'] not in external_accessions['UNP']:
+                        external_accessions['UNP'][record.annotations['chain']] = []
+                    external_accessions['UNP'][record.annotations['chain']].append(xref_acc)
+                elif xref_db == 'GB':
+                    if 'GB' not in external_accessions:
+                        external_accessions['GB'] = {}
+                    if record.annotations['chain'] not in external_accessions['GB']:
+                        external_accessions['GB'][record.annotations['chain']] = []
+                    external_accessions['GB'][record.annotations['chain']].append(xref_acc)
+                else:
+                    continue
+        return external_accessions
+
+    @staticmethod
+    def _parse_uniprot_handle(handle):
+        """
+        Parse Uniprot Handle
+
+        This method parses an amino acid sequence from a Swiss/Uniprot reference page.
+
+        Argument:
+            handle (IO Text Stream): A handle to a Swiss/Uniprot online reference for a given accession value.
+        Return:
+            str: The amino acid sequence retrieved from that reference.
+        """
+        data = handle.read()
+        pattern = re.compile(r'.*SQ\s+SEQUENCE\s+\d+\s+AA;\s+\d+\s+MW;\s+[A-Z|\d]+\s+[A-Z|\d]+;\s+([A-Z|\s]+)\s+\/\/')
+        seq = pattern.search(data).group(1)
+        final_seq = re.sub(r'\s+', r'', seq)
+        return final_seq
+
+    @staticmethod
+    def _retrieve_uniprot_seq(accessions):
+        """
+        Retrieve Uniprot Sequence
+
+        This method iterates over a list of Swiss/Uniprot accession ids and returns the first amino acid sequence which
+        it can successfully parse from the corresponding records.
+
+        Argument:
+            accessions (list): A list of Swiss/Uniprot accession ids.
+        Return:
+            str: The accession identifier to which the returned sequence belongs.
+            str: The sequence of the first accession identifier that is successfully parsed.
+        """
+        record = None
+        accession = None
+        for accession in accessions:
+            try:
+                handle = get_sprot_raw(accession)
+            except HTTPError:
+                print('HTTPError on: {}'.format(accession))
+                continue
+            try:
+                record = PDBReference._parse_uniprot_handle(handle=handle)
+            except AttributeError:
+                print('No data returned for accession: {} with handle: {}'.format(accession, handle))
+                continue
+            if record:
+                break
+        # If no sequence could be successfully parsed, reset the accession id.
+        if record is None:
+            accession = None
+        return accession, record
+
+    @staticmethod
+    def _retrieve_genbank_seq(accessions):
+        """
+        Retrieve GenBank Sequence
+
+        This method iterates over a list of GenBank accession ids and returns the first amino acid sequence which
+        it can successfully parse from the corresponding records.
+
+        Argument:
+            accessions (list): A list of GenBank accession ids.
+        Return:
+            str: The accession identifier to which the returned sequence belongs.
+            str: The sequence of the first accession identifier that is successfully parsed.
+        """
+        record = None
+        accession = None
+        Entrez.email = os.environ.get('EMAIL')
+        for accession in accessions:
+            try:
+                handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
+            except IOError:
+                continue
+            try:
+                record = read(handle, format='fasta').seq
+            except ValueError:
+                continue
+            if record:
+                break
+        if record is None:
+            accession = None
+        return accession, record
+
+    def _parse_external_sequences(self):
+        """
+        Parse External Sequences
+
+        This method parses external sequences from the provided PDB file using any Swiss/Uniprot or GenBank identifiers
+        found in the file.
+
+        Return:
+            dict: A two level dictionary where the first level keys are the source (i.e. whether the sequence comes from
+            UNP, Swiss/Uniprot, or GB, GenBank) and the second level keys are chain identifiers which map to a set of
+            tuples with the first identifier which could be parsed and its corresponding amino acid sequence.
+        """
+        retrieval_methods = {'UNP': self._retrieve_uniprot_seq, 'GB': self._retrieve_genbank_seq}
+        external_accessions = self._parse_external_sequence_accessions(pdb_fn=self.file_name)
+        external_seqs = {}
+        for source in external_accessions:
+            external_seqs[source] = {}
+            for chain in external_accessions[source]:
+                external_seqs[source][chain] = retrieval_methods[source](accessions=external_accessions[source][chain])
+        return external_seqs
+
+    def get_sequence(self, chain, source='PDB'):
+        """
+        Get Sequence
+
+        This method returns the sequence for a given chain from the specified source if available, if not available,
+        None is returned.
+
+        Arguments:
+            chain (str): The chain identifier for which the sequence should be returned.
+            source (str): The name of the source to use to retrieve the chain sequence from. If PDB is specified then
+            the amino acid sequence of the chain in the structure is returned. If UNP or GB are specified then the
+            sequence for the appropriate Swiss/Uniprot or GenBank (respectively) accession identifiers are returned.
+        Return:
+             str/None: The identifier for the given chain from the specified source if one could be parsed, or None
+             otherwise.
+             str/None: The sequence for the given chain from the specified source if available, or None otherwise.
+        """
+        sequence = None
+        identifier = None
+        if source == 'PDB':
+            if self.seq is None:
+                raise AttributeError('Source PDB cannot be accessed if import_pdb has not been called.')
+            sequence = self.seq[chain]
+            identifier = self.structure.id
+        elif source in {'UNP', 'GB'}:
+            if self.external_seq is None:
+                self.external_seq = self._parse_external_sequences()
+            if source in self.external_seq:
+                if chain in self.external_seq[source]:
+                    identifier, sequence = self.external_seq[source][chain]
+        else:
+            raise ValueError('Expected sources are PDB, UNP, or GB.')
+        return identifier, sequence
