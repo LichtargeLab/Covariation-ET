@@ -266,15 +266,14 @@ class TestTrace(TestBase):
                     for r2 in range(r + 1, max(assign.keys()) + 1):
                         for g2 in assign[r2]:
                             if assign[r2][g2]['node'].name in descendants_to_find:
-                                # to_characterize.append((assign[r2][g2]['node'].name, 'component'))
-                                to_characterize.append((assign[r2][g2]['node'].name,))
+                                to_characterize.append((assign[r2][g2]['node'].name, 'component'))
                                 visited[assign[r2][g2]['node'].name] = {'terminals': assign[r2][g2]['terminals'],
                                                                         'descendants': assign[r2][g2]['descendants']}
                                 searching -= 1
                         if searching == 0:
                             break
                 if found_query:
-                    to_characterize.append((node.name,))
+                    to_characterize.append((node.name, 'inner'))
                     visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                           'descendants': assign[r][g]['descendants']}
                     break

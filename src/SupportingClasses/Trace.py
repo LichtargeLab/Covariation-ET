@@ -102,7 +102,7 @@ class Trace(object):
         if self.pair_specific:
             pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
             pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
-            single_to_pair = np.zeros((len(set(single_mapping.values())), len(set(single_mapping.values()))))
+            single_to_pair = np.zeros((max(single_mapping.values()) + 1, max(single_mapping.values()) + 1))
             for char in pair_mapping:
                 single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
         else:
@@ -838,7 +838,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
     """
     global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, mm_table, aln, p_size, p_type, t_type, comps,\
-        freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table
+        freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time
     s_size = single_size
     s_map = single_mapping
     s_rev = single_reverse
@@ -858,6 +858,11 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     low_mem = low_memory
     write_sub_aln = write_out_sub_aln
     write_freq_table = write_out_freq_table
+    # Sleep time to use for inner nodes which are not in the lowest rank of the tree being characterized. If a component
+    # of the node being characterized is missing this time will be used as the wait time before attempting to get the
+    # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
+    # single node.
+    sleep_time = 0.1
 
 
 def characterization_mm(node_name, node_type):
@@ -926,6 +931,8 @@ def characterization_mm(node_name, node_type):
                 for m in char_dict:
                     for char in char_dict[m]:
                         tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+            for m in tables:
+                tables[m].finalize_table()
         elif node_type == 'inner':
             # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
             # descendants, then retrieve its descendants' characterizations and merge all to get the parent
@@ -935,21 +942,22 @@ def characterization_mm(node_name, node_type):
             for d in comps[node_name]['descendants']:
                 descendants.add(d.name)
                 curr_indices = [aln.seq_order.index(t) for t in comps[d.name]['terminals']]
+                for pos in tables['match'].get_positions():
+                    char_dict = {'match': {}, 'mismatch': {}}
+                    for prev_indices in terminal_indices:
+                        for r1 in prev_indices:
+                            for r2 in curr_indices:
+                                first, second = (r1, r2) if r1 < r2 else (r2, r1)
+                                status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
+                                if char not in char_dict[status]:
+                                    char_dict[status][char] = 0
+                                char_dict[status][char] += 1
+                    for m in char_dict:
+                        for char in char_dict[m]:
+                            tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
                 terminal_indices.append(curr_indices)
-            print('Len descendants: ', len(descendants))
-            print('Len terminal indices: ', len(terminal_indices))
-            for pos in tables['match'].get_positions():
-                char_dict = {'match': {}, 'mismatch': {}}
-                for r1 in terminal_indices[0]:
-                    for r2 in terminal_indices[1]:
-                        first, second = (r1, r2) if r1 < r2 else (r2, r1)
-                        status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
-                        if char not in char_dict[status]:
-                            char_dict[status][char] = 0
-                        char_dict[status][char] += 1
-                for m in char_dict:
-                    for char in char_dict[m]:
-                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+            for m in tables:
+                tables[m].finalize_table()
             # tries = 0
             components = []
             while len(descendants) > 0:
@@ -975,7 +983,6 @@ def characterization_mm(node_name, node_type):
             raise ValueError("node_type must be either 'component' or 'inner'.")
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
         for m in tables:
-            tables[m].finalize_table()
             if write_freq_table:
                 tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, m)))
             tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
