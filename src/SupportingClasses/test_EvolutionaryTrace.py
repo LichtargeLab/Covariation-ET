@@ -253,7 +253,7 @@ class TestEvoultionaryTrace(TestBase):
                 self.assertTrue('node' in expected_assignments[rank][group])
                 self.assertTrue('node' in et.assignments[rank][group])
                 self.check_nodes(expected_assignments[rank][group]['node'],
-                                                 et.assignments[rank][group]['node'])
+                                 et.assignments[rank][group]['node'])
                 self.assertTrue('terminals' in expected_assignments[rank][group])
                 self.assertTrue('terminals' in et.assignments[rank][group])
                 self.assertEqual(expected_assignments[rank][group]['terminals'],
@@ -350,7 +350,8 @@ class TestEvoultionaryTrace(TestBase):
             self.assertTrue('Query_i' in et_df.columns)
             self.assertTrue('Query_j' in et_df.columns)
         else:
-            raise ValueError('Cannot evaluate EvolutionaryTrace instance with position_type: {}'.format(et.position_type))
+            raise ValueError('Cannot evaluate EvolutionaryTrace instance with position_type: {}'.format(
+                et.position_type))
         root_name = et.assignments[1][1]['node'].name
         if et.trace.match_mismatch:
             root_freq_table = (load_freq_table(freq_table=et.trace.unique_nodes[root_name]['match'],
@@ -366,8 +367,9 @@ class TestEvoultionaryTrace(TestBase):
                 expected_query = et.non_gapped_aln.query_sequence[position]
                 self.assertEqual(expected_query, et_df.loc[ind, 'Query'])
                 expected_characters = root_freq_table.get_chars(pos=position)
-                self.assertEqual(len(expected_characters),
-                                 et_df.loc[ind, 'Variability_Count'], (len(expected_characters), et_df.loc[ind, 'Variability_Count'], set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
+                self.assertEqual(len(expected_characters), et_df.loc[ind, 'Variability_Count'],
+                                 (len(expected_characters), et_df.loc[ind, 'Variability_Count'],
+                                  set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
                 self.assertEqual(set(expected_characters),
                                  set(et_df.loc[ind, 'Variability_Characters'].split(',')))
                 expected_rank = et.rankings[position]
@@ -387,8 +389,9 @@ class TestEvoultionaryTrace(TestBase):
                 expected_query_j = et.non_gapped_aln.query_sequence[pos_j]
                 self.assertEqual(expected_query_j, et_df.loc[ind, 'Query_j'])
                 expected_characters = root_freq_table.get_chars(pos=(pos_i, pos_j))
-                self.assertEqual(len(expected_characters),
-                                 et_df.loc[ind, 'Variability_Count'], (len(expected_characters), et_df.loc[ind, 'Variability_Count'], set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
+                self.assertEqual(len(expected_characters), et_df.loc[ind, 'Variability_Count'],
+                                 (len(expected_characters), et_df.loc[ind, 'Variability_Count'],
+                                  set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
                 self.assertEqual(set(expected_characters),
                                  set(et_df.loc[ind, 'Variability_Characters'].split(',')))
                 expected_rank = et.rankings[pos_i, pos_j]
@@ -456,7 +459,7 @@ class TestEvoultionaryTrace(TestBase):
             self.assertEqual(len(et.assignments[rank]), len(expected_trace.assignments[rank]))
             for group in expected_trace.assignments[rank]:
                 self.check_nodes(et.assignments[rank][group]['node'],
-                                                 expected_trace.assignments[rank][group]['node'])
+                                 expected_trace.assignments[rank][group]['node'])
                 self.assertEqual(et.assignments[rank][group]['terminals'],
                                  expected_trace.assignments[rank][group]['terminals'])
                 self.assertEqual(et.assignments[rank][group]['descendants'],
@@ -1163,7 +1166,6 @@ class TestEvoultionaryTrace(TestBase):
         et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=out_dir)
         et_mip_obj.convert_alignment()
         et_mip_obj.calculate_scores(method='ET-MIp', delete_files=False)
-        gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
         et = EvolutionaryTrace(query=p_id, polymer_type='Protein', aln_file=filtered_fa_fn, et_distance=True,
                                distance_model='blosum62', tree_building_method='custom',
                                tree_building_options={'tree_path': os.path.join(out_dir, 'etc_out_ET-MIp.nhx')},
