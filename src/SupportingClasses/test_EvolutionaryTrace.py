@@ -858,10 +858,10 @@ class TestEvoultionaryTrace(TestBase):
                     self.assertIsNone(expected_trace.unique_nodes[node_name]['single'])
                     self.assertIsNone(et.trace.unique_nodes[node_name]['single'])
                 if position_type == 'pair':
-                    expected_pair_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['pair'], low_memory=low_memory)
-                    pair_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['pair'], low_memory=low_memory)
-                    expected_pair_array = expected_pair_table.get_table()
-                    pair_array = pair_table.get_table()
+                    expected_pair_table = load_freq_table(freq_table=expected_trace.unique_nodes[node_name]['pair'],
+                                                          low_memory=low_memory)
+                    pair_table = load_freq_table(freq_table=et.trace.unique_nodes[node_name]['pair'],
+                                                 low_memory=low_memory)
                     sparse_diff = expected_pair_table.get_table() - pair_table.get_table()
                     nonzero_check = sparse_diff.count_nonzero() > 0
                     self.assertFalse(nonzero_check)
@@ -1013,17 +1013,17 @@ class TestEvoultionaryTrace(TestBase):
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def evaluate_integer_et_comparison(self, p_id, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
-        rmtree(wetc_test_dir, ignore_errors=True)
-        os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+        out_dir = os.path.join(self.testing_dir, p_id)
+        rmtree(out_dir, ignore_errors=True)
+        os.makedirs(out_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=out_dir)
         et_mip_obj.convert_alignment()
         et_mip_obj.calculate_scores(method='intET', delete_files=False)
         et = EvolutionaryTrace(query=p_id, polymer_type='Protein', aln_file=fa_aln.file_name, et_distance=True,
                                distance_model='blosum62', tree_building_method='custom',
-                               tree_building_options={'tree_path': os.path.join(wetc_test_dir, 'etc_out_intET.nhx')},
+                               tree_building_options={'tree_path': os.path.join(out_dir, 'etc_out_intET.nhx')},
                                ranks=None, position_type='single', scoring_metric='identity', gap_correction=None,
-                               out_dir=wetc_test_dir, processors=self.max_threads, low_memory=low_mem,
+                               out_dir=out_dir, processors=self.max_threads, low_memory=low_mem,
                                output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
         et.calculate_scores()
         diff_ranks = et.scores - et_mip_obj.scores
@@ -1060,7 +1060,7 @@ class TestEvoultionaryTrace(TestBase):
             print(et_mip_obj.coverages[indices])
             print(diff_coverages2[indices])
         self.assertFalse(not_passing2.any())
-        rmtree(wetc_test_dir)
+        rmtree(out_dir)
 
     def test_5a_trace(self):
         # Compare the results of identity trace over single positions between this implementation and the WETC
@@ -1073,17 +1073,17 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_integer_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
 
     def evaluate_real_value_et_comparison(self, p_id, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
-        rmtree(wetc_test_dir, ignore_errors=True)
-        os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+        out_dir = os.path.join(self.testing_dir, p_id,)
+        rmtree(out_dir, ignore_errors=True)
+        os.makedirs(out_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=out_dir)
         et_mip_obj.convert_alignment()
         et_mip_obj.calculate_scores(method='rvET', delete_files=False)
         et = EvolutionaryTrace(query=p_id, polymer_type='Protein', aln_file=fa_aln.file_name, et_distance=True,
                                distance_model='blosum62', tree_building_method='custom',
-                               tree_building_options={'tree_path': os.path.join(wetc_test_dir, 'etc_out_rvET.nhx')},
+                               tree_building_options={'tree_path': os.path.join(out_dir, 'etc_out_rvET.nhx')},
                                ranks=None, position_type='single', scoring_metric='plain_entropy', gap_correction=0.6,
-                               out_dir=wetc_test_dir, processors=self.max_threads, low_memory=low_mem,
+                               out_dir=out_dir, processors=self.max_threads, low_memory=low_mem,
                                output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
         et.calculate_scores()
         diff_ranks = et.scores - et_mip_obj.scores
@@ -1131,7 +1131,7 @@ class TestEvoultionaryTrace(TestBase):
             print(et_mip_obj.coverage[indices])
             print(diff_coverages2[indices])
         self.assertFalse(not_passing2.any())
-        rmtree(wetc_test_dir)
+        rmtree(out_dir)
 
     def test_5c_trace(self):
         # Compare the results of plain entropy trace over single positions between this implementation and the WETC
@@ -1146,10 +1146,10 @@ class TestEvoultionaryTrace(TestBase):
                                                low_mem=True)
 
     def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
-        rmtree(wetc_test_dir, ignore_errors=True)
-        os.makedirs(wetc_test_dir)
-        filtered_fa_fn = os.path.join(wetc_test_dir, '{}_filtered_aln.fa'.format(p_id))
+        out_dir = os.path.join(self.testing_dir, p_id)
+        rmtree(out_dir, ignore_errors=True)
+        os.makedirs(out_dir)
+        filtered_fa_fn = os.path.join(out_dir, '{}_filtered_aln.fa'.format(p_id))
         if os.path.isfile(filtered_fa_fn):
             char_filtered_fa_aln = SeqAlignment(file_name=filtered_fa_fn, query_id=p_id)
             char_filtered_fa_aln.import_alignment()
@@ -1160,14 +1160,14 @@ class TestEvoultionaryTrace(TestBase):
             char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
             char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
             char_filtered_fa_aln.file_name = filtered_fa_fn
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=out_dir)
         et_mip_obj.convert_alignment()
         et_mip_obj.calculate_scores(method='ET-MIp', delete_files=False)
         gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
         et = EvolutionaryTrace(query=p_id, polymer_type='Protein', aln_file=filtered_fa_fn, et_distance=True,
                                distance_model='blosum62', tree_building_method='custom',
-                               tree_building_options={'tree_path': os.path.join(wetc_test_dir, 'etc_out_ET-MIp.nhx')},
-                               ranks=None, position_type='pair', gap_correction=None, out_dir=wetc_test_dir,
+                               tree_building_options={'tree_path': os.path.join(out_dir, 'etc_out_ET-MIp.nhx')},
+                               ranks=None, position_type='pair', gap_correction=None, out_dir=out_dir,
                                processors=self.max_threads, low_memory=low_mem,
                                output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
                                scoring_metric='filtered_average_product_corrected_mutual_information')
@@ -1216,7 +1216,7 @@ class TestEvoultionaryTrace(TestBase):
             self.assertLessEqual(np.sum(not_passing), np.ceil(0.01 * np.sum(range(fa_aln.seq_length - 1))))
         else:
             self.assertFalse(not_passing.any())
-        rmtree(wetc_test_dir)
+        rmtree(out_dir)
 
     def test_5e_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
