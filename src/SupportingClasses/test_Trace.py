@@ -1043,15 +1043,15 @@ class TestTrace(TestBase):
                             assignments=self.assignments_custom_large, single=True, pair=False, metric='identity',
                             low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
-    def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'intET')
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+    def evaluate_integer_et_comparison(self, p_id, msf_aln, fa_aln, low_mem, out_dir):
+        if os.path.isdir(out_dir):
+            rmtree(out_dir)
+        os.mkdir(out_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=out_dir)
         et_mip_obj.calculate_scores(method='intET', delete_files=False)
         trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
+                            pair_specific=False, output_dir=out_dir, low_memory=low_mem)
         trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
                                              write_out_freq_table=False)
         scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='identity')
@@ -1095,13 +1095,13 @@ class TestTrace(TestBase):
         # Compare the results of identity trace over single positions between this implementation and the WETC
         # implementation for the small alignment.
         self.evaluate_integer_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
-                                            fa_aln=self.query_aln_fa_small, low_mem=False)
+                                            fa_aln=self.query_aln_fa_small, low_mem=False, out_dir=self.out_small_dir)
 
     def test5d_trace(self):
         # Compare the results of identity trace over single positions between this implementation and the WETC
         # implementation for the large alignment.
         self.evaluate_integer_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-                                            fa_aln=self.query_aln_fa_large, low_mem=True)
+                                            fa_aln=self.query_aln_fa_large, low_mem=True, out_dir=self.out_large_dir)
 
     def test5e_trace(self):
         # Perform identity trace on pairs of positions only for the small alignment (custom ranks)
@@ -1131,15 +1131,15 @@ class TestTrace(TestBase):
                             assignments=self.assignments_custom_large, single=True, pair=False, metric='plain_entropy',
                             low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
-    def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'rvET')
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=wetc_test_dir)
+    def evaluate_real_value_et_comparison(self, p_id, msf_aln, fa_aln, low_mem, out_dir):
+        if os.path.isdir(out_dir):
+            rmtree(out_dir)
+        os.mkdir(out_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=fa_aln.file_name, out_dir=out_dir)
         et_mip_obj.calculate_scores(method='rvET', delete_files=False)
         trace_small = Trace(alignment=fa_aln, phylo_tree=et_mip_obj.tree,
                             group_assignments=et_mip_obj.rank_group_assignments, position_specific=True,
-                            pair_specific=False, output_dir=wetc_test_dir, low_memory=low_mem)
+                            pair_specific=False, output_dir=out_dir, low_memory=low_mem)
         trace_small.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
                                              write_out_freq_table=False)
         scorer = PositionalScorer(seq_length=fa_aln.seq_length, pos_size=1, metric='plain_entropy')
@@ -1195,13 +1195,15 @@ class TestTrace(TestBase):
         # Compare the results of plain entropy trace over single positions between this implementation and the WETC
         # implementation for the small alignment.
         self.evaluate_real_value_et_comparison(p_id=self.small_structure_id, msf_aln=self.query_aln_msf_small,
-                                               fa_aln=self.query_aln_fa_small, low_mem=False)
+                                               fa_aln=self.query_aln_fa_small, low_mem=False,
+                                               out_dir=self.out_small_dir)
 
     def test5j_trace(self):
         # Compare the results of identity trace over single positions between this implementation and the WETC
         # implementation for the large alignment.
         self.evaluate_real_value_et_comparison(p_id=self.large_structure_id, msf_aln=self.query_aln_msf_large,
-                                               fa_aln=self.query_aln_fa_large, low_mem=True)
+                                               fa_aln=self.query_aln_fa_large, low_mem=True,
+                                               out_dir=self.out_large_dir)
 
     def test5k_trace(self):
         # Perform plain entropy trace on pairs of positions only for the small alignment (custom ranks)
@@ -1285,11 +1287,10 @@ class TestTrace(TestBase):
                             metric='filtered_average_product_corrected_mutual_information',
                             low_mem=True, num_proc=self.max_threads, out_dir=self.out_large_dir)
 
-    def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem):
-        wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test', p_id, 'ET-MIp')
-        if not os.path.isdir(wetc_test_dir):
-            os.makedirs(wetc_test_dir)
-        filtered_fa_fn = os.path.join(wetc_test_dir, '{}_filtered_aln.fa'.format(p_id))
+    def evaluate_mip_et_comparison(self, p_id, fa_aln, low_mem, out_dir):
+        rmtree(out_dir, ignore_errors=True)
+        os.makedirs(out_dir)
+        filtered_fa_fn = os.path.join(out_dir, '{}_filtered_aln.fa'.format(p_id))
         if os.path.isfile(filtered_fa_fn):
             char_filtered_fa_aln = SeqAlignment(file_name=filtered_fa_fn, query_id=p_id)
             char_filtered_fa_aln.import_alignment()
@@ -1300,15 +1301,17 @@ class TestTrace(TestBase):
             char_filtered_fa_aln = curr_fa_aln.remove_bad_sequences()
             char_filtered_fa_aln.write_out_alignment(file_name=filtered_fa_fn)
             char_filtered_fa_aln.file_name = filtered_fa_fn
-        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=wetc_test_dir)
+        et_mip_obj = ETMIPWrapper(query=p_id, aln_file=filtered_fa_fn, out_dir=out_dir)
+        et_mip_obj.convert_alignment()
         et_mip_obj.calculate_scores(method='ET-MIp', delete_files=False)
-        gap_filtered_fa_aln = char_filtered_fa_aln.remove_gaps()
-        trace_mip = Trace(alignment=gap_filtered_fa_aln, phylo_tree=et_mip_obj.tree,
+        gap_filtered_aln = char_filtered_fa_aln.remove_gaps()
+        gap_filtered_aln.alphabet = FullIUPACProtein()
+        trace_mip = Trace(alignment=gap_filtered_aln, phylo_tree=et_mip_obj.tree,
                           group_assignments=et_mip_obj.rank_group_assignments, position_specific=False,
-                          pair_specific=True, output_dir=wetc_test_dir, low_memory=low_mem)
+                          pair_specific=True, output_dir=out_dir, low_memory=low_mem)
         trace_mip.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=False,
                                            write_out_freq_table=False)
-        scorer_mip = PositionalScorer(seq_length=gap_filtered_fa_aln.seq_length, pos_size=2,
+        scorer_mip = PositionalScorer(seq_length=gap_filtered_aln.seq_length, pos_size=2,
                                       metric='filtered_average_product_corrected_mutual_information')
         rank_mips, score_mips, coverage_mips = trace_mip.trace(scorer=scorer_mip, gap_correction=None,
                                                                processes=self.max_threads)
@@ -1345,6 +1348,10 @@ class TestTrace(TestBase):
             print(et_mip_obj.coverages)
             print(diff_coverages)
             indices = np.nonzero(not_passing)
+            for i in range(len(indices[0])):
+                print(indices[0][i], indices[1][i], et_mip_obj.coverages[indices[0][i], indices[1][i]],
+                      coverage_mips[indices[0][i], indices[1][i]], diff_coverages[indices[0][i], indices[1][i]],
+                      1e-2, np.abs(diff_coverages[indices[0][i], indices[1][i]]) > 1e-2)
             print(score_mips[indices])
             print(rank_mips[indices])
             print(np.sum(not_passing))
@@ -1352,16 +1359,19 @@ class TestTrace(TestBase):
             self.assertLessEqual(np.sum(not_passing), np.ceil(0.01 * np.sum(range(fa_aln.seq_length - 1))))
         else:
             self.assertFalse(not_passing.any())
+        rmtree(out_dir)
 
     def test5u_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
         # implementation and the WETC implementation for the small alignment.
-        self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False)
+        self.evaluate_mip_et_comparison(p_id=self.small_structure_id, fa_aln=self.query_aln_fa_small, low_mem=False,
+                                        out_dir=self.out_small_dir)
 
     def test5v_trace(self):
         # Compare the results of average product corrected mutual information over pairs of positions between this
         # implementation and the WETC implementation for the large alignment.
-        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True)
+        self.evaluate_mip_et_comparison(p_id=self.large_structure_id, fa_aln=self.query_aln_fa_large, low_mem=True,
+                                        out_dir=self.out_large_dir)
 
     def test5w_trace(self):
         # Test the small alignment for the computation of angles between the match and mismatch entropy but only
