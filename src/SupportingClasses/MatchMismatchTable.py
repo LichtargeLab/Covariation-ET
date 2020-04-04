@@ -120,105 +120,6 @@ class MatchMismatchTable(object):
         end = time()
         print('It took {} seconds to identify matches and mismatches.'.format(end - start))
 
-    # def _characterize_single_mm(self, match_table, mismatch_table):
-    #     for pos in self.match_mismatch_tables:
-    #         matches = self.match_mismatch_tables[pos] > 0
-    #         match_ind = np.nonzero(matches)
-    #         # match_counts = {}
-    #         for i in range(len(match_ind[0])):
-    #             pair = (self.num_aln[match_ind[0][i], pos], self.num_aln[match_ind[1][i], pos])
-    #             char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-    #             match_table._increment_count(pos=(pos1, pos2), char=char)
-    #         #     if char not in match_counts:
-    #         #         match_counts[char] = 0
-    #         #     match_counts[char] += 1
-    #         # for char in match_counts:
-    #         #     match_table._increment_count(pos=pos, char=char, amount=match_counts[char])
-    #         mismatches = self.match_mismatch_tables[pos] < 0
-    #         mismatch_ind = np.nonzero(mismatches)
-    #         # mismatch_counts = {}
-    #         for i in range(len(mismatch_ind[0])):
-    #             pair = (self.num_aln[mismatch_ind[0][i], pos], self.num_aln[mismatch_ind[1][i], pos])
-    #             char = self.larger_reverse_mapping[self.single_to_larger_mapping[pair]]
-    #             mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-    #         #     if char not in mismatch_counts:
-    #         #         mismatch_counts[char] = 0
-    #         #     mismatch_counts[char] += 1
-    #         # for char in mismatch_counts:
-    #         #     mismatch_table._increment_count(pos=pos, char=char, amount=mismatch_counts[char])
-    #
-    # def _characterize_pair_mm(self, match_table, mismatch_table):
-    #     for pos1 in range(self.seq_len):
-    #         # print('POS: ', pos1)
-    #         for pos2 in range(pos1 + 1, self.seq_len):
-    #             # print('Pos: {}, {}'.format(pos1, pos2))
-    #             matches1 = self.match_mismatch_tables[pos1] > 0
-    #             matches2 = self.match_mismatch_tables[pos2] > 0
-    #             mismatches1 = self.match_mismatch_tables[pos1] < 0
-    #             mismatches2 = self.match_mismatch_tables[pos2] < 0
-    #             matches = (matches1 * matches2) + (mismatches1 * mismatches2)
-    #             match_ind = np.nonzero(matches)
-    #             # match_counts = {}
-    #             for i in range(len(match_ind[0])):
-    #                 quad = (self.num_aln[match_ind[0][i], pos1], self.num_aln[match_ind[1][i], pos1],
-    #                         self.num_aln[match_ind[0][i], pos2], self.num_aln[match_ind[1][i], pos2])
-    #                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-    #                 match_table._increment_count(pos=(pos1, pos2), char=char)
-    #             #     if char not in match_counts:
-    #             #         match_counts[char] = 0
-    #             #     match_counts[char] += 1
-    #             # for char in match_counts:
-    #             #     match_table._increment_count(pos=(pos1, pos2), char=char, amount=match_counts[char])
-    #             mismatches = np.triu((1 - matches), k=1)
-    #             mismatch_ind = np.nonzero(mismatches)
-    #             # mismatch_counts = {}
-    #             for i in range(len(mismatch_ind[0])):
-    #                 quad = (self.num_aln[mismatch_ind[0][i], pos1], self.num_aln[mismatch_ind[1][i], pos1],
-    #                         self.num_aln[mismatch_ind[0][i], pos2], self.num_aln[mismatch_ind[1][i], pos2])
-    #                 char = self.larger_reverse_mapping[self.single_to_larger_mapping[quad]]
-    #                 mismatch_table._increment_count(pos=(pos1, pos2), char=char)
-    #             #     if char not in mismatch_counts:
-    #             #         mismatch_counts[char] = 0
-    #             #     mismatch_counts[char] += 1
-    #             # for char in mismatch_counts:
-    #             #     mismatch_table._increment_count(pos=(pos1, pos2), char=char, amount=mismatch_counts[char])
-    #
-    # def characterize_matches_mismatches(self):
-    #     start = time()
-    #     # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the first
-    #     # element of the mapping dictionary has the same size as the position since we are looking at something twice
-    #     # the size of the position (either pairs for single positions or quadruples for pairs of positions) this causes
-    #     # an error. Therefore I introduced this hack, to use a dummy dictionary to get through proper initialization,
-    #     # which does expose a vulnerability in the FrequencyTable class (the check could be more stringent) but it
-    #     # allows for this more flexible behavior.
-    #     dummy_dict = {('{0}' * self.pos_size).format(next(iter(self.single_mapping))): 0}
-    #     match_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
-    #                                  reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
-    #                                  pos_size=self.pos_size)
-    #     # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
-    #     match_table.mapping = self.larger_mapping
-    #     mismatch_table = FrequencyTable(alphabet_size=self.larger_alphabet_size, mapping=dummy_dict,
-    #                                     reverse_mapping=self.larger_reverse_mapping, seq_len=self.seq_len,
-    #                                     pos_size=self.pos_size)
-    #     # Completes the hack just described, providing the correct mapping table to replace the dummy table provided.
-    #     mismatch_table.mapping = self.larger_mapping
-    #     if self.pos_size == 1:
-    #         self._characterize_single_mm(match_table, mismatch_table)
-    #     elif self.pos_size == 2:
-    #         self._characterize_pair_mm(match_table, mismatch_table)
-    #     else:
-    #         raise ValueError('MatchMismatchTable.characterize_matches_mismtaches is only implemented for pos_size 1 or '
-    #                          '2 at this time!')
-    #     upper_triangle_count = ((self.seq_len**2) - self.seq_len) / 2.0
-    #     match_table.set_depth(int(upper_triangle_count))
-    #     mismatch_table.set_depth(int(upper_triangle_count))
-    #     match_table.finalize_table()
-    #     mismatch_table.finalize_table()
-    #     self.match_freq_table = match_table
-    #     self.mismatch_freq_table = mismatch_table
-    #     end = time()
-    #     print('It took {} seconds to characterize matches and mismatches.'.format(end - start))
-
     def get_status_and_character(self, pos, seq_ind1, seq_ind2):
         """
         Get Status and Character
@@ -274,18 +175,178 @@ class MatchMismatchTable(object):
         """
         return deepcopy(self.__depth)
 
-    # def subset_table(self, indices):
-    #     sub_table = MatchMismatchTable(seq_len=self.seq_len, num_aln=self.num_aln[indices, :],
-    #                                    single_alphabet_size=self.single_alphabet_size,
-    #                                    single_mapping=self.single_mapping,
-    #                                    single_reverse_mapping=self.single_reverse_mapping,
-    #                                    larger_alphabet_size=self.larger_alphabet_size,
-    #                                    larger_alphabet_mapping=self.larger_mapping,
-    #                                    larger_alphabet_reverse_mapping=self.larger_reverse_mapping,
-    #                                    single_to_larger_mapping=self.single_to_larger_mapping, pos_size=self.pos_size)
-    #     sub_table.__depth = self.__depth
-    #     if self.match_mismatch_tables:
-    #         sub_table.match_mismatch_tables = {pos: self.match_mismatch_tables[pos][indices, :][:, indices]
-    #                                            for pos in self.match_mismatch_tables}
-    #     if self.match_freq_table and self.mismatch_freq_table:
-    #         sub_table.characterize_matches_mismatches()
+    def _get_characters_and_statuses_single_pos(self, pos, indices1, indices2):
+        """
+        Get Characters And Statuses Single Position
+
+        This function returns all characters and their match/mismatch status for a given position at a specified set of
+        indices. These indices indicate pairs of sequences, and therefore each entry in the return should be equivalent
+        to calling get_status_and_character for a position and two sequences.
+
+        Arguments:
+            pos (int): A position in the sequence being characterized (bounds are between 0 and the sequence length).
+            indices1 (list/np.array): A set of sequence indices indicating the first sequence in each comparison for
+            which the character and match/mismatch status should be returned. This value should always be lower than the
+            corresponding sequence index provided in indices2 since only the upper triangle is used in characterization.
+            indices2 (list/np.array): A set of sequence indices indicating the second sequence in each comparison for
+            which the character and match/mismatch status should be returned. This value should always be greater than
+            the corresponding sequence index provided in indices1 since only the upper triangle is used in
+            characterization.
+        Returns:
+             np.array: The single letter alphabet numerical representation for the characters in the alignment at this
+             position for the sequences specified in index1.
+             np.array: The single letter alphabet numerical representation for the characters in the alignment at this
+             position for the sequences specified in index2.
+             np.array: The match/mismatch values for all comparisons between sequences in index1 and index2 at the
+             specified position. The possible values are 1 (for a match), -1 (for a mismatch), and 0 (if a value was
+             returned from the diagonal or lower triangle because index1 and index2 were not defined as intended).
+        """
+        s1_chars = self.num_aln[indices1, pos]
+        s2_chars = self.num_aln[indices2, pos]
+        return s1_chars[np.newaxis].T, s2_chars[np.newaxis].T, self.match_mismatch_tables[pos][indices1, indices2]
+
+    def _get_characters_and_statuses_multi_pos(self, pos, indices1, indices2):
+        """
+        Get Characters And Statuses Multi Position
+
+        This function returns all characters and their match/mismatch status for a given (pair or larger) position at a
+        specified set of indices. These indices indicate pairs of sequences, and therefore each entry in the return
+        should be equivalent to calling get_status_and_character for a position and two sequences.
+
+        Arguments:
+            pos (tuple): A position defined as two or more single positions in the sequence being characterized (bounds
+            are between 0 and the sequence length for each specific position).
+            indices1 (list/np.array): A set of sequence indices indicating the first sequence in each comparison for
+            which the character and match/mismatch status should be returned. This value should always be lower than the
+            corresponding sequence index provided in indices2 since only the upper triangle is used in characterization.
+            indices2 (list/np.array): A set of sequence indices indicating the second sequence in each comparison for
+            which the character and match/mismatch status should be returned. This value should always be greater than
+            the corresponding sequence index provided in indices1 since only the upper triangle is used in
+            characterization.
+        Returns:
+             np.array: The numerical representation (determined by the size of the position and alphabet used) for the
+             characters in the alignment at this position for the sequences specified in index1.
+             np.array: The single letter alphabet numerical representation for the characters in the alignment at this
+             position for the sequences specified in index2.
+             np.array: The match/mismatch values for all comparisons between sequences in index1 and index2 at the
+             specified position. The returned values are the sum of single position match/mismatch scores and so may
+             range from -x to x where x is the size of a position (e.g. 2 for pairs), therefore a score of x represents
+             all specific positions being matches and a score of -x represents all specific positions being a mismatch.
+        """
+        cumulative_s1_chars = []
+        cumulative_s2_chars = []
+        cumulative_status = None
+        for i in range(len(pos)):
+            curr_s1, curr_s2, curr_status = self._get_characters_and_statuses_single_pos(pos=pos[i], indices1=indices1,
+                                                                                         indices2=indices2)
+            cumulative_s1_chars.append(curr_s1)
+            cumulative_s2_chars.append(curr_s2)
+            if cumulative_status is None:
+                cumulative_status = curr_status
+            else:
+                cumulative_status += curr_status
+        s1_chars = np.hstack(cumulative_s1_chars)
+        s2_chars = np.hstack(cumulative_s2_chars)
+        return s1_chars, s2_chars, cumulative_status
+
+    def get_upper_triangle(self, pos, indices):
+        """
+        Get Upper Triangle
+
+        This function returns the characters and match/mismatch statuses for a subset of the upper triangle of sequence
+        comparisons for a specified position. This is intended for use during the characterization step of a trace.
+
+        Arguments:
+            pos (int/tuple): A position defined as one (int) or two or more single positions (tuple) in the sequence
+            being characterized (bounds are between 0 and the sequence length for each specific position).
+            indices (list/np.array): A set of sequence indices indicating the members of the upper triangle for which
+            character and match/mismatch status should be returned.
+        Returns:
+             np.array: The numerical representation of the characters for the sequences compared in the specified upper
+             triangle. If the position specified was a single position the returned alphabet will correspond to pairs
+             (since two sequences were compared and thus two characters were observed), if the position was a pair or
+             larger then the returned character will map back to an alphabet two times the size of the input position
+             (in this case all character contributions from sequence 1 are added to the character before all
+             contributions from sequence 2).
+             np.array: The match/mismatch status of all sequence comparisons performed in the subset of the upper
+             triangle. If the position had size 1, then the match/mismatch string will correspond directly to whether
+             the observed characters in the compared sequences were the same or not. If the position has a size larger
+             than 1, the match status may correspond to all single positions matching (conservation) or all single
+             positions mismatching (concerted change, i.e. covariation).
+        """
+        all_indices = np.triu_indices(n=self.__depth, k=1)
+        mask = np.in1d(all_indices[0], indices) & np.in1d(all_indices[1], indices)
+        s1_ind = all_indices[0][mask]
+        s2_ind = all_indices[1][mask]
+        if isinstance(pos, int):
+            s1_chars, s2_chars, status = self._get_characters_and_statuses_single_pos(pos=pos, indices1=s1_ind,
+                                                                                      indices2=s2_ind)
+            pos_len = 1
+        elif isinstance(pos, tuple):
+            s1_chars, s2_chars, status = self._get_characters_and_statuses_multi_pos(pos=pos, indices1=s1_ind,
+                                                                                     indices2=s2_ind)
+            pos_len = len(pos)
+            status = np.abs(status)
+        else:
+            raise ValueError('Pos has type other than the expected int or tuple.')
+        combined_char = np.hstack([s1_chars, s2_chars])
+        final_chars = np.array([self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
+                                for char_tup in map(tuple, combined_char)])
+        status_con = np.array(['mismatch', 'match'])
+        final_status = status_con[(status == pos_len) * 1]
+        return final_chars, final_status
+
+    def get_upper_rectangle(self, pos, indices1, indices2):
+        """
+        Get Upper Rectangle
+
+        This function returns the characters and match/mismatch statuses for a subset of the upper triangle of sequence
+        comparisons for a specified position. This is intended for use during the characterization step of a trace.
+
+        Arguments:
+            pos (int/tuple): A position defined as one (int) or two or more single positions (tuple) in the sequence
+            being characterized (bounds are between 0 and the sequence length for each specific position).
+            indices1 (list/np.array): A set of sequence indices indicating the members of the rectangle in the upper
+            triangle for which character and match/mismatch status should be returned. This should not overlap with
+            indices2, though this behavior is not enforced, the expectation is that indices will belong to sequences in
+            two different sub-alignments of the larger alignment characterized by this MatchMismatchTable.
+            indices2 (list/np.array): A set of sequence indices indicating the members of the rectangle in the upper
+            triangle for which character and match/mismatch status should be returned. This should not overlap with
+            indices2, though this behavior is not enforced, the expectation is that indices will belong to sequences in
+            two different sub-alignments of the larger alignment characterized by this MatchMismatchTable.
+        Returns:
+             np.array: The numerical representation of the characters for the sequences compared in the specified upper
+             triangle. If the position specified was a single position the returned alphabet will correspond to pairs
+             (since two sequences were compared and thus two characters were observed), if the position was a pair or
+             larger then the returned character will map back to an alphabet two times the size of the input position
+             (in this case all character contributions from sequence 1 are added to the character before all
+             contributions from sequence 2).
+             np.array: The match/mismatch status of all sequence comparisons performed in the subset of the upper
+             triangle. If the position had size 1, then the match/mismatch string will correspond directly to whether
+             the observed characters in the compared sequences were the same or not. If the position has a size larger
+             than 1, the match status may correspond to all single positions matching (conservation) or all single
+             positions mismatching (concerted change, i.e. covariation).
+        """
+        indices = np.triu_indices(n=self.__depth, k=1)
+        mask1 = np.in1d(indices[0], indices1) & np.in1d(indices[1], indices2)
+        mask2 = np.in1d(indices[0], indices2) & np.in1d(indices[1], indices1)
+        mask = mask1 | mask2
+        s1_ind = indices[0][mask]
+        s2_ind = indices[1][mask]
+        if isinstance(pos, int):
+            s1_chars, s2_chars, status = self._get_characters_and_statuses_single_pos(pos=pos, indices1=s1_ind,
+                                                                                      indices2=s2_ind)
+            pos_len = 1
+        elif isinstance(pos, tuple):
+            s1_chars, s2_chars, status = self._get_characters_and_statuses_multi_pos(pos=pos, indices1=s1_ind,
+                                                                                     indices2=s2_ind)
+            pos_len = len(pos)
+            status = np.abs(status)
+        else:
+            raise ValueError('Pos has type other than the expected int or tuple.')
+        combined_char = np.hstack([s1_chars, s2_chars])
+        final_chars = np.array([self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
+                                for char_tup in map(tuple, combined_char)])
+        status_con = np.array(['mismatch', 'match'])
+        final_status = status_con[(status == pos_len) * 1]
+        return final_chars, final_status
