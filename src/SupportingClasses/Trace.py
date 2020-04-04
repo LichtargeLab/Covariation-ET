@@ -920,14 +920,21 @@ def characterization_mm(node_name, node_type):
         if node_type == 'component':
             for pos in tables['match'].get_positions():
                 char_dict = {'match': {}, 'mismatch': {}}
-                for i in range(sub_aln.size):
-                    s1 = aln.seq_order.index(sub_aln.seq_order[i])
-                    for j in range(i+1, sub_aln.size):
-                        s2 = aln.seq_order.index(sub_aln.seq_order[j])
-                        status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
-                        if char not in char_dict[status]:
-                            char_dict[status][char] = 0
-                        char_dict[status][char] += 1
+                curr_indices = [aln.seq_order.index(s_id) for s_id in sub_aln.seq_order]
+                curr_chars, curr_statuses = mm_table.get_upper_triangle(pos=pos, indices=curr_indices)
+                for i in range(len(curr_chars)):
+                    if curr_chars[i] not in char_dict[curr_statuses[i]]:
+                        char_dict[curr_statuses[i]][curr_chars[i]] = 0
+                    char_dict[curr_statuses[i]][curr_chars[i]] += 1
+
+                # for i in range(sub_aln.size):
+                #     s1 = aln.seq_order.index(sub_aln.seq_order[i])
+                #     for j in range(i+1, sub_aln.size):
+                #         s2 = aln.seq_order.index(sub_aln.seq_order[j])
+                #         status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                #         if char not in char_dict[status]:
+                #             char_dict[status][char] = 0
+                #         char_dict[status][char] += 1
                 for m in char_dict:
                     for char in char_dict[m]:
                         tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
@@ -945,13 +952,19 @@ def characterization_mm(node_name, node_type):
                 for pos in tables['match'].get_positions():
                     char_dict = {'match': {}, 'mismatch': {}}
                     for prev_indices in terminal_indices:
-                        for r1 in prev_indices:
-                            for r2 in curr_indices:
-                                first, second = (r1, r2) if r1 < r2 else (r2, r1)
-                                status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
-                                if char not in char_dict[status]:
-                                    char_dict[status][char] = 0
-                                char_dict[status][char] += 1
+                        curr_chars, curr_statuses = mm_table.get_upper_rectangle(pos=pos, indices1=prev_indices,
+                                                                                 indices2=curr_indices)
+                        for i in range(len(curr_chars)):
+                            if curr_chars[i] not in char_dict[curr_statuses[i]]:
+                                char_dict[curr_statuses[i]][curr_chars[i]] = 0
+                            char_dict[curr_statuses[i]][curr_chars[i]] += 1
+                    #     for r1 in prev_indices:
+                    #         for r2 in curr_indices:
+                    #             first, second = (r1, r2) if r1 < r2 else (r2, r1)
+                    #             status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
+                    #             if char not in char_dict[status]:
+                    #                 char_dict[status][char] = 0
+                    #             char_dict[status][char] += 1
                     for m in char_dict:
                         for char in char_dict[m]:
                             tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
