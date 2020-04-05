@@ -920,6 +920,7 @@ def characterization_mm(node_name, node_type):
         if node_type == 'component':
             for pos in tables['match'].get_positions():
                 char_dict = {'match': {}, 'mismatch': {}}
+                curr_indices = [aln.seq_order.index(s_id) for s_id in sub_aln.seq_order]
                 for i in range(sub_aln.size):
                     s1 = aln.seq_order.index(sub_aln.seq_order[i])
                     for j in range(i+1, sub_aln.size):
