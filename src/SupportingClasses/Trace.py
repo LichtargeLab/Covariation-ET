@@ -343,13 +343,13 @@ class Trace(object):
                     visited[node.name] = {'terminals': sorted([self.aln.seq_order.index(t)
                                                                for t in self.assignments[r][g]['terminals']]),
                                           'descendants': self.assignments[r][g]['descendants']}
-                    frequency_tables[node.name] = {'match': deepcopy(freq_table), 'mismatch': deepcopy(freq_table),
+                    sub_aln_size = len(self.assignments[r][g]['terminals'])
+                    possible_matches_mismatches = 1 if sub_aln_size == 1 else ((sub_aln_size ** 2) - sub_aln_size) / 2.0
+                    # frequency_tables[node.name] = {'match': deepcopy(freq_table), 'mismatch': deepcopy(freq_table),
+                    frequency_tables[node.name] = {'depth': possible_matches_mismatches,
                                                    'remaining_positions': len(possible_positions)}
-                    sub_aln_size = (0 if self.assignments[r][g]['terminals'] is None
-                                    else len(self.assignments[r][g]['terminals']))
-                    possible_matches_mismatches = 1 if sub_aln_size == 0 else ((sub_aln_size ** 2) - sub_aln_size) / 2.0
-                    frequency_tables[node.name]['match'].set_depth(depth=possible_matches_mismatches)
-                    frequency_tables[node.name]['mismatch'].set_depth(depth=possible_matches_mismatches)
+                    # frequency_tables[node.name]['match'].set_depth(depth=possible_matches_mismatches)
+                    # frequency_tables[node.name]['mismatch'].set_depth(depth=possible_matches_mismatches)
                     if write_out_sub_aln:
                         sub_aln = self.aln.generate_sub_alignment(sequence_ids=self.assignments[r][g]['terminals'])
                         sub_aln.write_out_alignment(file_name=os.path.join(unique_dir, '{}.fa'.format(node.name)))
@@ -368,6 +368,9 @@ class Trace(object):
             """
             return_name, position, char_dict = char_ret
             for status in char_dict:
+                if status not in frequency_tables[return_name]:
+                    frequency_tables[return_name][status] = deepcopy(freq_table)
+                    frequency_tables[return_name][status].set_depth(frequency_tables[return_name]['depth'])
                 for char in char_dict[status]:
                     frequency_tables[return_name][status]._increment_count(pos=position, char=char,
                                                                            amount=char_dict[status][char])
@@ -385,15 +388,23 @@ class Trace(object):
                 characterization_pbar.update(1)
                 characterization_pbar.refresh()
 
-        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-                    initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
-                              single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
-                              table_type, visited, unique_dir, self.low_memory))
+        # pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
+        #             initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
+        #                       single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
+        #                       table_type, visited, unique_dir, self.low_memory))
+
+        testing = []
+
         for char_node in to_characterize:
             for pos in possible_positions:
-                pool.apply_async(func=characterization_mm, args=char_node + (pos, ), callback=update_characterization)
-        pool.close()
-        pool.join()
+                testing.append(char_node + (pos, ))
+                # pool.apply_async(func=characterization_mm, args=char_node + (pos, ), callback=update_characterization)
+        # pool.close()
+        # pool.join()
+
+        print('finished sending items to list')
+        raise ValueError('just a test')
+
         characterization_pbar.close()
         for node_name in inner_nodes:
             curr_depth = None
