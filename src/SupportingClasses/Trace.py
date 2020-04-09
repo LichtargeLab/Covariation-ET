@@ -317,6 +317,8 @@ class Trace(object):
         components = False
         inner_nodes = []
         to_characterize = []
+        tables_lock = Lock()
+        multiprocessing_tables = {}
         frequency_tables = {}
         freq_table = FrequencyTable(alphabet_size=larger_size, mapping=larger_mapping, reverse_mapping=larger_reverse,
                                     seq_len=self.aln.seq_length, pos_size=(1 if self.pos_specific else 2))
@@ -345,11 +347,8 @@ class Trace(object):
                                           'descendants': self.assignments[r][g]['descendants']}
                     sub_aln_size = len(self.assignments[r][g]['terminals'])
                     possible_matches_mismatches = 1 if sub_aln_size == 1 else ((sub_aln_size ** 2) - sub_aln_size) / 2.0
-                    # frequency_tables[node.name] = {'match': deepcopy(freq_table), 'mismatch': deepcopy(freq_table),
-                    frequency_tables[node.name] = {'depth': possible_matches_mismatches,
-                                                   'remaining_positions': len(possible_positions)}
-                    # frequency_tables[node.name]['match'].set_depth(depth=possible_matches_mismatches)
-                    # frequency_tables[node.name]['mismatch'].set_depth(depth=possible_matches_mismatches)
+                    multiprocessing_tables[node.name] = {'depth': possible_matches_mismatches,
+                                                         'remaining_positions': len(possible_positions)}
                     if write_out_sub_aln:
                         sub_aln = self.aln.generate_sub_alignment(sequence_ids=self.assignments[r][g]['terminals'])
                         sub_aln.write_out_alignment(file_name=os.path.join(unique_dir, '{}.fa'.format(node.name)))
@@ -357,7 +356,7 @@ class Trace(object):
                 components = True
         characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
 
-        def update_characterization(char_ret):
+        def update_characterization(return_values):
             """
             Update Characterization
 
@@ -366,46 +365,24 @@ class Trace(object):
             Args:
                 return_name (str): The name of the node which has just finished being characterized.
             """
-            return_name, position, char_dict = char_ret
-            for status in char_dict:
-                if status not in frequency_tables[return_name]:
-                    frequency_tables[return_name][status] = deepcopy(freq_table)
-                    frequency_tables[return_name][status].set_depth(frequency_tables[return_name]['depth'])
-                for char in char_dict[status]:
-                    frequency_tables[return_name][status]._increment_count(pos=position, char=char,
-                                                                           amount=char_dict[status][char])
-            frequency_tables[return_name]['remaining_positions'] -= 1
-            if frequency_tables[return_name]['remaining_positions'] == 0:
-                for status in ['match', 'mismatch']:
-                    frequency_tables[return_name][status].finalize_table()
-                    if (return_name not in inner_nodes) and write_out_freq_table:
-                        frequency_tables[return_name][status].to_csv(
-                            os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(return_name, pos_type, status)))
-                    saved_freq_table = save_freq_table(
-                        freq_table=frequency_tables[return_name][status], low_memory=self.low_memory,
-                        node_name=return_name, table_type=table_type + '_' + status, out_dir=unique_dir)
-                    frequency_tables[return_name][status] = saved_freq_table
+            return_name, return_match, return_mismatch = return_values
+            if return_match and return_mismatch:
+                frequency_tables[return_name] = {'match': return_match, 'mismatch': return_mismatch}
                 characterization_pbar.update(1)
                 characterization_pbar.refresh()
 
-        # pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-        #             initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
-        #                       single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
-        #                       table_type, visited, unique_dir, self.low_memory))
-
-        testing = []
-
+        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
+                    initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
+                              single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
+                              table_type, visited, multiprocessing_tables, tables_lock, unique_dir, self.low_memory,
+                              write_out_freq_table))
         for char_node in to_characterize:
             for pos in possible_positions:
-                testing.append(char_node + (pos, ))
-                # pool.apply_async(func=characterization_mm, args=char_node + (pos, ), callback=update_characterization)
-        # pool.close()
-        # pool.join()
-
-        print('finished sending items to list')
-        raise ValueError('just a test')
-
+                pool.apply_async(func=characterization_mm, args=char_node + (pos, ), callback=update_characterization)
+        pool.close()
+        pool.join()
         characterization_pbar.close()
+        print(frequency_tables)
         for node_name in inner_nodes:
             curr_depth = None
             for m in ['match', 'mismatch']:
@@ -857,7 +834,8 @@ def characterization(node_name, node_type):
 
 def init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
                                   larger_reverse, single_to_larger, match_mismatch_table, alignment,
-                                  position_size, position_type, table_type, components, unique_dir, low_memory):
+                                  position_size, position_type, table_type, components, frequency_tables,
+                                  frequency_tables_lock, unique_dir, low_memory, write_out_freq_tables):
     """
     Init Characterization Match Mismatch Pool
 
@@ -896,7 +874,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
     """
     global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, mm_table, aln, p_size, p_type, t_type, comps,\
-        u_dir, low_mem, sleep_time
+        freq_tables, freq_tables_lock, u_dir, low_mem, write_freq_tables, sleep_time
     s_size = single_size
     s_map = single_mapping
     s_rev = single_reverse
@@ -910,8 +888,11 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     p_type = position_type
     t_type = table_type
     comps = components
+    freq_tables = frequency_tables
+    freq_tables_lock = frequency_tables_lock
     u_dir = unique_dir
     low_mem = low_memory
+    write_freq_tables = write_out_freq_tables
     # Sleep time to use for inner nodes which are not in the lowest rank of the tree being characterized. If a component
     # of the node being characterized is missing this time will be used as the wait time before attempting to get the
     # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
@@ -944,6 +925,7 @@ def characterization_mm(node_name, node_type, pos):
         node_name (str): The node name is returned to keep track of which node has been most recently processed (in the
         multiprocessing context).
     """
+    # print('Characterization: {} {} {}'.format(node_name, pos, freq_tables[node_name]['remaining_positions']))
     char_dict = {'match': {}, 'mismatch': {}}
     if node_type == 'component':
         for i in range(len(comps[node_name]['terminals'])):
@@ -968,7 +950,32 @@ def characterization_mm(node_name, node_type, pos):
             terminal_indices.append(comps[d.name]['terminals'])
     else:
         raise ValueError('Unexpected node type provided.')
-    return node_name, pos, char_dict
+    freq_tables_lock.acquire()
+    for status in char_dict:
+        if status not in freq_tables[node_name]:
+            freq_tables[node_name][status] = FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
+                                                            seq_len=aln.seq_length, pos_size=p_size)
+            freq_tables[node_name][status].set_depth(freq_tables[node_name]['depth'])
+        for char in char_dict[status]:
+            freq_tables[node_name][status]._increment_count(pos=pos, char=char, amount=char_dict[status][char])
+    freq_tables[node_name]['remaining_positions'] -= 1
+    if freq_tables[node_name]['remaining_positions'] == 0:
+        for status in ['match', 'mismatch']:
+            freq_tables[node_name][status].finalize_table()
+            if (node_type == 'component') and write_freq_tables:
+                freq_tables[node_name][status].to_csv(
+                    os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, status)))
+            saved_freq_table = save_freq_table(freq_table=freq_tables[node_name][status], low_memory=low_mem,
+                                               node_name=node_name, table_type=t_type + '_' + status, out_dir=u_dir)
+            freq_tables[node_name][status] = saved_freq_table
+        match_table = freq_tables[node_name]['match']
+        mismatch_table = freq_tables[node_name]['mismatch']
+        del(freq_tables[node_name])
+    else:
+        match_table = None
+        mismatch_table = None
+    freq_tables_lock.release()
+    return node_name, match_table, mismatch_table
 
 
 # def init_characterization_mm_pool(depth, node_sequences, match_mismatch_table, processes):

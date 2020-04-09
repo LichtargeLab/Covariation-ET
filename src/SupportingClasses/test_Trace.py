@@ -341,10 +341,11 @@ class TestTrace(TestBase):
     #                 self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
     #     rmtree(unique_dir)
 
-    def evaluate_characterize_rank_groups_mm_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem):
+    def evaluate_characterize_rank_groups_mm_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
+                                                               write_out_freq_tables):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
-        if not os.path.isdir(unique_dir):
-            os.makedirs(unique_dir)
+        rmtree(unique_dir, ignore_errors=True)
+        os.makedirs(unique_dir)
         single_alphabet = Gapped(aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
         if single and not pair:
@@ -374,7 +375,10 @@ class TestTrace(TestBase):
                                         reverse_mapping=larger_reverse, seq_len=aln.seq_length, pos_size=position_size)
         # Build a minimal set of nodes to characterize (the query sequence, its neighbor node, and their parent node)
         visited = {}
+        frequency_tables = {}
+        frequency_tables_lock = Lock()
         to_characterize = []
+        possible_positions = top_freq_table.get_positions()
         found_query = False
         for r in sorted(assign.keys(), reverse=True):
             for g in assign[r]:
@@ -390,6 +394,11 @@ class TestTrace(TestBase):
                                 visited[assign[r2][g2]['node'].name] = {'terminals': [aln.seq_order.index(t)
                                                                                       for t in assign[r2][g2]['terminals']],
                                                                         'descendants': assign[r2][g2]['descendants']}
+                                sub_aln_size = len(assign[r2][g2]['terminals'])
+                                possible_matches_mismatches = (1 if sub_aln_size == 1
+                                                               else ((sub_aln_size ** 2) - sub_aln_size) / 2.0)
+                                frequency_tables[assign[r2][g2]['node'].name] = {'depth': possible_matches_mismatches,
+                                                                                 'remaining_positions': len(possible_positions)}
                                 searching -= 1
                         if searching == 0:
                             break
@@ -397,88 +406,116 @@ class TestTrace(TestBase):
                     to_characterize.append((node.name, 'inner'))
                     visited[node.name] = {'terminals': [aln.seq_order.index(t) for t in assign[r][g]['terminals']],
                                           'descendants': assign[r][g]['descendants']}
+                    sub_aln_size = len(assign[r][g]['terminals'])
+                    possible_matches_mismatches = 1 if sub_aln_size == 1 else ((sub_aln_size ** 2) - sub_aln_size) / 2.0
+                    frequency_tables[node.name] = {'depth': possible_matches_mismatches,
+                                                   'remaining_positions': len(possible_positions)}
                     break
             if found_query:
                 break
         init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
                                       larger_reverse, single_to_larger, mm_table, aln, position_size,
-                                      position_type, table_type, visited, unique_dir, low_mem)
+                                      position_type, table_type, visited, frequency_tables, frequency_tables_lock,
+                                      unique_dir, low_mem, write_out_freq_tables)
         for to_char in to_characterize:
             sub_aln = aln.generate_sub_alignment(
                 sequence_ids=[aln.seq_order[t] for t in visited[to_char[0]]['terminals']])
-            for p in top_freq_table.get_positions():
-                # print('Testing {} of type {} at pos {}'.format(to_char[0], to_char[1], p))
-                ret_name, pos, char_dict = characterization_mm(node_name=to_char[0], node_type=to_char[1], pos=p)
+            expected_freq_tables = {'match': deepcopy(top_freq_table)}
+            expected_freq_tables['match'].set_depth(frequency_tables[to_char[0]]['depth'])
+            expected_freq_tables['mismatch'] = deepcopy(expected_freq_tables['match'])
+            for i in range(len(possible_positions)):
+                p = possible_positions[i]
+                ret_name, ret_match, ret_mismatch = characterization_mm(node_name=to_char[0], node_type=to_char[1],
+                                                                        pos=p)
+                ret_tables = {'match': ret_match, 'mismatch': ret_mismatch}
                 self.assertEqual(ret_name, to_char[0])
-                self.assertEqual(pos, p)
                 expected_char_dict = {'match': {}, 'mismatch': {}}
-                # print('Generating expected values')
                 if to_char[1] == 'component':
-                    # print('Expected component')
-                    for i in range(sub_aln.size):
-                        # print('Expected i: {}'.format(i))
-                        s1 = visited[to_char[0]]['terminals'][i]
-                        # print('Expected s1: {}'.format(s1))
-                        for j in range(i + 1, sub_aln.size):
-                            # print('Expected j: {}'.format(j))
-                            s2 = visited[to_char[0]]['terminals'][j]
-                            # print('Expected s2: {}'.format(s2))
+                    for j in range(sub_aln.size):
+                        s1 = visited[to_char[0]]['terminals'][j]
+                        for k in range(i + 1, sub_aln.size):
+                            s2 = visited[to_char[0]]['terminals'][k]
                             status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
-                            # print('Expected returns: {}:{}'.format(status, char))
                             if char not in expected_char_dict[status]:
                                 expected_char_dict[status][char] = 0
                             expected_char_dict[status][char] += 1
                 else:
-                    # print('Descendants: ', [d.name for d in visited[to_char[0]]['descendants']])
                     terminal_indices = []
                     for d in visited[to_char[0]]['descendants']:
                         for prev_indices in terminal_indices:
                             for r1 in prev_indices:
                                 for r2 in visited[d.name]['terminals']:
                                     first, second = (r1, r2) if r1 < r2 else (r2, r1)
-                                    status, char = mm_table.get_status_and_character(pos, seq_ind1=first,
-                                                                                     seq_ind2=second)
+                                    status, char = mm_table.get_status_and_character(p, seq_ind1=first, seq_ind2=second)
                                     if char not in expected_char_dict[status]:
                                         expected_char_dict[status][char] = 0
                                     expected_char_dict[status][char] += 1
                         terminal_indices.append(visited[d.name]['terminals'])
-                # print(char_dict)
-                # print(expected_char_dict)
-                for curr_status in ['match', 'mismatch']:
-                    self.assertTrue(curr_status in char_dict)
-                    self.assertEqual(len(char_dict[curr_status]), len(expected_char_dict[curr_status]))
-                    for curr_char in expected_char_dict[curr_status]:
-                        self.assertTrue(curr_char in char_dict[curr_status])
-                        self.assertEqual(char_dict[curr_status][curr_char], expected_char_dict[curr_status][curr_char])
-        rmtree(unique_dir)
+                for status in expected_char_dict:
+                    for char in expected_char_dict[status]:
+                        expected_freq_tables[status]._increment_count(pos=p, char=char,
+                                                                      amount=expected_char_dict[status][char])
+                if i < len(possible_positions) - 1:
+                    self.assertTrue(to_char[0] in frequency_tables)
+                    for curr_status in ['match', 'mismatch']:
+                        self.assertIsNone(ret_tables[curr_status])
+                else:
+                    # self.assertEqual(frequency_tables[to_char[0]]['remaining_positions'], 0)
+                    self.assertFalse(to_char[0] in frequency_tables)
+                    for curr_status in ['match', 'mismatch']:
+                        curr_freq_table = load_freq_table(ret_tables[curr_status], low_mem)
+                        expected_freq_tables[curr_status].finalize_table()
+                        self.assertEqual(curr_freq_table.get_depth(),
+                                         expected_freq_tables[curr_status].get_depth())
+                        sparse_diff = curr_freq_table.get_table() - expected_freq_tables[curr_status].get_table()
+                        nonzero_check = sparse_diff.count_nonzero() > 0
+                        if nonzero_check:
+                            print(curr_freq_table.get_table())
+                            print(expected_freq_tables[curr_status].get_table())
+                            print(sparse_diff)
+                            indices = np.nonzero(sparse_diff)
+                            print(curr_freq_table.get_table()[indices])
+                            print(expected_freq_tables[curr_status].get_table()[indices])
+                            print(sparse_diff[indices])
+                            print(to_char[0])
+                            print(sub_aln.alignment)
+                        self.assertFalse(nonzero_check)
+                        if (to_char[1] == 'component') and write_out_freq_tables:
+                            expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
+                                to_char[0], position_type, curr_status))
+                            self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
 
-    def test2c_characterize_rank_groups_mm_initialize_characterization_pool(self):
-        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
-        self.evaluate_characterize_rank_groups_mm_pooling_functions(
-            single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_small,
-            # out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
-            out_dir=self.out_small_dir, low_mem=False)
+    # def test2c_characterize_rank_groups_mm_initialize_characterization_pool(self):
+    #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+    #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
+    #         single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_small,
+    #         out_dir=self.out_small_dir, low_mem=False, write_out_freq_tables=True)
+    #         # out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
+    #         # out_dir=self.out_small_dir, low_mem=False)
 
     # def test2d_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=False, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
+    #         out_dir=self.out_small_dir, low_mem=False, write_out_freq_tables=True)
     #         # out_dir=self.out_small_dir, low_mem=False, write_sub_aln=False, write_freq_table=True)
-    #         out_dir=self.out_small_dir, low_mem=False)
-    #
+    #         # out_dir=self.out_small_dir, low_mem=False)
+
     # def test2e_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=True, pair=False, aln=self.query_aln_fa_large, assign=self.assignments_large,
+    #         out_dir=self.out_large_dir, low_mem=True, write_out_freq_tables=False)
     #         # out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
-    #         out_dir=self.out_large_dir, low_mem=True)
-    #
+    #         # out_dir=self.out_large_dir, low_mem=True)
+
     # def test2f_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=False, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
+    #         out_dir=self.out_large_dir, low_mem=True, write_out_freq_tables=False)
     #         # out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
-    #         out_dir=self.out_large_dir, low_mem=True)
+    #         # out_dir=self.out_large_dir, low_mem=True)
 
     def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem, write_aln,
                                           write_freq_table):
@@ -654,13 +691,13 @@ class TestTrace(TestBase):
     #     self.evaluate_characterize_rank_groups_match_mismatch(
     #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
     #         single=True, pair=False, processors=1, low_mem=False, write_aln=False, write_freq_table=False)
-    #
-    # def test3d_characterize_rank_groups(self):
-    #     # Test characterizing both single and pair positions, large alignment, single processed
-    #     self.evaluate_characterize_rank_groups_match_mismatch(
-    #         aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-    #         single=False, pair=True, processors=1, low_mem=False, write_aln=False, write_freq_table=False)
-    #
+
+    def test3d_characterize_rank_groups(self):
+        # Test characterizing both single and pair positions, large alignment, single processed
+        self.evaluate_characterize_rank_groups_match_mismatch(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, processors=1, low_mem=False, write_aln=False, write_freq_table=False)
+
     # def test3e_characterize_rank_groups(self):
     #     # Test characterizing both single and pair positions, small alignment, single processed
     #     self.evaluate_characterize_rank_groups_match_mismatch(
