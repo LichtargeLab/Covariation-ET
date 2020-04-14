@@ -438,23 +438,37 @@ class Trace(object):
                                                   pos_size=pos_size)
         match_mismatch_table.identify_matches_mismatches()
         visited = {}
-        components = False
+        components = True
         to_characterize = []
         inner_nodes = []
+        finalized_tables = {}
         for r in sorted(self.assignments.keys(), reverse=True):
             for g in self.assignments[r]:
                 node = self.assignments[r][g]['node']
-                if not components:
-                    to_characterize.append((node.name, 'component'))
-                elif node.name not in visited:
-                    to_characterize.append((node.name, 'inner'))
-                    inner_nodes.append(node.name)
-                else:
-                    continue
-                visited[node.name] = {'terminals': self.assignments[r][g]['terminals'],
-                                      'descendants': self.assignments[r][g]['descendants']}
+
+                # Check whether the alignment characterization has already been saved to file.
+                match_check, match_fn = check_freq_table(low_memory=low_mem, node_name=node.name,
+                                                         table_type=table_type + '_match',
+                                                         out_dir=u_dir)
+                mismatch_check, mismatch_fn = check_freq_table(low_memory=low_mem, node_name=node.name,
+                                                               table_type=table_type + '_mismatch',
+                                                               out_dir=u_dir)
+                # If the file(s) were found set the return values for this sub-alignment.
+                if low_mem and match_check and mismatch_check:
+                    finalized_tables[node.name] = {'match': match_fn, 'mismatch': mismatch_fn}
+                else:  # Check what kind of node is being processed
+
+                    if components:
+                        to_characterize.append((node.name, 'component'))
+                    elif node.name not in visited:
+                        to_characterize.append((node.name, 'inner'))
+                        inner_nodes.append(node.name)
+                    else:
+                        continue
+                    visited[node.name] = {'terminals': self.assignments[r][g]['terminals'],
+                                          'descendants': self.assignments[r][g]['descendants']}
             if not components:
-                components = True
+                components = False
         characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
 
         def update_characterization(return_name):
@@ -500,12 +514,13 @@ class Trace(object):
                     frequency_tables[node_name][m].to_csv(
                         os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, pos_type, m)))
                 stale_check, old_fn = check_freq_table(low_memory=self.low_memory, node_name=node_name,
-                                                       table_type=table_type + '_' + m, out_dir=unique_dir)
+                                                       table_type=table_type + '_' + m + '_initial', out_dir=unique_dir)
                 if stale_check:
                     os.remove(old_fn)
                 frequency_tables[node_name][m] = save_freq_table(
                     freq_table=frequency_tables[node_name][m], low_memory=self.low_memory, node_name=node_name,
                     table_type=table_type + '_' + m, out_dir=unique_dir)
+            finalized_tables[node_name] = frequency_tables[node_name]
         ###
         self.unique_nodes = frequency_tables
 
@@ -1174,104 +1189,105 @@ def characterization_mm(node_name, node_type):
         node_name (str): The node name is returned to keep track of which node has been most recently processed (in the
         multiprocessing context).
     """
-    # Check whether the alignment characterization has already been saved to file.
-    match_check, match_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type=t_type + '_match',
-                                             out_dir=u_dir)
-    mismatch_check, mismatch_fn = check_freq_table(low_memory=low_mem, node_name=node_name,
-                                                   table_type=t_type + '_mismatch', out_dir=u_dir)
-    # If the file(s) were found set the return values for this sub-alignment.
-    if low_mem and match_check and mismatch_check:
-        tables = {'match': match_fn, 'mismatch': mismatch_fn}
-    else:  # Check what kind of node is being processed
-        # Generate the sub alignment for the current node.
-        sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
-        # If specified write the alignment to file.
-        if write_sub_aln:
-            sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
-        tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
-                                          seq_len=aln.seq_length, pos_size=p_size)}
-        # The depth for the alignment will not be set since we do not use any of the characterization  functions here,
-        # it needs to be the number of possible matches mismatches when comparing all elements of a column or pair of
-        # columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
-        # sub-alignments the size of the sub-alignment is 1 and therefor there are no values in the upper triangle
-        # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
-        # matrix and therefore not counted). Setting the depth to 0.0 causes divide by zero issues when calculating
-        # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
-        # the resulting frequencies should be calculated correctly.
-        depth = 1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0)
-        tables['match'].set_depth(depth)
-        tables['mismatch'] = deepcopy(tables['match'])
-        if node_type == 'component':
+    # # Check whether the alignment characterization has already been saved to file.
+    # match_check, match_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type=t_type + '_match',
+    #                                          out_dir=u_dir)
+    # mismatch_check, mismatch_fn = check_freq_table(low_memory=low_mem, node_name=node_name,
+    #                                                table_type=t_type + '_mismatch', out_dir=u_dir)
+    # # If the file(s) were found set the return values for this sub-alignment.
+    # if low_mem and match_check and mismatch_check:
+    #     tables = {'match': match_fn, 'mismatch': mismatch_fn}
+    # else:  # Check what kind of node is being processed
+    # Generate the sub alignment for the current node.
+    sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
+    # If specified write the alignment to file.
+    if write_sub_aln:
+        sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
+    tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
+                                      seq_len=aln.seq_length, pos_size=p_size)}
+    # The depth for the alignment will not be set since we do not use any of the characterization  functions here,
+    # it needs to be the number of possible matches mismatches when comparing all elements of a column or pair of
+    # columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
+    # sub-alignments the size of the sub-alignment is 1 and therefor there are no values in the upper triangle
+    # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
+    # matrix and therefore not counted). Setting the depth to 0.0 causes divide by zero issues when calculating
+    # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
+    # the resulting frequencies should be calculated correctly.
+    depth = 1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0)
+    tables['match'].set_depth(depth)
+    tables['mismatch'] = deepcopy(tables['match'])
+    if node_type == 'component':
+        for pos in tables['match'].get_positions():
+            char_dict = {'match': {}, 'mismatch': {}}
+            curr_indices = [aln.seq_order.index(s_id) for s_id in sub_aln.seq_order]
+            for i in range(sub_aln.size):
+                s1 = aln.seq_order.index(sub_aln.seq_order[i])
+                for j in range(i+1, sub_aln.size):
+                    s2 = aln.seq_order.index(sub_aln.seq_order[j])
+                    status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                    if char not in char_dict[status]:
+                        char_dict[status][char] = 0
+                    char_dict[status][char] += 1
+            for m in char_dict:
+                for char in char_dict[m]:
+                    tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+        for m in tables:
+            tables[m].finalize_table()
+    elif node_type == 'inner':
+        # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
+        # descendants, then retrieve its descendants' characterizations and merge all to get the parent
+        # characterization.
+        # descendants = set()
+        terminal_indices = []
+        for d in comps[node_name]['descendants']:
+            # descendants.add(d.name)
+            curr_indices = [aln.seq_order.index(t) for t in comps[d.name]['terminals']]
             for pos in tables['match'].get_positions():
                 char_dict = {'match': {}, 'mismatch': {}}
-                curr_indices = [aln.seq_order.index(s_id) for s_id in sub_aln.seq_order]
-                for i in range(sub_aln.size):
-                    s1 = aln.seq_order.index(sub_aln.seq_order[i])
-                    for j in range(i+1, sub_aln.size):
-                        s2 = aln.seq_order.index(sub_aln.seq_order[j])
-                        status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
-                        if char not in char_dict[status]:
-                            char_dict[status][char] = 0
-                        char_dict[status][char] += 1
+                for prev_indices in terminal_indices:
+                    for r1 in prev_indices:
+                        for r2 in curr_indices:
+                            first, second = (r1, r2) if r1 < r2 else (r2, r1)
+                            status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
+                            if char not in char_dict[status]:
+                                char_dict[status][char] = 0
+                            char_dict[status][char] += 1
                 for m in char_dict:
                     for char in char_dict[m]:
-                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
-            for m in tables:
-                tables[m].finalize_table()
-        elif node_type == 'inner':
-            # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
-            # descendants, then retrieve its descendants' characterizations and merge all to get the parent
-            # characterization.
-            # descendants = set()
-            terminal_indices = []
-            for d in comps[node_name]['descendants']:
-                # descendants.add(d.name)
-                curr_indices = [aln.seq_order.index(t) for t in comps[d.name]['terminals']]
-                for pos in tables['match'].get_positions():
-                    char_dict = {'match': {}, 'mismatch': {}}
-                    for prev_indices in terminal_indices:
-                        for r1 in prev_indices:
-                            for r2 in curr_indices:
-                                first, second = (r1, r2) if r1 < r2 else (r2, r1)
-                                status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
-                                if char not in char_dict[status]:
-                                    char_dict[status][char] = 0
-                                char_dict[status][char] += 1
-                    for m in char_dict:
-                        for char in char_dict[m]:
-                            tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
-                terminal_indices.append(curr_indices)
-            for m in tables:
-                tables[m].finalize_table()
-            # tries = 0
-            # components = []
-            # while len(descendants) > 0:
-            #     descendant = descendants.pop()
-            #     # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
-            #     # the dictionary (i.e. another process is still characterizing that descendant), until all are
-            #     # successfully retrieved.
-            #     try:
-            #         component = freq_tables[descendant]
-            #         components.append(component)
-            #     except KeyError:
-            #         descendants.add(descendant)
-            #         sleep(sleep_time)
-            # # Merge the descendants' FrequencyTable(s) to generate the one for this node.
-            # for i in range(len(components)):
-            #     for m in tables:
-            #         curr_pos_table = load_freq_table(components[i][m], low_memory=low_mem)
-            #         tables[m] += curr_pos_table
-            # for m in tables:
-            #     # Since addition of FrequencyTable objects leads to
-            #     tables[m].set_depth(1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0))
-        else:
-            raise ValueError("node_type must be either 'component' or 'inner'.")
-        # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
+                        tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
+            terminal_indices.append(curr_indices)
         for m in tables:
-            if write_freq_table:
-                tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, m)))
-            tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
-                                        table_type=t_type + '_' + m, out_dir=u_dir)
+            tables[m].finalize_table()
+        # tries = 0
+        # components = []
+        # while len(descendants) > 0:
+        #     descendant = descendants.pop()
+        #     # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
+        #     # the dictionary (i.e. another process is still characterizing that descendant), until all are
+        #     # successfully retrieved.
+        #     try:
+        #         component = freq_tables[descendant]
+        #         components.append(component)
+        #     except KeyError:
+        #         descendants.add(descendant)
+        #         sleep(sleep_time)
+        # # Merge the descendants' FrequencyTable(s) to generate the one for this node.
+        # for i in range(len(components)):
+        #     for m in tables:
+        #         curr_pos_table = load_freq_table(components[i][m], low_memory=low_mem)
+        #         tables[m] += curr_pos_table
+        # for m in tables:
+        #     # Since addition of FrequencyTable objects leads to
+        #     tables[m].set_depth(1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0))
+    else:
+        raise ValueError("node_type must be either 'component' or 'inner'.")
+    # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
+    for m in tables:
+        if write_freq_table:
+            tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, m)))
+        tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
+                                    table_type=t_type + '_' + m + ('_initial' if node_type == 'inner' else ''),
+                                    out_dir=u_dir)
     freq_lock.acquire()
     freq_tables[node_name] = tables
     freq_lock.release()
