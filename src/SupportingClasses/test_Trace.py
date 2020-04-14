@@ -222,130 +222,11 @@ class TestTrace(TestBase):
     #         single=True, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
     #         out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
-    # def evaluate_characterize_rank_groups_mm_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
-    #                                                            write_sub_aln, write_freq_table):
-    #     unique_dir = os.path.join(out_dir, 'unique_node_data')
-    #     if not os.path.isdir(unique_dir):
-    #         os.makedirs(unique_dir)
-    #     single_alphabet = Gapped(aln.alphabet)
-    #     single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
-    #     if single and not pair:
-    #         larger_alphabet = MultiPositionAlphabet(alphabet=Gapped(aln.alphabet), size=2)
-    #         larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=larger_alphabet)
-    #         single_to_larger = self.single_to_pair_dict
-    #         position_size = 1
-    #         position_type = 'position'
-    #         table_type = 'single'
-    #     elif pair and not single:
-    #         larger_alphabet = MultiPositionAlphabet(alphabet=Gapped(aln.alphabet), size=4)
-    #         larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=larger_alphabet)
-    #         single_to_larger = self.single_to_quad_dict
-    #         position_size = 2
-    #         position_type = 'pair'
-    #         table_type = 'pair'
-    #     else:
-    #         raise ValueError('Either single or pair permitted, not both or neither.')
-    #     mm_table = MatchMismatchTable(seq_len=aln.seq_length,num_aln=aln._alignment_to_num(self.single_mapping),
-    #                                   single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
-    #                                   single_reverse_mapping=self.single_reverse, larger_alphabet_size=larger_size,
-    #                                   larger_alphabet_mapping=larger_mapping,
-    #                                   larger_alphabet_reverse_mapping=larger_reverse,
-    #                                   single_to_larger_mapping=single_to_larger, pos_size=position_size)
-    #     mm_table.identify_matches_mismatches()
-    #     # Build a minimal set of nodes to characterize (the query sequence, its neighbor node, and their parent node)
-    #     visited = {}
-    #     to_characterize = []
-    #     found_query = False
-    #     for r in sorted(assign.keys(), reverse=True):
-    #         for g in assign[r]:
-    #             node = assign[r][g]['node']
-    #             if assign[r][g]['descendants'] and (aln.query_id in [d.name for d in assign[r][g]['descendants']]):
-    #                 found_query = True
-    #                 descendants_to_find = set([d.name for d in assign[r][g]['descendants']])
-    #                 searching = len(descendants_to_find)
-    #                 for r2 in range(r + 1, max(assign.keys()) + 1):
-    #                     for g2 in assign[r2]:
-    #                         if assign[r2][g2]['node'].name in descendants_to_find:
-    #                             to_characterize.append((assign[r2][g2]['node'].name, 'component'))
-    #                             visited[assign[r2][g2]['node'].name] = {'terminals': assign[r2][g2]['terminals'],
-    #                                                                     'descendants': assign[r2][g2]['descendants']}
-    #                             searching -= 1
-    #                     if searching == 0:
-    #                         break
-    #             if found_query:
-    #                 to_characterize.append((node.name, 'inner'))
-    #                 visited[node.name] = {'terminals': assign[r][g]['terminals'],
-    #                                       'descendants': assign[r][g]['descendants']}
-    #                 break
-    #         if found_query:
-    #             break
-    #     pool_manager = Manager()
-    #     lock = Lock()
-    #     frequency_tables = pool_manager.dict()
-    #     init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
-    #                                   larger_reverse, single_to_larger, mm_table, aln, position_size,
-    #                                   position_type, table_type, visited, frequency_tables, lock,
-    #                                   unique_dir, low_mem, write_sub_aln, write_freq_table)
-    #     for to_char in to_characterize:
-    #         ret_name = characterization_mm(*to_char)
-    #         self.assertEqual(ret_name, to_char[0])
-    #     frequency_tables = dict(frequency_tables)
-    #     for node_name in visited:
-    #         sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
-    #         if write_sub_aln:
-    #             self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
-    #         sub_aln_ind = [aln.seq_order.index(s) for s in sub_aln.seq_order]
-    #         possible_matches_mismatches = ((sub_aln.size ** 2) - sub_aln.size) / 2.0
-    #         expected_tables = {'match': FrequencyTable(alphabet_size=larger_size, mapping=larger_mapping,
-    #                                                    reverse_mapping=larger_reverse,
-    #                                                    seq_len=sub_aln.seq_length, pos_size=position_size)}
-    #         expected_tables['match'].set_depth(possible_matches_mismatches)
-    #         expected_tables['mismatch'] = deepcopy(expected_tables['match'])
-    #         for p in expected_tables['match'].get_positions():
-    #             char_dict = {'match': {}, 'mismatch': {}}
-    #             for i in range(sub_aln.size):
-    #                 s1 = sub_aln_ind[i]
-    #                 for j in range(i + 1, sub_aln.size):
-    #                     s2 = sub_aln_ind[j]
-    #                     status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
-    #                     if char not in char_dict[status]:
-    #                         char_dict[status][char] = 0
-    #                     char_dict[status][char] += 1
-    #             for status in char_dict:
-    #                 for char in char_dict[status]:
-    #                     expected_tables[status]._increment_count(pos=p, char=char,
-    #                                                              amount=char_dict[status][char])
-    #         expected_tables['match'].finalize_table()
-    #         expected_tables['mismatch'].finalize_table()
-    #         for m in ['match', 'mismatch']:
-    #             m_table = frequency_tables[node_name][m]
-    #             m_table = load_freq_table(freq_table=m_table, low_memory=low_mem)
-    #             m_table_mat = m_table.get_table()
-    #             expected_m_table_mat = expected_tables[m].get_table()
-    #             sparse_diff = m_table_mat - expected_m_table_mat
-    #             nonzero_check = sparse_diff.count_nonzero() > 0
-    #             if nonzero_check:
-    #                 print(m_table.get_table().toarray())
-    #                 print(expected_tables[m].get_table().toarray())
-    #                 print(sparse_diff)
-    #                 indices = np.nonzero(sparse_diff)
-    #                 print(m_table.get_table().toarray()[indices])
-    #                 print(expected_tables[m].get_table().toarray()[indices])
-    #                 print(sparse_diff[indices])
-    #                 print(node_name)
-    #                 print(sub_aln.alignment)
-    #             self.assertFalse(nonzero_check)
-    #             if write_freq_table:
-    #                 expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
-    #                     node_name, position_type, m))
-    #                 self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
-    #     rmtree(unique_dir)
-
     def evaluate_characterize_rank_groups_mm_pooling_functions(self, single, pair, aln, assign, out_dir, low_mem,
-                                                               write_out_freq_tables):
+                                                               write_sub_aln, write_freq_table):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
-        rmtree(unique_dir, ignore_errors=True)
-        os.makedirs(unique_dir)
+        if not os.path.isdir(unique_dir):
+            os.makedirs(unique_dir)
         single_alphabet = Gapped(aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
         if single and not pair:
@@ -364,23 +245,16 @@ class TestTrace(TestBase):
             table_type = 'pair'
         else:
             raise ValueError('Either single or pair permitted, not both or neither.')
-        mm_table = MatchMismatchTable(seq_len=aln.seq_length,num_aln=aln._alignment_to_num(self.single_mapping),
+        mm_table = MatchMismatchTable(seq_len=aln.seq_length, num_aln=aln._alignment_to_num(self.single_mapping),
                                       single_alphabet_size=self.single_size, single_mapping=self.single_mapping,
                                       single_reverse_mapping=self.single_reverse, larger_alphabet_size=larger_size,
                                       larger_alphabet_mapping=larger_mapping,
                                       larger_alphabet_reverse_mapping=larger_reverse,
                                       single_to_larger_mapping=single_to_larger, pos_size=position_size)
         mm_table.identify_matches_mismatches()
-        top_freq_table = FrequencyTable(alphabet_size=larger_size, mapping=larger_mapping,
-                                        reverse_mapping=larger_reverse, seq_len=aln.seq_length, pos_size=position_size)
         # Build a minimal set of nodes to characterize (the query sequence, its neighbor node, and their parent node)
         visited = {}
-        frequency_tables = {}
-        manager = Manager()
-        # frequency_tables = manager.dict()
-        frequency_tables_lock = Lock()
         to_characterize = []
-        possible_positions = top_freq_table.get_positions()
         found_query = False
         for r in sorted(assign.keys(), reverse=True):
             for g in assign[r]:
@@ -393,136 +267,120 @@ class TestTrace(TestBase):
                         for g2 in assign[r2]:
                             if assign[r2][g2]['node'].name in descendants_to_find:
                                 to_characterize.append((assign[r2][g2]['node'].name, 'component'))
-                                visited[assign[r2][g2]['node'].name] = {'terminals': [aln.seq_order.index(t)
-                                                                                      for t in assign[r2][g2]['terminals']],
+                                visited[assign[r2][g2]['node'].name] = {'terminals': assign[r2][g2]['terminals'],
                                                                         'descendants': assign[r2][g2]['descendants']}
-                                sub_aln_size = len(assign[r2][g2]['terminals'])
-                                possible_matches_mismatches = (1 if sub_aln_size == 1
-                                                               else ((sub_aln_size ** 2) - sub_aln_size) / 2.0)
-                                # frequency_tables[assign[r2][g2]['node'].name] = {'depth': possible_matches_mismatches,
-                                #                                                  'remaining_positions': len(possible_positions)}
-                                frequency_tables[assign[r2][g2]['node'].name + '_depth'] = possible_matches_mismatches
-                                frequency_tables[assign[r2][g2]['node'].name + '_remaining_positions'] = Value('i', len(possible_positions))
-                                frequency_tables[assign[r2][g2]['node'].name + '_match'] = manager.list()
-                                frequency_tables[assign[r2][g2]['node'].name + '_mismatch'] = manager.list()
                                 searching -= 1
                         if searching == 0:
                             break
                 if found_query:
                     to_characterize.append((node.name, 'inner'))
-                    visited[node.name] = {'terminals': [aln.seq_order.index(t) for t in assign[r][g]['terminals']],
+                    visited[node.name] = {'terminals': assign[r][g]['terminals'],
                                           'descendants': assign[r][g]['descendants']}
-                    sub_aln_size = len(assign[r][g]['terminals'])
-                    possible_matches_mismatches = 1 if sub_aln_size == 1 else ((sub_aln_size ** 2) - sub_aln_size) / 2.0
-                    # frequency_tables[node.name] = {'depth': possible_matches_mismatches,
-                    #                                'remaining_positions': len(possible_positions)}
-                    frequency_tables[node.name + '_depth'] =  possible_matches_mismatches
-                    frequency_tables[node.name + '_remaining_positions'] = Value('i', len(possible_positions))
-                    frequency_tables[node.name + '_match'] = manager.list()
-                    frequency_tables[node.name + '_mismatch'] = manager.list()
                     break
             if found_query:
                 break
+        pool_manager = Manager()
+        lock = Lock()
+        frequency_tables = pool_manager.dict()
         init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
                                       larger_reverse, single_to_larger, mm_table, aln, position_size,
-                                      position_type, table_type, visited, frequency_tables, frequency_tables_lock,
-                                      unique_dir, low_mem, write_out_freq_tables)
+                                      position_type, table_type, visited, frequency_tables, lock,
+                                      unique_dir, low_mem, write_sub_aln, write_freq_table)
+        inner_nodes = set()
         for to_char in to_characterize:
-            sub_aln = aln.generate_sub_alignment(
-                sequence_ids=[aln.seq_order[t] for t in visited[to_char[0]]['terminals']])
-            expected_freq_tables = {'match': deepcopy(top_freq_table)}
-            # expected_freq_tables['match'].set_depth(frequency_tables[to_char[0]]['depth'])
-            expected_freq_tables['match'].set_depth(frequency_tables[to_char[0] + '_depth'])
-            expected_freq_tables['mismatch'] = deepcopy(expected_freq_tables['match'])
-            for i in range(len(possible_positions)):
-                p = possible_positions[i]
-                ret_name, ret_match, ret_mismatch = characterization_mm(node_name=to_char[0], node_type=to_char[1],
-                                                                        pos=p)
-                ret_tables = {'match': ret_match, 'mismatch': ret_mismatch}
-                self.assertEqual(ret_name, to_char[0])
-                expected_char_dict = {'match': {}, 'mismatch': {}}
-                if to_char[1] == 'component':
-                    for j in range(sub_aln.size):
-                        s1 = visited[to_char[0]]['terminals'][j]
-                        for k in range(i + 1, sub_aln.size):
-                            s2 = visited[to_char[0]]['terminals'][k]
-                            status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
-                            if char not in expected_char_dict[status]:
-                                expected_char_dict[status][char] = 0
-                            expected_char_dict[status][char] += 1
-                else:
+            ret_name = characterization_mm(*to_char)
+            self.assertEqual(ret_name, to_char[0])
+            if to_char[1] == 'inner':
+                inner_nodes.add(ret_name)
+        frequency_tables = dict(frequency_tables)
+        for node_name in visited:
+            sub_aln = aln.generate_sub_alignment(sequence_ids=visited[node_name]['terminals'])
+            if write_sub_aln:
+                self.assertTrue(os.path.isfile(os.path.join(unique_dir, '{}.fa'.format(node_name))))
+            sub_aln_ind = [aln.seq_order.index(s) for s in sub_aln.seq_order]
+            possible_matches_mismatches = ((sub_aln.size ** 2) - sub_aln.size) / 2.0
+            expected_tables = {'match': FrequencyTable(alphabet_size=larger_size, mapping=larger_mapping,
+                                                       reverse_mapping=larger_reverse,
+                                                       seq_len=sub_aln.seq_length, pos_size=position_size)}
+            expected_tables['match'].set_depth(possible_matches_mismatches)
+            expected_tables['mismatch'] = deepcopy(expected_tables['match'])
+            for p in expected_tables['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                if node_name in inner_nodes:
                     terminal_indices = []
-                    for d in visited[to_char[0]]['descendants']:
+                    for d in visited[node_name]['descendants']:
+                        curr_indices = [aln.seq_order.index(t) for t in visited[d.name]['terminals']]
                         for prev_indices in terminal_indices:
                             for r1 in prev_indices:
-                                for r2 in visited[d.name]['terminals']:
+                                for r2 in curr_indices:
                                     first, second = (r1, r2) if r1 < r2 else (r2, r1)
                                     status, char = mm_table.get_status_and_character(p, seq_ind1=first, seq_ind2=second)
-                                    if char not in expected_char_dict[status]:
-                                        expected_char_dict[status][char] = 0
-                                    expected_char_dict[status][char] += 1
-                        terminal_indices.append(visited[d.name]['terminals'])
-                for status in expected_char_dict:
-                    for char in expected_char_dict[status]:
-                        expected_freq_tables[status]._increment_count(pos=p, char=char,
-                                                                      amount=expected_char_dict[status][char])
-                if i < len(possible_positions) - 1:
-                    # self.assertTrue(to_char[0] in frequency_tables)
-                    self.assertTrue((to_char[0] + '_match') in frequency_tables)
-                    self.assertTrue((to_char[0] + '_mismatch') in frequency_tables)
-                    for curr_status in ['match', 'mismatch']:
-                        self.assertIsNone(ret_tables[curr_status])
+                                    if char not in char_dict[status]:
+                                        char_dict[status][char] = 0
+                                    char_dict[status][char] += 1
+                        terminal_indices.append(curr_indices)
                 else:
-                    # self.assertEqual(frequency_tables[to_char[0]]['remaining_positions'], 0)
-                    # self.assertFalse(to_char[0] in frequency_tables)
-                    self.assertFalse((to_char[0] + '_match') in frequency_tables)
-                    self.assertFalse((to_char[0] + '_mismatch') in frequency_tables)
-                    for curr_status in ['match', 'mismatch']:
-                        curr_freq_table = load_freq_table(ret_tables[curr_status], low_mem)
-                        expected_freq_tables[curr_status].finalize_table()
-                        self.assertEqual(curr_freq_table.get_depth(),
-                                         expected_freq_tables[curr_status].get_depth())
-                        sparse_diff = curr_freq_table.get_table() - expected_freq_tables[curr_status].get_table()
-                        nonzero_check = sparse_diff.count_nonzero() > 0
-                        if nonzero_check:
-                            print(curr_freq_table.get_table())
-                            print(expected_freq_tables[curr_status].get_table())
-                            print(sparse_diff)
-                            indices = np.nonzero(sparse_diff)
-                            print(curr_freq_table.get_table()[indices])
-                            print(expected_freq_tables[curr_status].get_table()[indices])
-                            print(sparse_diff[indices])
-                            print(to_char[0])
-                            print(sub_aln.alignment)
-                        self.assertFalse(nonzero_check)
-                        if (to_char[1] == 'component') and write_out_freq_tables:
-                            expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
-                                to_char[0], position_type, curr_status))
-                            self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
+                    for i in range(sub_aln.size):
+                        s1 = sub_aln_ind[i]
+                        for j in range(i + 1, sub_aln.size):
+                            s2 = sub_aln_ind[j]
+                            status, char = mm_table.get_status_and_character(pos=p, seq_ind1=s1, seq_ind2=s2)
+                            if char not in char_dict[status]:
+                                char_dict[status][char] = 0
+                            char_dict[status][char] += 1
+                for status in char_dict:
+                    for char in char_dict[status]:
+                        expected_tables[status]._increment_count(pos=p, char=char,
+                                                                 amount=char_dict[status][char])
+            expected_tables['match'].finalize_table()
+            expected_tables['mismatch'].finalize_table()
+            for m in ['match', 'mismatch']:
+                m_table = frequency_tables[node_name][m]
+                m_table = load_freq_table(freq_table=m_table, low_memory=low_mem)
+                m_table_mat = m_table.get_table()
+                expected_m_table_mat = expected_tables[m].get_table()
+                sparse_diff = m_table_mat - expected_m_table_mat
+                nonzero_check = sparse_diff.count_nonzero() > 0
+                if nonzero_check:
+                    print(m_table.get_table().toarray())
+                    print(expected_tables[m].get_table().toarray())
+                    print(sparse_diff)
+                    indices = np.nonzero(sparse_diff)
+                    print(m_table.get_table().toarray()[indices])
+                    print(expected_tables[m].get_table().toarray()[indices])
+                    print(sparse_diff[indices])
+                    print(node_name)
+                    print(sub_aln.alignment)
+                self.assertFalse(nonzero_check)
+                if write_freq_table:
+                    expected_table_path = os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(
+                        node_name, position_type, m))
+                    self.assertTrue(os.path.isfile(expected_table_path), 'Not found: {}'.format(expected_table_path))
+        rmtree(unique_dir)
 
-    # def test2c_characterize_rank_groups_mm_initialize_characterization_pool(self):
-    #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
-    #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
-    #         single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_small,
-    #         out_dir=self.out_small_dir, low_mem=False, write_out_freq_tables=True)
+    def test2c_characterize_rank_groups_mm_initialize_characterization_pool(self):
+        # Test pool initialization function and mappable function (minimal example) for characterization, small aln
+        self.evaluate_characterize_rank_groups_mm_pooling_functions(
+            single=True, pair=False, aln=self.query_aln_fa_small, assign=self.assignments_small,
+            out_dir=self.out_small_dir, low_mem=False, write_sub_aln=True, write_freq_table=True)
 
     # def test2d_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=False, pair=True, aln=self.query_aln_fa_small, assign=self.assignments_small,
-    #         out_dir=self.out_small_dir, low_mem=False, write_out_freq_tables=True)
+    #         out_dir=self.out_small_dir, low_mem=False, write_sub_aln=False, write_freq_table=True)
 
     # def test2e_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=True, pair=False, aln=self.query_aln_fa_large, assign=self.assignments_large,
-    #         out_dir=self.out_large_dir, low_mem=True, write_out_freq_tables=False)
+    #         out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
     # def test2f_characterize_rank_groups_mm_initialize_characterization_pool(self):
     #     # Test pool initialization function and mappable function (minimal example) for characterization, small aln
     #     self.evaluate_characterize_rank_groups_mm_pooling_functions(
     #         single=False, pair=True, aln=self.query_aln_fa_large, assign=self.assignments_large,
-    #         out_dir=self.out_large_dir, low_mem=True, write_out_freq_tables=False)
+    #         out_dir=self.out_large_dir, low_mem=True, write_sub_aln=False, write_freq_table=False)
 
     def evaluate_characterize_rank_groups(self, aln, phylo_tree, assign, single, pair, processors, low_mem, write_aln,
                                           write_freq_table):
@@ -1539,13 +1397,13 @@ class TestTrace(TestBase):
     #                         metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
     #                         out_dir=self.out_small_dir, match_mismatch=True, gap_correction=None, low_mem=True)
 
-    def test5x_trace(self):
-        # Test the large alignment for the computation of angles between the match and mismatch entropy but only
-        # considering a subset of the rank/groups.
-        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
-                            assignments=self.assignments_custom_large, single=False, pair=True,
-                            metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
-                            out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+    # def test5x_trace(self):
+    #     # Test the large alignment for the computation of angles between the match and mismatch entropy but only
+    #     # considering a subset of the rank/groups.
+    #     self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+    #                         assignments=self.assignments_custom_large, single=False, pair=True,
+    #                         metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
+    #                         out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
 
 
 if __name__ == '__main__':
