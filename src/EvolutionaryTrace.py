@@ -240,6 +240,10 @@ class EvolutionaryTrace(Predictor):
 
         This method calls the compute_distance_matrix_tree_and_assignments and the perform_trace to generate predictive
         scores for position importance or pair covariance using the Evolutionary Trace method.
+
+        Returns:
+            float: The time in seconds required to calculate the EvolutionaryTrace scores for the provided protein
+            alignment.
         """
         start = time()
         self.compute_distance_matrix_tree_and_assignments()
@@ -247,6 +251,7 @@ class EvolutionaryTrace(Predictor):
         end = time()
         self.time = end - start
         print(self.time)
+        return self.time
 
     def visualize_trace(self, positions, ranks=None):
         """
