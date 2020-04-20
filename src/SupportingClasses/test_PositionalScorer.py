@@ -18,8 +18,10 @@ from EvolutionaryTraceAlphabet import FullIUPACProtein, MultiPositionAlphabet
 from PositionalScorer import (PositionalScorer, rank_integer_value_score, rank_real_value_score, group_identity_score,
                               group_plain_entropy_score, mutual_information_computation, group_mutual_information_score,
                               group_normalized_mutual_information_score, average_product_correction,
-                              filtered_average_product_correction, angle_computation, group_match_mismatch_entropy_angle)
-from Trace import init_characterization_mm_pool, characterization_mm
+                              filtered_average_product_correction, ratio_computation, angle_computation,
+                              diversity_computation, group_match_mismatch_entropy_ratio,
+                              group_match_mismatch_entropy_angle, group_match_diversity_mismatch_entropy_ratio,
+                              group_match_diversity_mismatch_entropy_angle)
 
 
 class TestPositionalScorer(TestBase):
@@ -324,7 +326,24 @@ class TestPositionalScorer(TestBase):
         # Score group using average product correction mutual information metric parents
         self.evaluate_score_group_average_product_corrected_mi(node_dict=self.first_parents)
 
-    def evaluate_score_group_angle(self, node_dict):
+    def evaluate_score_group_match_entropy_mismatch_entropy_ratio(self, node_dict):
+        pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='match_mismatch_entropy_ratio')
+        dim_pair = (self.seq_len, self.seq_len)
+        for x in node_dict:
+            freq_table_dict = {'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}
+            group_pair_scores = pos_scorer_pair.score_group(freq_table=freq_table_dict)
+            pair_scores = group_match_mismatch_entropy_ratio(freq_tables=freq_table_dict, dimensions=dim_pair)
+            for i in range(node_dict[x]['aln'].seq_length):
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
+
+    def test2k_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_ratio(node_dict=self.terminals)
+
+    def test2l_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_ratio(node_dict=self.first_parents)
+
+    def evaluate_score_group_match_entropy_mismatch_entropy_angle(self, node_dict):
         pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric='match_mismatch_entropy_angle')
         dim_pair = (self.seq_len, self.seq_len)
         for x in node_dict:
@@ -335,11 +354,47 @@ class TestPositionalScorer(TestBase):
                 for j in range(i, node_dict[x]['aln'].seq_length):
                     self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
 
-    def test2k_score_group_angle(self):
-        self.evaluate_score_group_angle(node_dict=self.terminals)
+    def test2m_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_angle(node_dict=self.terminals)
 
-    def test2l_score_group_angle(self):
-        self.evaluate_score_group_angle(node_dict=self.first_parents)
+    def test2n_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_angle(node_dict=self.first_parents)
+
+    def evaluate_score_group_match_diversity_mismatch_entropy_ratio(self, node_dict):
+        pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2,
+                                           metric='match_diversity_mismatch_entropy_ratio')
+        dim_pair = (self.seq_len, self.seq_len)
+        for x in node_dict:
+            freq_table_dict = {'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}
+            group_pair_scores = pos_scorer_pair.score_group(freq_table=freq_table_dict)
+            pair_scores = group_match_diversity_mismatch_entropy_ratio(freq_tables=freq_table_dict, dimensions=dim_pair)
+            for i in range(node_dict[x]['aln'].seq_length):
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
+
+    def test2o_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_ratio(node_dict=self.terminals)
+
+    def test2p_score_group_angle(self):
+        self.evaluate_score_group_match_entropy_mismatch_entropy_ratio(node_dict=self.first_parents)
+
+    def evaluate_score_group_match_diversity_mismatch_entropy_angle(self, node_dict):
+        pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2,
+                                           metric='match_diversity_mismatch_entropy_angle')
+        dim_pair = (self.seq_len, self.seq_len)
+        for x in node_dict:
+            freq_table_dict = {'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}
+            group_pair_scores = pos_scorer_pair.score_group(freq_table=freq_table_dict)
+            pair_scores = group_match_diversity_mismatch_entropy_angle(freq_tables=freq_table_dict, dimensions=dim_pair)
+            for i in range(node_dict[x]['aln'].seq_length):
+                for j in range(i, node_dict[x]['aln'].seq_length):
+                    self.assertEqual(group_pair_scores[i, j], pair_scores[i, j])
+
+    def test2q_score_group_angle(self):
+        self.evaluate_score_group_match_diversity_mismatch_entropy_angle(node_dict=self.terminals)
+
+    def test2r_score_group_angle(self):
+        self.evaluate_score_group_match_diversity_mismatch_entropy_angle(node_dict=self.first_parents)
 
     def evaluate_score_rank_ambiguous(self, node_dict, metric, single=True, pair=True):
         group_scores_single = []
@@ -349,12 +404,19 @@ class TestPositionalScorer(TestBase):
         if pair:
             pos_scorer_pair = PositionalScorer(seq_length=self.seq_len, pos_size=2, metric=metric)
         for x in node_dict:
-            if single:
-                group_score_single = pos_scorer_single.score_group(freq_table=node_dict[x]['single'])
-                group_scores_single.append(group_score_single)
-            if pair:
-                group_score_pair = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
-                group_scores_pair.append(group_score_pair)
+            if ('ratio' in metric) or ('angle' in metric):
+                if single:
+                    raise ValueError(f'{metric} not intended for single position measurement.')
+                if pair:
+                    group_score_pair = pos_scorer_pair.score_group(freq_table=node_dict[x])
+                    group_scores_pair.append(group_score_pair)
+            else:
+                if single:
+                    group_score_single = pos_scorer_single.score_group(freq_table=node_dict[x]['single'])
+                    group_scores_single.append(group_score_single)
+                if pair:
+                    group_score_pair = pos_scorer_pair.score_group(freq_table=node_dict[x]['pair'])
+                    group_scores_pair.append(group_score_pair)
         rank = max(len(group_scores_single), len(group_scores_pair))
         if single:
             group_scores_single = np.sum(np.stack(group_scores_single, axis=0), axis=0)
@@ -420,6 +482,66 @@ class TestPositionalScorer(TestBase):
         # Score rank using average product corrected mutual information metric parents
         self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
                                            metric='average_product_corrected_mutual_information',
+                                           single=False)
+
+    def test3k_score_rank(self):
+        # Score rank using average product corrected mutual information metric terminals
+        self.evaluate_score_rank_ambiguous(node_dict=self.terminals,
+                                           metric='filtered_average_product_corrected_mutual_information',
+                                           single=False)
+
+    def test3l_score_rank(self):
+        # Score rank using average product corrected mutual information metric parents
+        self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
+                                           metric='filtered_average_product_corrected_mutual_information',
+                                           single=False)
+
+    def test3m_score_rank(self):
+        # Score rank using average product corrected mutual information metric terminals
+        self.evaluate_score_rank_ambiguous(node_dict=self.terminals,
+                                           metric='match_mismatch_entropy_ratio',
+                                           single=False)
+
+    def test3n_score_rank(self):
+        # Score rank using average product corrected mutual information metric parents
+        self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
+                                           metric='match_mismatch_entropy_ratio',
+                                           single=False)
+
+    def test3o_score_rank(self):
+        # Score rank using average product corrected mutual information metric terminals
+        self.evaluate_score_rank_ambiguous(node_dict=self.terminals,
+                                           metric='match_mismatch_entropy_angle',
+                                           single=False)
+
+    def test3p_score_rank(self):
+        # Score rank using average product corrected mutual information metric parents
+        self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
+                                           metric='match_mismatch_entropy_angle',
+                                           single=False)
+
+    def test3q_score_rank(self):
+        # Score rank using average product corrected mutual information metric terminals
+        self.evaluate_score_rank_ambiguous(node_dict=self.terminals,
+                                           metric='match_diversity_mismatch_entropy_ratio',
+                                           single=False)
+
+    def test3r_score_rank(self):
+        # Score rank using average product corrected mutual information metric parents
+        self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
+                                           metric='match_diversity_mismatch_entropy_ratio',
+                                           single=False)
+
+    def test3s_score_rank(self):
+        # Score rank using average product corrected mutual information metric terminals
+        self.evaluate_score_rank_ambiguous(node_dict=self.terminals,
+                                           metric='match_diversity_mismatch_entropy_angle',
+                                           single=False)
+
+    def test3t_score_rank(self):
+        # Score rank using average product corrected mutual information metric parents
+        self.evaluate_score_rank_ambiguous(node_dict=self.first_parents,
+                                           metric='match_diversity_mismatch_entropy_angle',
                                            single=False)
 
     def evaluate_rank_integer_value_score(self, node_dict):
@@ -723,14 +845,62 @@ class TestPositionalScorer(TestBase):
     def test11d_heuristic_average_product_correction(self):
         self.evaluate_filtered_average_product_correction(node_dict=self.first_parents)
 
+    def evaluate_ratio_computation(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            expected_ratio = expected_mismatch_entropy / expected_match_entropy
+            div_by_0_indices = np.isnan(expected_ratio)
+            comparable_indices = ~div_by_0_indices
+            observed_ratios = ratio_computation(match_table=expected_match_entropy,
+                                                mismatch_table=expected_mismatch_entropy)
+            comparable_diff = observed_ratios[comparable_indices] - expected_ratio[comparable_indices]
+            self.assertFalse(comparable_diff.any())
+            mismatch_indices = div_by_0_indices & (expected_mismatch_entropy == 0.0)
+            min_check = observed_ratios[mismatch_indices] == 0.0
+            self.assertTrue(min_check.all())
+            match_indices = div_by_0_indices & (expected_match_entropy == 0.0)
+            match_indices = ((1 * match_indices) - (1 * mismatch_indices)).astype(bool)
+            max_check = observed_ratios[match_indices] == np.finfo(float).max
+            self.assertTrue(max_check.all())
+
+    def test12a_ratio_computation(self):
+        self.evaluate_ratio_computation(node_dict=self.terminals)
+
+    def test12b_ratio_computation(self):
+        self.evaluate_ratio_computation(node_dict=self.first_parents)
+
+    def evaluate_group_match_mismatch_entropy_ratio(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            observed_ratios = group_match_mismatch_entropy_ratio(freq_tables={'match': node_dict[x]['match'],
+                                                                              'mismatch': node_dict[x]['mismatch']},
+                                                                 dimensions=dim_pair)
+            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            expected_ratios = ratio_computation(match_table=expected_match_entropy,
+                                                mismatch_table=expected_mismatch_entropy)
+            diff = observed_ratios - expected_ratios
+            self.assertFalse(diff.any())
+
+    def test13a_group_match_mismatch_entropy_ratio(self):
+        self.evaluate_group_match_mismatch_entropy_ratio(node_dict=self.terminals)
+
+    def test13b_group_match_mismatch_entropy_ratio(self):
+        self.evaluate_group_match_mismatch_entropy_ratio(node_dict=self.first_parents)
+
     def evaluate_angle_computation(self, node_dict):
         for x in node_dict:
             dim_pair = (self.seq_len, self.seq_len)
             expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
             expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
                                                                   dimensions=dim_pair)
-            observed_angles = angle_computation(match_table=expected_match_entropy,
+            expected_ratios = ratio_computation(match_table=expected_match_entropy,
                                                 mismatch_table=expected_mismatch_entropy)
+            observed_angles = angle_computation(ratios=expected_ratios)
             expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
                                                  axis=0)
             expected_sin_ratio = np.zeros(expected_match_entropy.shape)
@@ -750,10 +920,10 @@ class TestPositionalScorer(TestBase):
             cos_diff = observed_angles - expected_cos_angle
             self.assertFalse(cos_diff.any())
 
-    def test12a_angle_computation(self):
+    def test14a_angle_computation(self):
         self.evaluate_angle_computation(node_dict=self.terminals)
 
-    def test12b_angle_computation(self):
+    def test14b_angle_computation(self):
         self.evaluate_angle_computation(node_dict=self.first_parents)
 
     def evaluate_group_match_mismatch_entropy_angle(self, node_dict):
@@ -762,33 +932,74 @@ class TestPositionalScorer(TestBase):
             observed_angles = group_match_mismatch_entropy_angle(freq_tables={'match': node_dict[x]['match'],
                                                                               'mismatch': node_dict[x]['mismatch']},
                                                                  dimensions=dim_pair)
-            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
-            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
-                                                                  dimensions=dim_pair)
-            expected_hypotenuse = np.linalg.norm(np.stack([expected_match_entropy, expected_mismatch_entropy], axis=0),
-                                                 axis=0)
-            expected_sin_ratio = np.zeros(expected_match_entropy.shape)
-            sin_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
-            expected_sin_ratio[sin_indices] = expected_mismatch_entropy[sin_indices] / expected_hypotenuse[sin_indices]
-            expected_sin_ratio[expected_match_entropy == 0] = np.sin(90.0)
-            expected_sin_ratio[expected_mismatch_entropy == 0] = np.sin(0.0)
-            expected_sin_angle = np.arcsin(expected_sin_ratio)
-            sin_diff = observed_angles - expected_sin_angle
-            self.assertFalse(sin_diff.any())
-            cos_indices = (expected_match_entropy != 0.0) | (expected_mismatch_entropy != 0)
-            expected_cos_ratio = np.zeros(expected_match_entropy.shape)
-            expected_cos_ratio[cos_indices] = expected_match_entropy[cos_indices] / expected_hypotenuse[cos_indices]
-            expected_cos_ratio[expected_match_entropy == 0.0] = np.cos(90.0)
-            expected_cos_ratio[expected_mismatch_entropy == 0] = np.cos(0.0)
-            expected_cos_angle = np.arccos(expected_cos_ratio)
-            cos_diff = observed_angles - expected_cos_angle
-            self.assertFalse(cos_diff.any())
+            expected_ratios = group_match_mismatch_entropy_ratio(freq_tables=node_dict[x], dimensions=dim_pair)
+            expected_angles = angle_computation(ratios=expected_ratios)
+            diff = observed_angles - expected_angles
+            self.assertFalse(diff.any())
 
-    def test13a_group_match_mismatch_entropy_angle(self):
+    def test15a_group_match_mismatch_entropy_angle(self):
         self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.terminals)
 
-    def test13b_group_match_mismatch_entropy_angle(self):
+    def test15b_group_match_mismatch_entropy_angle(self):
         self.evaluate_group_match_mismatch_entropy_angle(node_dict=self.first_parents)
+
+    def evaluate_diversity_computation(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            expected_match_entropy = group_plain_entropy_score(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_match_diversity = np.exp(expected_match_entropy)
+            observed_match_diversity = diversity_computation(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            match_diff = observed_match_diversity - expected_match_diversity
+            self.assertFalse(match_diff.any())
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            expected_mismatch_diversity = np.exp(expected_mismatch_entropy)
+            observed_mismatch_diversity = diversity_computation(freq_table=node_dict[x]['mismatch'],
+                                                                dimensions=dim_pair)
+            mismatch_diff = observed_mismatch_diversity - expected_mismatch_diversity
+            self.assertFalse(mismatch_diff.any())
+
+    def test16a_diversity_computation(self):
+        self.evaluate_diversity_computation(node_dict=self.terminals)
+
+    def test16b_diversity_computation(self):
+        self.evaluate_diversity_computation(node_dict=self.first_parents)
+
+    def evaluate_group_match_diversity_mismatch_entropy_ratio(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            observed_ratios = group_match_diversity_mismatch_entropy_ratio(
+                freq_tables={'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}, dimensions=dim_pair)
+            expected_match_diversity = diversity_computation(freq_table=node_dict[x]['match'], dimensions=dim_pair)
+            expected_mismatch_entropy = group_plain_entropy_score(freq_table=node_dict[x]['mismatch'],
+                                                                  dimensions=dim_pair)
+            expected_ratios = ratio_computation(match_table=expected_match_diversity,
+                                                mismatch_table=expected_mismatch_entropy)
+            diff = observed_ratios - expected_ratios
+            self.assertFalse(diff.any())
+
+    def test17a_group_match_mismatch_entropy_ratio(self):
+        self.evaluate_group_match_diversity_mismatch_entropy_ratio(node_dict=self.terminals)
+
+    def test17b_group_match_mismatch_entropy_ratio(self):
+        self.evaluate_group_match_diversity_mismatch_entropy_ratio(node_dict=self.first_parents)
+
+    def evaluate_group_match_diversity_mismatch_entropy_angle(self, node_dict):
+        for x in node_dict:
+            dim_pair = (self.seq_len, self.seq_len)
+            observed_angles = group_match_diversity_mismatch_entropy_angle(
+                freq_tables={'match': node_dict[x]['match'], 'mismatch': node_dict[x]['mismatch']}, dimensions=dim_pair)
+            expected_ratios = group_match_diversity_mismatch_entropy_ratio(freq_tables=node_dict[x],
+                                                                           dimensions=dim_pair)
+            expected_angles = angle_computation(ratios=expected_ratios)
+            diff = observed_angles - expected_angles
+            self.assertFalse(diff.any())
+
+    def test18a_group_match_mismatch_entropy_angle(self):
+        self.evaluate_group_match_diversity_mismatch_entropy_angle(node_dict=self.terminals)
+
+    def test18b_group_match_mismatch_entropy_angle(self):
+        self.evaluate_group_match_diversity_mismatch_entropy_angle(node_dict=self.first_parents)
 
 
 if __name__ == '__main__':

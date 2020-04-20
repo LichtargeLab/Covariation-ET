@@ -10,7 +10,9 @@ integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information',
-                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_angle'}
+                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
+                       'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
+                       'match_diversity_mismatch_entropy_angle'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
 
@@ -18,9 +20,12 @@ single_only_metrics = set()
 
 pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
                      'average_product_corrected_mutual_information',
-                     'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_angle'}
+                     'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
+                     'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
+                     'match_diversity_mismatch_entropy_angle'}
 
-min_metrics = {'identity', 'plain_entropy', 'match_mismatch_entropy_angle'}
+min_metrics = {'identity', 'plain_entropy', 'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle',
+               'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
 
 max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
                'filtered_average_product_corrected_mutual_information'}
@@ -51,6 +56,9 @@ class PositionalScorer(object):
             filtered_average_product_corrected_mutual_information: Mutual information score corrected with the APC with
             very low scores squashed to 0.0 for pairs of positions in the alignment (a score of 0.0 means the position
             is invariant or random while the higher the score the more covarying the position is).
+
+
+
             match_mismatch_entropy_angle: A new metric which measures the angle between a vector describing match
             entropy (one axis) and mismatch entropy (a second axis). An angle of 0 corresponds to either fully invariant
             or fully covarying positions while an angle of 90 corresponds to a randomly varying position.
@@ -118,7 +126,10 @@ class PositionalScorer(object):
                              'normalized_mutual_information': group_normalized_mutual_information_score,
                              'average_product_corrected_mutual_information': group_mutual_information_score,
                              'filtered_average_product_corrected_mutual_information': group_mutual_information_score,
-                             'match_mismatch_entropy_angle': group_match_mismatch_entropy_angle}
+                             'match_mismatch_entropy_ratio': group_match_mismatch_entropy_ratio,
+                             'match_mismatch_entropy_angle': group_match_mismatch_entropy_angle,
+                             'match_diversity_mismatch_entropy_ratio': group_match_diversity_mismatch_entropy_ratio,
+                             'match_diversity_mismatch_entropy_angle': group_match_diversity_mismatch_entropy_angle}
         scores = scoring_functions[self.metric](freq_table, self.dimensions)
         if self.metric == 'average_product_corrected_mutual_information':
             scores = average_product_correction(scores)
@@ -459,7 +470,44 @@ def filtered_average_product_correction(mutual_information_matrix):
     return apc_corrected
 
 
-def angle_computation(match_table, mismatch_table):
+def ratio_computation(match_table, mismatch_table):
+    ratio = np.zeros(match_table.shape)
+    div_by_0 = match_table == 0.0
+    ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
+    # ratio[div_by_0] = np.tan(np.pi / 2.0)
+    ratio[div_by_0] = np.finfo(float).max
+    both_0 = div_by_0 & (mismatch_table == 0.0)
+    # ratio[both_0] = np.tan(0.0)
+    ratio[both_0] = 0.0
+    return ratio
+
+
+def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Entropy Ratio
+
+    This function computes the rato between match (invariant or covariant signal) and mismatch (variation signal). A
+    ratio of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
+    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
+    Returns:
+        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
+        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
+        corresponding to closeness to the mismatch axis.
+    """
+    match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
+    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+    return ratio
+
+
+# def angle_computation(match_table, mismatch_table):
+def angle_computation(ratios):
     """
     Angle Computation
 
@@ -480,13 +528,7 @@ def angle_computation(match_table, mismatch_table):
     Returns:
         np.array: The angle computed between the match and mismatch values.
     """
-    ratio = np.zeros(match_table.shape)
-    div_by_0 = match_table == 0.0
-    ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
-    ratio[div_by_0] = np.tan(np.pi / 2.0)
-    both_0 = div_by_0 & (mismatch_table == 0.0)
-    ratio[both_0] = np.tan(0.0)
-    angles = np.arctan(ratio)
+    angles = np.arctan(ratios)
     return angles
 
 
@@ -508,23 +550,50 @@ def group_match_mismatch_entropy_angle(freq_tables, dimensions):
         match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
         corresponding to closeness to the mismatch axis.
     """
-    match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
-    angles = angle_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+    # match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
+    # mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    # ratios = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+    ratios = group_match_mismatch_entropy_ratio(freq_tables=freq_tables, dimensions=dimensions)
+    angles = angle_computation(ratios=ratios)
     return angles
 
 
-# def diversity_computation(freq_table, dimensions):
-#     entropies = group_plain_entropy_score(feq_table=freq_table, dimensions=dimensions)
-#     diversities = np.exp(entropies)
-#     return diversities
+def diversity_computation(freq_table, dimensions):
+    entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+    diversities = np.exp(entropies)
+    return diversities
 
 
-# def match_diversity_mismatch_entropy_angle(match_freq_table, mismatch_freq_table, dimensions):
-#     match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
-#     mismatch_entropy = group_plain_entropy_score(freq_table=mismatch_freq_table, dimensions=dimensions)
-#     angles = angle_computation(match_table=match_diversity, mismatch_table=mismatch_entropy)
-#     return angles
+def group_match_diversity_mismatch_entropy_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Entropy Ratio
+
+    This function computes the rato between match (invariant or covariant signal) and mismatch (variation signal). A
+    ratio of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
+    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
+    Returns:
+        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
+        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
+        corresponding to closeness to the mismatch axis.
+    """
+    match_diversity = diversity_computation(freq_table=freq_tables['match'], dimensions=dimensions)
+    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_diversity, mismatch_table=mismatch_entropy)
+    return ratio
+
+
+def group_match_diversity_mismatch_entropy_angle(freq_tables, dimensions):
+    # match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
+    # mismatch_entropy = group_plain_entropy_score(freq_table=mismatch_freq_table, dimensions=dimensions)
+    ratios = group_match_diversity_mismatch_entropy_ratio(freq_tables=freq_tables, dimensions=dimensions)
+    angles = angle_computation(ratios=ratios)
+    return angles
 #
 #
 # def match_mismatch_diversity_angle(match_freq_table, mismatch_freq_table, dimensions):
