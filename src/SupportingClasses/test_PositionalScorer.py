@@ -863,7 +863,7 @@ class TestPositionalScorer(TestBase):
             self.assertTrue(min_check.all())
             match_indices = div_by_0_indices & (expected_match_entropy == 0.0)
             match_indices = ((1 * match_indices) - (1 * mismatch_indices)).astype(bool)
-            max_check = observed_ratios[match_indices] == np.finfo(float).max
+            max_check = observed_ratios[match_indices] == np.tan(np.pi / 2.0)
             self.assertTrue(max_check.all())
 
     def test12a_ratio_computation(self):

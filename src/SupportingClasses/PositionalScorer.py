@@ -477,9 +477,10 @@ def ratio_computation(match_table, mismatch_table):
     This function uses two match and mismatch statistics to calculate the ratio:
         ratio = mismatch metric / match metric
     Special cases causing divide by 0 errors are corrected for as follows. If the match statistic is 0 but the
-    mismatch statistic is not, the highest possible float value is assigned (as determined by np.finfo(float).max). If
-    the mismatch statistic is also 0, then 0 is assigned at that position instead. One intention of this computation
-    is that it can be applied to calculate the angle between fully conserved/covarying (0) and fully variable (pi/2).
+    mismatch statistic is not, the lowest possible float which evaluates to 90 degrees by tan (as determined by
+    np.tan(np.pi / 2.0)). If the mismatch statistic is also 0, then 0 is assigned at that position instead. One
+    intention of this computation is that it can be applied to calculate the angle between fully conserved/covarying (0)
+    and fully variable (pi/2).
 
     Arguments:
         match_table (np.array): An array of metrics for positions in an alignment which constitute a match (conservation
@@ -495,8 +496,8 @@ def ratio_computation(match_table, mismatch_table):
     div_by_0 = match_table == 0.0
     # Perform the divide for only those positions where the denominator is not 0.
     ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
-    # Set the positions where the denominator is 0 to the max possible float value (not np.inf).
-    ratio[div_by_0] = np.finfo(float).max
+    # Set the positions where the denominator is 0 to the lowest possible float which evaluates to 90 degrees by tan.
+    ratio[div_by_0] = np.tan(np.pi / 2.0)
     # Determine the positions where the numerator and denominator are 0 and re-assign those values to 0.
     both_0 = div_by_0 & (mismatch_table == 0.0)
     ratio[both_0] = 0.0
