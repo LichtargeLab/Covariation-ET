@@ -471,13 +471,34 @@ def filtered_average_product_correction(mutual_information_matrix):
 
 
 def ratio_computation(match_table, mismatch_table):
+    """
+    Ratio Computation
+
+    This function uses two match and mismatch statistics to calculate the ratio:
+        ratio = mismatch metric / match metric
+    Special cases causing divide by 0 errors are corrected for as follows. If the match statistic is 0 but the
+    mismatch statistic is not, the highest possible float value is assigned (as determined by np.finfo(float).max). If
+    the mismatch statistic is also 0, then 0 is assigned at that position instead. One intention of this computation
+    is that it can be applied to calculate the angle between fully conserved/covarying (0) and fully variable (pi/2).
+
+    Arguments:
+        match_table (np.array): An array of metrics for positions in an alignment which constitute a match (conservation
+        or covariation).
+        mismatch_table (np.array): An array of metrics for positions in an alignment which constitute a mismatch
+        (variation).
+    Return:
+        np.array: An array with the same shape as the provided inputs which contains the ratio of mismatch / match
+        metrics, including the corrections described above.
+    """
     ratio = np.zeros(match_table.shape)
+    # Avoid divide by zero warnings by detecting those positions before the divide.
     div_by_0 = match_table == 0.0
+    # Perform the divide for only those positions where the denominator is not 0.
     ratio[~div_by_0] = mismatch_table[~div_by_0] / match_table[~div_by_0]
-    # ratio[div_by_0] = np.tan(np.pi / 2.0)
+    # Set the positions where the denominator is 0 to the max possible float value (not np.inf).
     ratio[div_by_0] = np.finfo(float).max
+    # Determine the positions where the numerator and denominator are 0 and re-assign those values to 0.
     both_0 = div_by_0 & (mismatch_table == 0.0)
-    # ratio[both_0] = np.tan(0.0)
     ratio[both_0] = 0.0
     return ratio
 
@@ -486,9 +507,10 @@ def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
     """
     Group Match Mismatch Entropy Ratio
 
-    This function computes the rato between match (invariant or covariant signal) and mismatch (variation signal). A
-    ratio of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
-    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal). A
+    ratio of 0 corresponds to invariance or covariation while a ratio of np.finfo(float).max corresponds to fully
+    variable. The ratio is computed by first calculating the entropy of matches and the entropy of mismatches and
+    passing them to the ratio_computation method.
 
     Arguments:
         freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
@@ -496,9 +518,9 @@ def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
         dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
         then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
     Returns:
-        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
-        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
-        corresponding to closeness to the mismatch axis.
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.finfo(float).max corresponding to full variation.
     """
     match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
     mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
@@ -506,15 +528,14 @@ def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
     return ratio
 
 
-# def angle_computation(match_table, mismatch_table):
 def angle_computation(ratios):
     """
     Angle Computation
 
-    This function accepts matrices of values for match and mismatches and computes the angle between the vector
-    described by the match/mismatch values (from the match y axis). This is achieved using the formula:
+    This function accepts a matrix of ratio of mismatch / match values for a given metric. It computes the angle between
+    the vector described by the match/mismatch values (from the match y axis). This is achieved using the formula:
 
-    theta = arctan(mismatch / match)
+        theta = arctan(mismatch / match)
 
     Two special cases are handled by this computation. If the match values is 0.0 (resulting in a divide by 0 warning)
     for a given position, then the only signal must come from the mismatches meaning that the vector is a running
@@ -523,8 +544,8 @@ def angle_computation(ratios):
     are either 2 or 1 sequences.
 
     Arguments:
-        match_table (np.array): The match values for each position being scored in a given group (e.g. entropy).
-        mismatch_table (np.array): The mismatch values for each position being scored in a given group (e.g. entropy).
+        ratios (np.array): An array of mismatch / match statistic ratios as would be produced by the ratio_computation
+        method.
     Returns:
         np.array: The angle computed between the match and mismatch values.
     """
@@ -537,8 +558,9 @@ def group_match_mismatch_entropy_angle(freq_tables, dimensions):
     Group Match Mismatch Entropy Angle
 
     This function computes the angle that each position in a group is from the optimal invariant or covariant signal. An
-    angle of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
-    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+    angle of 0 corresponds to invariance or covariation while and angle of 90 (pi/2) corresponds to fully variable. The
+    angle is computed by first calculating the entropy of matches and the entropy of mismatches, then computing their
+    ratio (with corrections, see ratio_computation), and finally their angle (see angle_computation).
 
     Arguments:
         freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
@@ -547,18 +569,29 @@ def group_match_mismatch_entropy_angle(freq_tables, dimensions):
         then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
     Returns:
         np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
-        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
+        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or pi/2
         corresponding to closeness to the mismatch axis.
     """
-    # match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    # mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
-    # ratios = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
     ratios = group_match_mismatch_entropy_ratio(freq_tables=freq_tables, dimensions=dimensions)
     angles = angle_computation(ratios=ratios)
     return angles
 
 
 def diversity_computation(freq_table, dimensions):
+    """
+    Diversity Computation
+
+    This function accepts a frequency table and returns the corresponding diversity values for all positions, where:
+        diversity = e^(h) = e^(-1 * Sum(p*log(p)))
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the diversity.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a 1-D array is returned, if two are given a 2-D array is returned.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the diversity values for all positions in the
+        provided frequency table.
+    """
     entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
     diversities = np.exp(entropies)
     return diversities
@@ -566,11 +599,12 @@ def diversity_computation(freq_table, dimensions):
 
 def group_match_diversity_mismatch_entropy_ratio(freq_tables, dimensions):
     """
-    Group Match Mismatch Entropy Ratio
+    Group Match Diversity Mismatch Entropy Ratio
 
-    This function computes the rato between match (invariant or covariant signal) and mismatch (variation signal). A
-    ratio of 0 corresponds to invariance or covariation while and angle of 90 (2 pi) corresponds to fully variable. The
-    angle is computed by first calculating the entropy of matches and the entropy of mismatches and then
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal). A
+    ratio of 0 corresponds to invariance or covariation while a ratio of np.finfo(float).max corresponds to fully
+    variable. The ratio is computed by first calculating the diversity of matches and the entropy of mismatches and
+    passing them to the ratio_computation method.
 
     Arguments:
         freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
@@ -578,9 +612,9 @@ def group_match_diversity_mismatch_entropy_ratio(freq_tables, dimensions):
         dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
         then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
     Returns:
-        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
-        match and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and 90 or 2pi
-        corresponding to closeness to the mismatch axis.
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match diversity and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.finfo(float).max corresponding to full variation.
     """
     match_diversity = diversity_computation(freq_table=freq_tables['match'], dimensions=dimensions)
     mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
@@ -589,15 +623,24 @@ def group_match_diversity_mismatch_entropy_ratio(freq_tables, dimensions):
 
 
 def group_match_diversity_mismatch_entropy_angle(freq_tables, dimensions):
-    # match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
-    # mismatch_entropy = group_plain_entropy_score(freq_table=mismatch_freq_table, dimensions=dimensions)
+    """
+    Group Match Diversity Mismatch Entropy Angle
+
+    This function computes the angle that each position in a group is from the optimal invariant or covariant signal. An
+    angle of 0 corresponds to invariance or covariation while and angle of 90 (pi/2) corresponds to fully variable. The
+    angle is computed by first calculating the diversity of matches and the entropy of mismatches, then computing their
+    ratio (with corrections, see ratio_computation), and finally their angle (see angle_computation).
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
+    Returns:
+        np.array: An array of angles computed by angle_computation (see documentation), providing the angle between the
+        match diversity and mismatch entropy axes, with an angle of 0 corresponding to closeness to the match axis and
+        90 or pi/2 corresponding to closeness to the mismatch axis.
+    """
     ratios = group_match_diversity_mismatch_entropy_ratio(freq_tables=freq_tables, dimensions=dimensions)
     angles = angle_computation(ratios=ratios)
     return angles
-#
-#
-# def match_mismatch_diversity_angle(match_freq_table, mismatch_freq_table, dimensions):
-#     match_diversity = diversity_computation(freq_table=match_freq_table, dimensions=dimensions)
-#     mismatch_diversity = diversity_computation(freq_table=mismatch_freq_table, dimensions=dimensions)
-#     angles = angle_computation(match_table=match_diversity, mismatch_table=mismatch_diversity)
-#     return angles
