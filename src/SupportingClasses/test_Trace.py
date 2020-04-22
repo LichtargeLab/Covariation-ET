@@ -564,7 +564,7 @@ class TestTrace(TestBase):
                                       out_dir, write_out_aln, write_out_freq_table):
         unique_dir = os.path.join(out_dir, 'unique_node_data')
         trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=assign, position_specific=single,
-                      pair_specific=pair, match_mismatch=(metric == 'match_mismatch_entropy_angle'),
+                      pair_specific=pair, match_mismatch=(('match' in metric) and ('mismatch' in metric)),
                       output_dir=os.path.join(self.testing_dir, aln.query_id), low_memory=low_memory)
         trace.characterize_rank_groups(processes=self.max_threads, write_out_sub_aln=write_out_aln,
                                        write_out_freq_table=write_out_freq_table)
@@ -576,7 +576,7 @@ class TestTrace(TestBase):
             raise ValueError('Cannot evaluate if both single and pair are False.')
         scorer = PositionalScorer(seq_length=aln.seq_length, pos_size=pos_size, metric=metric)
         init_trace_groups(scorer=scorer, pos_specific=single, pair_specific=pair,
-                          match_mismatch=(metric == 'match_mismatch_entropy_angle'),
+                          match_mismatch=(('match' in metric) and ('mismatch' in metric)),
                           u_dict=trace.unique_nodes, low_memory=low_memory, unique_dir=unique_dir)
         group_dict = {}
         for node_name in trace.unique_nodes:
@@ -683,13 +683,14 @@ class TestTrace(TestBase):
                 expected_rank_scores = np.triu(expected_rank_scores, k=1)
                 rank_scores = load_numpy_array(mat=rank_dict[rank]['pair_ranks'], low_memory=low_memory)
                 diff = np.abs(rank_scores - expected_rank_scores)
-                not_passing = diff > 1E-15
+                not_passing = diff > 1E-12
+                not_passing[expected_rank_scores > 1E14] = diff[expected_rank_scores > 1E14] > 5
                 if not_passing.any():
-                    print(rank_dict[rank]['pair_ranks'])
+                    print(rank_scores)
                     print(expected_rank_scores)
                     print(diff)
                     indices = np.nonzero(not_passing)
-                    print(rank_scores)
+                    print(rank_scores[indices])
                     print(expected_rank_scores[indices])
                     print(diff[indices])
                 self.assertTrue(not not_passing.any())
@@ -829,7 +830,7 @@ class TestTrace(TestBase):
         # and average product corrected mutual information (MIp) metric (all ranks)
         self.evaluate_trace_pool_functions(
             aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
-            single=False, pair=True, metric='match_mismatch_entropy_angle', low_memory=True,
+            single=False, pair=True, metric='match_mismatch_entropy_ratio', low_memory=True,
             out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
 
     def test4r_trace_pool_functions(self):
@@ -837,7 +838,55 @@ class TestTrace(TestBase):
         # and average product corrected mutual information (MIp) metric (custom ranks)
         self.evaluate_trace_pool_functions(
             aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='match_mismatch_entropy_ratio', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4t_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
             single=False, pair=True, metric='match_mismatch_entropy_angle', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4u_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='match_mismatch_entropy_angle', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4v_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='match_diversity_mismatch_entropy_ratio', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4w_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='match_diversity_mismatch_entropy_ratio', low_memory=True,
+            out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4x_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (all ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small, assign=self.assignments_custom_small,
+            single=False, pair=True, metric='match_diversity_mismatch_entropy_angle', low_memory=True,
+            out_dir=self.out_small_dir, write_out_aln=False, write_out_freq_table=False)
+
+    def test4y_trace_pool_functions(self):
+        # Test the pool functions outside of a multiprocessing environment for the large alignment, paired positions,
+        # and average product corrected mutual information (MIp) metric (custom ranks)
+        self.evaluate_trace_pool_functions(
+            aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large, assign=self.assignments_custom_large,
+            single=False, pair=True, metric='match_diversity_mismatch_entropy_angle', low_memory=True,
             out_dir=self.out_large_dir, write_out_aln=False, write_out_freq_table=False)
 
     def evaluate_trace(self, aln, phylo_tree, assignments, single, pair, metric, num_proc, out_dir,
@@ -1019,6 +1068,7 @@ class TestTrace(TestBase):
             expected_ranks += rank_scores
         diff_ranks = score_array - expected_ranks
         not_passing = diff_ranks > 1E-12
+        not_passing[expected_ranks > 1E-14] = diff_ranks[expected_ranks > 1E-14] > 10
         if not_passing.any():
             print(score_array)
             print(expected_ranks)
@@ -1378,7 +1428,7 @@ class TestTrace(TestBase):
         # considering a subset of the rank/groups.
         self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
                             assignments=self.assignments_custom_small, single=False, pair=True,
-                            metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
+                            metric='match_mismatch_entropy_ratio', num_proc=self.max_threads,
                             out_dir=self.out_small_dir, match_mismatch=True, gap_correction=None, low_mem=True)
 
     def test5x_trace(self):
@@ -1386,7 +1436,55 @@ class TestTrace(TestBase):
         # considering a subset of the rank/groups.
         self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
                             assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='match_mismatch_entropy_ratio', num_proc=self.max_threads,
+                            out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5y_trace(self):
+        # Test the small alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
                             metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
+                            out_dir=self.out_small_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5z_trace(self):
+        # Test the large alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='match_mismatch_entropy_angle', num_proc=self.max_threads,
+                            out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5aa_trace(self):
+        # Test the small alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='match_diversity_mismatch_entropy_ratio', num_proc=self.max_threads,
+                            out_dir=self.out_small_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5ab_trace(self):
+        # Test the large alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='match_diversity_mismatch_entropy_ratio', num_proc=self.max_threads,
+                            out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5ac_trace(self):
+        # Test the small alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_small, phylo_tree=self.phylo_tree_small,
+                            assignments=self.assignments_custom_small, single=False, pair=True,
+                            metric='match_diversity_mismatch_entropy_angle', num_proc=self.max_threads,
+                            out_dir=self.out_small_dir, match_mismatch=True, gap_correction=None, low_mem=True)
+
+    def test5ad_trace(self):
+        # Test the large alignment for the computation of angles between the match and mismatch entropy but only
+        # considering a subset of the rank/groups.
+        self.evaluate_trace(aln=self.query_aln_fa_large, phylo_tree=self.phylo_tree_large,
+                            assignments=self.assignments_custom_large, single=False, pair=True,
+                            metric='match_diversity_mismatch_entropy_angle', num_proc=self.max_threads,
                             out_dir=self.out_large_dir, match_mismatch=True, gap_correction=None, low_mem=True)
 
 
