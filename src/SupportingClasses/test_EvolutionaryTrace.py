@@ -183,7 +183,37 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
                            et_distance=True, distance_model='blosum62', tree_building_method='et',
                            tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='match_mismatch_entropy_ratio',
+                           gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.large_structure_id]['Sequence'].seq)
+
+    def test_1h_init(self):
+        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+                           et_distance=True, distance_model='blosum62', tree_building_method='et',
+                           tree_building_options={}, ranks=None, position_type='pair',
                            scoring_metric='match_mismatch_entropy_angle',
+                           gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.large_structure_id]['Sequence'].seq)
+
+    def test_1i_init(self):
+        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+                           et_distance=True, distance_model='blosum62', tree_building_method='et',
+                           tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='match_diversity_mismatch_entropy_ratio',
+                           gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads,
+                           low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
+                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
+                           expected_sequence=self.data_set.protein_data[self.large_structure_id]['Sequence'].seq)
+
+    def test_1j_init(self):
+        self.evaluate_init(query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn,
+                           et_distance=True, distance_model='blosum62', tree_building_method='et',
+                           tree_building_options={}, ranks=None, position_type='pair',
+                           scoring_metric='match_diversity_mismatch_entropy_angle',
                            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads,
                            low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'},
                            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
@@ -296,11 +326,35 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
             gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
     def test_2e_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2f_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2g_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2h_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
@@ -308,7 +362,7 @@ class TestEvoultionaryTrace(TestBase):
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'}, processors=self.max_threads,
             low_memory=True)
 
-    def test_2f_compute_distance_matrix_tree_and_assignments(self):
+    def test_2i_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
@@ -316,7 +370,7 @@ class TestEvoultionaryTrace(TestBase):
             processors=self.max_threads, low_memory=True, output_files={'original_aln', 'non_gap_aln', 'tree',
                                                                         'scores'})
 
-    def test_2g_compute_distance_matrix_tree_and_assignments(self):
+    def test_2j_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
@@ -324,11 +378,35 @@ class TestEvoultionaryTrace(TestBase):
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
-    def test_2h_compute_distance_matrix_tree_and_assignments(self):
+    def test_2k_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2l_compute_distance_matrix_tree_and_assignments(self):
         self.evaluate_compute_distance_matrix_tree_and_assignments(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2m_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_2n_compute_distance_matrix_tree_and_assignments(self):
+        self.evaluate_compute_distance_matrix_tree_and_assignments(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
@@ -400,7 +478,10 @@ class TestEvoultionaryTrace(TestBase):
                 if et.scoring_metric == 'identity':
                     self.assertEqual(expected_score, et_df.loc[ind, 'Score'])
                 else:
-                    self.assertLessEqual(np.abs(expected_score - et_df.loc[ind, 'Score']), 1e-3)
+                    if expected_score > 1E14:
+                        self.assertLessEqual(np.abs(expected_score - et_df.loc[ind, 'Score']), 35)
+                    else:
+                        self.assertLessEqual(np.abs(expected_score - et_df.loc[ind, 'Score']), 1e-3)
                 expected_coverage = et.coverages[pos_i, pos_j]
                 self.assertLessEqual(np.abs(expected_coverage - et_df.loc[ind, 'Coverage']), 1e-3)
         os.remove(fn)
@@ -425,7 +506,7 @@ class TestEvoultionaryTrace(TestBase):
         expected_trace = Trace(alignment=et.non_gapped_aln, phylo_tree=et.phylo_tree, group_assignments=et.assignments,
                                position_specific=(position_type == 'single'), pair_specific=(position_type == 'pair'),
                                output_dir=out_dir, low_memory=low_memory,
-                               match_mismatch=(scoring_metric == 'match_mismatch_entropy_angle'))
+                               match_mismatch=(('match' in scoring_metric) and ('mismatch' in scoring_metric)))
         self.assertEqual(et.trace.aln.query_id, expected_trace.aln.query_id)
         self.assertEqual(et.trace.aln.size, expected_trace.aln.size)
         self.assertEqual(et.trace.aln.seq_length, expected_trace.aln.seq_length)
@@ -551,6 +632,7 @@ class TestEvoultionaryTrace(TestBase):
                                                                                   processes=self.max_threads)
         diff_scores = et.scores - expected_scores
         not_passing = diff_scores > 1e-13
+        not_passing[expected_scores > 1E14] = diff_scores[expected_scores > 1E14] > 35
         if not_passing.any():
             print(et.scores)
             print(expected_scores)
@@ -667,7 +749,7 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_perform_trace(
             query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
             gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
@@ -675,7 +757,55 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_perform_trace(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3i_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3j_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3k_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3l_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3m_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_3n_perform_trace(self):
+        self.evaluate_perform_trace(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
@@ -765,7 +895,7 @@ class TestEvoultionaryTrace(TestBase):
         expected_trace = Trace(alignment=et.non_gapped_aln, phylo_tree=et.phylo_tree, group_assignments=et.assignments,
                                position_specific=(position_type == 'single'), pair_specific=(position_type == 'pair'),
                                output_dir=out_dir, low_memory=low_memory,
-                               match_mismatch=(scoring_metric == 'match_mismatch_entropy_angle'))
+                               match_mismatch=(('match' in scoring_metric) and ('mismatch' in scoring_metric)))
         self.assertEqual(et.trace.aln.query_id, expected_trace.aln.query_id)
         self.assertEqual(et.trace.aln.size, expected_trace.aln.size)
         self.assertEqual(et.trace.aln.seq_length, expected_trace.aln.seq_length)
@@ -887,6 +1017,7 @@ class TestEvoultionaryTrace(TestBase):
                                                                                   processes=self.max_threads)
         diff_scores = et.scores - expected_scores
         not_passing = diff_scores > 1e-13
+        not_passing[expected_scores > 1E14] = diff_scores[expected_scores > 1E14] > 35
         if not_passing.any():
             print(et.scores)
             print(expected_scores)
@@ -1003,7 +1134,7 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_calculate_scores(
             query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
-            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
             gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 
@@ -1011,7 +1142,55 @@ class TestEvoultionaryTrace(TestBase):
         self.evaluate_calculate_scores(
             query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
             distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4i_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
             position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4j_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4k_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4l_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_ratio',
+            gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4m_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.small_structure_id, polymer_type='Protein', aln_fn=self.small_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
+            gap_correction=None, out_dir=self.out_small_dir, processors=self.max_threads, low_memory=True,
+            output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+
+    def test_4n_calculate_scores(self):
+        self.evaluate_calculate_scores(
+            query_id=self.large_structure_id, polymer_type='Protein', aln_fn=self.large_fa_fn, et_distance=True,
+            distance_model='blosum62', tree_building_method='et', tree_building_options={}, ranks=None,
+            position_type='pair', scoring_metric='match_diversity_mismatch_entropy_angle',
             gap_correction=None, out_dir=self.out_large_dir, processors=self.max_threads, low_memory=True,
             output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
 

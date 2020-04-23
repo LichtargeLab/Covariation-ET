@@ -206,7 +206,8 @@ class EvolutionaryTrace(Predictor):
             self.trace = Trace(alignment=self.non_gapped_aln, phylo_tree=self.phylo_tree,
                                group_assignments=self.assignments, position_specific=(self.position_type == 'single'),
                                pair_specific=(self.position_type == 'pair'),
-                               match_mismatch=(self.scoring_metric == 'match_mismatch_entropy_angle'),
+                               match_mismatch=(('match' in self.scoring_metric) and
+                                               ('mismatch' in self.scoring_metric)),
                                output_dir=self.out_dir, low_memory=self.low_memory)
             self.trace.characterize_rank_groups(processes=self.processors,
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
@@ -216,7 +217,7 @@ class EvolutionaryTrace(Predictor):
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.trace, self.rankings, self.scores, self.coverages), handle, pickle.HIGHEST_PROTOCOL)
         root_node_name = self.assignments[1][1]['node'].name
-        if self.scoring_metric == 'match_mismatch_entropy_angle':
+        if (('match' in self.scoring_metric) and ('mismatch' in self.scoring_metric)):
             root_freq_table = (load_freq_table(
                 freq_table=self.trace.unique_nodes[root_node_name]['match'], low_memory=self.low_memory) +
                                load_freq_table(
