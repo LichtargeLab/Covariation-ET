@@ -36,10 +36,10 @@ def build_mapping(alphabet, skip_letters=None):
         letters = alphabet.letters
         character_size = alphabet.size
     elif type(alphabet) == list:
-        letters = ''.join(alphabet)
+        letters = alphabet
         character_size = len(alphabet[0])
     elif type(alphabet) == str:
-        letters = alphabet
+        letters = list(alphabet)
         character_size = 1
     else:
         raise ValueError("'alphabet' expects values of type Bio.Alphabet or list.")
