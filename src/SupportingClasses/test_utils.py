@@ -651,6 +651,84 @@ class TestBuildMapping(TestCase):
                                                          'Thr', 'Sec', 'Val', 'Trp', 'Xaa', 'Tyr', 'Glx'])
         self.assertTrue(reverse_map_check.all())
 
+
+class TestConvertSeqToNumeric(TestCase):
+
+    def test_only_alphabet_characters(self):
+        sequence = 'ACDEFGHIKLMNPQRSTVWYYWVTSRQPNMLKIHGFEDCAAYCWDVETFSGRHQIPKNLM'
+        expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19, 18, 17, 16, 15, 14, 13,
+                    12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 19, 1, 18, 2, 17, 3, 16, 4, 15, 5, 14, 6, 13, 7, 12, 8,
+                    11, 9, 10]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_characters_and_gaps1(self):
+        sequence = 'ACDEFGHIKLMNPQRSTVWY--YWVTSRQPNMLKIHGFEDCAA-CYDWEVFTGSHRIQKPLNM'
+        expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 20, 19, 18, 17, 16, 15,
+                    14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 20, 1, 19, 2, 18, 3, 17, 4, 16, 5, 15, 6, 14,
+                    7, 13, 8, 12, 9, 11, 10]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_characters_and_gaps2(self):
+        sequence = 'ACDEFGHIKLMNPQRSTVWY..YWVTSRQPNMLKIHGFEDCAA.CYDWEVFTGSHRIQKPLNM'
+        expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 20, 19, 18, 17, 16, 15,
+                    14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 20, 1, 19, 2, 18, 3, 17, 4, 16, 5, 15, 6, 14,
+                    7, 13, 8, 12, 9, 11, 10]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_characters_and_gaps3(self):
+        sequence = 'ACDEFGHIKLMNPQRSTVWY**YWVTSRQPNMLKIHGFEDCAA*CYDWEVFTGSHRIQKPLNM'
+        expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 20, 19, 18, 17, 16, 15,
+                    14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 20, 1, 19, 2, 18, 3, 17, 4, 16, 5, 15, 6, 14,
+                    7, 13, 8, 12, 9, 11, 10]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_with_skip_letter(self):
+        sequence = 'ABCDEFGHIKLMNPQRSTVWYYWVTSRQPNMLKIHGFEDCBAAYBWCVDTESFRGQHPINKML'
+        expected = [0, 21, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19, 18, 17, 16, 15,
+                    14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 21, 0, 0, 19, 21, 18, 1, 17, 2, 16, 3, 15, 4, 14,
+                    5, 13, 6, 12, 7, 11, 8, 10, 9]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein(), skip_letters=['B'])
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_with_skip_letters(self):
+        sequence = 'ABCDEFGHIJKLMNPQRSTVWYYWVTSRQPNMLKJIHGFEDCBAAYBWCVDTESFRGQHPINJMKL'
+        expected = [0, 21, 1, 2, 3, 4, 5, 6, 7, 21, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19, 18, 17, 16, 15,
+                    14, 13, 12, 11, 10, 9, 8, 21, 7, 6, 5, 4, 3, 2, 1, 21, 0, 0, 19, 21, 18, 1, 17, 2, 16, 3, 15, 4, 14,
+                    5, 13, 6, 12, 7, 11, 21, 10, 8, 9]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein(), skip_letters=['B', 'J'])
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_alphabet_with_skip_letters_and_gaps(self):
+        sequence = 'ABCDEFGHIJKLMNPQRSTVWY--YWVTSRQPNMLKJIHGFEDCBAAYBWCVDTESFRGQHPINJMKL-'
+        expected = [0, 21, 1, 2, 3, 4, 5, 6, 7, 21, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 20, 19, 18, 17,
+                    16, 15, 14, 13, 12, 11, 10, 9, 8, 21, 7, 6, 5, 4, 3, 2, 1, 21, 0, 0, 19, 21, 18, 1, 17, 2, 16, 3,
+                    15, 4, 14, 5, 13, 6, 12, 7, 11, 21, 10, 8, 9, 20]
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein(), skip_letters=['B', 'J', '.', '*'])
+        numeric = convert_seq_to_numeric(seq=sequence, mapping=mapping)
+        self.assertFalse((numeric - expected).any())
+
+    def test_missing_character_letter(self):
+        sequence = 'ABCDEFGHIKLMNPQRSTVWYYWVTSRQPNMLKIHGFEDCBAAYBWCVDTESFRGQHPINKML'
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        with self.assertRaises(KeyError):
+            convert_seq_to_numeric(seq=sequence, mapping=mapping)
+
+    def test_missing_characters(self):
+        sequence = 'ABCDEFGHIJKLMNPQRSTVWYYWVTSRQPNMLKJIHGFEDCBAAYBWCVDTESFRGQHPINJMKL'
+        _, _, mapping, _ = build_mapping(alphabet=IUPACProtein())
+        with self.assertRaises(KeyError):
+            convert_seq_to_numeric(seq=sequence, mapping=mapping)
+
 # class TestUtils(TestCase):
 #
 #     @classmethod
@@ -659,20 +737,6 @@ class TestBuildMapping(TestCase):
 #         cls.alphabet = ExtendedIUPACProtein()
 #         cls.alphabet_str = cls.alphabet.letters
 #         cls.alphabet_list = [char for char in cls.alphabet_str]
-#
-#     def test2_convert_seq_to_numeric(self):
-#         size, gap_chars, mapping, reverse = build_mapping(alphabet=self.alphabet_str)
-#         query_seq_7hvp = 'PQITLWQRPLVTIRIGGQLKEALLDTGADDTVLE--EMNL--PGKWK----PKMIGGIGGFIKVRQYDQIPVEI-GHKAIGTV---LVGPTP'\
-#                          'VNIIGRNLLTQIG-TLNF'
-#         expected_array = np.array([12, 13, 7, 16, 9, 18, 13, 14, 12, 9, 17, 16, 7, 14, 7, 5, 5, 13, 9, 8, 3, 0, 9, 9, 2,
-#                                    16, 5, 0, 2, 2, 16, 17, 9, 3, 26, 26, 3, 10, 11, 9, 26, 26, 12, 5, 8, 18, 8, 26, 26,
-#                                    26, 26, 12, 8, 10, 7, 5, 5, 7, 5, 5, 4, 7, 8, 17, 14, 13, 19, 2, 13, 7, 12, 17, 3, 7,
-#                                    26, 5, 6, 8, 0, 7, 5, 16, 17, 26, 26, 26, 9, 17, 5, 12, 16, 12, 17, 11, 7, 7, 5, 14,
-#                                    11, 9, 9, 16, 13, 7, 5, 26, 16, 9, 11, 4])
-#         numeric_seq_7hvp = convert_seq_to_numeric(seq=query_seq_7hvp, mapping=mapping)
-#         diff_in_conversion = expected_array - numeric_seq_7hvp
-#         self.assertEqual(numeric_seq_7hvp.shape, expected_array.shape)
-#         self.assertFalse(np.any(diff_in_conversion))
 #
 #     def evaluate_compute_rank_and_coverage(self, seq_length, scores, pos_size, rank_type):
 #         if rank_type not in ['min', 'max']:
