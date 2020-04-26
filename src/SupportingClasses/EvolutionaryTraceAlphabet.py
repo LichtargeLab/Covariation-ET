@@ -37,9 +37,26 @@ class MultiPositionAlphabet(Alphabet.Alphabet):
         The initialization for a multiple position alphabet starting from some initial alphabet.
 
         Args:
-            alphabet (Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The alphabet which should be expanded to consider
-            multiple positions.
-            size (int): The number of positions an alphabet should cover.
+            alphabet (str/list/ Bio.Alphabet.Alphabet/Bio.Alphabet.Gapped): The alphabet which should be expanded to
+            consider multiple positions.
+            size (int): The number of positions by which to increase the existing alphabet. E.g. if an alphabet with
+            size 1 is provided and size is set to 2 then the size of the new alphabet object will be 2, but if the
+            initial alphabet has size 2 and size two is specified, then the new alphabet will have size 4.
         """
-        self.size = size
-        self.letters = [''.join(list(x)) for x in product(alphabet.letters, repeat=size)]
+        try:
+            # Assuming an Alphabet object was provided retrieve the size and characters
+            prev_size = alphabet.size
+            characters = alphabet.letters
+        except AttributeError:
+            try:
+                # If size could not be retrieved attempt to retrieve just letters
+                prev_size = len(alphabet.letters[0])
+                characters = alphabet.letters
+            except AttributeError:
+                # If letters could not be retrieved assume a string or list has been provided and use the alphabet
+                # itself as the set of characters and the size of the first element (1 for strings and variable for
+                # lists) as the size of the input alphabet.
+                prev_size = len(alphabet[0])
+                characters = alphabet
+        self.size = size * prev_size
+        self.letters = [''.join(list(x)) for x in product(characters, repeat=size)]
