@@ -103,6 +103,8 @@ def compute_rank_and_coverage(seq_length, scores, pos_size, rank_type):
         weight = 1.0
     else:
         raise ValueError('No support for rank types other than max or min, {} provided'.format(rank_type))
+    if len(scores.shape) != pos_size:
+        raise ValueError('Position size does not match score shape!')
     if pos_size == 1:
         indices = range(seq_length)
         normalization = float(seq_length)

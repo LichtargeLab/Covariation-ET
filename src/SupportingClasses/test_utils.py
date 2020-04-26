@@ -729,94 +729,331 @@ class TestConvertSeqToNumeric(TestCase):
         with self.assertRaises(KeyError):
             convert_seq_to_numeric(seq=sequence, mapping=mapping)
 
-# class TestUtils(TestCase):
-#
-#     @classmethod
-#     def setUpClass(cls):
-#         cls.expected_gap_chars = {'-', '.', '*'}
-#         cls.alphabet = ExtendedIUPACProtein()
-#         cls.alphabet_str = cls.alphabet.letters
-#         cls.alphabet_list = [char for char in cls.alphabet_str]
-#
-#     def evaluate_compute_rank_and_coverage(self, seq_length, scores, pos_size, rank_type):
-#         if rank_type not in ['min', 'max']:
-#             with self.assertRaises(ValueError):
-#                 compute_rank_and_coverage(seq_length=seq_length, scores=scores, pos_size=pos_size, rank_type=rank_type)
-#         elif len(scores.shape) != pos_size:
-#             with self.assertRaises(ValueError):
-#                 compute_rank_and_coverage(seq_length=seq_length, scores=scores, pos_size=pos_size, rank_type=rank_type)
-#         else:
-#             rank, coverage = compute_rank_and_coverage(seq_length=seq_length, scores=scores, pos_size=pos_size,
-#                                                        rank_type=rank_type)
-#             unique_scores = np.unique(scores)
-#             unique_rank = np.unique(rank)
-#             unique_coverage = np.unique(coverage)
-#             self.assertEqual(unique_scores.shape, unique_rank.shape)
-#             self.assertEqual(unique_scores.shape, unique_coverage.shape)
-#             min_score = np.min(scores)
-#             min_rank = np.min(rank)
-#             min_coverage = np.min(coverage)
-#             max_coverage = np.max(coverage)
-#             max_score = np.max(scores)
-#             max_rank = np.max(rank)
-#             min_mask = scores == min_score
-#             max_mask = scores == max_score
-#             if rank_type == 'min':
-#                 rank_mask = rank == min_rank
-#                 rank_mask2 = rank == max_rank
-#                 cov_mask = coverage == min_coverage
-#                 cov_mask2 = coverage == max_coverage
-#             else:
-#                 rank_mask = rank == max_rank
-#                 rank_mask2 = rank == min_rank
-#                 cov_mask = coverage == max_coverage
-#                 cov_mask2 = coverage == min_coverage
-#             diff_min_ranks = min_mask ^ rank_mask
-#             self.assertFalse(diff_min_ranks.any())
-#             diff_min_cov = min_mask ^ cov_mask
-#             self.assertFalse(diff_min_cov.any())
-#             diff_max_ranks = max_mask ^ rank_mask2
-#             self.assertFalse(diff_max_ranks.any())
-#             diff_max_cov = max_mask ^ cov_mask2
-#             self.assertFalse(diff_max_cov.any())
-#
-#     def test3a_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=2, rank_type='middle')
-#
-#     def test3b_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=3, rank_type='min')
-#
-#     def test3c_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len)
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=1, rank_type='min')
-#
-#     def test3d_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len)
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=1, rank_type='max')
-#
-#     def test3e_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=1, rank_type='min')
-#
-#     def test3f_compute_rank_and_coverage(self):
-#         seq_len = 100
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         self.evaluate_compute_rank_and_coverage(seq_length=seq_len, scores=scores, pos_size=1, rank_type='max')
+
+class TestComputeRankAndCoverage(TestCase):
+
+    def test_position_size_1_rank_type_min(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=10, scores=scores, pos_size=1, rank_type='min')
+        expected_ranks = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_min_disordered(self):
+        scores = np.array([0, 9, 1, 8, 2, 7, 3, 6, 4, 5])
+        ranks, coverages = compute_rank_and_coverage(seq_length=10, scores=scores, pos_size=1, rank_type='min')
+        expected_ranks = np.array([1, 10, 2, 9, 3, 8, 4, 7, 5, 6])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([0.1, 1.0, 0.2, 0.9, 0.3, 0.8, 0.4, 0.7, 0.5, 0.6])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_min_ties1(self):
+        scores = np.array([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='min')
+        expected_ranks = np.array([1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([2 / 11.0, 2 / 11.0, 3 / 11.0, 4 / 11.0, 5 / 11.0, 6 / 11.0, 7 / 11.0, 8 / 11.0,
+                                       9 / 11.0, 10 / 11.0, 1.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_min_ties2(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='min')
+        expected_ranks = np.array([1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 10])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1 / 11.0, 2 / 11.0, 3 / 11.0, 4 / 11.0, 5 / 11.0, 7 / 11.0, 7 / 11.0, 8 / 11.0,
+                                       9 / 11.0, 10 / 11.0, 1.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_min_ties3(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='min')
+        expected_ranks = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1 / 11.0, 2 / 11.0, 3 / 11.0, 4 / 11.0, 5 / 11.0, 6 / 11.0, 7 / 11.0, 8 / 11.0,
+                                       9 / 11.0, 1.0, 1.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_max(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=10, scores=scores, pos_size=1, rank_type='max')
+        expected_ranks = np.array([10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_max_disordered(self):
+        scores = np.array([0, 9, 1, 8, 2, 7, 3, 6, 4, 5])
+        ranks, coverages = compute_rank_and_coverage(seq_length=10, scores=scores, pos_size=1, rank_type='max')
+        expected_ranks = np.array([10, 1, 9, 2, 8, 3, 7, 4, 6, 5])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1.0, 0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.6, 0.5])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_max_ties1(self):
+        scores = np.array([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='max')
+        expected_ranks = np.array([10, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1.0, 1.0, 9 / 11.0, 8 / 11.0, 7 / 11.0, 6 / 11.0, 5 / 11.0, 4 / 11.0, 3 / 11.0,
+                                       2 / 11.0, 1 / 11.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_max_ties2(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 5, 6, 7, 8, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='max')
+        expected_ranks = np.array([10, 9, 8, 7, 6, 5, 5, 4, 3, 2, 1])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1.0, 10 / 11.0, 9 / 11.0, 8 / 11.0, 7 / 11.0, 6 / 11.0, 6 / 11.0, 4 / 11.0,
+                                       3 / 11.0, 2 / 11.0, 1 / 11.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_1_rank_type_max_ties3(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9])
+        ranks, coverages = compute_rank_and_coverage(seq_length=11, scores=scores, pos_size=1, rank_type='max')
+        expected_ranks = np.array([10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 1])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([1.0, 10 / 11.0, 9 / 11.0, 8 / 11.0, 7 / 11.0, 6 / 11.0, 5 / 11.0, 4 / 11.0,
+                                       3 / 11.0, 2 / 11.0, 2 / 11.0])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_min(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 9],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+        expected_ranks = np.array([[0, 1, 2, 3, 4],
+                                   [0, 0, 5, 6, 7],
+                                   [0, 0, 0, 8, 9],
+                                   [0, 0, 0, 0, 10],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 0.1, 0.2, 0.3, 0.4],
+                                       [0.0, 0.0, 0.5, 0.6, 0.7],
+                                       [0.0, 0.0, 0.0, 0.8, 0.9],
+                                       [0.0, 0.0, 0.0, 0.0, 1.0],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_min_disordered(self):
+        scores = np.array([[0, 0, 9, 1, 8],
+                           [0, 0, 2, 7, 3],
+                           [0, 0, 0, 6, 4],
+                           [0, 0, 0, 0, 5],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+        expected_ranks = np.array([[0, 1, 10, 2, 9],
+                                   [0, 0, 3, 8, 4],
+                                   [0, 0, 0, 7, 5],
+                                   [0, 0, 0, 0, 6],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 0.1, 1.0, 0.2, 0.9],
+                                       [0.0, 0.0, 0.3, 0.8, 0.4],
+                                       [0.0, 0.0, 0.0, 0.7, 0.5],
+                                       [0.0, 0.0, 0.0, 0.0, 0.6],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_min_ties1(self):
+        scores = np.array([[0, 0, 0, 1, 2],
+                           [0, 0, 3, 4, 5],
+                           [0, 0, 0, 6, 7],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+        expected_ranks = np.array([[0, 1, 1, 2, 3],
+                                   [0, 0, 4, 5, 6],
+                                   [0, 0, 0, 7, 8],
+                                   [0, 0, 0, 0, 9],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 0.2, 0.2, 0.3, 0.4],
+                                       [0.0, 0.0, 0.5, 0.6, 0.7],
+                                       [0.0, 0.0, 0.0, 0.8, 0.9],
+                                       [0.0, 0.0, 0.0, 0.0, 1.0],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_min_ties2(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 5],
+                           [0, 0, 0, 6, 7],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+        expected_ranks = np.array([[0, 1, 2, 3, 4],
+                                   [0, 0, 5, 6, 6],
+                                   [0, 0, 0, 7, 8],
+                                   [0, 0, 0, 0, 9],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 0.1, 0.2, 0.3, 0.4],
+                                       [0.0, 0.0, 0.5, 0.7, 0.7],
+                                       [0.0, 0.0, 0.0, 0.8, 0.9],
+                                       [0.0, 0.0, 0.0, 0.0, 1.0],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_min_ties3(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+        expected_ranks = np.array([[0, 1, 2, 3, 4],
+                                   [0, 0, 5, 6, 7],
+                                   [0, 0, 0, 8, 9],
+                                   [0, 0, 0, 0, 9],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 0.1, 0.2, 0.3, 0.4],
+                                       [0.0, 0.0, 0.5, 0.6, 0.7],
+                                       [0.0, 0.0, 0.0, 0.8, 1.0],
+                                       [0.0, 0.0, 0.0, 0.0, 1.0],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_max(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 9],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='max')
+        expected_ranks = np.array([[0, 10, 9, 8, 7],
+                                   [0, 0, 6, 5, 4],
+                                   [0, 0, 0, 3, 2],
+                                   [0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 1.0, 0.9, 0.8, 0.7],
+                                       [0.0, 0.0, 0.6, 0.5, 0.4],
+                                       [0.0, 0.0, 0.0, 0.3, 0.2],
+                                       [0.0, 0.0, 0.0, 0.0, 0.1],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_max_disordered(self):
+        scores = np.array([[0, 0, 9, 1, 8],
+                           [0, 0, 2, 7, 3],
+                           [0, 0, 0, 6, 4],
+                           [0, 0, 0, 0, 5],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='max')
+        expected_ranks = np.array([[0, 10, 1, 9, 2],
+                                   [0, 0, 8, 3, 7],
+                                   [0, 0, 0, 4, 6],
+                                   [0, 0, 0, 0, 5],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 1.0, 0.1, 0.9, 0.2],
+                                       [0.0, 0.0, 0.8, 0.3, 0.7],
+                                       [0.0, 0.0, 0.0, 0.4, 0.6],
+                                       [0.0, 0.0, 0.0, 0.0, 0.5],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_max_ties1(self):
+        scores = np.array([[0, 0, 0, 1, 2],
+                           [0, 0, 3, 4, 5],
+                           [0, 0, 0, 6, 7],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='max')
+        expected_ranks = np.array([[0, 9, 9, 8, 7],
+                                   [0, 0, 6, 5, 4],
+                                   [0, 0, 0, 3, 2],
+                                   [0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 1.0, 1.0, 0.8, 0.7],
+                                       [0.0, 0.0, 0.6, 0.5, 0.4],
+                                       [0.0, 0.0, 0.0, 0.3, 0.2],
+                                       [0.0, 0.0, 0.0, 0.0, 0.1],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_max_ties2(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 5],
+                           [0, 0, 0, 6, 7],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='max')
+        expected_ranks = np.array([[0, 9, 8, 7, 6],
+                                   [0, 0, 5, 4, 4],
+                                   [0, 0, 0, 3, 2],
+                                   [0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 1.0, 0.9, 0.8, 0.7],
+                                       [0.0, 0.0, 0.6, 0.5, 0.5],
+                                       [0.0, 0.0, 0.0, 0.3, 0.2],
+                                       [0.0, 0.0, 0.0, 0.0, 0.1],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_size_2_rank_type_max_ties3(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 8],
+                           [0, 0, 0, 0, 0]])
+        ranks, coverages = compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='max')
+        expected_ranks = np.array([[0, 9, 8, 7, 6],
+                                   [0, 0, 5, 4, 3],
+                                   [0, 0, 0, 2, 1],
+                                   [0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0]])
+        self.assertFalse((ranks - expected_ranks).any())
+        expected_coverages = np.array([[0.0, 1.0, 0.9, 0.8, 0.7],
+                                       [0.0, 0.0, 0.6, 0.5, 0.4],
+                                       [0.0, 0.0, 0.0, 0.3, 0.2],
+                                       [0.0, 0.0, 0.0, 0.0, 0.2],
+                                       [0.0, 0.0, 0.0, 0.0, 0.0]])
+        self.assertFalse((coverages - expected_coverages).any())
+
+    def test_position_bad_rank1(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=10, scores=scores, pos_size=1, rank_type='med')
+
+    def test_position_bad_rank2(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 9],
+                           [0, 0, 0, 0, 0]])
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='med')
+
+    def test_position_bad_bad_position_size1(self):
+        scores = np.array([[[0, 0, 1, 2, 3],
+                            [0, 0, 4, 5, 6],
+                            [0, 0, 0, 7, 8],
+                            [0, 0, 0, 0, 9],
+                            [0, 0, 0, 0, 0]]])
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=3, rank_type='min')
+
+    def test_position_bad_position_size2(self):
+        scores = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=5, scores=scores, pos_size=2, rank_type='min')
+
+    def test_position_bad_position_size3(self):
+        scores = np.array([[0, 0, 1, 2, 3],
+                           [0, 0, 4, 5, 6],
+                           [0, 0, 0, 7, 8],
+                           [0, 0, 0, 0, 9],
+                           [0, 0, 0, 0, 0]])
+        with self.assertRaises(ValueError):
+            compute_rank_and_coverage(seq_length=25, scores=scores, pos_size=1, rank_type='min')
 
 
 if __name__ == '__main__':
