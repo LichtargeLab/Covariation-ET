@@ -1,167 +1,531 @@
+import os
 import unittest
+from datetime import datetime
+from unittest import TestCase
+from Bio.ExPASy import get_sprot_raw
 from Bio.PDB.Structure import Structure
-from test_Base import TestBase
 from PDBReference import PDBReference
 
+chain_a_pdb_partial = 'ATOM      9  N   GLU A   2     153.913  21.571  52.586  1.00 65.12           N  \n'\
+                      'ATOM     10  CA  GLU A   2     153.617  20.553  53.599  1.00 64.46           C  \n'\
+                      'ATOM     11  C   GLU A   2     153.850  21.067  55.018  1.00 63.81           C  \n'\
+                      'ATOM     12  O   GLU A   2     153.177  20.639  55.960  1.00 63.64           O  \n'\
+                      'ATOM     13  CB  GLU A   2     154.431  19.277  53.350  1.00 64.59           C  \n'\
+                      'ATOM     14  CG  GLU A   2     153.767  18.286  52.392  1.00 64.91           C  \n'\
+                      'ATOM     15  CD  GLU A   2     153.675  18.807  50.965  1.00 65.39           C  \n'\
+                      'ATOM     16  OE1 GLU A   2     152.542  19.056  50.495  1.00 65.13           O  \n'\
+                      'ATOM     17  OE2 GLU A   2     154.735  18.978  50.321  1.00 65.58           O  \n'\
+                      'ATOM     18  N   THR A   3      24.499  13.739  37.648  1.00 12.91           N  \n'\
+                      'ATOM     19  CA  THR A   3      24.278  13.068  38.914  1.00  9.39           C  \n'\
+                      'ATOM     20  C   THR A   3      22.973  13.448  39.580  1.00  9.61           C  \n'\
+                      'ATOM     21  O   THR A   3      22.188  12.566  39.933  1.00 10.86           O  \n'\
+                      'ATOM     22  CB  THR A   3      25.405  13.382  39.929  1.00 11.10           C  \n'\
+                      'ATOM     23  OG1 THR A   3      26.603  13.084  39.227  1.00 13.57           O  \n'\
+                      'ATOM     24  CG2 THR A   3      25.336  12.578  41.212  1.00 15.68           C  \n'
+chain_a_pdb = 'ATOM      1  N   MET A   1     152.897  26.590  66.235  1.00 57.82           N  \n'\
+              'ATOM      2  CA  MET A   1     153.488  26.592  67.584  1.00 57.79           C  \n'\
+              'ATOM      3  C   MET A   1     153.657  28.043  68.066  1.00 57.26           C  \n'\
+              'ATOM      4  O   MET A   1     153.977  28.924  67.266  1.00 57.37           O  \n'\
+              'ATOM      5  CB  MET A   1     154.843  25.881  67.544  1.00 58.16           C  \n'\
+              'ATOM      6  CG  MET A   1     155.689  25.983  68.820  1.00 59.67           C  \n'\
+              'ATOM      7  SD  MET A   1     157.418  25.517  68.551  1.00 62.17           S  \n'\
+              'ATOM      8  CE  MET A   1     158.062  26.956  67.686  1.00 61.68           C  \n' + chain_a_pdb_partial
+chain_b_pdb_partial = 'ATOM     40  N   ARG B   3      24.805   9.537  22.454  1.00 12.48           N  \n'\
+                      'ATOM     41  CA  ARG B   3      24.052   8.386  22.974  1.00 10.49           C  \n'\
+                      'ATOM     42  C   ARG B   3      24.897   7.502  23.849  1.00 10.61           C  \n'\
+                      'ATOM     43  O   ARG B   3      24.504   7.220  24.972  1.00 11.97           O  \n'\
+                      'ATOM     44  CB  ARG B   3      23.506   7.549  21.793  1.00 13.55           C  \n'\
+                      'ATOM     45  CG  ARG B   3      22.741   6.293  22.182  1.00 17.24           C  \n'\
+                      'ATOM     46  CD  ARG B   3      22.242   5.559  20.931  1.00 13.64           C  \n'\
+                      'ATOM     47  NE  ARG B   3      23.319   5.176  20.037  1.00 14.77           N  \n'\
+                      'ATOM     48  CZ  ARG B   3      23.931   3.984  20.083  1.00 19.58           C  \n'\
+                      'ATOM     49  NH1 ARG B   3      23.622   3.034  20.961  1.00 15.71           N  \n'\
+                      'ATOM     50  NH2 ARG B   3      24.895   3.751  19.199  1.00 21.91           N  \n'\
+                      'ATOM     51  N   GLU B   4     163.913  21.571  52.586  1.00 65.12           N  \n'\
+                      'ATOM     52  CA  GLU B   4     163.617  20.553  53.599  1.00 64.46           C  \n'\
+                      'ATOM     53  C   GLU B   4     163.850  21.067  55.018  1.00 63.81           C  \n'\
+                      'ATOM     54  O   GLU B   4     163.177  20.639  55.960  1.00 63.64           O  \n'\
+                      'ATOM     55  CB  GLU B   4     164.431  19.277  53.350  1.00 64.59           C  \n'\
+                      'ATOM     56  CG  GLU B   4     163.767  18.286  52.392  1.00 64.91           C  \n'\
+                      'ATOM     57  CD  GLU B   4     163.675  18.807  50.965  1.00 65.39           C  \n'\
+                      'ATOM     58  OE1 GLU B   4     162.542  19.056  50.495  1.00 65.13           O  \n'\
+                      'ATOM     59  OE2 GLU B   4     164.735  18.978  50.321  1.00 65.58           O  \n'\
+                      'ATOM     60  N   GLU B   5     153.913  31.571  52.586  1.00 65.12           N  \n'\
+                      'ATOM     61  CA  GLU B   5     153.617  30.553  53.599  1.00 64.46           C  \n'\
+                      'ATOM     62  C   GLU B   5     153.850  31.067  55.018  1.00 63.81           C  \n'\
+                      'ATOM     63  O   GLU B   5     153.177  30.639  55.960  1.00 63.64           O  \n'\
+                      'ATOM     64  CB  GLU B   5     154.431  29.277  53.350  1.00 64.59           C  \n'\
+                      'ATOM     65  CG  GLU B   5     153.767  28.286  52.392  1.00 64.91           C  \n'\
+                      'ATOM     66  CD  GLU B   5     153.675  28.807  50.965  1.00 65.39           C  \n'\
+                      'ATOM     67  OE1 GLU B   5     152.542  29.056  50.495  1.00 65.13           O  \n'\
+                      'ATOM     68  OE2 GLU B   5     154.735  28.978  50.321  1.00 65.58           O  \n'
+chain_b_pdb = 'ATOM     25  N   MET B   1     152.897  26.590  66.235  1.00 57.82           N  \n'\
+              'ATOM     26  CA  MET B   1     153.488  26.592  67.584  1.00 57.79           C  \n'\
+              'ATOM     27  C   MET B   1     153.657  28.043  68.066  1.00 57.26           C  \n'\
+              'ATOM     28  O   MET B   1     153.977  28.924  67.266  1.00 57.37           O  \n'\
+              'ATOM     29  CB  MET B   1     154.843  25.881  67.544  1.00 58.16           C  \n'\
+              'ATOM     30  CG  MET B   1     155.689  25.983  68.820  1.00 59.67           C  \n'\
+              'ATOM     31  SD  MET B   1     157.418  25.517  68.551  1.00 62.17           S  \n'\
+              'ATOM     32  CE  MET B   1     158.062  26.956  67.686  1.00 61.68           C  \n' \
+              'ATOM     33  N   THR B   2      24.499  13.739  37.648  1.00 12.91           N  \n' \
+              'ATOM     34  CA  THR B   2      24.278  13.068  38.914  1.00  9.39           C  \n' \
+              'ATOM     35  C   THR B   2      22.973  13.448  39.580  1.00  9.61           C  \n' \
+              'ATOM     36  O   THR B   2      22.188  12.566  39.933  1.00 10.86           O  \n' \
+              'ATOM     37  CB  THR B   2      25.405  13.382  39.929  1.00 11.10           C  \n' \
+              'ATOM     38  OG1 THR B   2      26.603  13.084  39.227  1.00 13.57           O  \n' \
+              'ATOM     39  CG2 THR B   2      25.336  12.578  41.212  1.00 15.68           C  \n' + chain_b_pdb_partial
+chain_a_unp_id1 = 'P00703'
+chain_a_unp_id2 = 'LYSC_MELGA'
+chain_a_unp_seq = 'MRSLLILVLCFLPLAALGKVYGRCELAAAMKRLGLDNYRGYSLGNWVCAAKFESNFNTHATNRNTDGSTDYGILQINSRWWCNDGRTPGSKNLCNIPCS'\
+                  'ALLSSDITASVNCAKKIASGGNGMNAWVAWRNRCKGTDVHAWIRGCRL'
+chain_a_unp_dbref = 'DBREF  135L A    1   129  UNP    P00703   LYSC_MELGA      19    147             \n'
+chain_a_unp_seqres = 'SEQRES   1 A  129  LYS VAL TYR GLY ARG CYS GLU LEU ALA ALA ALA MET LYS          \n'\
+                     'SEQRES   2 A  129  ARG LEU GLY LEU ASP ASN TYR ARG GLY TYR SER LEU GLY          \n'\
+                     'SEQRES   3 A  129  ASN TRP VAL CYS ALA ALA LYS PHE GLU SER ASN PHE ASN          \n'\
+                     'SEQRES   4 A  129  THR HIS ALA THR ASN ARG ASN THR ASP GLY SER THR ASP          \n'\
+                     'SEQRES   5 A  129  TYR GLY ILE LEU GLN ILE ASN SER ARG TRP TRP CYS ASN          \n'\
+                     'SEQRES   6 A  129  ASP GLY ARG THR PRO GLY SER LYS ASN LEU CYS ASN ILE          \n'\
+                     'SEQRES   7 A  129  PRO CYS SER ALA LEU LEU SER SER ASP ILE THR ALA SER          \n'\
+                     'SEQRES   8 A  129  VAL ASN CYS ALA LYS LYS ILE ALA SER GLY GLY ASN GLY          \n'\
+                     'SEQRES   9 A  129  MET ASN ALA TRP VAL ALA TRP ARG ASN ARG CYS LYS GLY          \n'\
+                     'SEQRES  10 A  129  THR ASP VAL HIS ALA TRP ILE ARG GLY CYS ARG LEU              \n'
+chain_g_unp_id1 = 'Q70Q12'
+chain_g_unp_id2 = 'Q70Q12_SQUAC'
+chain_g_unp_seq = 'MLGAATGLMVLVAVTQGVWAMDPEGPDNDERFTYDYYRLRVVGLIVAAVLCVIGIIILLAGKCRCKFNQNKRTRSNSGTATAQHLLQPGEATEC'
+chain_g_unp_dbref = 'DBREF  2ZXE G    1    74  UNP    Q70Q12   Q70Q12_SQUAC    21     94             \n'
+chain_g_unp_seqres = 'SEQRES   1 G   74  MET ASP PRO GLU GLY PRO ASP ASN ASP GLU ARG PHE THR          \n'\
+                     'SEQRES   2 G   74  TYR ASP TYR TYR ARG LEU ARG VAL VAL GLY LEU ILE VAL          \n'\
+                     'SEQRES   3 G   74  ALA ALA VAL LEU CYS VAL ILE GLY ILE ILE ILE LEU LEU          \n'\
+                     'SEQRES   4 G   74  ALA GLY LYS CYS ARG CYS LYS PHE ASN GLN ASN LYS ARG          \n'\
+                     'SEQRES   5 G   74  THR ARG SER ASN SER GLY THR ALA THR ALA GLN HIS LEU          \n'\
+                     'SEQRES   6 G   74  LEU GLN PRO GLY GLU ALA THR GLU CYS                          \n'
+chain_a_gb_id1 = '11497664'
+chain_a_gb_id2 = 'NP_068884'
+chain_a_gb_seq = 'MKICVFHDYFGAIGGGEKVALTISKLFNADVITTDVDAVPEEFRNKVISLGETIKLPPLKQIDASLKFYFSDFPDYDFYILSGNWVMFASKRHIPNLLYC'\
+                 'YTPPRAFYDLYGDYLKKRNILTKPAFILWVKFHRKWAERMLKHIDKVVCISQNIKSRCKNFWGIDAEVIYPPVETSKFKFKCYGDFWLSVNRIYPEKRIE'\
+                 'LQLEVFKKLQDEKLYIVGWFSKGDHAERYARKIMKIAPDNVKFLGSVSEEELIDLYSRCKGLLCTAKDEDFGLTPIEAMASGKPVIAVNEGGFKETVINE'\
+                 'KTGYLVNADVNEIIDAMKKVSKNPDKFKKDCFRRAKEFDISIFKNKIKDAIRIVKKNFKNNTC'
+chain_a_gb_dbref = 'DBREF  2F9F A    1   167  GB     11497664 NP_068884      172    338             \n'
+chain_a_gb_seqres = 'SEQRES   1 A  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
+                    'SEQRES   2 A  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
+                    'SEQRES   3 A  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
+                    'SEQRES   4 A  177  LEU GLN LEU GLU VAL PHE LYS LYS LEU GLN ASP GLU LYS          \n'\
+                    'SEQRES   5 A  177  LEU TYR ILE VAL GLY TRP PHE SER LYS GLY ASP HIS ALA          \n'\
+                    'SEQRES   6 A  177  GLU ARG TYR ALA ARG LYS ILE MSE LYS ILE ALA PRO ASP          \n'\
+                    'SEQRES   7 A  177  ASN VAL LYS PHE LEU GLY SER VAL SER GLU GLU GLU LEU          \n'\
+                    'SEQRES   8 A  177  ILE ASP LEU TYR SER ARG CYS LYS GLY LEU LEU CYS THR          \n'\
+                    'SEQRES   9 A  177  ALA LYS ASP GLU ASP PHE GLY LEU THR PRO ILE GLU ALA          \n'\
+                    'SEQRES  10 A  177  MSE ALA SER GLY LYS PRO VAL ILE ALA VAL ASN GLU GLY          \n'\
+                    'SEQRES  11 A  177  GLY PHE LYS GLU THR VAL ILE ASN GLU LYS THR GLY TYR          \n'\
+                    'SEQRES  12 A  177  LEU VAL ASN ALA ASP VAL ASN GLU ILE ILE ASP ALA MSE          \n'\
+                    'SEQRES  13 A  177  LYS LYS VAL SER LYS ASN PRO ASP LYS PHE LYS LYS ASP          \n'\
+                    'SEQRES  14 A  177  CYS PHE ARG ARG ALA LYS GLU PHE       \n'
+chain_b_gb_dbref = 'DBREF  2F9F B    1   167  GB     11497664 NP_068884      172    338             \n'
+chain_b_gb_seqres = 'SEQRES   1 B  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
+                    'SEQRES   2 B  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
+                    'SEQRES   3 B  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
+                    'SEQRES   4 B  177  LEU GLN LEU GLU VAL PHE LYS LYS LEU GLN ASP GLU LYS          \n'\
+                    'SEQRES   5 B  177  LEU TYR ILE VAL GLY TRP PHE SER LYS GLY ASP HIS ALA          \n'\
+                    'SEQRES   6 B  177  GLU ARG TYR ALA ARG LYS ILE MSE LYS ILE ALA PRO ASP          \n'\
+                    'SEQRES   7 B  177  ASN VAL LYS PHE LEU GLY SER VAL SER GLU GLU GLU LEU          \n'\
+                    'SEQRES   8 B  177  ILE ASP LEU TYR SER ARG CYS LYS GLY LEU LEU CYS THR          \n'\
+                    'SEQRES   9 B  177  ALA LYS ASP GLU ASP PHE GLY LEU THR PRO ILE GLU ALA          \n'\
+                    'SEQRES  10 B  177  MSE ALA SER GLY LYS PRO VAL ILE ALA VAL ASN GLU GLY          \n'\
+                    'SEQRES  11 B  177  GLY PHE LYS GLU THR VAL ILE ASN GLU LYS THR GLY TYR          \n'\
+                    'SEQRES  12 B  177  LEU VAL ASN ALA ASP VAL ASN GLU ILE ILE ASP ALA MSE          \n'\
+                    'SEQRES  13 B  177  LYS LYS VAL SER LYS ASN PRO ASP LYS PHE LYS LYS ASP          \n'\
+                    'SEQRES  14 B  177  CYS PHE ARG ARG ALA LYS GLU PHE       \n'
 
-class TestPDBReference(TestBase):
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestPDBReference, cls).setUpClass()
-        cls.expected1_chain_a = 'KVYGRCELAAAMKRLGLDNYRGYSLGNWVCAAKFESNFNTHATNRNTDGSTDYGILQINSRWWCNDGRTPGSKNLCNIPCSALLS'\
-                                'SDITASVNCAKKIASGGNGMNAWVAWRNRCKGTDVHAWIRGCRL'
-        cls.expected1_len = 129
-        cls.expected2_chain_a = 'SSCSSTALSCSNSANSDTCCSPEYGLVVLNMQWAPGYGPDNAFTLHGLWPDKCSGAYAPSGGCDSNRASSSIASVIKSKDSSLYN'\
-                                'SMLTYWPSNQGNNNVFWSHEWSKHGTCVSTYDPDCYDNYEEGEDIVDYFQKAMDLRSQYNVYKAFSSNGITPGGTYTATEMQSAI'\
-                                'ESYFGAKAKIDCSSGTLSDVALYFYVRGRDTYVITDALSTGSCSGDVEYPTK'
-        cls.expected2_len = 222
-        cls.expected1_accessions = {'UNP': {'A': ['P00703', 'LYSC_MELGA']}}
-        cls.expected2_accessions = {'UNP': {'A': ['P08056', 'RNRH_RHINI']}}
-        cls.expected1_seqs = {'UNP': {'A': ('P00703',
-                                            'MRSLLILVLCFLPLAALGKVYGRCELAAAMKRLGLDNYRGYSLGNWVCAAKFESNFNTHATNRNTDGSTDYGIL'
-                                            'QINSRWWCNDGRTPGSKNLCNIPCSALLSSDITASVNCAKKIASGGNGMNAWVAWRNRCKGTDVHAWIRGCRL')}}
-        cls.expected2_seqs = {'UNP': {'A': ('P08056',
-                                            'MKAVLALATLIGSTLASSCSSTALSCSNSANSDTCCSPEYGLVVLNMQWAPGYGPDNAFTLHGLWPDKCSGAYA'
-                                            'PSGGCDSNRASSSIASVIKSKDSSLYNSMLTYWPSNQGNNNVFWSHEWSKHGTCVSTYDPDCYDNYEEGEDIVD'
-                                            'YFQKAMDLRSQYNVYKAFSSNGITPGGTYTATEMQSAIESYFGAKAKIDCSSGTLSDVALYFYVRGRDTYVITD'
-                                            'ALSTGSCSGDVEYPTK')}}
-        cls.expected_gb_acc = ['5410603', 'AAD43134']
-        cls.expected_gb_seq = 'MINRRYELFKDVSDADWNDWRWQVRNRIETVEELKKYIPLTKEEEEGVAQCVKSLRMAITPYYLSLIDPNDPNDPVRKQAIPTALEL'\
-                              'NKAAADLEDPLHEDTDSPVPGLTHRYPDRVLLLITDMCSMYCRHCTRRRFAGQSDDSMPMERIDKAIDYIRNTPQVRDVLLSGGDAL'\
-                              'LVSDETLEYIIAKLREIPHVEIVRIGSRTPVVLPQRITPELVNMLKKYHPVWLNTHFNHPNEITEESTRACQLLADAGVPLGNQSVL'\
-                              'LRGVNDCVHVMKELVNKLVKIRVRPYYIYQCDLSLGLEHFRTPVSKGIEIIEGLRGHTSGYCVPTFVVDAPGGGGKTPVMPNYVISQ'\
-                              'SHDKVILRNFEGVITTYSEPINYTPGCNCDVCTGKKKVHKVGVAGLLNGEGMALEPVGLERNKRHVQE'
+def generate_temp_fn():
+    return f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pdb'
 
-    def evaluate__init__(self, pdb_file):
-        with self.assertRaises(TypeError):
-            PDBReference()
-        pdb = PDBReference(pdb_file=pdb_file)
-        self.assertEqual(pdb.file_name, pdb_file)
-        self.assertIsNone(pdb.structure)
-        self.assertIsNone(pdb.chains)
-        self.assertIsNone(pdb.seq)
-        self.assertIsNone(pdb.pdb_residue_list)
-        self.assertIsNone(pdb.residue_pos)
-        self.assertIsNone(pdb.size)
+
+def write_out_temp_pdb(out_str=None):
+    fn = generate_temp_fn()
+    with open(fn, 'a') as handle:
+        os.utime(fn)
+        if out_str:
+            handle.write(out_str)
+    return fn
+
+
+class TestImportPDB(TestCase):
+
+    def test_init_None(self):
+        with self.assertRaises(AttributeError):
+            PDBReference(pdb_file=None)
+
+    def test_init_bad_file_path(self):
+        fname = generate_temp_fn()
+        with self.assertRaises(AttributeError):
+            PDBReference(pdb_file=fname)
+
+    def test_init(self):
+        fn = write_out_temp_pdb()
+        pdb = PDBReference(pdb_file=fn)
+        self.assertTrue(pdb.file_name.endswith(fn))
+        os.remove(fn)
+
+    def test_import_pdb_empty(self):
+        fn = write_out_temp_pdb()
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 0)
+        self.assertEqual(pdb.chains, set())
+        self.assertEqual(pdb.seq, {})
+        self.assertEqual(pdb.pdb_residue_list, {})
+        self.assertEqual(pdb.residue_pos, {})
+        self.assertEqual(pdb.size, {})
         self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
-    def test1a__init__(self):
-        self.evaluate__init__(pdb_file=self.data_set.protein_data[self.small_structure_id]['PDB'])
+    def test_import_pdb_single_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A'})
+        self.assertEqual(pdb.seq, {'A': 'MET'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
+        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
+        self.assertEqual(pdb.size, {'A': 3})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
-    def test1b__init__(self):
-        self.evaluate__init__(pdb_file=self.data_set.protein_data[self.large_structure_id]['PDB'])
+    def test_import_pdb_multiple_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb + chain_b_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A', 'B'})
+        self.assertEqual(pdb.seq, {'A': 'MET', 'B': 'MTREE'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]})
+        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'},
+                                           'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}})
+        self.assertEqual(pdb.size, {'A': 3, 'B': 5})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
-    def evaluate_import_pdb(self, pdb_file, query, expected_chain, expected_sequence, expected_len):
-        pdb1 = PDBReference(pdb_file=pdb_file)
-        pdb1.import_pdb(structure_id=query)
-        self.assertEqual(pdb1.file_name, pdb_file)
-        self.assertIsInstance(pdb1.structure, Structure)
-        self.assertTrue(expected_chain in pdb1.chains)
-        self.assertEqual(pdb1.seq['A'], expected_sequence)
-        for i in range(1, expected_len + 1):
-            self.assertGreaterEqual(pdb1.pdb_residue_list[expected_chain][i - 1], i)
-        expected_dict = {pdb1.pdb_residue_list[expected_chain][i]: expected_sequence[i] for i in range(expected_len)}
-        self.assertEqual(pdb1.residue_pos[expected_chain], expected_dict)
-        self.assertEqual(pdb1.size[expected_chain], expected_len)
-        self.assertIsNone(pdb1.external_seq)
+    def test_import_pdb_missing_positions_single_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb_partial)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A'})
+        self.assertEqual(pdb.seq, {'A': 'ET'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [2, 3]})
+        self.assertEqual(pdb.residue_pos, {'A': {2: 'E', 3: 'T'}})
+        self.assertEqual(pdb.size, {'A': 2})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
-    def test2a_import_pdb(self):
-        self.evaluate_import_pdb(pdb_file=self.data_set.protein_data[self.small_structure_id]['PDB'],
-                                 query=self.small_structure_id, expected_chain='A',
-                                 expected_sequence=self.expected1_chain_a, expected_len=self.expected1_len)
+    def test_import_pdb_missing_positions_multiple_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb_partial + chain_b_pdb_partial)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A', 'B'})
+        self.assertEqual(pdb.seq, {'A': 'ET', 'B': 'REE'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [2, 3], 'B': [3, 4, 5]})
+        self.assertEqual(pdb.residue_pos, {'A': {2: 'E', 3: 'T'},
+                                           'B': {3: 'R', 4: 'E', 5: 'E'}})
+        self.assertEqual(pdb.size, {'A': 2, 'B': 3})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
-    def test2b_import_pdb(self):
-        self.evaluate_import_pdb(pdb_file=self.data_set.protein_data[self.large_structure_id]['PDB'],
-                                 query=self.large_structure_id, expected_chain='A',
-                                 expected_sequence=self.expected2_chain_a, expected_len=self.expected2_len)
+    def test_import_pdb_save_single_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        save_fname = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
+        pdb = PDBReference(pdb_file=fn)
+        self.assertFalse(os.path.isfile(save_fname))
+        pdb.import_pdb(structure_id='1TES', save_file=save_fname)
+        self.assertTrue(os.path.isfile(save_fname))
+        pdb2 = PDBReference(pdb_file=fn)
+        pdb2.import_pdb(structure_id='1TES', save_file=save_fname)
+        self.assertEqual(len(pdb2.structure), 1)
+        self.assertEqual(pdb2.chains, {'A'})
+        self.assertEqual(pdb2.seq, {'A': 'MET'})
+        self.assertEqual(pdb2.pdb_residue_list, {'A': [1, 2, 3]})
+        self.assertEqual(pdb2.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
+        self.assertEqual(pdb2.size, {'A': 3})
+        self.assertIsNone(pdb2.external_seq)
+        os.remove(fn)
+        os.remove(save_fname)
 
-    def evaluate__parse_external_sequence_accessions(self, pdb_fn, expected_accessions):
-        accessions = PDBReference._parse_external_sequence_accessions(pdb_fn=pdb_fn)
-        self.assertEqual(accessions, expected_accessions)
+    def test_import_pdb_save_multiple_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb + chain_b_pdb)
+        save_fname = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
+        pdb = PDBReference(pdb_file=fn)
+        self.assertFalse(os.path.isfile(save_fname))
+        pdb.import_pdb(structure_id='1TES', save_file=save_fname)
+        self.assertTrue(os.path.isfile(save_fname))
+        pdb2 = PDBReference(pdb_file=fn)
+        pdb2.import_pdb(structure_id='1TES', save_file=save_fname)
+        self.assertEqual(len(pdb2.structure), 1)
+        self.assertEqual(pdb2.chains, {'A', 'B'})
+        self.assertEqual(pdb2.seq, {'A': 'MET', 'B': 'MTREE'})
+        self.assertEqual(pdb2.pdb_residue_list, {'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]})
+        self.assertEqual(pdb2.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'},
+                                            'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}})
+        self.assertEqual(pdb2.size, {'A': 3, 'B': 5})
+        self.assertIsNone(pdb2.external_seq)
+        os.remove(fn)
+        os.remove(save_fname)
 
-    def test3a__parse_external_sequence_accessions(self):
-        self.evaluate__parse_external_sequence_accessions(
-            pdb_fn=self.data_set.protein_data[self.small_structure_id]['PDB'],
-            expected_accessions=self.expected1_accessions)
 
-    def test3b__parse_external_sequence_accessions(self):
-        self.evaluate__parse_external_sequence_accessions(
-            pdb_fn=self.data_set.protein_data[self.large_structure_id]['PDB'],
-            expected_accessions=self.expected2_accessions)
+class GetPDBSequence(TestCase):
 
-    def evaluate__retrieve_uniprot_seq(self, accessions, expected_seq):
-        acc, seq = PDBReference._retrieve_uniprot_seq(accessions=accessions)
-        self.assertEqual(acc, accessions[0])
-        self.assertEqual(seq, expected_seq)
+    def test_get_seq_fail_bad_source(self):
+        fn = write_out_temp_pdb()
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdb.get_sequence(chain='A', source='NCBI')
 
-    def test4a__retrieve_uniprot_seq(self):
-        self.evaluate__retrieve_uniprot_seq(accessions=self.expected1_accessions['UNP']['A'],
-                                            expected_seq=self.expected1_seqs['UNP']['A'][1])
+    def test_get_seq_pdb_fail_import(self):
+        fn = write_out_temp_pdb()
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(AttributeError):
+            pdb.get_sequence(chain='A', source='PDB')
 
-    def test4b__retrieve_uniprot_seq(self):
-        self.evaluate__retrieve_uniprot_seq(accessions=self.expected2_accessions['UNP']['A'],
-                                            expected_seq=self.expected2_seqs['UNP']['A'][1])
+    def test_get_seq_pdb(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        seq = pdb.get_sequence(chain='A', source='PDB')
+        self.assertEqual(seq[0], '1TES')
+        self.assertEqual(seq[1], 'MET')
+        os.remove(fn)
 
-    def test5__retrieve_genebank_seq(self):
-        acc, seq = PDBReference._retrieve_genbank_seq(accessions=self.expected_gb_acc)
-        self.assertEqual(acc, self.expected_gb_acc[0])
-        self.assertEqual(seq, self.expected_gb_seq)
+    def test_get_seq_pdb_fail_chain(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        with self.assertRaises(KeyError):
+            pdb.get_sequence(chain='B', source='PDB')
+        os.remove(fn)
 
-    def evaluate__parse_external_sequences(self, pdb_fn, expected_sequences):
-        pdb = PDBReference(pdb_file=pdb_fn)
-        seqs = pdb._parse_external_sequences()
-        self.assertEqual(seqs, expected_sequences)
+    def test_get_seq_unp_fail_no_entries(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
 
-    def test6a__parse_external_sequences(self):
-        self.evaluate__parse_external_sequences(pdb_fn=self.data_set.protein_data[self.small_structure_id]['PDB'],
-                                                expected_sequences=self.expected1_seqs)
+    def test_get_seq_unp(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.assertEqual(seq[0], chain_a_unp_id1)
+        self.assertEqual(seq[1], chain_a_unp_seq)
+        os.remove(fn)
 
-    def test6b__parse_external_sequences(self):
-        self.evaluate__parse_external_sequences(pdb_fn=self.data_set.protein_data[self.large_structure_id]['PDB'],
-                                                expected_sequences=self.expected2_seqs)
+    def test_get_seq_unp_multiple(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='G', source='UNP')
+        self.assertTrue(seq[0] in [chain_g_unp_id1, chain_g_unp_id2])
+        self.assertEqual(seq[1], chain_g_unp_seq)
+        seq2 = pdb.get_sequence(chain='A', source='UNP')
+        self.assertTrue(seq2[0] in [chain_a_unp_id1, chain_a_unp_id2])
+        self.assertEqual(seq2[1], chain_a_unp_seq)
+        os.remove(fn)
 
-    def evaluate_get_sequence(self, pdb_fn, query_id, chain, source, expected_accession, expected_sequence):
-        pdb = PDBReference(pdb_file=pdb_fn)
-        if source == 'PDB':
-            with self.assertRaises(AttributeError):
-                pdb.get_sequence(source=source, chain=chain)
-            pdb.import_pdb(structure_id=query_id)
-        acc, seq = pdb.get_sequence(source=source, chain=chain)
-        self.assertEqual(acc, expected_accession)
-        self.assertEqual(seq, expected_sequence)
+    def test_get_seq_unp_fail_bad_chain(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='UNP')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
 
-    def test7a_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.small_structure_id]['PDB'],
-                                   query_id=self.small_structure_id, chain='A', source='PDB',
-                                   expected_sequence=self.expected1_chain_a, expected_accession=self.small_structure_id)
+    def test_get_seq_gb_fail_no_entries(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='GB')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
 
-    def test7b_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.small_structure_id]['PDB'],
-                                   query_id=self.small_structure_id, chain='A', source='UNP',
-                                   expected_sequence=self.expected1_seqs['UNP']['A'][1],
-                                   expected_accession=self.expected1_accessions['UNP']['A'][0])
+    def test_get_seq_gb(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='GB')
+        self.assertTrue(seq[0] in [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(seq[1], chain_a_gb_seq)
+        os.remove(fn)
 
-    def test7c_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.small_structure_id]['PDB'],
-                                   query_id=self.small_structure_id, chain='A', source='GB', expected_sequence=None,
-                                   expected_accession=None)
+    def test_get_seq_gb_multiple(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='GB')
+        self.assertTrue(seq[0] in [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(seq[1], chain_a_gb_seq)
+        seq2 = pdb.get_sequence(chain='A', source='GB')
+        self.assertTrue(seq2[0] in [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(seq2[1], chain_a_gb_seq)
+        os.remove(fn)
 
-    def test7d_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.large_structure_id]['PDB'],
-                                   query_id=self.large_structure_id, chain='A', source='PDB',
-                                   expected_sequence=self.expected2_chain_a, expected_accession=self.large_structure_id)
+    def test_get_seq_gb_fail_bad_chain(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='GB')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
 
-    def test7e_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.large_structure_id]['PDB'],
-                                   query_id=self.large_structure_id, chain='A', source='UNP',
-                                   expected_sequence=self.expected2_seqs['UNP']['A'][1],
-                                   expected_accession=self.expected2_accessions['UNP']['A'][0])
 
-    def test7f_get_sequence(self):
-        self.evaluate_get_sequence(pdb_fn=self.data_set.protein_data[self.large_structure_id]['PDB'],
-                                   query_id=self.large_structure_id, chain='A', source='GB', expected_sequence=None,
-                                   expected_accession=None)
+class TestParseUniprotHandle(TestCase):
+
+    def test_parse_handle_fail_none(self):
+        with self.assertRaises(AttributeError):
+            PDBReference._parse_uniprot_handle(None)
+
+    def test_parse_handle(self):
+        handle = get_sprot_raw(chain_a_unp_id1)
+        seq = PDBReference._parse_uniprot_handle(handle)
+        self.assertEqual(str(seq), chain_a_unp_seq)
+
+
+class TestRetrieveUniprotSeq(TestCase):
+
+    def test_retrieve_acc_fail_none(self):
+        with self.assertRaises(TypeError):
+            PDBReference._retrieve_uniprot_seq(None)
+
+    def test_retrieve_acc_empty(self):
+        res = PDBReference._retrieve_uniprot_seq([])
+        self.assertIsNone(res[0])
+        self.assertIsNone(res[1])
+
+    def test_retrieve_acc_id_type1(self):
+        res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id1])
+        self.assertEqual(res[0], chain_a_unp_id1)
+        self.assertEqual(str(res[1]), chain_a_unp_seq)
+
+    def test_retrieve_acc_id_type2(self):
+        res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id2])
+        self.assertEqual(res[0], chain_a_unp_id2)
+        self.assertEqual(str(res[1]), chain_a_unp_seq)
+
+
+class TestRetrieveGenBankSeq(TestCase):
+
+    def test_retrieve_acc_fail_none(self):
+        with self.assertRaises(TypeError):
+            PDBReference._retrieve_genbank_seq(None)
+
+    def test_retrieve_acc_empty(self):
+        res = PDBReference._retrieve_genbank_seq([])
+        self.assertIsNone(res[0])
+        self.assertIsNone(res[1])
+
+    def test_retrieve_acc_id_type1(self):
+        res = PDBReference._retrieve_genbank_seq([chain_a_gb_id1])
+        self.assertEqual(res[0], chain_a_gb_id1)
+        self.assertEqual(str(res[1]), chain_a_gb_seq)
+
+    def test_retrieve_acc_id_type2(self):
+        res = PDBReference._retrieve_genbank_seq([chain_a_gb_id2])
+        self.assertEqual(res[0], chain_a_gb_id2)
+        self.assertEqual(str(res[1]), chain_a_gb_seq)
+
+
+class TestParseExternalSequenceAccessions(TestCase):
+
+    def test_parse_external_seq_acc_no_entries(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_single_unp(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_unp(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
+                                       'G': [chain_g_unp_id1, chain_g_unp_id2]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_single_gb(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_gb(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2],
+                                      'B': [chain_a_gb_id1, chain_a_gb_id2]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_sources(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref + chain_b_gb_dbref +
+                                chain_a_unp_seqres + chain_g_unp_seqres + chain_a_gb_seqres + chain_b_gb_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
+                                       'G': [chain_g_unp_id1, chain_g_unp_id2]},
+                               'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2],
+                                      'B': [chain_a_gb_id1, chain_a_gb_id2]}})
+        os.remove(fn)
+
+
+class TestParseExternalSequences(TestCase):
+
+    def test_parse_external_seqs_no_entries(self):
+        fn = write_out_temp_pdb(chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {})
+        os.remove(fn)
+
+    def test_parse_external_seqs_single_unp(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq)}})
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_unp(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),
+                                                 'G': (chain_g_unp_id1, chain_g_unp_seq)}})
+        os.remove(fn)
+
+    def test_parse_external_seqs_single_gb(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq)}})
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_gb(self):
+        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
+                                                'B': (chain_a_gb_id1, chain_a_gb_seq)}})
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_sources(self):
+        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref + chain_b_gb_dbref +
+                                chain_a_unp_seqres + chain_g_unp_seqres + chain_a_gb_seqres + chain_b_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),
+                                                 'G': (chain_g_unp_id1, chain_g_unp_seq)},
+                                         'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
+                                                'B': (chain_a_gb_id1, chain_a_gb_seq)}})
+        os.remove(fn)
 
 
 if __name__ == '__main__':

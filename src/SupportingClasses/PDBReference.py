@@ -56,8 +56,12 @@ class PDBReference(object):
         Args:
             pdb_file (str): Path to the pdb file being represented by this instance.
         """
-        if pdb_file.startswith('..'):
-            pdb_file = os.path.abspath(os.path.join(os.getcwd(), pdb_file))
+        if pdb_file is None:
+            raise AttributeError('PDB File cannot be None!')
+        else:
+            pdb_file = os.path.abspath(pdb_file)
+            if not os.path.isfile(pdb_file):
+                raise AttributeError(f'PDB File path not valid: {pdb_file}')
         self.file_name = pdb_file
         self.structure = None
         self.chains = None
@@ -80,7 +84,8 @@ class PDBReference(object):
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
-            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'r'))
+            with open(save_file, 'rb') as handle:
+                structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(handle)
         else:
             # parser = PDBParser(PERMISSIVE=0)  # strict
             parser = PDBParser(PERMISSIVE=1)  # corrective
@@ -103,8 +108,9 @@ class PDBReference(object):
                             residue_pos[chain.id][res_num] = res_name
                             pdb_residue_list[chain.id].append(res_num)
             if save_file is not None:
-                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'w'),
-                            protocol=pickle.HIGHEST_PROTOCOL)
+                with open(save_file, 'wb') as handle:
+                    pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), handle,
+                                protocol=pickle.HIGHEST_PROTOCOL)
         self.structure = structure
         self.chains = chains
         self.seq = seq
@@ -113,40 +119,6 @@ class PDBReference(object):
         self.size = {chain: len(seq[chain]) for chain in self.chains}
         end = time()
         print('Importing the PDB file took {} min'.format((end - start) / 60.0))
-
-    @staticmethod
-    def _parse_external_sequence_accessions(pdb_fn):
-        """
-        Parse External Sequence Accessions
-
-        This function parses the PDB file again looking for external sequence accession identifiers. At the moment only
-        Swiss/Uniprot and GenBank accessions are identified.
-
-        Argument:
-            pdb_fn (str/path): The path to the PDB file to parse.
-        Return:
-            dict: A two tiered dictionary where the first level key is the source, and the second level dictionary has
-            chain identifiers as the keys and a list of identifiers as the values.
-        """
-        external_accessions = {}
-        for record in parse(pdb_fn, 'pdb-seqres'):
-            for ref in record.dbxrefs:
-                xref_db, xref_acc = ref.split(':')
-                if xref_db == 'UNP':
-                    if 'UNP' not in external_accessions:
-                        external_accessions['UNP'] = {}
-                    if record.annotations['chain'] not in external_accessions['UNP']:
-                        external_accessions['UNP'][record.annotations['chain']] = []
-                    external_accessions['UNP'][record.annotations['chain']].append(xref_acc)
-                elif xref_db == 'GB':
-                    if 'GB' not in external_accessions:
-                        external_accessions['GB'] = {}
-                    if record.annotations['chain'] not in external_accessions['GB']:
-                        external_accessions['GB'][record.annotations['chain']] = []
-                    external_accessions['GB'][record.annotations['chain']].append(xref_acc)
-                else:
-                    continue
-        return external_accessions
 
     @staticmethod
     def _parse_uniprot_handle(handle):
@@ -231,6 +203,40 @@ class PDBReference(object):
         if record is None:
             accession = None
         return accession, record
+
+    @staticmethod
+    def _parse_external_sequence_accessions(pdb_fn):
+        """
+        Parse External Sequence Accessions
+
+        This function parses the PDB file again looking for external sequence accession identifiers. At the moment only
+        Swiss/Uniprot and GenBank accessions are identified.
+
+        Argument:
+            pdb_fn (str/path): The path to the PDB file to parse.
+        Return:
+            dict: A two tiered dictionary where the first level key is the source, and the second level dictionary has
+            chain identifiers as the keys and a list of identifiers as the values.
+        """
+        external_accessions = {}
+        for record in parse(pdb_fn, 'pdb-seqres'):
+            for ref in record.dbxrefs:
+                xref_db, xref_acc = ref.split(':')
+                if xref_db == 'UNP':
+                    if 'UNP' not in external_accessions:
+                        external_accessions['UNP'] = {}
+                    if record.annotations['chain'] not in external_accessions['UNP']:
+                        external_accessions['UNP'][record.annotations['chain']] = []
+                    external_accessions['UNP'][record.annotations['chain']].append(xref_acc)
+                elif xref_db == 'GB':
+                    if 'GB' not in external_accessions:
+                        external_accessions['GB'] = {}
+                    if record.annotations['chain'] not in external_accessions['GB']:
+                        external_accessions['GB'][record.annotations['chain']] = []
+                    external_accessions['GB'][record.annotations['chain']].append(xref_acc)
+                else:
+                    continue
+        return external_accessions
 
     def _parse_external_sequences(self):
         """
