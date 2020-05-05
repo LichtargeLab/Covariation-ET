@@ -92,7 +92,8 @@ class SeqAlignment(object):
         """
         start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
-            alignment, seq_order, query_sequence = pickle.load(open(save_file, 'r'))
+            with open(save_file, 'rb') as handle:
+                alignment, seq_order, query_sequence = pickle.load(handle)
         else:
             with open(self.file_name, 'r') as file_handle:
                 alignment = AlignIO.read(file_handle, format='fasta', alphabet=self.alphabet)
