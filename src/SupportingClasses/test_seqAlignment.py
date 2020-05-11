@@ -25,6 +25,10 @@ from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPosit
 
 single_protein_seq = '>test\nMET\n'
 two_protein_seqs = '>test\nMET---\n>seq_1\nM-TREE\n'
+third_protein_seq = '>seq_2\nM-FREE\n'
+fully_gapped_protein_seqs = '>test\n------\n>seq_1\nM-TREE\n'
+single_dna_seq = '>test\nATGGAGACT\n'
+two_dna_seqs = '>test\nATGGAGACT---------\n>seq_1\nATG---ACTAGAGAGGAG\n'
 
 
 def generate_temp_fn():
@@ -40,7 +44,7 @@ def write_out_temp_fasta(out_str=None):
     return fn
 
 
-class TestSeqAlignmentInput(TestCase):
+class TestSeqAlignmentInputOutput(TestCase):
 
     def test_init_polymer_type_protein(self):
         fn = generate_temp_fn()
@@ -82,7 +86,7 @@ class TestSeqAlignmentInput(TestCase):
     def test_import_single_protein_seq(self):
         fn = generate_temp_fn()
         write_out_temp_fasta(single_protein_seq)
-        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
         aln.import_alignment()
         self.assertIsNotNone(aln.alignment)
         self.assertEqual(aln.alignment[0].seq, 'MET')
@@ -95,7 +99,7 @@ class TestSeqAlignmentInput(TestCase):
 
     def test_import_multiple_protein_seqs(self):
         fn = write_out_temp_fasta(two_protein_seqs)
-        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
         aln.import_alignment()
         self.assertIsNotNone(aln.alignment)
         self.assertEqual(aln.alignment[0].seq, 'MET---')
@@ -110,20 +114,496 @@ class TestSeqAlignmentInput(TestCase):
     def test_import_multiple_protein_seqs_save(self):
         fn = write_out_temp_fasta(two_protein_seqs)
         save_fn = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment(save_fn)
+        os.remove(fn)
+        aln2 = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln2.import_alignment(save_fn)
+        self.assertIsNotNone(aln.alignment)
+        self.assertEqual(aln2.alignment[0].seq, 'MET---')
+        self.assertEqual(aln2.alignment[1].seq, 'M-TREE')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'MET---')
+        self.assertEqual(aln2.seq_length, 6)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(save_fn)
+
+    def test_import_single_dna_seq(self):
+        fn = generate_temp_fn()
+        write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        self.assertIsNotNone(aln.alignment)
+        self.assertEqual(aln.alignment[0].seq, 'ATGGAGACT')
+        self.assertEqual(aln.seq_order, ['test'])
+        self.assertEqual(aln.query_sequence, 'ATGGAGACT')
+        self.assertEqual(aln.seq_length, 9)
+        self.assertEqual(aln.size, 1)
+        self.assertEqual(aln.marked, [False])
+        os.remove(fn)
+
+    def test_import_multiple_dna_seqs(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        self.assertIsNotNone(aln.alignment)
+        self.assertEqual(aln.alignment[0].seq, 'ATGGAGACT---------')
+        self.assertEqual(aln.alignment[1].seq, 'ATG---ACTAGAGAGGAG')
+        self.assertEqual(aln.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln.query_sequence, 'ATGGAGACT---------')
+        self.assertEqual(aln.seq_length, 18)
+        self.assertEqual(aln.size, 2)
+        self.assertEqual(aln.marked, [False, False])
+        os.remove(fn)
+
+    def test_import_multiple_dna_seqs_save(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        save_fn = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
         aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
         aln.import_alignment(save_fn)
         os.remove(fn)
         aln2 = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
         aln2.import_alignment(save_fn)
         self.assertIsNotNone(aln.alignment)
-        self.assertEqual(aln.alignment[0].seq, 'MET---')
-        self.assertEqual(aln.alignment[1].seq, 'M-TREE')
-        self.assertEqual(aln.seq_order, ['test', 'seq_1'])
-        self.assertEqual(aln.query_sequence, 'MET---')
-        self.assertEqual(aln.seq_length, 6)
-        self.assertEqual(aln.size, 2)
-        self.assertEqual(aln.marked, [False, False])
+        self.assertEqual(aln2.alignment[0].seq, 'ATGGAGACT---------')
+        self.assertEqual(aln2.alignment[1].seq, 'ATG---ACTAGAGAGGAG')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'ATGGAGACT---------')
+        self.assertEqual(aln2.seq_length, 18)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
         os.remove(save_fn)
+
+    def test_write_multiple_protein_seqs(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(fn)
+        aln.write_out_alignment(fn)
+        aln2 = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln2.import_alignment()
+        self.assertIsNotNone(aln2.alignment)
+        self.assertEqual(aln2.alignment[0].seq, 'MET---')
+        self.assertEqual(aln2.alignment[1].seq, 'M-TREE')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'MET---')
+        self.assertEqual(aln2.seq_length, 6)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(fn)
+
+    def test_write_multiple_dna_seqs(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        os.remove(fn)
+        aln.write_out_alignment(fn)
+        aln2 = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln2.import_alignment()
+        self.assertIsNotNone(aln.alignment)
+        self.assertEqual(aln2.alignment[0].seq, 'ATGGAGACT---------')
+        self.assertEqual(aln2.alignment[1].seq, 'ATG---ACTAGAGAGGAG')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'ATGGAGACT---------')
+        self.assertEqual(aln2.seq_length, 18)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(fn)
+
+
+class TestSubAlignmentMethods(TestCase):
+
+    def test_generate_sub_aln_1(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln.generate_sub_alignment(['test'])
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, 'MET---')
+        self.assertEqual(sub_aln.seq_order, ['test'])
+        self.assertEqual(sub_aln.query_sequence, 'MET---')
+        self.assertEqual(sub_aln.seq_length, 6)
+        self.assertEqual(sub_aln.size, 1)
+        self.assertEqual(sub_aln.marked, [False])
+        os.remove(fn)
+
+    def test_generate_sub_aln_0(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln.generate_sub_alignment([])
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.seq_order, [])
+        self.assertEqual(sub_aln.query_sequence, 'MET---')
+        self.assertEqual(sub_aln.seq_length, 6)
+        self.assertEqual(sub_aln.size, 0)
+        self.assertEqual(sub_aln.marked, [])
+        os.remove(fn)
+
+    def test_subset_columns(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln._subset_columns([0, 1, 2])
+        self.assertIsNotNone(sub_aln)
+        self.assertEqual(sub_aln[0].seq, 'MET')
+        self.assertEqual(sub_aln[1].seq, 'M-T')
+        self.assertEqual(sub_aln[0].id, 'test')
+        self.assertEqual(sub_aln[1].id, 'seq_1')
+        os.remove(fn)
+
+    def test_subset_columns_fail_negative(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln._subset_columns([-3, -2, -1])
+        self.assertIsNone(sub_aln)
+        os.remove(fn)
+
+    def test_subset_columns_fail_positive(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln._subset_columns([10, 11, 12])
+        self.assertIsNone(sub_aln)
+        os.remove(fn)
+
+    def test_remove_gaps_ungapped(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln.remove_gaps()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, 'MET')
+        self.assertEqual(sub_aln.seq_order, ['test'])
+        self.assertEqual(sub_aln.query_sequence, 'MET')
+        self.assertEqual(sub_aln.seq_length, 3)
+        self.assertEqual(sub_aln.size, 1)
+        self.assertEqual(sub_aln.marked, [False])
+        os.remove(fn)
+
+    def test_remove_gaps_gapped(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln.remove_gaps()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, 'MET')
+        self.assertEqual(sub_aln.alignment[1].seq, 'M-T')
+        self.assertEqual(sub_aln.seq_order, ['test', 'seq_1'])
+        self.assertEqual(sub_aln.query_sequence, 'MET')
+        self.assertEqual(sub_aln.seq_length, 3)
+        self.assertEqual(sub_aln.size, 2)
+        self.assertEqual(sub_aln.marked, [False, False])
+        os.remove(fn)
+
+    def test_remove_gaps_fully_gapped(self):
+        fn = write_out_temp_fasta(fully_gapped_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        sub_aln = aln.remove_gaps()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, '------')
+        self.assertEqual(sub_aln.alignment[1].seq, 'M-TREE')
+        self.assertEqual(sub_aln.seq_order, ['test', 'seq_1'])
+        self.assertEqual(sub_aln.query_sequence, '------')
+        self.assertEqual(sub_aln.seq_length, 6)
+        self.assertEqual(sub_aln.size, 2)
+        self.assertEqual(sub_aln.marked, [False, False])
+        os.remove(fn)
+
+    def test_remove_bad_sequences_all_allowed(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        sub_aln = aln.remove_bad_sequences()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, 'ATGGAGACT---------')
+        self.assertEqual(sub_aln.alignment[1].seq, 'ATG---ACTAGAGAGGAG')
+        self.assertEqual(sub_aln.seq_order, ['test', 'seq_1'])
+        self.assertEqual(sub_aln.query_sequence, 'ATGGAGACT---------')
+        self.assertEqual(sub_aln.seq_length, 18)
+        self.assertEqual(sub_aln.size, 2)
+        self.assertEqual(sub_aln.marked, [False, False])
+        os.remove(fn)
+
+    def test_remove_bad_sequences_one_removed(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        aln.alphabet.letters = ''.join(list(set(aln.alphabet.letters) - set('R')))
+        sub_aln = aln.remove_bad_sequences()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.alignment[0].seq, 'MET---')
+        self.assertEqual(sub_aln.seq_order, ['test'])
+        self.assertEqual(sub_aln.query_sequence, 'MET---')
+        self.assertEqual(sub_aln.seq_length, 6)
+        self.assertEqual(sub_aln.size, 1)
+        self.assertEqual(sub_aln.marked, [False])
+        os.remove(fn)
+
+    def test_remove_bad_sequences_all_removed(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        sub_aln = aln.remove_bad_sequences()
+        self.assertIsNotNone(sub_aln.alignment)
+        self.assertEqual(sub_aln.seq_order, [])
+        self.assertEqual(sub_aln.query_sequence, 'MET---')
+        self.assertEqual(sub_aln.seq_length, 6)
+        self.assertEqual(sub_aln.size, 0)
+        self.assertEqual(sub_aln.marked, [])
+        os.remove(fn)
+
+    def test_generate_positional_sub_alignment_all(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        aln2 = aln.generate_positional_sub_alignment([0, 1, 2, 3, 4, 5])
+        self.assertIsNotNone(aln2.alignment)
+        self.assertEqual(aln2.alignment[0].seq, 'MET---')
+        self.assertEqual(aln2.alignment[1].seq, 'M-TREE')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'MET---')
+        self.assertEqual(aln2.seq_length, 6)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(fn)
+
+    def test_generate_positional_sub_alignment_some(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        aln2 = aln.generate_positional_sub_alignment([0, 3])
+        self.assertIsNotNone(aln2.alignment)
+        self.assertEqual(aln2.alignment[0].seq, 'M-')
+        self.assertEqual(aln2.alignment[1].seq, 'MR')
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, 'M-')
+        self.assertEqual(aln2.seq_length, 2)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(fn)
+
+    def test_generate_positional_sub_alignment_none(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        aln2 = aln.generate_positional_sub_alignment([])
+        self.assertIsNone(aln2.alignment)
+        self.assertEqual(aln2.seq_order, ['test', 'seq_1'])
+        self.assertEqual(aln2.query_sequence, '')
+        self.assertEqual(aln2.seq_length, 0)
+        self.assertEqual(aln2.size, 2)
+        self.assertEqual(aln2.marked, [False, False])
+        os.remove(fn)
+
+
+class TestAlignmentAndPositionMetrics(TestCase):
+
+    def test_compute_effective_aln_size_permissive_threshold(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=1.0)
+        self.assertEqual(effective_size, 2)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_equal_threshold(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=(2 / float(6)) + np.finfo(float).min)
+        self.assertEqual(effective_size, 1)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_restrictive_threshold(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=np.finfo(float).min)
+        self.assertEqual(effective_size, 1)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_multiple_processors(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=np.finfo(float).min, processes=2)
+        self.assertEqual(effective_size, 1)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_with_distance_matrix(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        calculator = AlignmentDistanceCalculator(protein=(aln.polymer_type == 'Protein'))
+        distance_matrix = calculator.get_distance(aln.alignment)
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=np.finfo(float).min,
+                                                              distance_matrix=distance_matrix)
+        self.assertEqual(effective_size, 1)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_with_distance_matrix_and_multiple_processors(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        calculator = AlignmentDistanceCalculator(protein=(aln.polymer_type == 'Protein'))
+        distance_matrix = calculator.get_distance(aln.alignment)
+        effective_size = aln.compute_effective_alignment_size(identity_threshold=np.finfo(float).min,
+                                                              distance_matrix=distance_matrix, processes=2)
+        self.assertEqual(effective_size, 1)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_none_threshold(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        with self.assertRaises(TypeError):
+            aln.compute_effective_alignment_size(identity_threshold=None)
+        os.remove(fn)
+
+    def test_compute_effective_aln_size_bad_threshold(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        with self.assertRaises(TypeError):
+            aln.compute_effective_alignment_size(identity_threshold='A')
+        os.remove(fn)
+
+    def test_determine_usable_positions_permissive_ratio(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        pos, count = aln.determine_usable_positions(ratio=1.0)
+        self.assertFalse((pos - np.array([0, 1, 2, 3, 4, 5])).any())
+        self.assertFalse((count - np.array([2, 1, 2, 1, 1, 1])).any())
+        os.remove(fn)
+
+    def test_determine_usable_positions_equal_ratio(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        pos, count = aln.determine_usable_positions(ratio=0.5)
+        self.assertFalse((pos - np.array([0, 1, 2, 3, 4, 5])).any())
+        self.assertFalse((count - np.array([2, 1, 2, 1, 1, 1])).any())
+        os.remove(fn)
+
+    def test_determine_usable_positions_restrictive_ratio(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        pos, count = aln.determine_usable_positions(ratio=np.finfo(float).min)
+        self.assertFalse((pos - np.array([])).any())
+        self.assertFalse((count - np.array([2, 1, 2, 1, 1, 1])).any())
+        os.remove(fn)
+
+    def test_comparable_positions_all_comparable(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        col1, col2, indices, count = aln.identify_comparable_sequences(pos1=0, pos2=2)
+        self.assertEqual(col1.shape, (2, ))
+        self.assertTrue(all([col1[i] == np.array(['M', 'M'])[i] for i in range(2)]))
+        self.assertEqual(col2.shape, (2,))
+        self.assertTrue(all([col2[i] == np.array(['T', 'T'])[i] for i in range(2)]))
+        self.assertFalse((indices - np.array([0, 1])).any())
+        self.assertEqual(count, 2)
+        os.remove(fn)
+
+    def test_comparable_positions_some_comparable1(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        col1, col2, indices, count = aln.identify_comparable_sequences(pos1=0, pos2=1)
+        self.assertEqual(col1.shape, (1,))
+        self.assertTrue(all([col1[i] == np.array(['M'])[i] for i in range(1)]))
+        self.assertEqual(col2.shape, (1,))
+        self.assertTrue(all([col2[i] == np.array(['E'])[i] for i in range(1)]))
+        self.assertFalse((indices - np.array([0])).any())
+        self.assertEqual(count, 1)
+        os.remove(fn)
+
+    def test_comparable_positions_some_comparable2(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        col1, col2, indices, count = aln.identify_comparable_sequences(pos1=0, pos2=5)
+        self.assertEqual(col1.shape, (1,))
+        self.assertTrue(all([col1[i] == np.array(['M'])[i] for i in range(1)]))
+        self.assertEqual(col2.shape, (1,))
+        self.assertTrue(all([col2[i] == np.array(['E'])[i] for i in range(1)]))
+        self.assertFalse((indices - np.array([1])).any())
+        self.assertEqual(count, 1)
+        os.remove(fn)
+
+    def test_comparable_positions_none(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        col1, col2, indices, count = aln.identify_comparable_sequences(pos1=1, pos2=3)
+        self.assertEqual(col1.shape, (0, ))
+        self.assertEqual(col2.shape, (0, ))
+        self.assertEqual((indices.shape, (0, )))
+        self.assertEqual(count, 0)
+        os.remove(fn)
+
+    def test_comparable_positions_out_of_range(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        with self.assertRaises(IndexError):
+            aln.identify_comparable_sequences(pos1=1, pos2=6)
+        os.remove(fn)
+
+    def test_comparable_flipped_positions_out_of_range(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        col1, col2, indices, count = aln.identify_comparable_sequences(pos1=2, pos2=0)
+        self.assertEqual(col1.shape, (2,))
+        self.assertTrue(all([col1[i] == np.array(['T', 'T'])[i] for i in range(2)]))
+        self.assertEqual(col2.shape, (2,))
+        self.assertTrue(all([col2[i] == np.array(['M', 'M'])[i] for i in range(2)]))
+        self.assertFalse((indices - np.array([0, 1])).any())
+        self.assertEqual(count, 2)
+        os.remove(fn)
+
+    def test_consensus_sequence_method_failure(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        with self.assertRaises(ValueError):
+            aln.consensus_sequence(method='average')
+        os.remove(fn)
+
+    def test_consensus_sequence_trivial(self):
+        fn = write_out_temp_fasta(single_protein_seq + single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        consensus_rec = aln.consensus_sequence(method='majority')
+        self.assertEqual(consensus_rec.id, 'Consensus Sequence')
+        self.assertEqual(consensus_rec.seq, 'MET')
+        os.remove(fn)
+
+    def test_consensus_sequence(self):
+        fn = write_out_temp_fasta(two_protein_seqs + third_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        consensus_rec = aln.consensus_sequence(method='majority')
+        self.assertEqual(consensus_rec.id, 'Consensus Sequence')
+        self.assertEqual(consensus_rec.seq, 'M-TREE')
+        os.remove(fn)
+
+    def test_consensus_sequence_ties(self):
+        fn = write_out_temp_fasta(two_protein_seqs + two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        consensus_rec = aln.consensus_sequence(method='majority')
+        self.assertEqual(consensus_rec.id, 'Consensus Sequence')
+        self.assertEqual(consensus_rec.seq, 'METREE')
+        os.remove(fn)
 
 
 # class TestSeqAlignment(TestBase):

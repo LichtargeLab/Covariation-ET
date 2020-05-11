@@ -291,8 +291,7 @@ class SeqAlignment(object):
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
-        new_alignment.query_sequence = SeqRecord(id=self.query_id,
-                                                 seq=Seq(''.join([self.query_sequence[i] for i in positions])))
+        new_alignment.query_sequence = Seq(''.join([self.query_sequence[i] for i in positions]))
         new_alignment.seq_length = len(positions)
         new_alignment.seq_order = deepcopy(self.seq_order)
         new_alignment.alignment = self._subset_columns(indices_to_keep=positions)
