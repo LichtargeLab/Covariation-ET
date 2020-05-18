@@ -299,6 +299,25 @@ class SeqAlignment(object):
         new_alignment.marked = deepcopy(self.marked)
         return new_alignment
 
+    def _alignment_to_num(self, mapping):
+        """
+        Alignment to num
+
+        Converts an Bio.Align.MultipleSeqAlignment object into a numerical matrix representation.
+
+        Args:
+            mapping (dict): Dictionary mapping characters which can appear in the alignment to digits for
+            representation.
+        Returns:
+            np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
+            and gaps from the current alignment.
+        """
+        numeric_reps = []
+        for seq_record in self.alignment:
+            numeric_reps.append(convert_seq_to_numeric(seq_record.seq, mapping))
+        alignment_to_num = np.stack(numeric_reps)
+        return alignment_to_num
+
     def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None, processes=1):
         """
         Compute Effective Alignment Size
@@ -409,25 +428,6 @@ class SeqAlignment(object):
         consensus_record = SeqRecord(id='Consensus Sequence', seq=Seq(''.join(consensus_seq), alphabet=self.alphabet))
         return consensus_record
 
-    def _alignment_to_num(self, mapping):
-        """
-        Alignment to num
-
-        Converts an Bio.Align.MultipleSeqAlignment object into a numerical matrix representation.
-
-        Args:
-            mapping (dict): Dictionary mapping characters which can appear in the alignment to digits for
-            representation.
-        Returns:
-            np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
-            and gaps from the current alignment.
-        """
-        numeric_reps = []
-        for seq_record in self.alignment:
-            numeric_reps.append(convert_seq_to_numeric(seq_record.seq, mapping))
-        alignment_to_num = np.stack(numeric_reps)
-        return alignment_to_num
-
     def _gap_z_score_check(self, z_score_cutoff, num_aln, gap_num):
         """
         Gap Z Score Check
@@ -443,6 +443,8 @@ class SeqAlignment(object):
             numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
             count whose z-score passes the set cutoff and False otherwise.
         """
+        if (z_score_cutoff is None) or (num_aln is None) or (gap_num is None):
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         gap_check = num_aln == gap_num
         gap_count = np.sum(gap_check, axis=1)
         gap_z_scores = zscore(gap_count)

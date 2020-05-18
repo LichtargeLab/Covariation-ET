@@ -400,6 +400,86 @@ class TestSubAlignmentMethods(TestCase):
         os.remove(fn)
 
 
+class TestAlignmentToNumericRepresentation(TestCase):
+
+    def test_no_alignment_failure(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        _, _, mapping, _ = build_mapping(aln.alphabet)
+        with self.assertRaises(TypeError):
+            aln._alignment_to_num(mapping)
+        os.remove(fn)
+
+    def test_no_mapping_failure(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        with self.assertRaises(TypeError):
+            aln._alignment_to_num(None)
+        os.remove(fn)
+
+    def test_bad_alphabet_failure(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(FullIUPACDNA())
+        with self.assertRaises(KeyError):
+            aln._alignment_to_num(mapping)
+        os.remove(fn)
+
+    def test_bad_alphabet_success(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(FullIUPACProtein())
+        num_aln = aln._alignment_to_num(mapping)
+        expected_array = np.array([[0, 17, 6, 6, 0, 6, 0, 2, 17]])
+        self.assertFalse((num_aln - expected_array).any())
+        os.remove(fn)
+
+    def test_single_DNA_seq(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        expected_array = np.array([[0, 1, 3, 3, 0, 3, 0, 2, 1]])
+        self.assertFalse((num_aln - expected_array).any())
+        os.remove(fn)
+
+    def test_two_DNA_seqs(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        expected_array = np.array([[0, 1, 3, 3, 0, 3, 0, 2, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+                                   [0, 1, 3, 4, 4, 4, 0, 2, 1, 0, 3, 0, 3, 0, 3, 3, 0, 3]])
+        self.assertFalse((num_aln - expected_array).any())
+        os.remove(fn)
+
+    def test_single_protein_seq(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        expected_array = np.array([[11, 4, 17]])
+        self.assertFalse((num_aln - expected_array).any())
+        os.remove(fn)
+
+    def test_two_protein_seqs(self):
+        fn = write_out_temp_fasta(two_protein_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        _, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        expected_array = np.array([[11, 4, 17, 23, 23, 23],
+                                   [11, 23, 17, 15, 4, 4]])
+        self.assertFalse((num_aln - expected_array).any())
+        os.remove(fn)
+
+
 class TestAlignmentAndPositionMetrics(TestCase):
 
     def test_compute_effective_aln_size_permissive_threshold(self):
@@ -545,7 +625,7 @@ class TestAlignmentAndPositionMetrics(TestCase):
         col1, col2, indices, count = aln.identify_comparable_sequences(pos1=1, pos2=3)
         self.assertEqual(col1.shape, (0, ))
         self.assertEqual(col2.shape, (0, ))
-        self.assertEqual((indices.shape, (0, )))
+        self.assertEqual(indices.shape, (0, ))
         self.assertEqual(count, 0)
         os.remove(fn)
 
@@ -603,6 +683,45 @@ class TestAlignmentAndPositionMetrics(TestCase):
         consensus_rec = aln.consensus_sequence(method='majority')
         self.assertEqual(consensus_rec.id, 'Consensus Sequence')
         self.assertEqual(consensus_rec.seq, 'METREE')
+        os.remove(fn)
+
+    def test_gap_z_score_no_cutoff_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        with self.assertRaises(ValueError):
+            aln._gap_z_score_check(None, num_aln, alpha_size)
+        os.remove(fn)
+
+    def test_gap_z_score_no_num_aln_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        with self.assertRaises(ValueError):
+            aln._gap_z_score_check(2.0, None, alpha_size)
+        os.remove(fn)
+
+    def test_gap_z_score_no_gap_num(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        with self.assertRaises(ValueError):
+            aln._gap_z_score_check(2.0, num_aln, None)
+        os.remove(fn)
+
+    def test_gap_z_score_single_seq(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_z_score_check(2.0, num_aln, alpha_size)
+        self.assertTrue(overly_gapped_seqs.all())
         os.remove(fn)
 
 
