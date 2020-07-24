@@ -6,19 +6,21 @@ Created on Nov 9, 2018
 import os
 import unittest
 import numpy as np
+import pandas as pd
 from copy import deepcopy
 from shutil import rmtree
 from datetime import datetime
 from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
+from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 from unittest import TestCase
 from test_Base import TestBase
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
+from FrequencyTable import FrequencyTable
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
 
@@ -724,7 +726,808 @@ class TestAlignmentAndPositionMetrics(TestCase):
         self.assertTrue(overly_gapped_seqs.all())
         os.remove(fn)
 
+    def test_gap_z_score_two_seq(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_z_score_check(0.5, num_aln, alpha_size)
+        expected_passing = np.array([False, True])
+        self.assertFalse(((1 * overly_gapped_seqs) - (1 * expected_passing)).any())
+        os.remove(fn)
 
+    def test_gap_z_score_three_seq(self):
+        fn = write_out_temp_fasta(two_protein_seqs + third_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_z_score_check(1.0, num_aln, alpha_size)
+        expected_passing = np.array([False, True, True])
+        self.assertFalse(((1 * overly_gapped_seqs) - (1 * expected_passing)).any())
+        os.remove(fn)
+
+    def test_gap_percentile_check_no_cutoff_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        with self.assertRaises(ValueError):
+            aln._gap_percentile_check(None, num_aln, alpha_size, mapping)
+        os.remove(fn)
+
+    def test_gap_percentile_check_no_num_aln_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        with self.assertRaises(ValueError):
+            aln._gap_percentile_check(2.0, None, alpha_size, mapping)
+        os.remove(fn)
+
+    def test_gap_percentile_check_no_gap_num(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        with self.assertRaises(ValueError):
+            aln._gap_percentile_check(2.0, num_aln, None, mapping)
+        os.remove(fn)
+
+    def test_gap_percentile_check_no_mapping(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        with self.assertRaises(ValueError):
+            aln._gap_percentile_check(2.0, num_aln, alpha_size, None)
+        os.remove(fn)
+
+    def test_gap_percentile_check_single_seq(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_percentile_check(0.5, num_aln, alpha_size, mapping)
+        self.assertTrue(overly_gapped_seqs.all())
+        os.remove(fn)
+
+    def test_gap_percentile_check_two_seq(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_percentile_check(0.5, num_aln, alpha_size, mapping)
+        expected_passing = np.array([False, True])
+        self.assertFalse(((1 * overly_gapped_seqs) - (1 * expected_passing)).any())
+        os.remove(fn)
+
+    def test_gap_percentile_check_three_seq(self):
+        fn = write_out_temp_fasta(two_protein_seqs + third_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(aln.alphabet)
+        num_aln = aln._alignment_to_num(mapping)
+        overly_gapped_seqs = aln._gap_percentile_check(0.5, num_aln, alpha_size, mapping)
+        expected_passing = np.array([False, True, True])
+        self.assertFalse(((1 * overly_gapped_seqs) - (1 * expected_passing)).any())
+        os.remove(fn)
+
+    def test_gap_evaluation_no_size_cutoff_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        with self.assertRaises(ValueError):
+            aln.gap_evaluation(None, z_score_cutoff=2.0, percentile_cutoff=0.5)
+        os.remove(fn)
+
+    def test_gap_evaluation_no_z_score_cutoff_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        with self.assertRaises(ValueError):
+            aln.gap_evaluation(size_cutoff=1, z_score_cutoff=None, percentile_cutoff=0.5)
+        os.remove(fn)
+
+    def test_gap_evaluation_no_percentile_cutoff_failure(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        with self.assertRaises(ValueError):
+            aln.gap_evaluation(size_cutoff=2, z_score_cutoff=2.0, percentile_cutoff=None)
+        os.remove(fn)
+
+    def test_gap_evaluation_z_score_single_seq(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=0, z_score_cutoff=2.0, percentile_cutoff=None)
+        self.assertEqual(passing, [aln.query_id])
+        self.assertEqual(not_passing, [])
+        os.remove(fn)
+
+    def test_gap_evaluation_z_score_two_seq(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=1, z_score_cutoff=0.5, percentile_cutoff=None)
+        self.assertEqual(passing, [aln.seq_order[1]])
+        self.assertEqual(not_passing, [aln.seq_order[0]])
+        os.remove(fn)
+
+    def test_gap_evaluation_z_score_three_seq(self):
+        fn = write_out_temp_fasta(two_protein_seqs + third_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=2, z_score_cutoff=1.0, percentile_cutoff=None)
+        self.assertEqual(passing, aln.seq_order[1:])
+        self.assertEqual(not_passing, [aln.seq_order[0]])
+        os.remove(fn)
+
+    def test_gap_evaluation_percentile_check_single_seq(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=1, z_score_cutoff=None, percentile_cutoff=0.5)
+        self.assertEqual(passing, [aln.query_id])
+        self.assertEqual(not_passing, [])
+        os.remove(fn)
+
+    def test_gap_evaluation_percentile_check_two_seq(self):
+        fn = write_out_temp_fasta(two_dna_seqs)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=2, z_score_cutoff=None, percentile_cutoff=0.5)
+        self.assertEqual(passing, [aln.seq_order[1]])
+        self.assertEqual(not_passing, [aln.seq_order[0]])
+        os.remove(fn)
+
+    def test_gap_evaluation_percentile_check_three_seq(self):
+        fn = write_out_temp_fasta(two_protein_seqs + third_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        passing, not_passing = aln.gap_evaluation(size_cutoff=3, z_score_cutoff=None, percentile_cutoff=0.5)
+        self.assertEqual(passing, aln.seq_order[1:])
+        self.assertEqual(not_passing, [aln.seq_order[0]])
+        os.remove(fn)
+
+
+class TestVisualization(TestCase):
+
+    def test_heatmap_plot_no_name_failure(self):
+        fn = write_out_temp_fasta(single_dna_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='DNA')
+        aln.import_alignment()
+        with self.assertRaises(ValueError):
+            aln.heatmap_plot(name=None, out_dir=None, save=False, ax=None)
+        os.remove(fn)
+
+    def test_heatmap_plot_only_name(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=False, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        plt.clf()
+        os.remove(fn)
+
+    def test_heatmap_plot_dir_no_save(self):
+        test_dir = 'plot_test'
+        os.makedirs(test_dir, exist_ok=True)
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=test_dir, save=False, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertFalse(os.path.isfile(os.path.join(os.getcwd(), test_dir, 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        rmtree(test_dir)
+
+    def test_heatmap_plot_dir_save(self):
+        test_dir = 'plot_test'
+        os.makedirs(test_dir, exist_ok=True)
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=test_dir, save=True, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(), test_dir, 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        rmtree(test_dir)
+
+    def test_heatmap_plot_no_dir_save(self):
+        test_dir = 'plot_test'
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=True, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(), 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        os.remove('Visualization_Test.eps')
+
+    def test_heatmap_plot_dir_no_save_custom_ax(self):
+        _, original_ax = plt.subplots(1)
+        test_dir = 'plot_test'
+        os.makedirs(test_dir, exist_ok=True)
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=test_dir, save=False, ax=original_ax)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(ax is original_ax)
+        self.assertFalse(os.path.isfile(os.path.join(os.getcwd(), test_dir, 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        rmtree(test_dir)
+
+    def test_heatmap_plot_dir_save_custom_ax(self):
+        _, original_ax = plt.subplots(1)
+        test_dir = 'plot_test'
+        os.makedirs(test_dir, exist_ok=True)
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=test_dir, save=True, ax=original_ax)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(ax is original_ax)
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(), test_dir, 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        rmtree(test_dir)
+
+    def test_heatmap_plot_no_dir_save_custom_ax(self):
+        _, original_ax = plt.subplots(1)
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=True, ax=original_ax)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(ax is original_ax)
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(), 'Visualization_Test.eps')))
+        plt.clf()
+        os.remove(fn)
+        os.remove('Visualization_Test.eps')
+
+    def test_heatmap_plot_save_no_overwrite(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=True, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(), 'Visualization_Test.eps')))
+        df2, ax2 = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=True, ax=None)
+        self.assertIsNone(df2)
+        self.assertIsNone(ax2)
+        plt.clf()
+        os.remove(fn)
+        os.remove('Visualization_Test.eps')
+
+    def test_heatmap_plot_no_save_overwrite(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        df, ax = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=False, ax=None)
+        self.assertTrue(df.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                               columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax.title.get_text(), 'Visualization Test')
+        df2, ax2 = aln.heatmap_plot(name='Visualization Test', out_dir=None, save=True, ax=None)
+        self.assertTrue(df2.equals(pd.DataFrame(np.array([[11, 4, 17]]), index=aln.seq_order,
+                                                columns=['0:M', '1:E', '2:T'])))
+        self.assertEqual([label.get_text() for label in ax2.get_xticklabels()], ['0:M', '1:E', '2:T'])
+        self.assertEqual([label.get_text() for label in ax2.get_yticklabels()], aln.seq_order)
+        self.assertEqual(ax2.title.get_text(), 'Visualization Test')
+        plt.clf()
+        os.remove(fn)
+        os.remove('Visualization_Test.eps')
+
+
+class TestCharacterization(TestCase):
+
+    def test_single_and_pair_false(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        s_res, p_res = aln.characterize_positions(single=False, pair=False, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsNone(s_res)
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_single_no_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(Gapped(aln.alphabet))
+        s_res, p_res = aln.characterize_positions(single=True, pair=False, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, alpha_size))
+        expected_count_matrix[0, mapping['M']] = 1
+        expected_count_matrix[1, mapping['E']] = 1
+        expected_count_matrix[2, mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_single_size_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(Gapped(aln.alphabet))
+        decoy_size, _, _, _ = build_mapping(Gapped(ExtendedIUPACProtein()))
+        s_res, p_res = aln.characterize_positions(single=True, pair=False, single_size=decoy_size, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, alpha_size))
+        expected_count_matrix[0, mapping['M']] = 1
+        expected_count_matrix[1, mapping['E']] = 1
+        expected_count_matrix[2, mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_single_mapping_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(Gapped(aln.alphabet))
+        _, _, decoy_mapping, _ = build_mapping(Gapped(ExtendedIUPACProtein()))
+        s_res, p_res = aln.characterize_positions(single=True, pair=False, single_size=None,
+                                                  single_mapping=decoy_mapping, single_reverse=None, pair_size=None,
+                                                  pair_mapping=None, pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, alpha_size))
+        expected_count_matrix[0, mapping['M']] = 1
+        expected_count_matrix[1, mapping['E']] = 1
+        expected_count_matrix[2, mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_single_reverse_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(Gapped(aln.alphabet))
+        _, _, _, decoy_reverse = build_mapping(Gapped(ExtendedIUPACProtein()))
+        s_res, p_res = aln.characterize_positions(single=True, pair=False, single_size=None, single_mapping=None,
+                                                  single_reverse=decoy_reverse, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, alpha_size))
+        expected_count_matrix[0, mapping['M']] = 1
+        expected_count_matrix[1, mapping['E']] = 1
+        expected_count_matrix[2, mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_single_all_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, reverse = build_mapping(Gapped(ExtendedIUPACProtein()))
+        s_res, p_res = aln.characterize_positions(single=True, pair=False, single_size=alpha_size,
+                                                  single_mapping=mapping, single_reverse=reverse,
+                                                  pair_size=None, pair_mapping=None, pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, alpha_size))
+        expected_count_matrix[0, mapping['M']] = 1
+        expected_count_matrix[1, mapping['E']] = 1
+        expected_count_matrix[2, mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsNone(p_res)
+        os.remove(fn)
+
+    def test_pair_no_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        s_res, p_res = aln.characterize_positions(single=False, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsNone(s_res)
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          alpha_size))
+        expected_count_matrix[0, mapping['MM']] = 1
+        expected_count_matrix[1, mapping['ME']] = 1
+        expected_count_matrix[2, mapping['MT']] = 1
+        expected_count_matrix[3, mapping['EE']] = 1
+        expected_count_matrix[4, mapping['ET']] = 1
+        expected_count_matrix[5, mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_pair_size_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        decoy_size, _, _, _ = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=False, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=decoy_size, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsNone(s_res)
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix[0, mapping['MM']] = 1
+        expected_count_matrix[1, mapping['ME']] = 1
+        expected_count_matrix[2, mapping['MT']] = 1
+        expected_count_matrix[3, mapping['EE']] = 1
+        expected_count_matrix[4, mapping['ET']] = 1
+        expected_count_matrix[5, mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_pair_mapping_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        _, _, decoy_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=False, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=decoy_mapping, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsNone(s_res)
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros(
+            (int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix[0, mapping['MM']] = 1
+        expected_count_matrix[1, mapping['ME']] = 1
+        expected_count_matrix[2, mapping['MT']] = 1
+        expected_count_matrix[3, mapping['EE']] = 1
+        expected_count_matrix[4, mapping['ET']] = 1
+        expected_count_matrix[5, mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_pair_reverse_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        _, _, _, decoy_reverse = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=False, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=decoy_reverse)
+        self.assertIsNone(s_res)
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros(
+            (int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix[0, mapping['MM']] = 1
+        expected_count_matrix[1, mapping['ME']] = 1
+        expected_count_matrix[2, mapping['MT']] = 1
+        expected_count_matrix[3, mapping['EE']] = 1
+        expected_count_matrix[4, mapping['ET']] = 1
+        expected_count_matrix[5, mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_pair_all_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        alpha_size, _, mapping, reverse = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=False, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=alpha_size, pair_mapping=mapping,
+                                                  pair_reverse=reverse)
+        self.assertIsNone(s_res)
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros(
+            (int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix[0, mapping['MM']] = 1
+        expected_count_matrix[1, mapping['ME']] = 1
+        expected_count_matrix[2, mapping['MT']] = 1
+        expected_count_matrix[3, mapping['EE']] = 1
+        expected_count_matrix[4, mapping['ET']] = 1
+        expected_count_matrix[5, mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_single_and_pair_no_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        single_size, _, single_mapping, _ = build_mapping(Gapped(aln.alphabet))
+        pair_size, _, pair_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        s_res, p_res = aln.characterize_positions(single=True, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=None, pair_size=None, pair_mapping=None,
+                                                  pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, single_size))
+        expected_count_matrix[0, single_mapping['M']] = 1
+        expected_count_matrix[1, single_mapping['E']] = 1
+        expected_count_matrix[2, single_mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          pair_size))
+        expected_count_matrix[0, pair_mapping['MM']] = 1
+        expected_count_matrix[1, pair_mapping['ME']] = 1
+        expected_count_matrix[2, pair_mapping['MT']] = 1
+        expected_count_matrix[3, pair_mapping['EE']] = 1
+        expected_count_matrix[4, pair_mapping['ET']] = 1
+        expected_count_matrix[5, pair_mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_single_and_pair_size_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        single_size, _, single_mapping, _ = build_mapping(Gapped(aln.alphabet))
+        pair_size, _, pair_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        single_decoy_size, _, _, _ = build_mapping(Gapped(ExtendedIUPACProtein()))
+        pair_decoy_size, _, _, _ = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=True, pair=True, single_size=single_decoy_size,
+                                                  single_mapping=None, single_reverse=None,
+                                                  pair_size=pair_decoy_size, pair_mapping=None, pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, single_size))
+        expected_count_matrix[0, single_mapping['M']] = 1
+        expected_count_matrix[1, single_mapping['E']] = 1
+        expected_count_matrix[2, single_mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          pair_size))
+        expected_count_matrix[0, pair_mapping['MM']] = 1
+        expected_count_matrix[1, pair_mapping['ME']] = 1
+        expected_count_matrix[2, pair_mapping['MT']] = 1
+        expected_count_matrix[3, pair_mapping['EE']] = 1
+        expected_count_matrix[4, pair_mapping['ET']] = 1
+        expected_count_matrix[5, pair_mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_single_and_pair_mapping_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        single_size, _, single_mapping, _ = build_mapping(Gapped(aln.alphabet))
+        pair_size, _, pair_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        _, _, single_decoy_mapping, _ = build_mapping(Gapped(ExtendedIUPACProtein()))
+        _, _, pair_decoy_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=True, pair=True, single_size=None,
+                                                  single_mapping=single_decoy_mapping, single_reverse=None,
+                                                  pair_size=None, pair_mapping=pair_decoy_mapping, pair_reverse=None)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, single_size))
+        expected_count_matrix[0, single_mapping['M']] = 1
+        expected_count_matrix[1, single_mapping['E']] = 1
+        expected_count_matrix[2, single_mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          pair_size))
+        expected_count_matrix[0, pair_mapping['MM']] = 1
+        expected_count_matrix[1, pair_mapping['ME']] = 1
+        expected_count_matrix[2, pair_mapping['MT']] = 1
+        expected_count_matrix[3, pair_mapping['EE']] = 1
+        expected_count_matrix[4, pair_mapping['ET']] = 1
+        expected_count_matrix[5, pair_mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_single_and_pair_reverse_only(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        single_size, _, single_mapping, _ = build_mapping(Gapped(aln.alphabet))
+        pair_size, _, pair_mapping, _ = build_mapping(MultiPositionAlphabet(Gapped(aln.alphabet), size=2))
+        _, _, _, single_decoy_reverse = build_mapping(Gapped(ExtendedIUPACProtein()))
+        _, _, _, pair_decoy_reverse = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()), size=2))
+        s_res, p_res = aln.characterize_positions(single=True, pair=True, single_size=None, single_mapping=None,
+                                                  single_reverse=single_decoy_reverse, pair_size=None,
+                                                  pair_mapping=None, pair_reverse=pair_decoy_reverse)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, single_size))
+        expected_count_matrix[0, single_mapping['M']] = 1
+        expected_count_matrix[1, single_mapping['E']] = 1
+        expected_count_matrix[2, single_mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          pair_size))
+        expected_count_matrix[0, pair_mapping['MM']] = 1
+        expected_count_matrix[1, pair_mapping['ME']] = 1
+        expected_count_matrix[2, pair_mapping['MT']] = 1
+        expected_count_matrix[3, pair_mapping['EE']] = 1
+        expected_count_matrix[4, pair_mapping['ET']] = 1
+        expected_count_matrix[5, pair_mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+    def test_single_and_pair_all_inputs(self):
+        fn = write_out_temp_fasta(single_protein_seq)
+        aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
+        aln.import_alignment()
+        single_size, _, single_mapping, single_reverse = build_mapping(Gapped(ExtendedIUPACProtein()))
+        pair_size, _, pair_mapping, pair_reverse = build_mapping(MultiPositionAlphabet(Gapped(ExtendedIUPACProtein()),
+                                                                                       size=2))
+        s_res, p_res = aln.characterize_positions(single=True, pair=True, single_size=single_size,
+                                                  single_mapping=single_mapping, single_reverse=single_reverse,
+                                                  pair_size=pair_size, pair_mapping=pair_mapping,
+                                                  pair_reverse=pair_reverse)
+        self.assertIsInstance(s_res, FrequencyTable)
+        self.assertFalse((s_res.get_positions() - np.array([0, 1, 2])).any())
+        self.assertEqual(s_res.get_chars(0), np.array(['M']))
+        self.assertEqual(s_res.get_chars(1), np.array(['E']))
+        self.assertEqual(s_res.get_chars(2), np.array(['T']))
+        expected_count_matrix = np.zeros((aln.seq_length, single_size))
+        expected_count_matrix[0, single_mapping['M']] = 1
+        expected_count_matrix[1, single_mapping['E']] = 1
+        expected_count_matrix[2, single_mapping['T']] = 1
+        self.assertFalse((s_res.get_count_matrix() - expected_count_matrix).any())
+        self.assertIsInstance(p_res, FrequencyTable)
+        self.assertFalse((p_res.get_positions() - np.array([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]])).any())
+        self.assertEqual(p_res.get_chars((0, 0)), np.array(['MM']))
+        self.assertEqual(p_res.get_chars((0, 1)), np.array(['ME']))
+        self.assertEqual(p_res.get_chars((0, 2)), np.array(['MT']))
+        self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
+        self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
+        self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          pair_size))
+        expected_count_matrix[0, pair_mapping['MM']] = 1
+        expected_count_matrix[1, pair_mapping['ME']] = 1
+        expected_count_matrix[2, pair_mapping['MT']] = 1
+        expected_count_matrix[3, pair_mapping['EE']] = 1
+        expected_count_matrix[4, pair_mapping['ET']] = 1
+        expected_count_matrix[5, pair_mapping['TT']] = 1
+        self.assertFalse((p_res.get_count_matrix() - expected_count_matrix).any())
+        os.remove(fn)
+
+        # single = True, pair = True, single_size = None, single_mapping = None, single_reverse = None,
+        # pair_size = None, pair_mapping = None, pair_reverse = None
 # class TestSeqAlignment(TestBase):
 #
 #     @classmethod

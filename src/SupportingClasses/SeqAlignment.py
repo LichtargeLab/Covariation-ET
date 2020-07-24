@@ -473,13 +473,15 @@ class SeqAlignment(object):
             numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
             difference from the consensus whose percentile passes the set cutoff and False otherwise.
         """
+        if (percentile_cutoff is None) or (num_aln is None) or (gap_num is None) or (mapping is None):
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         consensus_seq = self.consensus_sequence()
         numeric_consensus = convert_seq_to_numeric(seq=consensus_seq, mapping=mapping)
         gap_consensus = numeric_consensus == gap_num
         gap_aln = num_aln == gap_num
         gap_disagreement = np.logical_xor(gap_consensus, gap_aln)
-        disgreement_count = np.sum(gap_disagreement, axis=1)
-        disagreement_fraction = disgreement_count / float(self.size)
+        disagreement_count = np.sum(gap_disagreement, axis=1)
+        disagreement_fraction = disagreement_count / float(self.seq_length)
         passing_fractions = disagreement_fraction < percentile_cutoff
         return passing_fractions
 
@@ -504,6 +506,8 @@ class SeqAlignment(object):
             list: A list of the sequence IDs which pass the gap cut off used for this alignment.
             list: A list of sequences which do not pass the gap cut off used for this alignment.
         """
+        if size_cutoff is None:
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=self.alphabet)
         numeric_aln = self._alignment_to_num(mapping)
         gap_number = mapping[list(gap_chars)[0]]
@@ -542,12 +546,14 @@ class SeqAlignment(object):
             pd.Dataframe: The data used to generate the heatmap.
             matplotlib.Axes: The plotting object created when generating the heatmap.
         """
+        if name is None:
+            raise ValueError('Name cannot be None.')
         if save:
             file_name = name.replace(' ', '_') + '.eps'
             if out_dir:
                 file_name = os.path.join(out_dir, file_name)
             if os.path.exists(file_name):
-                return
+                return None, None
         else:
             file_name = None
         start = time()
@@ -573,20 +579,18 @@ class SeqAlignment(object):
             fig.subplots_adjust(bottom=marg_bottom / figheight, top=1. - marg_top / figheight,
                                 left=marg_left / figwidth, right=1. - marg_right / figwidth)
 
-        _, _, mapping, _ = build_mapping(alphabet=self.alphabet)
+        alpha_size, _, mapping, _ = build_mapping(alphabet=self.alphabet)
         df = pd.DataFrame(self._alignment_to_num(mapping=mapping), index=self.seq_order,
                           columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
         cmap = matplotlib.cm.get_cmap('jet', len(mapping))
-        hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=False, square=True,
-                     annot=np.array([list(seq_rec) for seq_rec in self.alignment]), fmt='', ax=ax)
+        hm = heatmap(data=df, cmap=cmap, center=alpha_size / 2.0, vmin=0.0, vmax=alpha_size, cbar=False,
+                     square=True, fmt='', ax=ax, annot=np.array([list(seq_rec) for seq_rec in self.alignment]))
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=8, rotation=0)
         hm.tick_params(left=False, bottom=False)
         hm.set_title(name)
         if save:
-            plt.savefig(file_name, bbox_inches='tight')
-            plt.clf()
-        plt.show()
+            hm.figure.savefig(file_name, bbox_inches='tight')
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
@@ -619,7 +623,7 @@ class SeqAlignment(object):
         pos_specific = None
         if single:
             if (single_size is None) or (single_mapping is None) or (single_reverse is None):
-                single_size_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
+                single_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
             pos_specific = FrequencyTable(alphabet_size=single_size, mapping=single_mapping,
                                           reverse_mapping=single_reverse, seq_len=self.seq_length, pos_size=1)
         pair_specific = None
