@@ -645,11 +645,11 @@ class SeqAlignment(object):
             pair_specific.finalize_table()
         return pos_specific, pair_specific
 
-    def characterize_positions2(self, single=True, pair=True, single_letter_size=None, single_letter_mapping=None,
-                                single_letter_reverse=None, pair_letter_size=None, pair_letter_mapping=None,
-                                pair_letter_reverse=None, single_to_pair=None):
+    def characterize_positions2(self, single=True, pair=True, single_size=None, single_mapping=None,
+                                single_reverse=None, pair_size=None, pair_mapping=None, pair_reverse=None,
+                                single_to_pair=None):
         """
-        Characterize Positions
+        Characterize Positions2
 
         This method is meant to characterize the nucleic/amino acids at all positions in the aligned sequence across all
         sequences in the current alignment. This can be used by other methods to determine with a position is conserved
@@ -662,42 +662,40 @@ class SeqAlignment(object):
             single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
             pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
             alignment.
-            single_letter_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
-            single_letter_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
-            single_letter_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
-            pair_letter_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
-            pair_letter_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
-            pair_letter_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
+            single_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
+            single_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
+            single_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
+            pair_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
+            pair_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
+            pair_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
             single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
             consist of the position of the first character in a pair of letters to its numerical position and the
-            position of the second character in a pair of letters to its numerical position (single_letter_mapping).
+            position of the second character in a pair of letters to its numerical position (single_mapping).
             The value that this tuple maps to should be the integer value that a pair of letters maps to
-            (pair_letter_mapping).
+            (pair_mapping).
         Returns:
             FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
             requested.
         """
-        if (single_letter_mapping is None) or (single_letter_size is None) or (single_letter_reverse is None):
-            single_letter_size, _, single_letter_mapping, single_letter_reverse = build_mapping(
-                alphabet=Gapped(self.alphabet))
-        num_aln = self._alignment_to_num(mapping=single_letter_mapping)
+        if (single_mapping is None) or (single_size is None) or (single_reverse is None):
+            single_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
+        num_aln = self._alignment_to_num(mapping=single_mapping)
         pos_specific = None
         if single:
-            pos_specific = FrequencyTable(alphabet_size=single_letter_size, mapping=single_letter_mapping,
-                                          reverse_mapping=single_letter_reverse, seq_len=self.seq_length, pos_size=1)
+            pos_specific = FrequencyTable(alphabet_size=single_size, mapping=single_mapping,
+                                          reverse_mapping=single_reverse, seq_len=self.seq_length, pos_size=1)
             pos_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         pair_specific = None
         if pair:
-            if (pair_letter_mapping is None) or (pair_letter_size is None) or (pair_letter_reverse is None):
-                pair_letter_size, _, pair_letter_mapping, pair_letter_reverse = build_mapping(
+            if (pair_mapping is None) or (pair_size is None) or (pair_reverse is None):
+                pair_size, _, pair_mapping, pair_reverse = build_mapping(
                     alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
-            pair_specific = FrequencyTable(alphabet_size=pair_letter_size, mapping=pair_letter_mapping,
-                                           reverse_mapping=pair_letter_reverse, seq_len=self.seq_length, pos_size=2)
+            pair_specific = FrequencyTable(alphabet_size=pair_size, mapping=pair_mapping,
+                                           reverse_mapping=pair_reverse, seq_len=self.seq_length, pos_size=2)
             if single_to_pair is None:
-                single_to_pair = {}
-                for char in pair_letter_mapping:
-                    key = (single_letter_mapping[char[0]], single_letter_mapping[char[1]])
-                    single_to_pair[key] = pair_letter_mapping[char]
+                single_to_pair = np.zeros((single_size + 1, single_size + 1))
+                for char in pair_mapping:
+                    single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
             pair_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         return pos_specific, pair_specific
