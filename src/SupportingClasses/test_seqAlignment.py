@@ -7,14 +7,9 @@ import os
 import unittest
 import numpy as np
 import pandas as pd
-from copy import deepcopy
 from shutil import rmtree
 from datetime import datetime
-from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
-from Bio.Alphabet.IUPAC import ExtendedIUPACProtein
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
 import matplotlib.pyplot as plt
 from unittest import TestCase
 from test_Base import TestBase
@@ -956,7 +951,6 @@ class TestVisualization(TestCase):
         rmtree(test_dir)
 
     def test_heatmap_plot_no_dir_save(self):
-        test_dir = 'plot_test'
         fn = write_out_temp_fasta(single_protein_seq)
         aln = SeqAlignment(file_name=fn, query_id='test', polymer_type='Protein')
         aln.import_alignment()
@@ -1232,7 +1226,8 @@ class TestCharacterization(TestCase):
         self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
         self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
         self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
-        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          alpha_size))
         expected_count_matrix[0, mapping['MM']] = 1
         expected_count_matrix[1, mapping['ME']] = 1
         expected_count_matrix[2, mapping['MT']] = 1
@@ -1694,7 +1689,8 @@ class TestCharacterization(TestCase):
         self.assertEqual(p_res.get_chars((1, 1)), np.array(['EE']))
         self.assertEqual(p_res.get_chars((1, 2)), np.array(['ET']))
         self.assertEqual(p_res.get_chars((2, 2)), np.array(['TT']))
-        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length), alpha_size))
+        expected_count_matrix = np.zeros((int(((aln.seq_length ** 2 - aln.seq_length) / 2) + aln.seq_length),
+                                          alpha_size))
         expected_count_matrix[0, mapping['MM']] = 1
         expected_count_matrix[1, mapping['ME']] = 1
         expected_count_matrix[2, mapping['MT']] = 1
