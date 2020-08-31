@@ -660,6 +660,11 @@ class TestAlignmentDistanceCalculatorGetDistance(TestCase):
                 score = adc._pairwise(dna_msa[i], dna_msa[j])
                 self.assertEqual(dm[i][j], score)
 
+    def test_et_distance_fail_not_msa(self):
+        adc = AlignmentDistanceCalculator()
+        with self.assertRaises(TypeError):
+            adc.get_distance(msa=[protein_seq1, protein_seq2, protein_seq3], processes=1)
+
 
 class TestAlignmentDistanceCalculatorGetETDistance(TestCase):
 
@@ -957,6 +962,11 @@ class TestAlignmentDistanceCalculatorGetETDistance(TestCase):
                 self.assertEqual(plain_id[i][j], expected_id_score)
                 self.assertEqual(similarity[i][j], expected_sim_score)
         self.assertEqual(len(df), pair_count)
+
+    def test_get_et_distance_fail_not_msa(self):
+        adc = AlignmentDistanceCalculator()
+        with self.assertRaises(TypeError):
+            adc.get_et_distance(msa=[protein_seq1, protein_seq2, protein_seq3], processes=1)
 
 
 class TestAlignmentDistanceCalculatorConvertArrayToDistanceMatrix(TestCase):

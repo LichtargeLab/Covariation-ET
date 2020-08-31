@@ -252,6 +252,8 @@ class AlignmentDistanceCalculator(DistanceCalculator):
             pandas.DataFrame: A DataFrame with intermediate values for the distance calculation.
             float: The threshold used to determine the cutoff for similarity using the substitution matrix.
         """
+        if not isinstance(msa, MultipleSeqAlignment):
+            raise TypeError("Must provide a MultipleSeqAlignment object.")
         # Set cutoff for scoring matrix "identity"
         scoring_matrix_tril = np.tril(self.scoring_matrix, k=-1)
         positive_scores = scoring_matrix_tril[scoring_matrix_tril > 0]
