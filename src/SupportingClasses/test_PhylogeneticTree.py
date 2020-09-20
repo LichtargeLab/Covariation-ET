@@ -115,7 +115,7 @@ class TestPhylogeneticTreeConstructTree(TestCase):
             phylo_tree._upgma_tree()
 
     def test__et_tree(self):
-        phylo_tree = PhylogeneticTree()
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
         phylo_tree.distance_matrix = dm
         tree = phylo_tree._et_tree()
         self.assertIsNone(phylo_tree.size)
@@ -134,15 +134,94 @@ class TestPhylogeneticTreeConstructTree(TestCase):
 
     def test__et_tree_failure_no_distance_matrix(self):
         with self.assertRaises(TypeError):
-            phylo_tree = PhylogeneticTree()
+            phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
             phylo_tree._et_tree()
 
-    # def test__agglomerative_tree(self):
-    # def test__agglomerative_tree_failure_bad_dir(self):
-    # def test__agglomerative_tree_failure_no_linkage(self):
-    # def test__agglomerative_tree_failure_no_affinity(self):
-    # def test__agglomerative_tree_no_distance_matrix(self):
-    #
+    def test__agglomerative_tree(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': os.getcwd(),
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.distance_matrix = dm
+        tree = phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
+                                                    affinity=phylo_tree.tree_args['affinity'],
+                                                    linkage=phylo_tree.tree_args['linkage'])
+        self.assertIsNone(phylo_tree.size)
+        self.assertIsNone(phylo_tree.tree)
+        cache_dir_path = os.path.join(os.getcwd(), 'joblib')
+        self.assertTrue(os.path.isdir(cache_dir_path))
+        rmtree(cache_dir_path)
+        self.assertIsNotNone(tree)
+        first_children = tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test__agglomerative_tree_new_cache_dir(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': os.path.join(os.getcwd(), 'test'),
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.distance_matrix = dm
+        print(phylo_tree.tree_args)
+        tree = phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
+                                                    affinity=phylo_tree.tree_args['affinity'],
+                                                    linkage=phylo_tree.tree_args['linkage'])
+        self.assertIsNone(phylo_tree.size)
+        self.assertIsNone(phylo_tree.tree)
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        self.assertTrue(os.path.isdir(cache_dir_path))
+        rmtree(cache_dir_path)
+        self.assertIsNotNone(tree)
+        first_children = tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test__agglomerative_tree_failure_no_linkage(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': None,
+                                                              'linkage': 'ward'})
+            phylo_tree.distance_matrix = dm
+            phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
+                                                 affinity=phylo_tree.tree_args['affinity'],
+                                                 linkage=phylo_tree.tree_args['linkage'])
+
+    def test__agglomerative_tree_failure_no_affinity(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': 'euclidean',
+                                                              'linkage': None})
+            phylo_tree.distance_matrix = dm
+            phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
+                                                 affinity=phylo_tree.tree_args['affinity'],
+                                                 linkage=phylo_tree.tree_args['linkage'])
+
+    def test__agglomerative_tree_no_distance_matrix(self):
+        with self.assertRaises(TypeError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': 'euclidean',
+                                                              'linkage': 'ward'})
+            phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
+                                                 affinity=phylo_tree.tree_args['affinity'],
+                                                 linkage=phylo_tree.tree_args['linkage'])
+
     # def test__custom_tree(self):
     # def test__custom_tree_failure_no_path(self):
     # def test__custom_tree_failure_no_distance_matrix(self):
