@@ -169,7 +169,6 @@ class TestPhylogeneticTreeConstructTree(TestCase):
                                                           'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.distance_matrix = dm
-        print(phylo_tree.tree_args)
         tree = phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
                                                     affinity=phylo_tree.tree_args['affinity'],
                                                     linkage=phylo_tree.tree_args['linkage'])
@@ -222,23 +221,319 @@ class TestPhylogeneticTreeConstructTree(TestCase):
                                                  affinity=phylo_tree.tree_args['affinity'],
                                                  linkage=phylo_tree.tree_args['linkage'])
 
-    # def test__custom_tree(self):
-    # def test__custom_tree_failure_no_path(self):
-    # def test__custom_tree_failure_no_distance_matrix(self):
-    #
-    # def test_construct_tree_upgma(self):
-    # def test_construct_tree_upgma_failure_no_distance_matrix(self):
-    # def test_construct_tree_et(self):
-    # def test_construct_tree_et_failure_no_distance_matrix(self):
-    # def test_construct_tree_agglomerative(self):
-    # def test_construct_tree_agglomerative_failure_bad_dir(self):
-    # def test_construct_tree_agglomerative_failure_no_linkage(self):
-    # def test_construct_tree_agglomerative_failure_no_affinity(self):
-    # def test_construct_tree_agglomerative_failure_no_distance_matrix(self):
-    # def test_construct_tree_custom(self):
-    # def test_construct_tree_custom_failure_bad_path(self):
-    # def test_construct_tree_custom_failure_no_distance_matrix(self):
-    # def test_construct_tree_failure_bad_method(self):
+    def test__custom_tree(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree.distance_matrix = min_dm
+        tree = phylo_tree._custom_tree(tree_path=phylo_tree.tree_args['tree_path'])
+        self.assertIsNone(phylo_tree.size)
+        self.assertIsNone(phylo_tree.tree)
+        self.assertIsNotNone(tree)
+        first_children = tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+        os.remove(test_tree_path)
+
+    def test__custom_tree_no_distance_matrix(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        tree = phylo_tree._custom_tree(tree_path=phylo_tree.tree_args['tree_path'])
+        self.assertIsNone(phylo_tree.size)
+        self.assertIsNone(phylo_tree.tree)
+        self.assertIsNotNone(tree)
+        first_children = tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+        os.remove(test_tree_path)
+
+    def test__custom_tree_failure_no_path(self):
+        with self.assertRaises(TypeError):
+            phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                          tree_building_args={'tree_path': None})
+            phylo_tree.distance_matrix = min_dm
+            phylo_tree._custom_tree(tree_path=phylo_tree.tree_args['tree_path'])
+
+    def test_construct_tree_upgma(self):
+        phylo_tree = PhylogeneticTree()
+        phylo_tree.construct_tree(dm=dm)
+        self.assertIsNotNone(phylo_tree.size)
+        self.assertEqual(phylo_tree.size, 3)
+        self.assertIsNotNone(phylo_tree.tree)
+        first_children = phylo_tree.tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test_construct_tree_upgma_failure_no_distance_matrix(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree()
+            phylo_tree.construct_tree(dm=None)
+
+    def test_construct_tree_et(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+
+        phylo_tree.construct_tree(dm=dm)
+        self.assertIsNotNone(phylo_tree.size)
+        self.assertEqual(phylo_tree.size, 3)
+        self.assertIsNotNone(phylo_tree.tree)
+        first_children = phylo_tree.tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test_construct_tree_et_failure_no_distance_matrix(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+            phylo_tree.construct_tree(dm=None)
+
+    def test_construct_tree_agglomerative(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': os.getcwd(),
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        self.assertIsNotNone(phylo_tree.size)
+        self.assertEqual(phylo_tree.size, 3)
+        self.assertIsNotNone(phylo_tree.tree)
+        cache_dir_path = os.path.join(os.getcwd(), 'joblib')
+        self.assertTrue(os.path.isdir(cache_dir_path))
+        rmtree(cache_dir_path)
+        first_children = phylo_tree.tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test_construct_tree_agglomerative_new_cache_dir(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': os.path.join(os.getcwd(), 'test'),
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        self.assertIsNotNone(phylo_tree.size)
+        self.assertIsNotNone(phylo_tree.tree)
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        self.assertTrue(os.path.isdir(cache_dir_path))
+        rmtree(cache_dir_path)
+        first_children = phylo_tree.tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+
+    def test_construct_tree_agglomerative_failure_no_linkage(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': None,
+                                                              'linkage': 'ward'})
+            phylo_tree.construct_tree(dm=dm)
+
+    def test_construct_tree_agglomerative_failure_no_affinity(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': 'euclidean',
+                                                              'linkage': None})
+            phylo_tree.construct_tree(dm=dm)
+
+    def test_construct_tree_agglomerative_failure_no_distance_matrix(self):
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                          tree_building_args={'cache_dir': None,
+                                                              'affinity': 'euclidean',
+                                                              'linkage': 'ward'})
+            phylo_tree.construct_tree(dm=None)
+
+    def test_construct_tree_custom(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree.construct_tree(dm=min_dm)
+        self.assertIsNotNone(phylo_tree.size)
+        self.assertEqual(phylo_tree.size, 3)
+        self.assertIsNotNone(phylo_tree.tree)
+        first_children = phylo_tree.tree.root.clades
+        self.assertEqual(len(first_children), 2)
+        for n1 in first_children:
+            if n1.is_terminal():
+                self.assertEqual(n1.name, 'seq1')
+            else:
+                second_children = n1.clades
+                self.assertEqual(len(second_children), 2)
+                for n2 in second_children:
+                    self.assertTrue(n2.name in {'seq2', 'seq3'})
+        os.remove(test_tree_path)
+
+    def test_construct_tree_custom_failure_bad_path(self):
+        with self.assertRaises(TypeError):
+            phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                          tree_building_args={'tree_path': None})
+            phylo_tree.construct_tree(dm=min_dm)
+
+    def test_construct_tree_custom_failure_no_distance_matrix(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        with self.assertRaises(ValueError):
+            phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                          tree_building_args={'tree_path': test_tree_path})
+            phylo_tree.construct_tree(dm=None)
+        os.remove(test_tree_path)
+
+    def test_construct_tree_failure_bad_method(self):
+        with self.assertRaises(KeyError):
+            phylo_tree = PhylogeneticTree(tree_building_method='fake',
+                                          tree_building_args={'foo': 'bar'})
+            phylo_tree.construct_tree(dm=dm)
+
+
+class TestPhylogeneticTreeWriteOutTree(TestCase):
+
+    def test_write_out_upgma_tree(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        self.assertFalse(os.path.isfile(tree_path))
+        phylo_tree.write_out_tree(filename=tree_path)
+        self.assertTrue(os.path.isfile(tree_path))
+        phylo_tree2 = PhylogeneticTree(tree_building_method='custom',
+                                       tree_building_args={'tree_path': tree_path})
+        phylo_tree2.construct_tree(dm=min_dm)
+        self.assertEqual(phylo_tree.size, phylo_tree2.size)
+        self.assertEqual(phylo_tree.tree.root.name, phylo_tree2.tree.root.name)
+        self.assertEqual(phylo_tree.tree.root.branch_length, phylo_tree2.tree.root.branch_length)
+        first_children = phylo_tree.tree.root.clades
+        first_children2 = phylo_tree2.tree.root.clades
+        first_children_combined = zip(first_children, first_children2)
+        for c1, c2 in first_children_combined:
+            self.assertEqual(c1.is_terminal(), c2.is_terminal())
+            self.assertEqual(c1.name, c2.name)
+            self.assertLessEqual(c1.branch_length - c2.branch_length, 1E-4)
+            if not c1.is_terminal():
+                second_children = c1.clades
+                second_children2 = c2.clades
+                second_children_combined = zip(second_children, second_children2)
+                for l1, l2 in second_children_combined:
+                    self.assertTrue(l1.is_terminal())
+                    self.assertTrue(l2.is_terminal())
+                    self.assertEqual(l1.name, l2.name)
+                    self.assertLessEqual(l1.branch_length - l2.branch_length, 1E-5)
+        os.remove(tree_path)
+
+    def test_write_out_et_tree(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        self.assertFalse(os.path.isfile(tree_path))
+        phylo_tree.write_out_tree(filename=tree_path)
+        self.assertTrue(os.path.isfile(tree_path))
+        phylo_tree2 = PhylogeneticTree(tree_building_method='custom',
+                                       tree_building_args={'tree_path': tree_path})
+        phylo_tree2.construct_tree(dm=min_dm)
+        self.assertEqual(phylo_tree.size, phylo_tree2.size)
+        self.assertEqual(phylo_tree.tree.root.name, phylo_tree2.tree.root.name)
+        self.assertEqual(phylo_tree.tree.root.branch_length, phylo_tree2.tree.root.branch_length)
+        first_children = phylo_tree.tree.root.clades
+        first_children2 = phylo_tree2.tree.root.clades
+        first_children_combined = zip(first_children, first_children2)
+        for c1, c2 in first_children_combined:
+            self.assertEqual(c1.is_terminal(), c2.is_terminal())
+            self.assertEqual(c1.name, c2.name)
+            self.assertLessEqual(c1.branch_length - c2.branch_length, 1E-4)
+            if not c1.is_terminal():
+                second_children = c1.clades
+                second_children2 = c2.clades
+                second_children_combined = zip(second_children, second_children2)
+                for l1, l2 in second_children_combined:
+                    self.assertTrue(l1.is_terminal())
+                    self.assertTrue(l2.is_terminal())
+                    self.assertEqual(l1.name, l2.name)
+                    self.assertLessEqual(l1.branch_length - l2.branch_length, 1E-5)
+        os.remove(tree_path)
+
+    def test_write_out_agglomerative_tree(self):
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': cache_dir_path,
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        self.assertFalse(os.path.isfile(tree_path))
+        phylo_tree.write_out_tree(filename=tree_path)
+        self.assertTrue(os.path.isfile(tree_path))
+        phylo_tree2 = PhylogeneticTree(tree_building_method='custom',
+                                       tree_building_args={'tree_path': tree_path})
+        phylo_tree2.construct_tree(dm=min_dm)
+        self.assertEqual(phylo_tree.size, phylo_tree2.size)
+        self.assertEqual(phylo_tree.tree.root.name, phylo_tree2.tree.root.name)
+        self.assertEqual(phylo_tree.tree.root.branch_length, phylo_tree2.tree.root.branch_length)
+        first_children = phylo_tree.tree.root.clades
+        first_children2 = phylo_tree2.tree.root.clades
+        first_children_combined = zip(first_children, first_children2)
+        for c1, c2 in first_children_combined:
+            self.assertEqual(c1.is_terminal(), c2.is_terminal())
+            self.assertEqual(c1.name, c2.name)
+            self.assertLessEqual(c1.branch_length - c2.branch_length, 1E-4)
+            if not c1.is_terminal():
+                second_children = c1.clades
+                second_children2 = c2.clades
+                second_children_combined = zip(second_children, second_children2)
+                for l1, l2 in second_children_combined:
+                    self.assertTrue(l1.is_terminal())
+                    self.assertTrue(l2.is_terminal())
+                    self.assertEqual(l1.name, l2.name)
+                    self.assertLessEqual(l1.branch_length - l2.branch_length, 1E-5)
+        os.remove(tree_path)
+        rmtree(cache_dir_path)
+
+    # def test_write_out_custom_tree(self):
+    # def test_write_out_no_tree(self):
 # class TestPhylogeneticTree(TestBase):
 #
 #     @classmethod

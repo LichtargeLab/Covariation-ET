@@ -746,7 +746,7 @@ def build_newick_tree(children, n_leaves, x, leaf_labels, spanner):
     inner_labels = list(range(1, n_leaves))
     inner_string, inner_node = go_down_tree(children, n_leaves, x, leaf_labels, len(children)+n_leaves-1, spanner,
                                             inner_labels)
-    prepend_to_root = inner_string + 'Inner{};'.format(inner_labels.pop())
+    prepend_to_root = inner_string + 'Inner{}:0.0;'.format(inner_labels.pop())
     return prepend_to_root
 
 
