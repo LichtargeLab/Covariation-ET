@@ -65,7 +65,7 @@ class FrequencyTable(object):
         self.__position_table = {'values': [], 'i': [], 'j': [], 'shape': (self.num_pos, alphabet_size)}
         self.__depth = 0
 
-    def __convert_pos(self, pos):
+    def _convert_pos(self, pos):
         """
         Convert Position
 
@@ -81,6 +81,13 @@ class FrequencyTable(object):
             raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
         if (self.position_size > 1) and ((not isinstance(pos, tuple)) or (len(pos) != self.position_size)):
             raise TypeError('Positions for FrequencyTable with position_size > 1 must have length == position_size')
+        if (self.position_size == 1 and pos < 0) or (self.position_size > 1 and (np.array(pos) < 0).any()):
+            raise ValueError('Position specified is out of bounds, the value(s) are less than 0.')
+        elif ((self.position_size == 1 and pos >= self.num_pos) or
+              (self.position_size > 1 and (np.array(pos) >= self.sequence_length).any())):
+            raise ValueError('Position specified is out of bounds, the value(s) are greater than the table size.')
+        else:
+            pass
         if self.position_size == 1:
             final = pos
         elif self.position_size == 2:
@@ -100,13 +107,13 @@ class FrequencyTable(object):
 
         Args:
             pos (int/tuple): The position in the alignment to update (will be mapped to __positional_table by
-            __convert_pos.
+            _convert_pos.
             char (str): The character in the alignment's alphabet to update at the specified position.
             amount (int): The number of occurrences of the alphabet character observed at that specified position.
         """
         if isinstance(self.__position_table, csc_matrix):
             raise AttributeError('FrequencyTable has already been finalized and cannot be updated.')
-        position = self.__convert_pos(pos=pos)
+        position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         self.__position_table['values'].append(amount)
         self.__position_table['i'].append(position)
@@ -145,7 +152,7 @@ class FrequencyTable(object):
             # including the diagonal)
             for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
-                position = self.__convert_pos(pos=(i, j))
+                position = self._convert_pos(pos=(i, j))
                 # Add all characters observed at this position to the frequency table (this is inefficient in terms of
                 # space but reduces the time required to identify and count individual characters.
                 self.__position_table['values'] += [1] * num_aln.shape[0]
@@ -266,7 +273,7 @@ class FrequencyTable(object):
         Returns:
             list: All characters present at the specified position in the alignment.
         """
-        position = self.__convert_pos(pos=pos)
+        position = self._convert_pos(pos=pos)
         character_positions = self.__position_table[position, :].nonzero()
         characters = self.reverse_mapping[character_positions[1]]
         return list(characters)
@@ -286,7 +293,7 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count.')
-        position = self.__convert_pos(pos=pos)
+        position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         count = self.__position_table[position, char_pos]
         return count
@@ -305,7 +312,7 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count_array.')
-        position = self.__convert_pos(pos=pos)
+        position = self._convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
         indices = full_column.nonzero()
         arr = full_column.toarray()[indices].reshape(-1)
@@ -439,7 +446,7 @@ class FrequencyTable(object):
                     if pos[0] > (self.sequence_length - 1) or pos[1] > (self.sequence_length - 1):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
-                    position = self.__convert_pos(pos=pos)
+                    position = self._convert_pos(pos=pos)
                 chars = elements[indices['Characters']].split(',')
                 counts = [int(x) for x in elements[indices['Counts']].split(',')]
                 if len(chars) != len(counts):
