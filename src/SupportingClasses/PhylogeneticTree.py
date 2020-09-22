@@ -529,6 +529,8 @@ class PhylogeneticTree(object):
         (i.e. the root node will have the integer 1 while the lowest will have the integer
         len(self.tree.get_terminals) - 1
         """
+        if self.tree is None:
+            raise ValueError('Attempting to rename internal nodes before construction!')
         starting_node_pos = int(self.tree.root.name.strip('Inner'))
         if starting_node_pos == 1:
             return
@@ -559,9 +561,13 @@ class PhylogeneticTree(object):
             descendants of 'node' from the closest assigned rank (.i.e. the nodes children, at the lowest rank this will
             be None).
         """
+        if self.tree is None:
+            raise ValueError('Attempting to rename internal nodes before construction!')
         # Create a set of the ranks for which to create assignments.
         if ranks is None:
             ranks = set(range(1, 1 + self.size))
+        elif 0 in ranks:
+            raise ValueError('Ranks are 1 indexed, no ranks <= 0!')
         else:
             ranks = set(ranks)
             if 1 not in ranks:
