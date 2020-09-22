@@ -622,8 +622,13 @@ def get_path_length(path):
          float: The length of the path passed in.
     """
     dist = 0
+    prev_node = None
     for node in path:
+        if prev_node is not None:
+            if node not in prev_node.clades:
+                raise ValueError('The provided path is interrupted.')
         dist += node.branch_length
+        prev_node = node
     return dist
 
 
