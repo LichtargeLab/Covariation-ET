@@ -154,6 +154,196 @@ class TestFrequencyTableConvertPos(TestCase):
             freq_table._convert_pos((0, 18))
 
 
+class TestFrequencyTableIncrementCount(TestCase):
+
+    def test__increment_count_single_pos_default(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A')
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [0])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_single_pos_one(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [0])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_single_pos_two(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=2)
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [2])
+        self.assertEqual(t2['i'], [0])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_pair_pos_default(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA')
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [1])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_pair_pos_one(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [1])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_pair_pos_two(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA', amount=2)
+        t2 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertEqual(t2['values'], [2])
+        self.assertEqual(t2['i'], [1])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_single_pos_multiple_increments(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        t2 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        t3 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertNotEqual(t2, t3)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [0])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(t3['values'], [1, 1])
+        self.assertEqual(t3['i'], [0, 0])
+        self.assertEqual(t3['j'], [0, 0])
+        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_single_pos_multiple_different_increments(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        t2 = freq_table.get_table()
+        freq_table._increment_count(pos=5, char='C', amount=1)
+        t3 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertNotEqual(t2, t3)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [0])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(t3['values'], [1, 1])
+        self.assertEqual(t3['i'], [0, 5])
+        self.assertEqual(t3['j'], [0, 2])
+        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_pair_pos_multiple_increments(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
+        t2 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
+        t3 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertNotEqual(t2, t3)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [1])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(t3['values'], [1, 1])
+        self.assertEqual(t3['i'], [1, 1])
+        self.assertEqual(t3['j'], [0, 0])
+        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_pair_pos_multiple_different_increments(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
+        t2 = freq_table.get_table()
+        freq_table._increment_count(pos=(0, 4), char='AC', amount=1)
+        t3 = freq_table.get_table()
+        self.assertNotEqual(t1, t2)
+        self.assertNotEqual(t2, t3)
+        self.assertEqual(t2['values'], [1])
+        self.assertEqual(t2['i'], [1])
+        self.assertEqual(t2['j'], [0])
+        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(t3['values'], [1, 1])
+        self.assertEqual(t3['i'], [1, 4])
+        self.assertEqual(t3['j'], [0, 2])
+        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_pair_alpha_size))
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test__increment_count_single_pos_failure_negative(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=0, char='A', amount=-1)
+
+    def test__increment_count_pair_pos_failure_negative(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=(0, 0), char='AA', amount=-1)
+
+    def test__increment_count_single_pos_failure_low_pos(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=-1, char='A')
+
+    def test__increment_count_pair_pos_failure_low_pos(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=(0, -1), char='AA')
+
+    def test__increment_count_single_pos_failure_high_pos(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=19, char='A')
+
+    def test__increment_count_pair_pos_failure_high_pos(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        with self.assertRaises(ValueError):
+            freq_table._increment_count(pos=(0, 19), char='AA')
+
+    def test__increment_count_single_pos_failure_bad_character(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(KeyError):
+            freq_table._increment_count(pos=0, char='J')
+
+    def test__increment_count_pair_pos_failure_bad_character(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        with self.assertRaises(KeyError):
+            freq_table._increment_count(pos=(0, 0), char='JJ')
+
 # class TestFrequencyTable(TestBase):
 #
 #     @classmethod

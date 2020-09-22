@@ -113,6 +113,8 @@ class FrequencyTable(object):
         """
         if isinstance(self.__position_table, csc_matrix):
             raise AttributeError('FrequencyTable has already been finalized and cannot be updated.')
+        if amount <= 0:
+            raise ValueError('Amounts passed to increment must be positive values.')
         position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         self.__position_table['values'].append(amount)
