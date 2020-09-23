@@ -344,6 +344,41 @@ class TestFrequencyTableIncrementCount(TestCase):
         with self.assertRaises(KeyError):
             freq_table._increment_count(pos=(0, 0), char='JJ')
 
+
+class TestFrequencyTableFinalizeTable(TestCase):
+
+    def test_finalize_table_no_increments(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table.finalize_table()
+        t2 = freq_table.get_table()
+        self.assertNotEqual(type(t1), type(t2))
+        self.assertEqual(type(t2), csc_matrix)
+        self.assertEqual(np.sum(t2), 0)
+
+    def test_finalize_table_one_increments(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        freq_table.finalize_table()
+        t2 = freq_table.get_table()
+        self.assertNotEqual(type(t1), type(t2))
+        self.assertEqual(type(t2), csc_matrix)
+        self.assertEqual(np.sum(t2), 1)
+        self.assertEqual(t2[0, 0], 1)
+
+    def test_finalize_table_two_increments(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        t1 = freq_table.get_table()
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        freq_table.finalize_table()
+        t2 = freq_table.get_table()
+        self.assertNotEqual(type(t1), type(t2))
+        self.assertEqual(type(t2), csc_matrix)
+        self.assertEqual(np.sum(t2), 2)
+        self.assertEqual(t2[0, 0], 2)
+
 # class TestFrequencyTable(TestBase):
 #
 #     @classmethod

@@ -121,6 +121,31 @@ class FrequencyTable(object):
         self.__position_table['i'].append(position)
         self.__position_table['j'].append(char_pos)
 
+    def finalize_table(self):
+        """
+        Finalize Table
+
+        When all sequences from an alignment have been characterized the table is saved from a dictionary of values
+        to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
+        behavior from other functions such as get_count_array() and get_frequency_array().
+        """
+        self.__position_table = csc_matrix((self.__position_table['values'],
+                                            (self.__position_table['i'], self.__position_table['j'])),
+                                           shape=self.__position_table['shape'])
+
+    def set_depth(self, depth):
+        """
+        Set Depth
+
+        This function is intended to update the depth attribute if the existing methods do not suffice (i.e. if
+        characterize_alignment or characterize_sequence are not used.).
+
+        Arguments
+            depth (int): The number of observations for all positions (normalization factor when turning count into
+            frequency).
+        """
+        self.__depth = deepcopy(depth)
+
     def characterize_alignment(self, num_aln, single_to_pair=None):
         """
         Characterize Alignment
@@ -190,31 +215,6 @@ class FrequencyTable(object):
                 # Track the pair of amino acids for the positions i,j
                 self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
         self.__depth += 1
-
-    def finalize_table(self):
-        """
-        Finalize Table
-
-        When all sequences from an alignment have been characterized the table is saved from a dictionary of values
-        to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
-        behavior from other functions such as get_count_array() and get_frequency_array().
-        """
-        self.__position_table = csc_matrix((self.__position_table['values'],
-                                            (self.__position_table['i'], self.__position_table['j'])),
-                                           shape=self.__position_table['shape'])
-
-    def set_depth(self, depth):
-        """
-        Set Depth
-
-        This function is intended to update the depth attribute if the existing methods do not suffice (i.e. if
-        characterize_alignment or characterize_sequence are not used.).
-
-        Arguments
-            depth (int): The number of observations for all positions (normalization factor when turning count into
-            frequency).
-        """
-        self.__depth = deepcopy(depth)
 
     def get_table(self):
         """
