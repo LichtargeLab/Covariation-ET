@@ -379,6 +379,38 @@ class TestFrequencyTableFinalizeTable(TestCase):
         self.assertEqual(np.sum(t2), 2)
         self.assertEqual(t2[0, 0], 2)
 
+
+class TestFrequencyTableSetDepth(TestCase):
+
+    def test_set_depth_zero(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table.set_depth(0)
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test_set_depth_non_zero(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table.set_depth(5)
+        self.assertEqual(freq_table.get_depth(), 5)
+
+    def test_set_depth_multiple_sets(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table.set_depth(1)
+        self.assertEqual(freq_table.get_depth(), 1)
+        freq_table.set_depth(5)
+        self.assertEqual(freq_table.get_depth(), 5)
+        freq_table.set_depth(0)
+        self.assertEqual(freq_table.get_depth(), 0)
+
+    def test_set_depth_failure_negative(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(ValueError):
+            freq_table.set_depth(-1)
+
+    def test_set_depth_failure_none(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        with self.assertRaises(ValueError):
+            freq_table.set_depth(None)
+
 # class TestFrequencyTable(TestBase):
 #
 #     @classmethod

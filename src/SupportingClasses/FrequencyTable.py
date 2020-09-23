@@ -144,6 +144,10 @@ class FrequencyTable(object):
             depth (int): The number of observations for all positions (normalization factor when turning count into
             frequency).
         """
+        if depth is None:
+            raise ValueError('Depth cannot be None, please provide a value >= 0.')
+        if depth < 0:
+            raise ValueError('Depth cannot be negative, please provide a value >= 0.')
         self.__depth = deepcopy(depth)
 
     def characterize_alignment(self, num_aln, single_to_pair=None):
