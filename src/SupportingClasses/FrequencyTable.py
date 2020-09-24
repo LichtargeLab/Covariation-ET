@@ -165,6 +165,8 @@ class FrequencyTable(object):
             single_to_pair (np.array): An array mapping single letter numerical representations (axes 0 and 1) to a
             numerical representations of pairs of residues (value).
         """
+        if num_aln is None:
+            raise ValueError('Numeric representation of an alignment must be provided as input.')
         if self.position_size == 2 and single_to_pair is None:
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
         # Iterate over all positions
