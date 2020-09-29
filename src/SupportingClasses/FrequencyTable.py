@@ -207,6 +207,8 @@ class FrequencyTable(object):
         Args:
             seq (Bio.Seq.Seq): The sequence from an alignment to characterize.
         """
+        if seq is None:
+            raise ValueError('seq must not be None.')
         # Iterate over all positions
         for i in range(self.sequence_length):
             # If single is specified, track the amino acid for this sequence and position
@@ -281,6 +283,10 @@ class FrequencyTable(object):
         Returns:
             list: All characters present at the specified position in the alignment.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         position = self._convert_pos(pos=pos)
         character_positions = self.__position_table[position, :].nonzero()
         characters = self.reverse_mapping[character_positions[1]]
@@ -301,6 +307,8 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         count = self.__position_table[position, char_pos]
@@ -320,6 +328,8 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count_array.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         position = self._convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
         indices = full_column.nonzero()
@@ -340,6 +350,8 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count_matrix.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         mat = self.__position_table.toarray()
         return mat
 
@@ -402,6 +414,10 @@ class FrequencyTable(object):
         Args:
             file_path (str): The full path to where the data should be written.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count_matrix.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         if not os.path.isfile(file_path):
             columns = ['Position', 'Variability', 'Characters', 'Counts', 'Frequencies']
             out_dict = {c: [] for c in columns}
@@ -429,6 +445,11 @@ class FrequencyTable(object):
         Args:
             file_path (str): The path to the file written by to_csv from which the FrequencyTable data should be loaded.
         """
+        if isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('The table has already been finalized, loading data would overwrite the table.')
+        if self.__depth != 0:
+            raise AttributeError(f'The FrequencyTable has already been updated, depth: {self.__depth}, '
+                                 'loading would overwrite the table.')
         start = time()
         if not os.path.isfile(file_path):
             raise ValueError('The provided path does not exist.')
@@ -508,6 +529,8 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if isinstance(self.__position_table, dict) or isinstance(other.__position_table, dict):
             raise AttributeError('Before combining FrequencyTable objects please call finalize_table().')
+        if (self.__depth == 0) or (other.__depth == 0):
+            raise AttributeError('At least one of the FrequencyTables being combined has not been updated.')
         new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
                                    reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)
