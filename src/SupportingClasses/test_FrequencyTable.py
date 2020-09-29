@@ -9,12 +9,11 @@ import numpy as np
 import pandas as pd
 from unittest import TestCase
 from itertools import combinations
-from scipy.sparse import lil_matrix, csc_matrix
+from scipy.sparse import csc_matrix
 from Bio.Alphabet import Gapped
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from test_Base import TestBase
 from test_seqAlignment import generate_temp_fn, write_out_temp_fasta
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
@@ -1064,7 +1063,8 @@ class TestFrequencyTableGetters(TestCase):
             freq_table.get_frequency_matrix()
         freq_table.finalize_table()
         for p in positions:
-            self.assertEqual(freq_table.get_chars(pos=p), [])
+            with self.assertRaises(AttributeError):
+                self.assertEqual(freq_table.get_chars(pos=p), [])
             with self.assertRaises(AttributeError):
                 freq_table.get_count(pos=p, char='A')
             with self.assertRaises(AttributeError):
@@ -1110,10 +1110,8 @@ class TestFrequencyTableGetters(TestCase):
         expected_table[0, 0] = 1
         self.assertFalse((table2 - expected_table).any())
         for p in positions:
-            if p == 0:
-                self.assertEqual(freq_table.get_chars(pos=p), ['A'])
-            else:
-                self.assertEqual(freq_table.get_chars(pos=p), [])
+            with self.assertRaises(AttributeError):
+                self.assertEqual(freq_table.get_chars(pos=p))
             with self.assertRaises(AttributeError):
                 freq_table.get_count(pos=p, char='A')
             with self.assertRaises(AttributeError):
@@ -1159,10 +1157,8 @@ class TestFrequencyTableGetters(TestCase):
         expected_table[0, 0] = 1
         self.assertFalse((table2 - expected_table).any())
         for p in positions:
-            if p == (0, 0):
-                self.assertEqual(freq_table.get_chars(pos=p), ['AA'])
-            else:
-                self.assertEqual(freq_table.get_chars(pos=p), [])
+            with self.assertRaises(AttributeError):
+                freq_table.get_chars(pos=p)
             with self.assertRaises(AttributeError):
                 freq_table.get_count(pos=p, char='A')
             with self.assertRaises(AttributeError):
