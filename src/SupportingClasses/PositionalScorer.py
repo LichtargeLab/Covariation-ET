@@ -6,12 +6,15 @@ Created on July 12, 2019
 import numpy as np
 from scipy.sparse import csc_matrix
 
-integer_valued_metrics = {'identity'}
+integer_valued_metrics = {'identity', 'match_count', 'mismatch_count'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information',
-                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
-                       'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
+                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_count_ratio',
+                       'match_mismatch_count_angle', 'match_entropy', 'mismatch_entropy',
+                       'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle',
+                       'match_diversity', 'mismatch_diversity', 'match_mismatch_diversity_ratio',
+                       'match_mismatch_diversity_angle', 'match_diversity_mismatch_entropy_ratio',
                        'match_diversity_mismatch_entropy_angle'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
@@ -20,15 +23,21 @@ single_only_metrics = set()
 
 pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
                      'average_product_corrected_mutual_information',
-                     'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
-                     'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
-                     'match_diversity_mismatch_entropy_angle'}
+                     'filtered_average_product_corrected_mutual_information', 'match_count', 'mismatch_count',
+                     'match_mismatch_count_ratio', 'match_mismatch_count_angle', 'match_entropy', 'mismatch_entropy',
+                     'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle', 'match_diversity',
+                     'mismatch_diversity', 'match_mismatch_diversity_ratio', 'match_mismatch_diversity_angle',
+                     'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
 
-min_metrics = {'identity', 'plain_entropy', 'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle',
-               'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
+min_metrics = {'identity', 'plain_entropy', 'mismatch_count', 'match_mismatch_count_ratio',
+               'match_mismatch_count_angle', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+               'match_mismatch_entropy_angle', 'mismatch_diversity', 'match_mismatch_diversity_ratio',
+               'match_mismatch_diversity_angle', 'match_diversity_mismatch_entropy_ratio',
+               'match_diversity_mismatch_entropy_angle'}
 
 max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
-               'filtered_average_product_corrected_mutual_information'}
+               'filtered_average_product_corrected_mutual_information', 'match_count', 'match_entropy',
+               'match_diversity'}
 
 
 class PositionalScorer(object):
@@ -90,6 +99,10 @@ class PositionalScorer(object):
         elif (self.position_size == 2) and (metric not in ambiguous_metrics | pair_only_metrics):
             raise ValueError('Provided metric: {} not available for pos_size: {}, please select from:\n{}'.format(
                 metric, self.position_size, ', '.join(list(ambiguous_metrics | pair_only_metrics))))
+        elif self.position_size > 2:
+            raise ValueError(f'Position sizes > 2 not currently supported {self.position_size} provided.')
+        else:
+            pass
         self.metric = metric
         if metric in integer_valued_metrics:
             self.metric_type = 'integer'
