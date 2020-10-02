@@ -3,11 +3,15 @@ Created on July 12, 2019
 
 @author: Daniel Konecki
 """
+import os
 import unittest
 import numpy as np
 from copy import deepcopy
 from unittest import TestCase
 from Bio.Alphabet import Gapped
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 from test_Base import TestBase
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
@@ -15,6 +19,8 @@ from FrequencyTable import FrequencyTable
 from PhylogeneticTree import PhylogeneticTree
 from MatchMismatchTable import MatchMismatchTable
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from test_seqAlignment import generate_temp_fn, write_out_temp_fasta
+from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 from PositionalScorer import (integer_valued_metrics, real_valued_metrics, ambiguous_metrics, single_only_metrics,
                               pair_only_metrics, min_metrics, max_metrics, PositionalScorer, rank_integer_value_score,
                               rank_real_value_score, mutual_information_computation, average_product_correction,
@@ -30,6 +36,29 @@ from PositionalScorer import (integer_valued_metrics, real_valued_metrics, ambig
                               # group_match_mismatch_diversity_ratio, group_match_mismatch_diversity_angle,
                               group_match_diversity_mismatch_entropy_ratio,
                               group_match_diversity_mismatch_entropy_angle)
+
+dna_alpha = Gapped(FullIUPACDNA())
+dna_alpha_size, _, dna_map, dna_rev = build_mapping(dna_alpha)
+protein_alpha = Gapped(FullIUPACProtein())
+protein_alpha_size, _, protein_map, protein_rev = build_mapping(protein_alpha)
+pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
+dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
+dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1))
+for char in dna_pair_map:
+    dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
+pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
+pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
+pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1))
+for char in pro_pair_map:
+    pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
+protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
+protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
+protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
+protein_msa = MultipleSeqAlignment(records=[protein_seq1, protein_seq2, protein_seq3], alphabet=FullIUPACProtein())
+dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPACDNA()))
+dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
+dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
+dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
 
 
 class TestPositionalScorerPackageVariables(TestCase):
@@ -341,7 +370,69 @@ class TestPositionalScorerInit(TestCase):
 # class TestPositionalScorerScoreRank(TestCase):
 # class TestPositionalScorerRankIntegerValue(TestCase):
 # class TestPositionalScorerRankRealValue(TestCase):
-# class TestPositionalScorerGroupIdentityScore(TestCase):
+
+
+class TestPositionalScorerGroupIdentityScore(TestCase):
+
+    def test_group_identity_score_single(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        final = group_identity_score(freq_table=freq_table, dimensions=(6, ))
+        expected_final = np.array([0, 1, 1, 1, 1, 1])
+        self.assertFalse((final - expected_final).any())
+
+    def test_group_identity_score_pair(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+        final = group_identity_score(freq_table=freq_table, dimensions=(6, 6))
+        expected_final = np.array([[0, 1, 1, 1, 1, 1],
+                                   [0, 1, 1, 1, 1, 1],
+                                   [0, 0, 1, 1, 1, 1],
+                                   [0, 0, 0, 1, 1, 1],
+                                   [0, 0, 0, 0, 1, 1],
+                                   [0, 0, 0, 0, 0, 1]])
+        self.assertFalse((final - expected_final).any())
+
+    def test_group_identity_score_failure_no_freq_table(self):
+        with self.assertRaises(AttributeError):
+            final = group_identity_score(freq_table=None, dimensions=(6, ))
+
+    def test_group_identity_score_failure_wrong_dimensions_large(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            final = group_identity_score(freq_table=freq_table, dimensions=(6, 6))
+
+    def test_group_identity_score_failure_wrong_dimensions_small(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+        with self.assertRaises(ValueError):
+            final = group_identity_score(freq_table=freq_table, dimensions=(6, ))
+
 # class TestPositionalScorerGroupPlainEntropyScore(TestCase):
 # class TestPositionalScorerGroupMutualInformation(TestCase):
 # class TestPositionalScorerMatchMismatchCountScores(TestCase):

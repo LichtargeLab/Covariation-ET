@@ -238,13 +238,15 @@ def group_identity_score(freq_table, dimensions):
     positional_sums = np.sum(table > 0, axis=1)
     identical = (positional_sums > 1) * 1
     identical = identical.reshape(-1)
-    if len(dimensions) == 1:
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 1:
         final = identical
     elif len(dimensions) == 2:
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = identical
     else:
-        raise ValueError('group_identity_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+        raise ValueError('group_identity_score is not implemented for dimensions describing axis other than 1 or 2.')
     return final
 
 
