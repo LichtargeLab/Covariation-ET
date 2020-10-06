@@ -48,9 +48,15 @@ for char in dna_pair_map:
     dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
 pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
 pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
+quad_protein_alpha = MultiPositionAlphabet(protein_alpha, size=4)
+pro_quad_alpha_size, _, pro_quad_map, pro_quad_rev = build_mapping(quad_protein_alpha)
 pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1))
 for char in pro_pair_map:
     pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
+pro_single_to_quad = {}
+for char in pro_quad_map:
+    key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
+    pro_single_to_quad[key] = pro_quad_map[char]
 protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
 protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
 protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
@@ -921,12 +927,111 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         with self.assertRaises(ValueError):
             filtered_average_product_correction(mutual_information_matrix=mi.T)
 
+
+class TestPositionalScorerRatioComputation(TestCase):
+
+        @classmethod
+        def setUpClass(cls):
+            aln_fn = write_out_temp_fasta(
+                out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+            aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+            aln.import_alignment()
+            os.remove(aln_fn)
+            num_aln = aln._alignment_to_num(mapping=protein_map)
+            cls.mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                              larger_alphabet_size=pro_quad_alpha_size,
+                                              larger_mapping=pro_quad_map, larger_reverse_mapping=pro_quad_rev,
+                                              single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+            cls.mm_table.identify_matches_mismatches()
+            cls.mm_freq_tables = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
+            cls.mm_freq_tables['match'].mapping = pro_quad_map
+            cls.mm_freq_tables['match'].set_depth(3)
+            cls.mm_freq_tables['mismatch'] = deepcopy(cls.mm_freq_tables['match'])
+            for pos in cls.mm_freq_tables['match'].get_positions():
+                char_dict = {'match': {}, 'mismatch': {}}
+                for i in range(3):
+                    for j in range(i + 1, 3):
+                        status, stat_char = cls.mm_table.get_status_and_character(pos=pos, seq_ind1=i, seq_ind2=j)
+                        if stat_char not in char_dict[status]:
+                            char_dict[status][stat_char] = 0
+                        char_dict[status][stat_char] += 1
+                        for m in char_dict:
+                            for curr_char in char_dict[m]:
+                                cls.mm_freq_tables[m]._increment_count(pos=pos, char=curr_char,
+                                                                       amount=char_dict[m][curr_char])
+            for m in ['match', 'mismatch']:
+                cls.mm_freq_tables[m].finalize_table()
+
+        def test_ratio_computation(self):
+            expected_value = np.tan(np.pi / 2.0)
+            match_entropy = group_plain_entropy_score(freq_table=self.mm_freq_tables['match'], dimensions=(6, 6))
+            mismatch_entropy = group_plain_entropy_score(freq_table=self.mm_freq_tables['match'], dimensions=(6, 6))
+            # Ensure at least one instance of Case 1
+            match_entropy[0, -1] = 0.0
+            mismatch_entropy[0, -1] = 0.5
+            # Ensure at least two instance of Case 3
+            mismatch_entropy[[0, 1], [-2, -1]] = 0.0
+            match_entropy[[0, 1], [-2, -1]] = 0.5
+            ratio_mat = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+            for i in range(6):
+                for j in range(6):
+                    match_val = match_entropy[i, j]
+                    mismatch_val = mismatch_entropy[i, j]
+                    curr_val = ratio_mat[i, j]
+                    if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
+                        self.assertEqual(curr_val, expected_value)
+                    elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
+                          (match_val == 0.0) and (mismatch_val == 0.0)):
+                        self.assertEqual(curr_val, 0.0)
+                    else:  # Case 3
+                        self.assertEqual(curr_val, mismatch_val / match_val)
+
+        def test_ratio_computation_match_zeros(self):
+            ratio_mat = ratio_computation(match_table=np.zeros((6, 6)), mismatch_table=np.random.rand(6, 6))
+            expected_value = np.tan(np.pi / 2.0)
+            expected_ratio_mat = np.ones((6, 6)) * expected_value
+            self.assertFalse((ratio_mat - expected_ratio_mat).any())
+
+        def test_ratio_computation_mismatch_zeros(self):
+            expected_mat = np.zeros((6, 6))
+            ratio_mat = ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=expected_mat)
+            self.assertFalse((ratio_mat - expected_mat).any())
+
+        def test_ratio_computation_both_zeros(self):
+            expected_mat = np.zeros((6, 6))
+            ratio_mat = ratio_computation(match_table=expected_mat, mismatch_table=expected_mat)
+            self.assertFalse((ratio_mat - expected_mat).any())
+
+        def test_ratio_computation_failure_no_match_table(self):
+            with self.assertRaises(AttributeError):
+                ratio_computation(match_table=None, mismatch_table=np.random.rand(6, 6))
+
+        def test_ratio_computation_failure_no_mismatch_table(self):
+            with self.assertRaises(TypeError):
+                ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=None)
+
+        def test_ratio_computation_failure_no_tables(self):
+            with self.assertRaises(AttributeError):
+                ratio_computation(match_table=None, mismatch_table=None)
+
+        def test_ratio_computation_failure_table_size_difference(self):
+            match_temp = np.random.rand(4, 4)
+            mismatch_temp = np.random.rand(6, 6)
+            with self.assertRaises(IndexError):
+                ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
+
+        def test_ratio_computation_failure_table_size_difference2(self):
+            match_temp = np.random.rand(6, 6)
+            mismatch_temp = np.random.rand(4, 4)
+            with self.assertRaises(IndexError):
+                ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
+# class TestPositionalScorerAngleComputation(TestCase):
 # class TestPositionalScorerMatchMismatchCountScores(TestCase):
 # class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
 # class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
 # class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
-# class TestPositionalScorerRatioComputation(TestCase):
-# class TestPositionalScorerAngleComputation(TestCase):
 
 
 # class TestPositionalScorer(TestBase):
