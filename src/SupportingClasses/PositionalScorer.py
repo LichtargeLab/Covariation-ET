@@ -273,13 +273,15 @@ def group_plain_entropy_score(freq_table, dimensions):
     inter_prod = freq.multiply(freq_log)
     inter_sum = np.array(inter_prod.sum(axis=1)).reshape(-1)
     entropies = -1.0 * inter_sum
-    if len(dimensions) == 1:
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 1:
         final = entropies
     elif len(dimensions) == 2:
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = entropies
     else:
-        raise ValueError('group_plain_entropy_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+        raise ValueError('group_plain_entropy_score is not implemented for dimensions describing axis other than 1 or 2.')
     return final
 
 
@@ -304,6 +306,12 @@ def mutual_information_computation(freq_table, dimensions):
         np.array: The joint entropies for pairs of positions.
         np.array: The mutual information scores for all pairs of positions in the FrequencyTable.
     """
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) != 2:
+        raise ValueError('Mutual information computation must be performed on position of size 2!')
+    else:
+        pass
     joint_entropies_ij = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
     diagonal_indices = (list(range(dimensions[0])), list(range(dimensions[1])))
     entropies_j = np.zeros(dimensions)
@@ -395,8 +403,13 @@ def average_product_correction(mutual_information_matrix):
     Returns:
         np.array: An upper triangle matrix with mutual information with average product correction scores.
     """
+    if mutual_information_matrix is None:
+        raise ValueError('No mutual information matrix provided!')
     if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
         raise ValueError('Mutual information matrix is expected to be square!')
+    if np.tril(mutual_information_matrix).any():
+        raise ValueError('Mutual information matrix is expected to be an upper triangle matrix (not including the '
+                         'diagonal!')
     # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
     dim = mutual_information_matrix.shape[0]
     # Compute the position specific mutual information averages (excludes the position itself)
@@ -407,7 +420,8 @@ def average_product_correction(mutual_information_matrix):
     if matrix_sum == 0.0:
         apc_corrected = np.zeros((dim, dim))
         if np.abs(mutual_information_matrix).any():
-            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
+            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix '
+                             'includes non-zero values.')
     else:
         matrix_average = matrix_sum / np.sum(range(dim))
         # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
@@ -428,60 +442,58 @@ def average_product_correction(mutual_information_matrix):
     return apc_corrected
 
 
-def filtered_average_product_correction(mutual_information_matrix):
+def filtered_average_product_correction(mutual_information_matrix, threshold=0.0001):
     """
     Filtered Average Product Correction
 
-    This function uses a mutual information matrix to calculate average product corrected mutual information. Average
-    product correction includes division by the average mutual information of the unique off diagonal terms in the
-    matrix (e.g. the upper triangle). If this average is 0, a matrix of all zeros will be returned, but first a check
-    will be performed to ensure that the mutual information matrix was also all zeros (this should be the case because
-    mutual information scores should fall in the range between 0 and 1 and thus there should be no negatives which could
-    cause a zero average while other positions are non-zero). If this check fails a ValueError will be raised. If the
-    average is not zero then the rest of the average product correction is computed and applied to the mutual
-    information matrix in order to generate final scores. This function also a check for low mutual information values
-    (<0.001) and coerces all final scores for those positions to 0.0 as opposed to the average product corrected values.
+    This function uses the average_product_correction function to generate a matrix of apc corrected mi values. This
+    function then checks for low mutual information values (<0.0001) and coerces all final scores for those positions to
+    0.0 as opposed to the average product corrected values.
 
     Args:
         mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
         mutual information with average product correction.
     Returns:
-        np.array: An upper triangle matrix with mutual information with average product correction scores. If the
-        average over the
+        np.array: An upper triangle matrix with average product corrected mutual information scores. If the mutual
+        information score at a given position is below the threshold the final score is overwritten with 0.0.
     """
-    if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
-        raise ValueError('Mutual information matrix is expected to be square!')
-    # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
-    dim = mutual_information_matrix.shape[0]
-    # Compute the position specific mutual information averages (excludes the position itself)
-    diagonal_values = mutual_information_matrix[list(range(dim)), list(range(dim))]
-    # Compute the average over the entire mutual information matrix (excludes the diagonal)
-    diagonal_sum = np.sum(diagonal_values)
-    matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
-    if matrix_sum == 0.0:
-        apc_corrected = np.zeros((dim, dim))
-        if np.abs(mutual_information_matrix).any():
-            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
-    else:
-        matrix_average = matrix_sum / np.sum(range(dim))
-        # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
-        # needed to get the cumulative sum for a given position.
-        position_specific_sums = (np.sum(mutual_information_matrix, axis=0) + np.sum(mutual_information_matrix, axis=1)
-                                  - diagonal_values)
-        position_specific_averages = position_specific_sums / float(dim - 1)
-        # Calculate the matrix of products for the position specific average mutual information
-        apc_numerator = np.outer(position_specific_averages, position_specific_averages)
-        apc_factor = apc_numerator / matrix_average
-        # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
-        # triangle).
-        upper_triangle_mask = np.zeros((dim, dim))
-        upper_triangle_mask[np.triu_indices(dim, k=1)] = 1
-        apc_factor = apc_factor * upper_triangle_mask
-        # Compute the final corrected values.
-        apc_corrected = mutual_information_matrix - apc_factor
-        # Performing filtering that Angela performs
-        positions = mutual_information_matrix <= 0.0001
-        apc_corrected[positions] = 0.0
+    # if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
+    #     raise ValueError('Mutual information matrix is expected to be square!')
+    # # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
+    # dim = mutual_information_matrix.shape[0]
+    # # Compute the position specific mutual information averages (excludes the position itself)
+    # diagonal_values = mutual_information_matrix[list(range(dim)), list(range(dim))]
+    # # Compute the average over the entire mutual information matrix (excludes the diagonal)
+    # diagonal_sum = np.sum(diagonal_values)
+    # matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
+    # if matrix_sum == 0.0:
+    #     apc_corrected = np.zeros((dim, dim))
+    #     if np.abs(mutual_information_matrix).any():
+    #         raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
+    # else:
+    #     matrix_average = matrix_sum / np.sum(range(dim))
+    #     # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
+    #     # needed to get the cumulative sum for a given position.
+    #     position_specific_sums = (np.sum(mutual_information_matrix, axis=0) + np.sum(mutual_information_matrix, axis=1)
+    #                               - diagonal_values)
+    #     position_specific_averages = position_specific_sums / float(dim - 1)
+    #     # Calculate the matrix of products for the position specific average mutual information
+    #     apc_numerator = np.outer(position_specific_averages, position_specific_averages)
+    #     apc_factor = apc_numerator / matrix_average
+    #     # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
+    #     # triangle).
+    #     upper_triangle_mask = np.zeros((dim, dim))
+    #     upper_triangle_mask[np.triu_indices(dim, k=1)] = 1
+    #     apc_factor = apc_factor * upper_triangle_mask
+    #     # Compute the final corrected values.
+    #     apc_corrected = mutual_information_matrix - apc_factor
+    #     # Performing filtering that Angela performs
+    #     positions = mutual_information_matrix <= 0.0001
+    #     apc_corrected[positions] = 0.0
+    apc_corrected = average_product_correction(mutual_information_matrix=mutual_information_matrix)
+    # Performing filtering that Angela performs
+    positions = mutual_information_matrix <= threshold
+    apc_corrected[positions] = 0.0
     return apc_corrected
 
 
