@@ -473,7 +473,7 @@ class TestPositionalScorerGroupPlainEntropyScore(TestCase):
         expected_final = np.array([[score_3, score_1_2, score_1_2, score_1_2, score_1_2, score_1_2],
                                    [0.0, score_1_2, score_1_1_1, score_1_2, score_1_2, score_1_2],
                                    [0.0, 0.0, score_1_2, score_1_1_1, score_1_1_1, score_1_1_1],
-                                   [0.0, 0.0, 0, score_1_2, score_1_2, score_1_2],
+                                   [0.0, 0.0, 0.0, score_1_2, score_1_2, score_1_2],
                                    [0.0, 0.0, 0.0, 0.0, score_1_2, score_1_2],
                                    [0.0, 0.0, 0.0, 0.0, 0.0, score_1_2]])
         self.assertFalse((final - expected_final).any())
@@ -926,6 +926,73 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
         with self.assertRaises(ValueError):
             filtered_average_product_correction(mutual_information_matrix=mi.T)
+
+
+class TestPositionalScorerDiversityComputation(TestCase):
+
+    def test_diversity_computation_single(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        final = diversity_computation(freq_table=freq_table, dimensions=(6,))
+        score_3 = np.exp(0.0)
+        score_1_2 = np.exp(-1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3))))
+        expected_final = np.array([score_3, score_1_2, score_1_2, score_1_2, score_1_2, score_1_2])
+        self.assertFalse((final - expected_final).any())
+
+    def test_diversity_computation_pair(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+        final = diversity_computation(freq_table=freq_table, dimensions=(6, 6))
+        score_3 = np.exp(0.0)
+        score_1_2 = np.exp(-1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3))))
+        score_1_1_1 = np.exp(-1.0 * (3 * ((1.0 / 3) * np.log(1.0 / 3))))
+        expected_final = np.array([[score_3, score_1_2, score_1_2, score_1_2, score_1_2, score_1_2],
+                                   [1.0, score_1_2, score_1_1_1, score_1_2, score_1_2, score_1_2],
+                                   [1.0, 1.0, score_1_2, score_1_1_1, score_1_1_1, score_1_1_1],
+                                   [1.0, 1.0, 1.0, score_1_2, score_1_2, score_1_2],
+                                   [1.0, 1.0, 1.0, 1.0, score_1_2, score_1_2],
+                                   [1.0, 1.0, 1.0, 1.0, 1.0, score_1_2]])
+        self.assertFalse((final - expected_final).any())
+
+    def test_diversity_computation_failure_no_freq_table(self):
+        with self.assertRaises(AttributeError):
+            final = diversity_computation(freq_table=None, dimensions=(6,))
+
+    def test_diversity_computation_failure_wrong_dimensions_large(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            final = diversity_computation(freq_table=freq_table, dimensions=(6, 6))
+
+    def test_diversity_computation_failure_wrong_dimensions_small(self):
+        aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+        with self.assertRaises(ValueError):
+            final = diversity_computation(freq_table=freq_table, dimensions=(6,))
 
 
 class TestPositionalScorerRatioComputation(TestCase):
