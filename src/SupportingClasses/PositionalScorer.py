@@ -671,6 +671,46 @@ def group_match_mismatch_count_angle(freq_tables, dimensions):
     return angles
 
 
+def group_match_entropy_score(freq_table, dimensions):
+    """
+    Group Match Entropy Score
+
+    This function accepts a frequency table, representing the match cases (invariant or covariant signal) for pairs of
+    positions in an alignment, and returns the corresponding entropy values for all positions using the
+    count_computation function.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of matches for pairs of positions in an alignment, to use when
+        computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the entropy of only matching characters for
+        all positions in the provided match frequency table.
+    """
+    return group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+
+
+def group_mismatch_entropy_score(freq_table, dimensions):
+    """
+    Group Mismatch Entropy Score
+
+    This function accepts a frequency table, representing the mismatch cases (variation signal) for pairs of positions
+    in an alignment, and returns the corresponding entropy values for all positions using the count_computation
+    function.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of mismatches for pairs of positions in an alignment, to use
+        when computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the entropy of only mismatching characters for
+        all positions in the provided mismatch frequency table.
+    """
+    return count_computation(freq_table=freq_table, dimensions=dimensions)
+
+
 def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
     """
     Group Match Mismatch Entropy Ratio

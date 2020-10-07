@@ -989,27 +989,240 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
             self.assertEqual(counts[i, j], expected_counts[i, j])
         self.assertFalse((np.tril(counts) - np.zeros(counts.shape)).any())
 
-    def test_group_normalized_mutual_information_score_failure_single_pos_input(self):
+    def test_group_match_count_score_failure_single_pos_input(self):
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_match_count_score(freq_table=freq_table, dimensions=(6,))
 
-    def test_group_normalized_mutual_information_score_failure_no_freq_table(self):
+    def test_group_match_count_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_normalized_mutual_information_score(freq_table=None, dimensions=(6,))
+            group_match_count_score(freq_table=None, dimensions=(6,))
 
-    def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_large(self):
+    def test_group_match_count_score_failure_mismatch_dimensions_large(self):
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+            group_match_count_score(freq_table=freq_table, dimensions=(6, 6))
 
-    def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+    def test_group_match_count_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_match_count_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+
+    def test_group_mismatch_count_score(self):
+        expected_counts = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        triu_ind = np.triu_indices(n=counts.shape[0], k=1)
+        for x in range(counts.shape[0]):
+            i = triu_ind[0][x]
+            j = triu_ind[1][x]
+            self.assertEqual(counts[i, j], expected_counts[i, j])
+        self.assertFalse((np.tril(counts) - np.zeros(counts.shape)).any())
+
+    def test_group_mismatch_count_score_failure_single_pos_input(self):
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            group_mismatch_count_score(freq_table=freq_table, dimensions=(6,))
+
+    def test_group_mismatch_count_score_failure_no_freq_table(self):
+        with self.assertRaises(AttributeError):
+            group_mismatch_count_score(freq_table=None, dimensions=(6,))
+
+    def test_group_mismatch_count_score_failure_mismatch_dimensions_large(self):
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            group_mismatch_count_score(freq_table=freq_table, dimensions=(6, 6))
+
+    def test_group_mismatch_count_score_failure_mismatch_dimensions_small(self):
+        with self.assertRaises(ValueError):
+            group_mismatch_count_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+
+    def test_group_match_mismatch_count_ratio_score(self):
+        expected_value = np.tan(np.pi / 2.0)
+        expected_match_count = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        expected_mismatch_count = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
+        # should be covered from the ratio_computation test but it would be good to make that test explicit from this
+        # function as well.
+        ratio_mat = group_match_mismatch_count_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        for i in range(6):
+            for j in range(6):
+                match_val = expected_match_count[i, j]
+                mismatch_val = expected_mismatch_count[i, j]
+                curr_val = ratio_mat[i, j]
+                if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
+                    self.assertEqual(curr_val, expected_value)
+                elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
+                      (match_val == 0.0) and (mismatch_val == 0.0)):
+                    self.assertEqual(curr_val, 0.0)
+                else:  # Case 3
+                    self.assertEqual(curr_val, mismatch_val / match_val)
+
+    def test_group_match_mismatch_count_ratio_match_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
+        mismatch_counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        ratio_mat = group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+        expected_value = np.tan(np.pi / 2.0)
+        expected_ratio_mat = np.zeros((6, 6))
+        expected_ratio_mat[np.nonzero(mismatch_counts)] = 1.0
+        expected_ratio_mat *= expected_value
+        self.assertFalse((ratio_mat - expected_ratio_mat).any())
+
+    def test_group_match_mismatch_count_ratio_mismatch_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp_table}
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+        self.assertFalse((ratio_mat - expected_mat).any())
+
+    def test_group_match_mismatch_count_ratio_both_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': temp_table, 'mismatch': temp_table}
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+        self.assertFalse((ratio_mat - expected_mat).any())
+
+    def test_group_match_mismatch_count_ratio_failure_no_match_table(self):
+        temp_tables = {'match': None, 'mismatch': mm_freq_tables['mismatch']}
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_ratio_failure_no_mismatch_table(self):
+        temp_tables = {'match': mm_freq_tables['mismatch'], 'mismatch': None}
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_ratio_failure_no_tables(self):
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_ratio(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_ratio_failure_table_size_difference(self):
+        new_aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq[:4])}\n>seq2\n{str(protein_seq2.seq[:4])}\n>seq3\n{str(protein_seq3.seq[:4])}')
+        new_aln = SeqAlignment(new_aln_fn, 'seq1', polymer_type='Protein')
+        new_aln.import_alignment()
+        os.remove(new_aln_fn)
+        new_num_aln = new_aln._alignment_to_num(mapping=protein_map)
+        temp = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 4, 2)
+        temp.characterize_alignment(num_aln=new_num_aln, single_to_pair=pro_single_to_pair)
+        temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp}
+        with self.assertRaises(ValueError):
+            group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_ratio_failure_table_size_difference2(self):
+        new_aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq[:4])}\n>seq2\n{str(protein_seq2.seq[:4])}\n>seq3\n{str(protein_seq3.seq[:4])}')
+        new_aln = SeqAlignment(new_aln_fn, 'seq1', polymer_type='Protein')
+        new_aln.import_alignment()
+        os.remove(new_aln_fn)
+        new_num_aln = new_aln._alignment_to_num(mapping=protein_map)
+        temp = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 4, 2)
+        temp.characterize_alignment(num_aln=new_num_aln, single_to_pair=pro_single_to_pair)
+        temp_tables = {'match': temp, 'mismatch': mm_freq_tables['match']}
+        with self.assertRaises(ValueError):
+            group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_angle(self):
+        expected_value = np.tan(np.pi / 2.0)
+        expected_match_count = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        expected_mismatch_count = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
+        # should be covered from the ratio_computation test but it would be good to make that test explicit from this
+        # function as well.
+        expected_ratios = group_match_mismatch_count_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        angle_mat = group_match_mismatch_count_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        for i in range(6):
+            for j in range(6):
+                match_val = expected_match_count[i, j]
+                mismatch_val = expected_mismatch_count[i, j]
+                curr_val = angle_mat[i, j]
+                if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
+                    self.assertEqual(curr_val, np.pi / 2.0)
+                elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
+                      (match_val == 0.0) and (mismatch_val == 0.0)):
+                    self.assertEqual(curr_val, 0.0)
+                else:  # Case 3
+                    self.assertEqual(curr_val, np.arctan(mismatch_val / match_val))
+
+    def test_group_match_mismatch_count_angle_match_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
+        mismatch_counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        angle_mat = group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+        expected_value = np.pi / 2.0
+        expected_angle_mat = np.zeros((6, 6))
+        expected_angle_mat[np.nonzero(mismatch_counts)] = 1.0
+        expected_angle_mat *= expected_value
+        self.assertFalse((angle_mat - expected_angle_mat).any())
+
+    def test_group_match_mismatch_count_angle_mismatch_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp_table}
+        expected_mat = np.zeros((6, 6))
+        angle_mat = group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+        self.assertFalse((angle_mat - expected_mat).any())
+
+    def test_group_match_mismatch_count_angle_both_zeros(self):
+        temp_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        temp_table.set_depth(3.0)
+        temp_table.finalize_table()
+        temp_tables = {'match': temp_table, 'mismatch': temp_table}
+        expected_mat = np.zeros((6, 6))
+        angle_mat = group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+        self.assertFalse((angle_mat - expected_mat).any())
+
+    def test_group_match_mismatch_count_angle_failure_no_match_table(self):
+        temp_tables = {'match': None, 'mismatch': mm_freq_tables['mismatch']}
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_angle_failure_no_mismatch_table(self):
+        temp_tables = {'match': mm_freq_tables['mismatch'], 'mismatch': None}
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_angle_failure_no_tables(self):
+        with self.assertRaises(AttributeError):
+            group_match_mismatch_count_angle(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_angle_failure_table_size_difference(self):
+        new_aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq[:4])}\n>seq2\n{str(protein_seq2.seq[:4])}\n>seq3\n{str(protein_seq3.seq[:4])}')
+        new_aln = SeqAlignment(new_aln_fn, 'seq1', polymer_type='Protein')
+        new_aln.import_alignment()
+        os.remove(new_aln_fn)
+        new_num_aln = new_aln._alignment_to_num(mapping=protein_map)
+        temp = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 4, 2)
+        temp.characterize_alignment(num_aln=new_num_aln, single_to_pair=pro_single_to_pair)
+        temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp}
+        with self.assertRaises(ValueError):
+            group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
+
+    def test_group_match_mismatch_count_angle_failure_table_size_difference2(self):
+        new_aln_fn = write_out_temp_fasta(
+            out_str=f'>seq1\n{str(protein_seq1.seq[:4])}\n>seq2\n{str(protein_seq2.seq[:4])}\n>seq3\n{str(protein_seq3.seq[:4])}')
+        new_aln = SeqAlignment(new_aln_fn, 'seq1', polymer_type='Protein')
+        new_aln.import_alignment()
+        os.remove(new_aln_fn)
+        new_num_aln = new_aln._alignment_to_num(mapping=protein_map)
+        temp = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 4, 2)
+        temp.characterize_alignment(num_aln=new_num_aln, single_to_pair=pro_single_to_pair)
+        temp_tables = {'match': temp, 'mismatch': mm_freq_tables['match']}
+        with self.assertRaises(ValueError):
+            group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
 
 
 # class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
