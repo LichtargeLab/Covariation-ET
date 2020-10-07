@@ -464,6 +464,36 @@ def filtered_average_product_correction(mutual_information_matrix, threshold=0.0
     return apc_corrected
 
 
+def count_computation(freq_table, dimensions):
+    """
+    Count Computation
+
+    This function accepts a frequency table and returns the corresponding final count values for all positions, where
+    the count is the sum of the counts of each character observed at that position. This is intended for use in the
+    group_match_count_score and group_mismatch_count_score functions.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of matches or mismatches for pairs of positions in an
+        alignment, to use when computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided frequency table.
+    """
+    counts = freq_table.get_count_matrix()
+    position_sums = np.sum(counts, axis=1)
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 2:
+        final = np.zeros(dimensions)
+        final[np.triu_indices(n=dimensions[0])] = position_sums
+    else:
+        raise ValueError('count_computation metrics are only intended for use with FrequencyTable objects of position '
+                         'size 2!')
+    return final
+
+
 def diversity_computation(freq_table, dimensions):
     """
     Diversity Computation
@@ -540,6 +570,96 @@ def angle_computation(ratios):
         np.array: The angle computed between the match and mismatch values.
     """
     angles = np.arctan(ratios)
+    return angles
+
+
+def group_match_count_score(freq_table, dimensions):
+    """
+    Group Match Count Score
+
+    This function accepts a frequency table, representing the match cases (invariant or covariant signal) for pairs of
+    positions in an alignment, and returns the corresponding final count values for all positions using the
+    count_computation function.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of matches for pairs of positions in an alignment, to use when
+        computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided match frequency table.
+    """
+    return count_computation(freq_table=freq_table, dimensions=dimensions)
+
+
+def group_mismatch_count_score(freq_table, dimensions):
+    """
+    Group Mismatch Count Score
+
+    This function accepts a frequency table, representing the mismatch cases (variation signal) for pairs of positions
+    in an alignment, and returns the corresponding final count values for all positions using the count_computation
+    function.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of mismatches for pairs of positions in an alignment, to use
+        when computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided mismatch frequency table.
+    """
+    return count_computation(freq_table=freq_table, dimensions=dimensions)
+
+
+def group_match_mismatch_count_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Count Ratio
+
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal)
+    counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds to
+    fully variable. The ratio is computed by first calculating the counts of matches and the counts of mismatches and
+    passing them to the ratio_computation method.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Returns:
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.tan(np.pi / 2.0) corresponding to full variation.
+    """
+    match_counts = group_match_count_score(freq_table=freq_tables['match'], dimensions=dimensions)
+    mismatch_counts = group_mismatch_count_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_counts, mismatch_table=mismatch_counts)
+    return ratio
+
+
+def group_match_mismatch_count_angle(freq_tables, dimensions):
+    """
+        Group Match Mismatch Count Angle
+
+        This function computes the angle between match (invariant or covariant signal) and mismatch (variation signal)
+        counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds
+        to fully variable. The angle is computed by first calculating the counts of matches and the counts of mismatches
+        and passing them to the ratio_computation method. The resulting ratios are then passed to the angle_computation
+        function for the final angles.
+
+        Arguments:
+            freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+            objects.
+            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+            will return a 2-D array.
+        Returns:
+            np.array: An array of angles computed by ratio_computation (see documentation), providing the ratio between the
+            match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and np.pi / 2.0
+            corresponding to full variation.
+        """
+    ratios = group_match_mismatch_count_ratio(freq_tables=freq_tables, dimensions=dimensions)
+    angles = angle_computation(ratios=ratios)
     return angles
 
 

@@ -28,8 +28,8 @@ from PositionalScorer import (integer_valued_metrics, real_valued_metrics, ambig
                               diversity_computation,
                               group_identity_score, group_plain_entropy_score,
                               group_mutual_information_score, group_normalized_mutual_information_score,
-                              # group_match_count_score, group_mismatch_count_score,
-                              # group_match_mismatch_count_ratio, group_match_mismatch_count_angle,
+                              count_computation, group_match_count_score, group_mismatch_count_score,
+                              group_match_mismatch_count_ratio, group_match_mismatch_count_angle,
                               # group_match_entropy_score, group_mismatch_entropy_score,
                               group_match_mismatch_entropy_ratio, group_match_mismatch_entropy_angle,
                               # group_match_diversity_score, group_mismatch_diversity_score,
@@ -65,6 +65,38 @@ dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPAC
 dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
+
+aln_fn = write_out_temp_fasta(
+                out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+aln.import_alignment()
+os.remove(aln_fn)
+num_aln = aln._alignment_to_num(mapping=protein_map)
+mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                              larger_alphabet_size=pro_quad_alpha_size,
+                              larger_mapping=pro_quad_map, larger_reverse_mapping=pro_quad_rev,
+                              single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+mm_table.identify_matches_mismatches()
+mm_freq_tables = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
+mm_freq_tables['match'].mapping = pro_quad_map
+mm_freq_tables['match'].set_depth(3)
+mm_freq_tables['mismatch'] = deepcopy(mm_freq_tables['match'])
+for pos in mm_freq_tables['match'].get_positions():
+    char_dict = {'match': {}, 'mismatch': {}}
+    for i in range(3):
+        for j in range(i + 1, 3):
+            status, stat_char = mm_table.get_status_and_character(pos=pos, seq_ind1=i, seq_ind2=j)
+            if stat_char not in char_dict[status]:
+                char_dict[status][stat_char] = 0
+            char_dict[status][stat_char] += 1
+    for m in char_dict:
+        for curr_char in char_dict[m]:
+            mm_freq_tables[m]._increment_count(pos=pos, char=curr_char,
+                                               amount=char_dict[m][curr_char])
+for m in ['match', 'mismatch']:
+    mm_freq_tables[m].finalize_table()
 
 
 class TestPositionalScorerPackageVariables(TestCase):
@@ -372,21 +404,10 @@ class TestPositionalScorerInit(TestCase):
         with self.assertRaises(ValueError):
             ps = PositionalScorer(seq_length=6, pos_size=100, metric='identity')
 
-# class TestPositionalScorerScoreGroup(TestCase):
-# class TestPositionalScorerScoreRank(TestCase):
-# class TestPositionalScorerRankIntegerValue(TestCase):
-# class TestPositionalScorerRankRealValue(TestCase):
-
 
 class TestPositionalScorerGroupIdentityScore(TestCase):
 
     def test_group_identity_score_single(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         final = group_identity_score(freq_table=freq_table, dimensions=(6, ))
@@ -394,12 +415,6 @@ class TestPositionalScorerGroupIdentityScore(TestCase):
         self.assertFalse((final - expected_final).any())
 
     def test_group_identity_score_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         final = group_identity_score(freq_table=freq_table, dimensions=(6, 6))
@@ -413,42 +428,24 @@ class TestPositionalScorerGroupIdentityScore(TestCase):
 
     def test_group_identity_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            final = group_identity_score(freq_table=None, dimensions=(6, ))
+            group_identity_score(freq_table=None, dimensions=(6, ))
 
     def test_group_identity_score_failure_wrong_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            final = group_identity_score(freq_table=freq_table, dimensions=(6, 6))
+            group_identity_score(freq_table=freq_table, dimensions=(6, 6))
 
     def test_group_identity_score_failure_wrong_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            final = group_identity_score(freq_table=freq_table, dimensions=(6, ))
+            group_identity_score(freq_table=freq_table, dimensions=(6, ))
 
 
 class TestPositionalScorerGroupPlainEntropyScore(TestCase):
 
     def test_group_plain_entropy_score_single(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, ))
@@ -458,12 +455,6 @@ class TestPositionalScorerGroupPlainEntropyScore(TestCase):
         self.assertFalse((final - expected_final).any())
 
     def test_group_plain_entropy_score_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, 6))
@@ -480,42 +471,24 @@ class TestPositionalScorerGroupPlainEntropyScore(TestCase):
 
     def test_group_plain_entropy_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            final = group_plain_entropy_score(freq_table=None, dimensions=(6, ))
+            group_plain_entropy_score(freq_table=None, dimensions=(6, ))
 
     def test_group_plain_entropy_score_failure_wrong_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, 6))
+            group_plain_entropy_score(freq_table=freq_table, dimensions=(6, 6))
 
     def test_group_plain_entropy_score_failure_wrong_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, ))
+            group_plain_entropy_score(freq_table=freq_table, dimensions=(6, ))
 
 
 class TestPositionalScorerGroupMutualInformation(TestCase):
 
     def test_mutual_information_computation(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         e_i, e_j, e_ij, mi = mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
@@ -547,12 +520,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((mi - expected_mi).any())
 
     def test_mutual_information_computation_failure_single_pos_input(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
@@ -563,36 +530,18 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             mutual_information_computation(freq_table=None, dimensions=(6, ))
 
     def test_mutual_information_computation_failure_mismatch_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
             mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
 
     def test_mutual_information_computation_failure_mismatch_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
             mutual_information_computation(freq_table=freq_table, dimensions=(6,))
 
     def test_group_mutual_information_score(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         _, _, _, expected_mi = mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
@@ -600,12 +549,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((mi - expected_mi).any())
 
     def test_group_mutual_information_score_failure_single_pos_input(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
@@ -616,36 +559,18 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             group_mutual_information_score(freq_table=None, dimensions=(6,))
 
     def test_group_mutual_information_score_failure_mismatch_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
             group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
 
     def test_group_mutual_information_score_failure_mismatch_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
             group_mutual_information_score(freq_table=freq_table, dimensions=(6,))
 
     def test_group_normalized_mutual_information_score(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
@@ -668,12 +593,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((np.tril(nmi) - np.zeros(nmi.shape)).any())
 
     def test_group_normalized_mutual_information_score_failure_single_pos_input(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
@@ -684,36 +603,18 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             group_normalized_mutual_information_score(freq_table=None, dimensions=(6,))
 
     def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
             group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
 
     def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
             group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6,))
 
     def test_average_product_correction(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
@@ -746,7 +647,7 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         mi_zero = np.zeros((6, 6))
         mi_zero[[0, 1], [4, 5]] = [1, -1]
         with self.assertRaises(ValueError):
-            apc = average_product_correction(mutual_information_matrix=mi_zero)
+            average_product_correction(mutual_information_matrix=mi_zero)
 
     def test_average_product_correction_all_zeros(self):
         mi_zero = np.zeros((6, 6))
@@ -758,12 +659,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             average_product_correction(mutual_information_matrix=None)
 
     def test_average_product_correction_failure_rectangular_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -773,12 +668,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             average_product_correction(mutual_information_matrix=temp)
 
     def test_average_product_correction_failure_full_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -786,12 +675,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             average_product_correction(mutual_information_matrix=mi + mi.T)
 
     def test_average_product_correction_failure_lower_triangle_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -799,12 +682,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             average_product_correction(mutual_information_matrix=mi.T)
 
     def test_filtered_average_product_correction(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
@@ -835,12 +712,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((apc_mi - expected_final).any())
 
     def test_filtered_average_product_correction_guaranteed_filter(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
@@ -887,12 +758,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             filtered_average_product_correction(mutual_information_matrix=None)
 
     def test_filtered_average_product_correction_failure_rectangular_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -902,12 +767,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             filtered_average_product_correction(mutual_information_matrix=temp)
 
     def test_filtered_average_product_correction_failure_full_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -915,12 +774,6 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             filtered_average_product_correction(mutual_information_matrix=mi + mi.T)
 
     def test_filtered_average_product_correction_failure_lower_triangle_matrix(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
@@ -928,15 +781,48 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             filtered_average_product_correction(mutual_information_matrix=mi.T)
 
 
+class TestPositionalScorerCountComputation(TestCase):
+
+    def test_count_computation_pair(self):
+        expected_final = np.zeros((6, 6))
+        for p1 in range(6):  # position 1 in pair1
+            for p2 in range(6):  # position 2 in pair1
+                if p1 <= p2:
+                    for s1 in range(3):  # sequence 1 in comparison
+                        for s2 in range(s1 + 1, 3):  # sequence 2 in comparison
+                            curr_stat, _ = mm_table.get_status_and_character(pos=(p1, p2), seq_ind1=s1, seq_ind2=s2)
+
+                            if curr_stat == 'match':
+                                expected_final[p1, p2] += 1
+        final = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        self.assertFalse((final - expected_final).any())
+
+    def test_count_computation_failure_single(self):
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            count_computation(freq_table=freq_table, dimensions=(6,))
+
+    def test_count_computation_failure_no_freq_table(self):
+        with self.assertRaises(AttributeError):
+            count_computation(freq_table=None, dimensions=(6, 6))
+
+    def test_count_computation_failure_wrong_dimensions_large(self):
+        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+        freq_table.characterize_alignment(num_aln=num_aln)
+        with self.assertRaises(ValueError):
+            count_computation(freq_table=freq_table, dimensions=(6, 6))
+
+    def test_count_computation_failure_wrong_dimensions_small(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+        with self.assertRaises(ValueError):
+            count_computation(freq_table=freq_table, dimensions=(6,))
+
+
 class TestPositionalScorerDiversityComputation(TestCase):
 
     def test_diversity_computation_single(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         final = diversity_computation(freq_table=freq_table, dimensions=(6,))
@@ -946,12 +832,6 @@ class TestPositionalScorerDiversityComputation(TestCase):
         self.assertFalse((final - expected_final).any())
 
     def test_diversity_computation_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         final = diversity_computation(freq_table=freq_table, dimensions=(6, 6))
@@ -968,27 +848,15 @@ class TestPositionalScorerDiversityComputation(TestCase):
 
     def test_diversity_computation_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            final = diversity_computation(freq_table=None, dimensions=(6,))
+            diversity_computation(freq_table=None, dimensions=(6,))
 
     def test_diversity_computation_failure_wrong_dimensions_large(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
         freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
             final = diversity_computation(freq_table=freq_table, dimensions=(6, 6))
 
     def test_diversity_computation_failure_wrong_dimensions_small(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
@@ -997,108 +865,129 @@ class TestPositionalScorerDiversityComputation(TestCase):
 
 class TestPositionalScorerRatioComputation(TestCase):
 
-        @classmethod
-        def setUpClass(cls):
-            aln_fn = write_out_temp_fasta(
-                out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-            aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-            aln.import_alignment()
-            os.remove(aln_fn)
-            num_aln = aln._alignment_to_num(mapping=protein_map)
-            cls.mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
-                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
-                                              larger_alphabet_size=pro_quad_alpha_size,
-                                              larger_mapping=pro_quad_map, larger_reverse_mapping=pro_quad_rev,
-                                              single_to_larger_mapping=pro_single_to_quad, pos_size=2)
-            cls.mm_table.identify_matches_mismatches()
-            cls.mm_freq_tables = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
-                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
-            cls.mm_freq_tables['match'].mapping = pro_quad_map
-            cls.mm_freq_tables['match'].set_depth(3)
-            cls.mm_freq_tables['mismatch'] = deepcopy(cls.mm_freq_tables['match'])
-            for pos in cls.mm_freq_tables['match'].get_positions():
-                char_dict = {'match': {}, 'mismatch': {}}
-                for i in range(3):
-                    for j in range(i + 1, 3):
-                        status, stat_char = cls.mm_table.get_status_and_character(pos=pos, seq_ind1=i, seq_ind2=j)
-                        if stat_char not in char_dict[status]:
-                            char_dict[status][stat_char] = 0
-                        char_dict[status][stat_char] += 1
-                        for m in char_dict:
-                            for curr_char in char_dict[m]:
-                                cls.mm_freq_tables[m]._increment_count(pos=pos, char=curr_char,
-                                                                       amount=char_dict[m][curr_char])
-            for m in ['match', 'mismatch']:
-                cls.mm_freq_tables[m].finalize_table()
+    def test_ratio_computation(self):
+        expected_value = np.tan(np.pi / 2.0)
+        match_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        mismatch_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        # Ensure at least one instance of Case 1
+        match_entropy[0, -1] = 0.0
+        mismatch_entropy[0, -1] = 0.5
+        # Ensure at least two instance of Case 3
+        mismatch_entropy[[0, 1], [-2, -1]] = 0.0
+        match_entropy[[0, 1], [-2, -1]] = 0.5
+        ratio_mat = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+        for i in range(6):
+            for j in range(6):
+                match_val = match_entropy[i, j]
+                mismatch_val = mismatch_entropy[i, j]
+                curr_val = ratio_mat[i, j]
+                if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
+                    self.assertEqual(curr_val, expected_value)
+                elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
+                      (match_val == 0.0) and (mismatch_val == 0.0)):
+                    self.assertEqual(curr_val, 0.0)
+                else:  # Case 3
+                    self.assertEqual(curr_val, mismatch_val / match_val)
 
-        def test_ratio_computation(self):
-            expected_value = np.tan(np.pi / 2.0)
-            match_entropy = group_plain_entropy_score(freq_table=self.mm_freq_tables['match'], dimensions=(6, 6))
-            mismatch_entropy = group_plain_entropy_score(freq_table=self.mm_freq_tables['match'], dimensions=(6, 6))
-            # Ensure at least one instance of Case 1
-            match_entropy[0, -1] = 0.0
-            mismatch_entropy[0, -1] = 0.5
-            # Ensure at least two instance of Case 3
-            mismatch_entropy[[0, 1], [-2, -1]] = 0.0
-            match_entropy[[0, 1], [-2, -1]] = 0.5
-            ratio_mat = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
-            for i in range(6):
-                for j in range(6):
-                    match_val = match_entropy[i, j]
-                    mismatch_val = mismatch_entropy[i, j]
-                    curr_val = ratio_mat[i, j]
-                    if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
-                        self.assertEqual(curr_val, expected_value)
-                    elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
-                          (match_val == 0.0) and (mismatch_val == 0.0)):
-                        self.assertEqual(curr_val, 0.0)
-                    else:  # Case 3
-                        self.assertEqual(curr_val, mismatch_val / match_val)
+    def test_ratio_computation_match_zeros(self):
+        ratio_mat = ratio_computation(match_table=np.zeros((6, 6)), mismatch_table=np.random.rand(6, 6))
+        expected_value = np.tan(np.pi / 2.0)
+        expected_ratio_mat = np.ones((6, 6)) * expected_value
+        self.assertFalse((ratio_mat - expected_ratio_mat).any())
 
-        def test_ratio_computation_match_zeros(self):
-            ratio_mat = ratio_computation(match_table=np.zeros((6, 6)), mismatch_table=np.random.rand(6, 6))
-            expected_value = np.tan(np.pi / 2.0)
-            expected_ratio_mat = np.ones((6, 6)) * expected_value
-            self.assertFalse((ratio_mat - expected_ratio_mat).any())
+    def test_ratio_computation_mismatch_zeros(self):
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=expected_mat)
+        self.assertFalse((ratio_mat - expected_mat).any())
 
-        def test_ratio_computation_mismatch_zeros(self):
-            expected_mat = np.zeros((6, 6))
-            ratio_mat = ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=expected_mat)
-            self.assertFalse((ratio_mat - expected_mat).any())
+    def test_ratio_computation_both_zeros(self):
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = ratio_computation(match_table=expected_mat, mismatch_table=expected_mat)
+        self.assertFalse((ratio_mat - expected_mat).any())
 
-        def test_ratio_computation_both_zeros(self):
-            expected_mat = np.zeros((6, 6))
-            ratio_mat = ratio_computation(match_table=expected_mat, mismatch_table=expected_mat)
-            self.assertFalse((ratio_mat - expected_mat).any())
+    def test_ratio_computation_failure_no_match_table(self):
+        with self.assertRaises(AttributeError):
+            ratio_computation(match_table=None, mismatch_table=np.random.rand(6, 6))
 
-        def test_ratio_computation_failure_no_match_table(self):
-            with self.assertRaises(AttributeError):
-                ratio_computation(match_table=None, mismatch_table=np.random.rand(6, 6))
+    def test_ratio_computation_failure_no_mismatch_table(self):
+        with self.assertRaises(TypeError):
+            ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=None)
 
-        def test_ratio_computation_failure_no_mismatch_table(self):
-            with self.assertRaises(TypeError):
-                ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=None)
+    def test_ratio_computation_failure_no_tables(self):
+        with self.assertRaises(AttributeError):
+            ratio_computation(match_table=None, mismatch_table=None)
 
-        def test_ratio_computation_failure_no_tables(self):
-            with self.assertRaises(AttributeError):
-                ratio_computation(match_table=None, mismatch_table=None)
+    def test_ratio_computation_failure_table_size_difference(self):
+        match_temp = np.random.rand(4, 4)
+        mismatch_temp = np.random.rand(6, 6)
+        with self.assertRaises(IndexError):
+            ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
 
-        def test_ratio_computation_failure_table_size_difference(self):
-            match_temp = np.random.rand(4, 4)
-            mismatch_temp = np.random.rand(6, 6)
-            with self.assertRaises(IndexError):
-                ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
+    def test_ratio_computation_failure_table_size_difference2(self):
+        match_temp = np.random.rand(6, 6)
+        mismatch_temp = np.random.rand(4, 4)
+        with self.assertRaises(IndexError):
+            ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
 
-        def test_ratio_computation_failure_table_size_difference2(self):
-            match_temp = np.random.rand(6, 6)
-            mismatch_temp = np.random.rand(4, 4)
-            with self.assertRaises(IndexError):
-                ratio_computation(match_table=match_temp, mismatch_table=mismatch_temp)
-# class TestPositionalScorerAngleComputation(TestCase):
+
+class TestPositionalScorerAngleComputation(TestCase):
+
+    def test_angle_computation(self):
+        match_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        mismatch_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        # Ensure at least one instance of Case 1
+        match_entropy[0, -1] = 0.0
+        mismatch_entropy[0, -1] = 0.5
+        # Ensure at least two instance of Case 3
+        mismatch_entropy[[0, 1], [-2, -1]] = 0.0
+        match_entropy[[0, 1], [-2, -1]] = 0.5
+        ratio_mat = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+        angle_mat = angle_computation(ratio_mat)
+        for i in range(6):
+            for j in range(6):
+                match_val = match_entropy[i, j]
+                mismatch_val = mismatch_entropy[i, j]
+                curr_val = angle_mat[i, j]
+                if (match_val == 0.0) and (mismatch_val != 0.0):  # Case 1
+                    self.assertEqual(curr_val, np.pi / 2.0)
+                elif ((match_val != 0.0) and (mismatch_val == 0.0) or  # Case 2
+                      (match_val == 0.0) and (mismatch_val == 0.0)):
+                    self.assertEqual(curr_val, 0.0)
+                else:  # Case 3
+                    self.assertEqual(curr_val, np.arctan(mismatch_val / match_val))
+
+    def test_angle_computation_match_zeros(self):
+        ratio_mat = ratio_computation(match_table=np.zeros((6, 6)), mismatch_table=np.random.rand(6, 6))
+        angle_mat = angle_computation(ratio_mat)
+        expected_value = np.pi / 2.0
+        expected_angle_mat = np.ones((6, 6)) * expected_value
+        self.assertFalse((angle_mat - expected_angle_mat).any())
+
+    def test_angle_computation_mismatch_zeros(self):
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = ratio_computation(match_table=np.random.rand(6, 6), mismatch_table=expected_mat)
+        angle_mat = angle_computation(ratio_mat)
+        self.assertFalse((angle_mat - expected_mat).any())
+
+    def test_angle_computation_both_zeros(self):
+        expected_mat = np.zeros((6, 6))
+        ratio_mat = ratio_computation(match_table=expected_mat, mismatch_table=expected_mat)
+        angle_mat = angle_computation(ratio_mat)
+        self.assertFalse((angle_mat - expected_mat).any())
+
+    def test_angle_computation_failure_no_ratio_table(self):
+        with self.assertRaises(AttributeError):
+            angle_computation(ratios=None)
+
+
 # class TestPositionalScorerMatchMismatchCountScores(TestCase):
 # class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
 # class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
 # class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
+# class TestPositionalScorerScoreGroup(TestCase):
+# class TestPositionalScorerScoreRank(TestCase):
+# class TestPositionalScorerRankIntegerValue(TestCase):
+# class TestPositionalScorerRankRealValue(TestCase):
 
 
 # class TestPositionalScorer(TestBase):
