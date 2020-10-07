@@ -481,13 +481,15 @@ def count_computation(freq_table, dimensions):
         np.array: An array with the shape given by dimensions, containing the total character counts for all positions
         in the provided frequency table.
     """
-    counts = freq_table.get_count_matrix()
-    position_sums = np.sum(counts, axis=1)
     if len(dimensions) != freq_table.position_size:
         raise ValueError('FrequencyTable position size and dimensions do not agree!')
     elif len(dimensions) == 2:
+        counts = freq_table.get_count_matrix()
+        position_sums = np.sum(counts, axis=1)
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = position_sums
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        final[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
     else:
         raise ValueError('count_computation metrics are only intended for use with FrequencyTable objects of position '
                          'size 2!')
@@ -509,8 +511,14 @@ def diversity_computation(freq_table, dimensions):
         np.array: An array with the shape given by dimensions, containing the diversity values for all positions in the
         provided frequency table.
     """
-    entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
-    diversities = np.exp(entropies)
+    if len(dimensions) == 2:
+        entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        diversities = np.exp(entropies)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        diversities = np.triu(diversities, k=1)
+    else:
+        raise ValueError('diversity_computation metrics are only intended for use with FrequencyTable objects of '
+                         'position size 2!')
     return diversities
 
 
