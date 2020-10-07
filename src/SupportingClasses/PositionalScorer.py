@@ -688,7 +688,14 @@ def group_match_entropy_score(freq_table, dimensions):
         np.array: An array with the shape given by dimensions, containing the entropy of only matching characters for
         all positions in the provided match frequency table.
     """
-    return group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+    if len(dimensions) == 2:
+        entropy = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
+    else:
+        raise ValueError('group_match_entropy_score metrics are only intended for use with FrequencyTable objects of '
+                         'position size 2!')
+    return entropy
 
 
 def group_mismatch_entropy_score(freq_table, dimensions):
@@ -708,7 +715,14 @@ def group_mismatch_entropy_score(freq_table, dimensions):
         np.array: An array with the shape given by dimensions, containing the entropy of only mismatching characters for
         all positions in the provided mismatch frequency table.
     """
-    return count_computation(freq_table=freq_table, dimensions=dimensions)
+    if len(dimensions) == 2:
+        entropy = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
+    else:
+        raise ValueError('group_mismatch_entropy_score metrics are only intended for use with FrequencyTable objects '
+                         'of position size 2!')
+    return entropy
 
 
 def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
@@ -730,8 +744,8 @@ def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
         match and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
         np.finfo(float).max corresponding to full variation.
     """
-    match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    match_entropy = group_match_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
+    mismatch_entropy = group_mismatch_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
     ratio = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
     return ratio
 
