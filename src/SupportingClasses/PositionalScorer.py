@@ -6,16 +6,17 @@ Created on July 12, 2019
 import numpy as np
 from scipy.sparse import csc_matrix
 
-integer_valued_metrics = {'identity', 'match_count', 'mismatch_count'}
+integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information',
-                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_count_ratio',
-                       'match_mismatch_count_angle', 'match_entropy', 'mismatch_entropy',
-                       'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle',
+                       'filtered_average_product_corrected_mutual_information',
+                       'match_count', 'mismatch_count', 'match_mismatch_count_ratio', 'match_mismatch_count_angle',
+                       'match_entropy', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+                       'match_mismatch_entropy_angle',
                        'match_diversity', 'mismatch_diversity', 'match_mismatch_diversity_ratio',
-                       'match_mismatch_diversity_angle', 'match_diversity_mismatch_entropy_ratio',
-                       'match_diversity_mismatch_entropy_angle'}
+                       'match_mismatch_diversity_angle',
+                       'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
 

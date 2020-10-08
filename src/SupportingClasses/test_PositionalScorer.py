@@ -271,7 +271,7 @@ class TestPositionalScorerInit(TestCase):
         self.assertEqual(ps.sequence_length, 6)
         self.assertEqual(ps.position_size, 2)
         self.assertEqual(ps.dimensions, (6, 6))
-        self.assertEqual(ps.metric_type, 'integer')
+        self.assertEqual(ps.metric_type, 'real')
         self.assertEqual(ps.rank_type, 'max')
         self.assertEqual(ps.metric, 'match_count')
 
@@ -280,7 +280,7 @@ class TestPositionalScorerInit(TestCase):
         self.assertEqual(ps.sequence_length, 6)
         self.assertEqual(ps.position_size, 2)
         self.assertEqual(ps.dimensions, (6, 6))
-        self.assertEqual(ps.metric_type, 'integer')
+        self.assertEqual(ps.metric_type, 'real')
         self.assertEqual(ps.rank_type, 'min')
         self.assertEqual(ps.metric, 'mismatch_count')
 
@@ -1664,7 +1664,8 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp_table}
-        expected_mat = np.zeros((6, 6))
+        match_diversity = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        expected_mat = np.triu(np.arctan(np.ones((6, 6)) / match_diversity), k=1)
         angle_mat = group_match_mismatch_diversity_angle(freq_tables=temp_tables, dimensions=(6, 6))
         self.assertFalse((angle_mat - expected_mat).any())
 
@@ -1898,10 +1899,12 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
         temp_tables = {'match': temp, 'mismatch': mm_freq_tables['match']}
         with self.assertRaises(ValueError):
             group_match_diversity_mismatch_entropy_angle(freq_tables=temp_tables, dimensions=(6, 6))
-# class TestPositionalScorerScoreGroup(TestCase):
-# class TestPositionalScorerScoreRank(TestCase):
+
 # class TestPositionalScorerRankIntegerValue(TestCase):
 # class TestPositionalScorerRankRealValue(TestCase):
+
+# class TestPositionalScorerScoreGroup(TestCase):
+# class TestPositionalScorerScoreRank(TestCase):
 
 
 # class TestPositionalScorer(TestBase):
