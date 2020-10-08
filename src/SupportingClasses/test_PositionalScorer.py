@@ -1900,7 +1900,62 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
         with self.assertRaises(ValueError):
             group_match_diversity_mismatch_entropy_angle(freq_tables=temp_tables, dimensions=(6, 6))
 
-# class TestPositionalScorerRankIntegerValue(TestCase):
+
+class TestPositionalScorerRankIntegerValue(TestCase):
+
+    def test_rank_integer_value_all_zeros_1d(self):
+        score_mat = np.zeros(6)
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_integer_value_all_zeros_2d(self):
+        score_mat = np.zeros((6, 6))
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_integer_value_all_integers_1d(self):
+        score_mat = np.random.randint(low=1, high=10, size=6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks[2:4] - 0).any())  # Assert middle values are zeros.
+        self.assertFalse((ranks[:2] - 1).any())  # Assert negative values evaluated to 1.
+        self.assertFalse((ranks[4:] - 1).any())  # Assert positive values evaluated to 1.
+
+    def test_rank_integer_value_all_integers_2d(self):
+        score_mat = np.random.randint(low=1, high=9, size=36).reshape((6, 6))  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks[np.tril_indices(n=6, k=-1)] - 0).any())  # Assert lower triangle is all zeros.
+        self.assertFalse((ranks[list(range(6)), list(range(6))] - 1).any())  # Assert negative values evaluated to 1.
+        self.assertFalse((ranks[np.triu_indices(n=6, k=1)] - 1).any())  # Assert positive values evaluated to 1.
+
+    def test_rank_integer_value_all_real_valued_1d(self):
+        score_mat = np.random.rand(6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks[2:4] - 0).any())  # Assert middle values are zeros.
+        self.assertFalse((ranks[:2] - 1).any())  # Assert negative values evaluated to 1.
+        self.assertFalse((ranks[4:] - 1).any())  # Assert positive values evaluated to 1.
+
+    def test_rank_integer_value_all_real_valued_2d(self):
+        score_mat = np.random.rand(6, 6)  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks[np.tril_indices(n=6, k=-1)] - 0).any())  # Assert lower triangle is all zeros.
+        self.assertFalse((ranks[list(range(6)), list(range(6))] - 1).any())  # Assert negative values evaluated to 1.
+        self.assertFalse((ranks[np.triu_indices(n=6, k=1)] - 1).any())  # Assert positive values evaluated to 1.
+
+    def test_rank_integer_value_no_score_matrix(self):
+        with self.assertRaises(ValueError):
+            rank_integer_value_score(score_matrix=None, rank=1)
+
+    def test_rank_integer_value_no_rank(self):
+        with self.assertRaises(ValueError):
+            rank_integer_value_score(score_matrix=np.random.rand(6, 6), rank=None)
 # class TestPositionalScorerRankRealValue(TestCase):
 
 # class TestPositionalScorerScoreGroup(TestCase):

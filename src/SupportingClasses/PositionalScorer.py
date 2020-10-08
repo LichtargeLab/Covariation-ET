@@ -193,6 +193,10 @@ def rank_integer_value_score(score_matrix, rank):
         np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
         is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
     """
+    if score_matrix is None:
+        raise ValueError('score_matrix is expected to be a 1 or 2 dimensional np.array!')
+    if rank is None:
+        raise ValueError('For which rank is rank_integer_value_score being called!')
     rank_scores = 1 * (score_matrix != 0)
     return rank_scores
 
