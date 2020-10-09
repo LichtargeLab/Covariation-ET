@@ -2201,7 +2201,267 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_match_diversity_mismatch_entropy_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
-# class TestPositionalScorerScoreRank(TestCase):
+
+class TestPositionalScorerScoreRank(TestCase):
+
+    def test_score_rank_identity_pos_single(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        scores = ps.score_group(freq_table=pro_single_ft)
+        ranks = ps.score_rank(score_tensor=scores, rank=2)
+        expected_ranks = rank_integer_value_score(scores, 2)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_identity_failure_mismatch_large(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4), 2)
+
+    def test_score_rank_identity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_integer_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_identity_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_plain_entropy_pos_single(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        scores = ps.score_group(freq_table=pro_single_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = rank_real_value_score(scores, 2)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_plain_entropy_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4), 2)
+
+    def test_score_rank_plain_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_mutual_information_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_mutual_information_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = rank_real_value_score(scores, 2)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_normalized_mutual_information_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_normalized_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = rank_real_value_score(scores, 2)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_average_product_corrected_mutual_information_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4,4), 2)
+
+    def test_score_rank_average_product_corrected_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2))
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_filtered_average_product_corrected_mutual_information_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_filtered_average_product_corrected_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_count_failure_single_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_count_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_mismatch_count_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_mismatch_count_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_count_ratio_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_count_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_count_angle_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_count_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_entropy_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_mismatch_entropy_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_mismatch_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_entropy_ratio_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_entropy_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_entropy_angle_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_entropy_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_diversity_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_group_match_diversity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_rank_group_mismatch_diversity_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_rank_group_mismatch_diversity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_diversity_ratio_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_diversity_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_mismatch_diversity_angle_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_mismatch_diversity_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_diversity_mismatch_entropy_ratio_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_diversity_mismatch_entropy_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
+
+    def test_score_rank_match_diversity_mismatch_entropy_angle_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        with self.assertRaises(ValueError):
+            ps.score_rank(np.random.rand(4, 4), 2)
+
+    def test_score_rank_match_diversity_mismatch_entropy_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        ranks = ps.score_rank(scores, 2)
+        expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
+        self.assertFalse((ranks - expected_ranks).any())
 
 
 # class TestPositionalScorer(TestBase):

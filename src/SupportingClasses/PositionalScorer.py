@@ -179,6 +179,9 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
+        if score_tensor.shape != self.dimensions:
+            raise ValueError('The scoring matrix provided must mach the dimensions of PositionalScorer: '
+                             + f'{score_tensor.shape} vs {self.dimensions}')
         scoring_functions = {'integer': rank_integer_value_score, 'real': rank_real_value_score}
         scores = scoring_functions[self.metric_type](score_tensor, rank)
         if self.position_size == 2:
