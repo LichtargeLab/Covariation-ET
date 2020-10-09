@@ -72,6 +72,13 @@ aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
 aln.import_alignment()
 os.remove(aln_fn)
 num_aln = aln._alignment_to_num(mapping=protein_map)
+
+pro_single_ft = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft.characterize_alignment(num_aln=num_aln)
+
+pro_pair_ft = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+
 mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
                               single_mapping=protein_map, single_reverse_mapping=protein_rev,
                               larger_alphabet_size=pro_quad_alpha_size,
@@ -408,16 +415,12 @@ class TestPositionalScorerInit(TestCase):
 class TestPositionalScorerGroupIdentityScore(TestCase):
 
     def test_group_identity_score_single(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
-        final = group_identity_score(freq_table=freq_table, dimensions=(6, ))
+        final = group_identity_score(freq_table=pro_single_ft, dimensions=(6, ))
         expected_final = np.array([0, 1, 1, 1, 1, 1])
         self.assertFalse((final - expected_final).any())
 
     def test_group_identity_score_pair(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        final = group_identity_score(freq_table=freq_table, dimensions=(6, 6))
+        final = group_identity_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         expected_final = np.array([[0, 1, 1, 1, 1, 1],
                                    [0, 1, 1, 1, 1, 1],
                                    [0, 0, 1, 1, 1, 1],
@@ -431,33 +434,25 @@ class TestPositionalScorerGroupIdentityScore(TestCase):
             group_identity_score(freq_table=None, dimensions=(6, ))
 
     def test_group_identity_score_failure_wrong_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_identity_score(freq_table=freq_table, dimensions=(6, 6))
+            group_identity_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_identity_score_failure_wrong_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            group_identity_score(freq_table=freq_table, dimensions=(6, ))
+            group_identity_score(freq_table=pro_pair_ft, dimensions=(6, ))
 
 
 class TestPositionalScorerGroupPlainEntropyScore(TestCase):
 
     def test_group_plain_entropy_score_single(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
-        final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, ))
+        final = group_plain_entropy_score(freq_table=pro_single_ft, dimensions=(6, ))
         score_3 = 0.0
         score_1_2 = -1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3)))
         expected_final = np.array([score_3, score_1_2, score_1_2, score_1_2, score_1_2, score_1_2])
         self.assertFalse((final - expected_final).any())
 
     def test_group_plain_entropy_score_pair(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        final = group_plain_entropy_score(freq_table=freq_table, dimensions=(6, 6))
+        final = group_plain_entropy_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         score_3 = 0.0
         score_1_2 = -1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3)))
         score_1_1_1 = -1.0 * (3 * ((1.0 / 3) * np.log(1.0 / 3)))
@@ -474,24 +469,18 @@ class TestPositionalScorerGroupPlainEntropyScore(TestCase):
             group_plain_entropy_score(freq_table=None, dimensions=(6, ))
 
     def test_group_plain_entropy_score_failure_wrong_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_plain_entropy_score(freq_table=freq_table, dimensions=(6, 6))
+            group_plain_entropy_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_plain_entropy_score_failure_wrong_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            group_plain_entropy_score(freq_table=freq_table, dimensions=(6, ))
+            group_plain_entropy_score(freq_table=pro_pair_ft, dimensions=(6, ))
 
 
 class TestPositionalScorerGroupMutualInformation(TestCase):
 
     def test_mutual_information_computation(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        e_i, e_j, e_ij, mi = mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
+        e_i, e_j, e_ij, mi = mutual_information_computation(freq_table=pro_pair_ft, dimensions=(6, 6))
         score_3 = 0.0
         score_1_2 = -1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3)))
         expected_e_i = np.array([[0.0, score_3, score_3, score_3, score_3, score_3],
@@ -520,62 +509,46 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((mi - expected_mi).any())
 
     def test_mutual_information_computation_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            mutual_information_computation(freq_table=freq_table, dimensions=(6, ))
+            mutual_information_computation(freq_table=pro_single_ft, dimensions=(6, ))
 
     def test_mutual_information_computation_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             mutual_information_computation(freq_table=None, dimensions=(6, ))
 
     def test_mutual_information_computation_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
+            mutual_information_computation(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_mutual_information_computation_failure_mismatch_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            mutual_information_computation(freq_table=freq_table, dimensions=(6,))
+            mutual_information_computation(freq_table=pro_pair_ft, dimensions=(6,))
 
     def test_group_mutual_information_score(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        _, _, _, expected_mi = mutual_information_computation(freq_table=freq_table, dimensions=(6, 6))
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        _, _, _, expected_mi = mutual_information_computation(freq_table=pro_pair_ft, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         self.assertFalse((mi - expected_mi).any())
 
     def test_group_mutual_information_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_mutual_information_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_mutual_information_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_mutual_information_score(freq_table=None, dimensions=(6,))
 
     def test_group_mutual_information_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+            group_mutual_information_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_mutual_information_score_failure_mismatch_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            group_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6,))
 
     def test_group_normalized_mutual_information_score(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
+        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=pro_pair_ft,
                                                                                     dimensions=(6, 6))
-        nmi = group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        nmi = group_normalized_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=nmi.shape[0], k=1)
         for x in range(nmi.shape[0]):
             i = triu_ind[0][x]
@@ -593,31 +566,23 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((np.tril(nmi) - np.zeros(nmi.shape)).any())
 
     def test_group_normalized_mutual_information_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_normalized_mutual_information_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_normalized_mutual_information_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_normalized_mutual_information_score(freq_table=None, dimensions=(6,))
 
     def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+            group_normalized_mutual_information_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_normalized_mutual_information_score_failure_mismatch_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            group_normalized_mutual_information_score(freq_table=freq_table, dimensions=(6,))
+            group_normalized_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6,))
 
     def test_average_product_correction(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
+        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=pro_pair_ft,
                                                                                     dimensions=(6, 6))
         expected_column_row_sum = np.zeros(6)
         for i in range(6):
@@ -659,32 +624,24 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             average_product_correction(mutual_information_matrix=None)
 
     def test_average_product_correction_failure_rectangular_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         temp = np.zeros((mi.shape[0], mi.shape[1] + 1))
         temp[:, :6] += mi
         with self.assertRaises(ValueError):
             average_product_correction(mutual_information_matrix=temp)
 
     def test_average_product_correction_failure_full_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         with self.assertRaises(ValueError):
             average_product_correction(mutual_information_matrix=mi + mi.T)
 
     def test_average_product_correction_failure_lower_triangle_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         with self.assertRaises(ValueError):
             average_product_correction(mutual_information_matrix=mi.T)
 
     def test_filtered_average_product_correction(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
+        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=pro_pair_ft,
                                                                                     dimensions=(6, 6))
         expected_column_row_sum = np.zeros(6)
         for i in range(6):
@@ -712,9 +669,7 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
         self.assertFalse((apc_mi - expected_final).any())
 
     def test_filtered_average_product_correction_guaranteed_filter(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=freq_table,
+        expected_e_i, expected_e_j, _, expected_mi = mutual_information_computation(freq_table=pro_pair_ft,
                                                                                     dimensions=(6, 6))
         expected_mi[-2, -1] = 0.00001
         expected_column_row_sum = np.zeros(6)
@@ -758,25 +713,19 @@ class TestPositionalScorerGroupMutualInformation(TestCase):
             filtered_average_product_correction(mutual_information_matrix=None)
 
     def test_filtered_average_product_correction_failure_rectangular_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         temp = np.zeros((mi.shape[0], mi.shape[1] + 1))
         temp[:, :6] += mi
         with self.assertRaises(ValueError):
             filtered_average_product_correction(mutual_information_matrix=temp)
 
     def test_filtered_average_product_correction_failure_full_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         with self.assertRaises(ValueError):
             filtered_average_product_correction(mutual_information_matrix=mi + mi.T)
 
     def test_filtered_average_product_correction_failure_lower_triangle_matrix(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        mi = group_mutual_information_score(freq_table=freq_table, dimensions=(6, 6))
+        mi = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         with self.assertRaises(ValueError):
             filtered_average_product_correction(mutual_information_matrix=mi.T)
 
@@ -798,34 +747,26 @@ class TestPositionalScorerCountComputation(TestCase):
         self.assertFalse((final - expected_final).any())
 
     def test_count_computation_failure_single(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            count_computation(freq_table=freq_table, dimensions=(6,))
+            count_computation(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_count_computation_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             count_computation(freq_table=None, dimensions=(6, 6))
 
     def test_count_computation_failure_wrong_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            count_computation(freq_table=freq_table, dimensions=(6, 6))
+            count_computation(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_count_computation_failure_wrong_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            count_computation(freq_table=freq_table, dimensions=(6,))
+            count_computation(freq_table=pro_pair_ft, dimensions=(6,))
 
 
 class TestPositionalScorerDiversityComputation(TestCase):
 
     def test_diversity_computation_pair(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        final = diversity_computation(freq_table=freq_table, dimensions=(6, 6))
+        final = diversity_computation(freq_table=pro_pair_ft, dimensions=(6, 6))
         score_3 = np.exp(0.0)
         score_1_2 = np.exp(-1.0 * (((2.0 / 3) * np.log(2.0 / 3)) + ((1.0 / 3) * np.log(1.0 / 3))))
         score_1_1_1 = np.exp(-1.0 * (3 * ((1.0 / 3) * np.log(1.0 / 3))))
@@ -838,26 +779,20 @@ class TestPositionalScorerDiversityComputation(TestCase):
         self.assertFalse((final - expected_final).any())
 
     def test_diversity_computation_failure_single(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            diversity_computation(freq_table=freq_table, dimensions=(6,))
+            diversity_computation(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_diversity_computation_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             diversity_computation(freq_table=None, dimensions=(6, 6))
 
     def test_diversity_computation_failure_wrong_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            diversity_computation(freq_table=freq_table, dimensions=(6, 6))
+            diversity_computation(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_diversity_computation_failure_wrong_dimensions_small(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         with self.assertRaises(ValueError):
-            diversity_computation(freq_table=freq_table, dimensions=(6,))
+            diversity_computation(freq_table=pro_pair_ft, dimensions=(6,))
 
 
 class TestPositionalScorerRatioComputation(TestCase):
@@ -990,20 +925,16 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
         self.assertFalse((np.tril(counts) - np.zeros(counts.shape)).any())
 
     def test_group_match_count_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_count_score(freq_table=freq_table, dimensions=(6,))
+            group_match_count_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_match_count_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_match_count_score(freq_table=None, dimensions=(6,))
 
     def test_group_match_count_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_count_score(freq_table=freq_table, dimensions=(6, 6))
+            group_match_count_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_match_count_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1020,20 +951,16 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
         self.assertFalse((np.tril(counts) - np.zeros(counts.shape)).any())
 
     def test_group_mismatch_count_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_count_score(freq_table=freq_table, dimensions=(6,))
+            group_mismatch_count_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_mismatch_count_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_mismatch_count_score(freq_table=None, dimensions=(6, 6))
 
     def test_group_mismatch_count_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_count_score(freq_table=freq_table, dimensions=(6, 6))
+            group_mismatch_count_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_mismatch_count_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1238,20 +1165,16 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
         self.assertFalse((np.tril(entropy) - np.zeros(entropy.shape)).any())
 
     def test_group_match_entropy_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_entropy_score(freq_table=freq_table, dimensions=(6,))
+            group_match_entropy_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_match_entropy_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_match_entropy_score(freq_table=None, dimensions=(6, 6))
 
     def test_group_match_entropy_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_entropy_score(freq_table=freq_table, dimensions=(6, 6))
+            group_match_entropy_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_match_entropy_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1268,20 +1191,16 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
         self.assertFalse((np.tril(entropy) - np.zeros(entropy.shape)).any())
 
     def test_group_mismatch_entropy_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_entropy_score(freq_table=freq_table, dimensions=(6,))
+            group_mismatch_entropy_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_mismatch_entropy_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_mismatch_entropy_score(freq_table=None, dimensions=(6, 6))
 
     def test_group_mismatch_entropy_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_entropy_score(freq_table=freq_table, dimensions=(6, 6))
+            group_mismatch_entropy_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_mismatch_entropy_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1486,20 +1405,16 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         self.assertFalse((np.tril(diversity) - np.zeros(diversity.shape)).any())
 
     def test_group_match_diversity_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_diversity_score(freq_table=freq_table, dimensions=(6,))
+            group_match_diversity_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_match_diversity_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_match_diversity_score(freq_table=None, dimensions=(6, 6))
 
     def test_group_match_diversity_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_match_diversity_score(freq_table=freq_table, dimensions=(6, 6))
+            group_match_diversity_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_match_diversity_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1516,20 +1431,16 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         self.assertFalse((np.tril(diversity) - np.zeros(diversity.shape)).any())
 
     def test_group_mismatch_diversity_score_failure_single_pos_input(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_diversity_score(freq_table=freq_table, dimensions=(6,))
+            group_mismatch_diversity_score(freq_table=pro_single_ft, dimensions=(6,))
 
     def test_group_mismatch_diversity_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
             group_mismatch_diversity_score(freq_table=None, dimensions=(6, 6))
 
     def test_group_mismatch_diversity_score_failure_mismatch_dimensions_large(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table.characterize_alignment(num_aln=num_aln)
         with self.assertRaises(ValueError):
-            group_mismatch_diversity_score(freq_table=freq_table, dimensions=(6, 6))
+            group_mismatch_diversity_score(freq_table=pro_single_ft, dimensions=(6, 6))
 
     def test_group_mismatch_diversity_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
@@ -1901,9 +1812,9 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
             group_match_diversity_mismatch_entropy_angle(freq_tables=temp_tables, dimensions=(6, 6))
 
 
-class TestPositionalScorerRankIntegerValue(TestCase):
+class TestPositionalScorerRankIntegerValueScore(TestCase):
 
-    def test_rank_integer_value_all_zeros_1d(self):
+    def test_rank_integer_value_score_all_zeros_1d(self):
         score_mat = np.zeros(6)
         ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
         self.assertFalse((ranks - score_mat).any())
@@ -1913,7 +1824,7 @@ class TestPositionalScorerRankIntegerValue(TestCase):
         ranks = rank_integer_value_score(score_matrix=score_mat, rank=1)
         self.assertFalse((ranks - score_mat).any())
 
-    def test_rank_integer_value_all_integers_1d(self):
+    def test_rank_integer_value_score_all_integers_1d(self):
         score_mat = np.random.randint(low=1, high=10, size=6)  # Produce random non-integer values.
         score_mat[:2] *= -1  # Ensure that some are negative.
         score_mat[2:4] = 0  # Ensure that some are zeros.
@@ -1922,7 +1833,7 @@ class TestPositionalScorerRankIntegerValue(TestCase):
         self.assertFalse((ranks[:2] - 1).any())  # Assert negative values evaluated to 1.
         self.assertFalse((ranks[4:] - 1).any())  # Assert positive values evaluated to 1.
 
-    def test_rank_integer_value_all_integers_2d(self):
+    def test_rank_integer_value_score_all_integers_2d(self):
         score_mat = np.random.randint(low=1, high=9, size=36).reshape((6, 6))  # Produce random non-integer values.
         score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
         score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
@@ -1931,7 +1842,7 @@ class TestPositionalScorerRankIntegerValue(TestCase):
         self.assertFalse((ranks[list(range(6)), list(range(6))] - 1).any())  # Assert negative values evaluated to 1.
         self.assertFalse((ranks[np.triu_indices(n=6, k=1)] - 1).any())  # Assert positive values evaluated to 1.
 
-    def test_rank_integer_value_all_real_valued_1d(self):
+    def test_rank_integer_value_score_all_real_valued_1d(self):
         score_mat = np.random.rand(6)  # Produce random non-integer values.
         score_mat[:2] *= -1  # Ensure that some are negative.
         score_mat[2:4] = 0  # Ensure that some are zeros.
@@ -1940,7 +1851,7 @@ class TestPositionalScorerRankIntegerValue(TestCase):
         self.assertFalse((ranks[:2] - 1).any())  # Assert negative values evaluated to 1.
         self.assertFalse((ranks[4:] - 1).any())  # Assert positive values evaluated to 1.
 
-    def test_rank_integer_value_all_real_valued_2d(self):
+    def test_rank_integer_value_score_all_real_valued_2d(self):
         score_mat = np.random.rand(6, 6)  # Produce random non-integer values.
         score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
         score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
@@ -1949,16 +1860,280 @@ class TestPositionalScorerRankIntegerValue(TestCase):
         self.assertFalse((ranks[list(range(6)), list(range(6))] - 1).any())  # Assert negative values evaluated to 1.
         self.assertFalse((ranks[np.triu_indices(n=6, k=1)] - 1).any())  # Assert positive values evaluated to 1.
 
-    def test_rank_integer_value_no_score_matrix(self):
+    def test_rank_integer_value_score_no_score_matrix(self):
         with self.assertRaises(ValueError):
             rank_integer_value_score(score_matrix=None, rank=1)
 
-    def test_rank_integer_value_no_rank(self):
+    def test_rank_integer_value_score_no_rank(self):
         with self.assertRaises(ValueError):
             rank_integer_value_score(score_matrix=np.random.rand(6, 6), rank=None)
-# class TestPositionalScorerRankRealValue(TestCase):
 
-# class TestPositionalScorerScoreGroup(TestCase):
+
+class TestPositionalScorerRankRealValueScore(TestCase):
+
+    def test_rank_real_value_score_all_zeros_1d_r1(self):
+        score_mat = np.zeros(6)
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_zeros_1d_r2(self):
+        score_mat = np.zeros(6)
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_zeros_2d_r1(self):
+        score_mat = np.zeros((6, 6))
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_zeros_2d_r2(self):
+        score_mat = np.zeros((6, 6))
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_integers_1d_r1(self):
+        score_mat = np.random.randint(low=1, high=10, size=6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_integers_1d_r2(self):
+        score_mat = np.random.randint(low=1, high=10, size=6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        expected_mat = score_mat / 2.0
+        self.assertFalse((ranks - expected_mat).any())
+
+    def test_rank_real_value_score_all_integers_2d_r1(self):
+        score_mat = np.random.randint(low=1, high=9, size=36).reshape((6, 6))  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_integers_2d_r2(self):
+        score_mat = np.random.randint(low=1, high=9, size=36).reshape((6, 6))  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        expected_mat = score_mat / 2.0
+        self.assertFalse((ranks - expected_mat).any())
+
+    def test_rank_real_value_score_all_real_valued_1d_r1(self):
+        score_mat = np.random.rand(6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_real_valued_1d_r2(self):
+        score_mat = np.random.rand(6)  # Produce random non-integer values.
+        score_mat[:2] *= -1  # Ensure that some are negative.
+        score_mat[2:4] = 0  # Ensure that some are zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        expected_mat = score_mat / 2.0
+        self.assertFalse((ranks - expected_mat).any())
+
+    def test_rank_real_value_score_all_real_valued_2d_r1(self):
+        score_mat = np.random.rand(6, 6)  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=1)
+        self.assertFalse((ranks - score_mat).any())
+
+    def test_rank_real_value_score_all_real_valued_2d_r2(self):
+        score_mat = np.random.rand(6, 6)  # Produce random non-integer values.
+        score_mat[list(range(6)), list(range(6))] *= -1  # Ensure that some are negative.
+        score_mat = np.triu(score_mat)  # Ensure that the lower triangle is all zeros.
+        ranks = rank_real_value_score(score_matrix=score_mat, rank=2)
+        expected_mat = score_mat / 2.0
+        self.assertFalse((ranks - expected_mat).any())
+
+    def test_rank_real_value_score_no_score_matrix(self):
+        with self.assertRaises(ValueError):
+            rank_real_value_score(score_matrix=None, rank=1)
+
+    def test_rank_real_value_score_no_rank(self):
+        with self.assertRaises(ValueError):
+            rank_real_value_score(score_matrix=np.random.rand(6, 6), rank=None)
+
+
+class TestPositionalScorerScoreGroup(TestCase):
+
+    def test_score_group_identity_pos_single(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        scores = ps.score_group(freq_table=pro_single_ft)
+        expected_scores = group_identity_score(freq_table=pro_single_ft, dimensions=(6, ))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_identity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_scores = group_identity_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_plain_entropy_pos_single(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        scores = ps.score_group(freq_table=pro_single_ft)
+        expected_scores = group_plain_entropy_score(freq_table=pro_single_ft, dimensions=(6, ))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_plain_entropy_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    def test_score_group_plain_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_scores = group_plain_entropy_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_mutual_information_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    def test_score_mutual_information_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_scores = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_normalized_mutual_information_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    def test_score_normalized_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_scores = group_normalized_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_average_product_corrected_mutual_information_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    def test_score_average_product_corrected_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_scores = average_product_corrected_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_filtered_average_product_corrected_mutual_information_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    # def test_score_filtered_average_product_corrected_mutual_information_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
+    #
+    def test_score_group_match_count_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    # def test_score_group_match_count_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+    #
+    def test_score_group_mismatch_count_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    # def test_score_group_mismatch_count_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+    #
+    def test_score_group_match_mismatch_count_ratio_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+
+    # def test_score_group_match_mismatch_count_ratio_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+    #
+    def test_score_group_match_mismatch_count_angle_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_mismatch_count_angle_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+    #
+    def test_score_group_match_entropy_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+
+    # def test_score_group_match_entropy_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+    #
+    def test_score_group_mismatch_entropy_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+    # def test_score_group_mismatch_entropy_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+    #
+    def test_score_group_match_mismatch_entropy_ratio_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_mismatch_entropy_ratio_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+    #
+    def test_score_group_match_mismatch_entropy_angle_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_mismatch_entropy_angle_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+    #
+    def test_score_group_match_diversity_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+    # def test_score_group_match_diversity_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+    #
+    def test_score_group_mismatch_diversity_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
+    # def test_score_group_mismatch_diversity_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+    #
+    def test_score_group_match_mismatch_diversity_ratio_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_mismatch_diversity_ratio_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+    #
+    def test_score_group_match_mismatch_diversity_angle_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_mismatch_diversity_angle_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+    #
+    def test_score_group_match_diversity_mismatch_entropy_ratio_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_diversity_mismatch_entropy_ratio_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+    #
+    def test_score_group_match_diversity_mismatch_entropy_angle_failure_single_freq_table(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
+    # def test_score_group_match_diversity_mismatch_entropy_angle_pos_pair(self):
+    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+
 # class TestPositionalScorerScoreRank(TestCase):
 
 

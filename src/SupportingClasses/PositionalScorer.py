@@ -140,8 +140,17 @@ class PositionalScorer(object):
                              'normalized_mutual_information': group_normalized_mutual_information_score,
                              'average_product_corrected_mutual_information': group_mutual_information_score,
                              'filtered_average_product_corrected_mutual_information': group_mutual_information_score,
+                             'match_count': group_match_count_score, 'mismatch_count': group_mismatch_count_score,
+                             'match_mismatch_count_ratio': group_match_mismatch_count_ratio,
+                             'match_mismatch_count_angle': group_match_mismatch_count_angle,
+                             'match_entropy': group_match_entropy_score,
+                             'mismatch_entropy': group_mismatch_entropy_score,
                              'match_mismatch_entropy_ratio': group_match_mismatch_entropy_ratio,
                              'match_mismatch_entropy_angle': group_match_mismatch_entropy_angle,
+                             'match_diversity': group_match_diversity_score,
+                             'mismatch_diversity': group_mismatch_diversity_score,
+                             'match_mismatch_diversity_ratio': group_match_mismatch_diversity_ratio,
+                             'match_mismatch_diversity_angle': group_match_mismatch_diversity_angle,
                              'match_diversity_mismatch_entropy_ratio': group_match_diversity_mismatch_entropy_ratio,
                              'match_diversity_mismatch_entropy_angle': group_match_diversity_mismatch_entropy_angle}
         scores = scoring_functions[self.metric](freq_table, self.dimensions)
@@ -217,6 +226,10 @@ def rank_real_value_score(score_matrix, rank):
         np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
         is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
     """
+    if score_matrix is None:
+        raise ValueError('score_matrix is expected to be a 1 or 2 dimensional np.array!')
+    if rank is None:
+        raise ValueError('For which rank is rank_integer_value_score being called!')
     weight = 1.0 / rank
     rank_scores = weight * score_matrix
     return rank_scores
