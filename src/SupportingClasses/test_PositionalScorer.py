@@ -1968,11 +1968,21 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_identity_score(freq_table=pro_single_ft, dimensions=(6, ))
         self.assertFalse((scores - expected_scores).any())
 
+    def test_score_group_identity_failure_mismatch_large(self):
+        ps = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_pair_ft)
+
     def test_score_group_identity_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
         scores = ps.score_group(freq_table=pro_pair_ft)
         expected_scores = group_identity_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_identity_failure_mismatch_small(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        with self.assertRaises(ValueError):
+            ps.score_group(freq_table=pro_single_ft)
 
     def test_score_group_plain_entropy_pos_single(self):
         ps = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
@@ -1980,7 +1990,7 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_plain_entropy_score(freq_table=pro_single_ft, dimensions=(6, ))
         self.assertFalse((scores - expected_scores).any())
 
-    def test_score_group_plain_entropy_failure_single_freq_table(self):
+    def test_score_group_plain_entropy_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
@@ -1991,7 +2001,7 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_plain_entropy_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
-    def test_score_mutual_information_failure_single_freq_table(self):
+    def test_score_mutual_information_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
@@ -2002,7 +2012,7 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
-    def test_score_normalized_mutual_information_failure_single_freq_table(self):
+    def test_score_normalized_mutual_information_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
@@ -2013,7 +2023,7 @@ class TestPositionalScorerScoreGroup(TestCase):
         expected_scores = group_normalized_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
-    def test_score_average_product_corrected_mutual_information_failure_single_freq_table(self):
+    def test_score_average_product_corrected_mutual_information_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
@@ -2021,118 +2031,175 @@ class TestPositionalScorerScoreGroup(TestCase):
     def test_score_average_product_corrected_mutual_information_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
         scores = ps.score_group(freq_table=pro_pair_ft)
-        expected_scores = average_product_corrected_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        expected_intermediate = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        expected_scores = average_product_correction(expected_intermediate)
         self.assertFalse((scores - expected_scores).any())
 
-    def test_score_filtered_average_product_corrected_mutual_information_failure_single_freq_table(self):
+    def test_score_filtered_average_product_corrected_mutual_information_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
 
-    # def test_score_filtered_average_product_corrected_mutual_information_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
-    #
-    def test_score_group_match_count_failure_single_freq_table(self):
+    def test_score_filtered_average_product_corrected_mutual_information_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='filtered_average_product_corrected_mutual_information')
+        scores = ps.score_group(freq_table=pro_pair_ft)
+        expected_intermediate = group_mutual_information_score(freq_table=pro_pair_ft, dimensions=(6, 6))
+        expected_scores = filtered_average_product_correction(expected_intermediate)
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_count_failure_single_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
 
-    # def test_score_group_match_count_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
-    #
-    def test_score_group_mismatch_count_failure_single_freq_table(self):
+    def test_score_group_match_count_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        expected_scores = group_match_count_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_mismatch_count_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
 
-    # def test_score_group_mismatch_count_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
-    #
-    def test_score_group_match_mismatch_count_ratio_failure_single_freq_table(self):
+    def test_score_group_mismatch_count_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        expected_scores = group_match_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_count_ratio_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
 
-    # def test_score_group_match_mismatch_count_ratio_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
-    #
-    def test_score_group_match_mismatch_count_angle_failure_single_freq_table(self):
+    def test_score_group_match_mismatch_count_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_count_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_count_angle_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_mismatch_count_angle_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
-    #
-    def test_score_group_match_entropy_failure_single_freq_table(self):
+
+    def test_score_group_match_mismatch_count_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_count_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_entropy_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
 
-    # def test_score_group_match_entropy_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
-    #
-    def test_score_group_mismatch_entropy_failure_single_freq_table(self):
+    def test_score_group_match_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        expected_scores = group_match_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_mismatch_entropy_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
-    # def test_score_group_mismatch_entropy_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
-    #
-    def test_score_group_match_mismatch_entropy_ratio_failure_single_freq_table(self):
+
+    def test_score_group_mismatch_entropy_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        expected_scores = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_entropy_ratio_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_mismatch_entropy_ratio_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
-    #
-    def test_score_group_match_mismatch_entropy_angle_failure_single_freq_table(self):
+
+    def test_score_group_match_mismatch_entropy_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_entropy_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_entropy_angle_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_mismatch_entropy_angle_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
-    #
-    def test_score_group_match_diversity_failure_single_freq_table(self):
+
+    def test_score_group_match_mismatch_entropy_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_entropy_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_diversity_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
-    # def test_score_group_match_diversity_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
-    #
-    def test_score_group_mismatch_diversity_failure_single_freq_table(self):
+
+    def test_score_group_match_diversity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        expected_scores = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_mismatch_diversity_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table=pro_single_ft)
-    # def test_score_group_mismatch_diversity_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
-    #
-    def test_score_group_match_mismatch_diversity_ratio_failure_single_freq_table(self):
+
+    def test_score_group_mismatch_diversity_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        expected_scores = group_mismatch_diversity_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_diversity_ratio_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_mismatch_diversity_ratio_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
-    #
-    def test_score_group_match_mismatch_diversity_angle_failure_single_freq_table(self):
+
+    def test_score_group_match_mismatch_diversity_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_diversity_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_mismatch_diversity_angle_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_mismatch_diversity_angle_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
-    #
-    def test_score_group_match_diversity_mismatch_entropy_ratio_failure_single_freq_table(self):
+
+    def test_score_group_match_mismatch_diversity_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_mismatch_diversity_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_diversity_mismatch_entropy_ratio_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_diversity_mismatch_entropy_ratio_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
-    #
-    def test_score_group_match_diversity_mismatch_entropy_angle_failure_single_freq_table(self):
+
+    def test_score_group_match_diversity_mismatch_entropy_ratio_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_diversity_mismatch_entropy_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
+
+    def test_score_group_match_diversity_mismatch_entropy_angle_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
         with self.assertRaises(ValueError):
             ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': pro_single_ft})
-    # def test_score_group_match_diversity_mismatch_entropy_angle_pos_pair(self):
-    #     ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+
+    def test_score_group_match_diversity_mismatch_entropy_angle_pos_pair(self):
+        ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_diversity_mismatch_entropy_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        self.assertFalse((scores - expected_scores).any())
 
 # class TestPositionalScorerScoreRank(TestCase):
 
