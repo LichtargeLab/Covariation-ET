@@ -916,7 +916,7 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
 
     def test_group_match_count_score(self):
         expected_counts = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        counts = group_match_count_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        counts = group_match_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=counts.shape[0], k=1)
         for x in range(counts.shape[0]):
             i = triu_ind[0][x]
@@ -926,23 +926,23 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
 
     def test_group_match_count_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_match_count_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_match_count_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6,))
 
     def test_group_match_count_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_match_count_score(freq_table=None, dimensions=(6,))
+            group_match_count_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6,))
 
     def test_group_match_count_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_match_count_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_match_count_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_match_count_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_match_count_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_match_count_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_mismatch_count_score(self):
         expected_counts = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
-        counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        counts = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=counts.shape[0], k=1)
         for x in range(counts.shape[0]):
             i = triu_ind[0][x]
@@ -952,24 +952,24 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
 
     def test_group_mismatch_count_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_mismatch_count_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_mismatch_count_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6,))
 
     def test_group_mismatch_count_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_mismatch_count_score(freq_table=None, dimensions=(6, 6))
+            group_mismatch_count_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_mismatch_count_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_mismatch_count_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_mismatch_count_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6, 6))
 
     def test_group_mismatch_count_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_mismatch_count_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_match_mismatch_count_ratio_score(self):
         expected_value = np.tan(np.pi / 2.0)
-        expected_match_count = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_count = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_count = group_match_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_count = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -992,7 +992,7 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_counts = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         ratio_mat = group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
         expected_value = np.tan(np.pi / 2.0)
         expected_ratio_mat = np.zeros((6, 6))
@@ -1059,13 +1059,11 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
             group_match_mismatch_count_ratio(freq_tables=temp_tables, dimensions=(6, 6))
 
     def test_group_match_mismatch_count_angle(self):
-        expected_value = np.tan(np.pi / 2.0)
-        expected_match_count = count_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_count = count_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_count = group_match_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_count = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
-        expected_ratios = group_match_mismatch_count_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_mismatch_count_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
         for i in range(6):
             for j in range(6):
@@ -1085,7 +1083,7 @@ class TestPositionalScorerMatchMismatchCountScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_counts = group_mismatch_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_counts = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_mismatch_count_angle(freq_tables=temp_tables, dimensions=(6, 6))
         expected_value = np.pi / 2.0
         expected_angle_mat = np.zeros((6, 6))
@@ -1156,7 +1154,7 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
 
     def test_group_match_entropy_score(self):
         expected_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        entropy = group_match_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        entropy = group_match_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=entropy.shape[0], k=1)
         for x in range(entropy.shape[0]):
             i = triu_ind[0][x]
@@ -1166,23 +1164,23 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
 
     def test_group_match_entropy_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_match_entropy_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_match_entropy_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6,))
 
     def test_group_match_entropy_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_match_entropy_score(freq_table=None, dimensions=(6, 6))
+            group_match_entropy_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_match_entropy_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_match_entropy_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_match_entropy_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_match_entropy_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_match_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_match_entropy_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_mismatch_entropy_score(self):
         expected_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
-        entropy = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=entropy.shape[0], k=1)
         for x in range(entropy.shape[0]):
             i = triu_ind[0][x]
@@ -1192,24 +1190,24 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
 
     def test_group_mismatch_entropy_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_mismatch_entropy_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_mismatch_entropy_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6,))
 
     def test_group_mismatch_entropy_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_mismatch_entropy_score(freq_table=None, dimensions=(6, 6))
+            group_mismatch_entropy_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_mismatch_entropy_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_mismatch_entropy_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_mismatch_entropy_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6, 6))
 
     def test_group_mismatch_entropy_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_mismatch_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_match_mismatch_entropy_ratio_score(self):
         expected_value = np.tan(np.pi / 2.0)
-        expected_match_count = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_count = group_plain_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_count = group_match_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_count = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -1232,7 +1230,7 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_counts = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_counts = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         ratio_mat = group_match_mismatch_entropy_ratio(freq_tables=temp_tables, dimensions=(6, 6))
         expected_value = np.tan(np.pi / 2.0)
         expected_ratio_mat = np.zeros((6, 6))
@@ -1299,13 +1297,11 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
             group_match_mismatch_entropy_ratio(freq_tables=temp_tables, dimensions=(6, 6))
 
     def test_group_match_mismatch_entropy_angle(self):
-        expected_value = np.tan(np.pi / 2.0)
-        expected_match_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_entropy = group_plain_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_entropy = group_match_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
-        expected_ratios = group_match_mismatch_entropy_ratio(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_mismatch_entropy_angle(freq_tables=mm_freq_tables, dimensions=(6, 6))
         for i in range(6):
             for j in range(6):
@@ -1325,7 +1321,7 @@ class TestPositionalScorerMatchMismatchEntropyScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_counts = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_counts = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_mismatch_entropy_angle(freq_tables=temp_tables, dimensions=(6, 6))
         expected_value = np.pi / 2.0
         expected_angle_mat = np.zeros((6, 6))
@@ -1396,7 +1392,7 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
 
     def test_group_match_diversity_score(self):
         expected_diversity = diversity_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        diversity = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=diversity.shape[0], k=1)
         for x in range(diversity.shape[0]):
             i = triu_ind[0][x]
@@ -1406,23 +1402,23 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
 
     def test_group_match_diversity_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_match_diversity_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_match_diversity_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6,))
 
     def test_group_match_diversity_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_match_diversity_score(freq_table=None, dimensions=(6, 6))
+            group_match_diversity_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_match_diversity_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_match_diversity_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_match_diversity_score(freq_tables={'match': pro_single_ft, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_match_diversity_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_mismatch_diversity_score(self):
         expected_diversity = diversity_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
-        diversity = group_mismatch_diversity_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        diversity = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         triu_ind = np.triu_indices(n=diversity.shape[0], k=1)
         for x in range(diversity.shape[0]):
             i = triu_ind[0][x]
@@ -1432,24 +1428,24 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
 
     def test_group_mismatch_diversity_score_failure_single_pos_input(self):
         with self.assertRaises(ValueError):
-            group_mismatch_diversity_score(freq_table=pro_single_ft, dimensions=(6,))
+            group_mismatch_diversity_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6,))
 
     def test_group_mismatch_diversity_score_failure_no_freq_table(self):
         with self.assertRaises(AttributeError):
-            group_mismatch_diversity_score(freq_table=None, dimensions=(6, 6))
+            group_mismatch_diversity_score(freq_tables={'match': None, 'mismatch': None}, dimensions=(6, 6))
 
     def test_group_mismatch_diversity_score_failure_mismatch_dimensions_large(self):
         with self.assertRaises(ValueError):
-            group_mismatch_diversity_score(freq_table=pro_single_ft, dimensions=(6, 6))
+            group_mismatch_diversity_score(freq_tables={'match': None, 'mismatch': pro_single_ft}, dimensions=(6, 6))
 
     def test_group_mismatch_diversity_score_failure_mismatch_dimensions_small(self):
         with self.assertRaises(ValueError):
-            group_mismatch_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6,))
+            group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6,))
 
     def test_group_match_mismatch_diversity_ratio_score(self):
         expected_value = np.tan(np.pi / 2.0)
-        expected_match_diversity = diversity_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_diversity = diversity_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_diversity = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -1474,7 +1470,7 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_diversity = diversity_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_diversity = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         ratio_mat = group_match_mismatch_diversity_ratio(freq_tables=temp_tables, dimensions=(6, 6))
         self.assertFalse((ratio_mat - mismatch_diversity).any())
 
@@ -1483,7 +1479,7 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp_table}
-        match_diversity = diversity_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         expected_mat = np.ones((6, 6))
         expected_mat /= match_diversity
         expected_mat = np.triu(expected_mat, k=1)
@@ -1541,8 +1537,8 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
             group_match_mismatch_diversity_ratio(freq_tables=temp_tables, dimensions=(6, 6))
 
     def test_group_match_mismatch_diversity_angle(self):
-        expected_match_diversity = diversity_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_diversity = diversity_computation(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_diversity = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -1565,7 +1561,7 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_diversity = group_mismatch_diversity_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_diversity = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_mismatch_diversity_angle(freq_tables=temp_tables, dimensions=(6, 6))
         expected_angle_mat = angle_computation(ratios=mismatch_diversity)
         self.assertFalse((angle_mat - expected_angle_mat).any())
@@ -1575,7 +1571,7 @@ class TestPositionalScorerMatchMismatchDiversityScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': mm_freq_tables['match'], 'mismatch': temp_table}
-        match_diversity = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         expected_mat = np.triu(np.arctan(np.ones((6, 6)) / match_diversity), k=1)
         angle_mat = group_match_mismatch_diversity_angle(freq_tables=temp_tables, dimensions=(6, 6))
         self.assertFalse((angle_mat - expected_mat).any())
@@ -1634,9 +1630,8 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
 
     def test_group_match_diversity_mismatch_entropy_ratio_score(self):
         expected_value = np.tan(np.pi / 2.0)
-        expected_match_diversity = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_entropy = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'],
-                                                                   dimensions=(6, 6))
+        expected_match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -1661,7 +1656,7 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_entropy = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         ratio_mat = group_match_diversity_mismatch_entropy_ratio(freq_tables=temp_tables, dimensions=(6, 6))
         self.assertFalse((ratio_mat - mismatch_entropy).any())
 
@@ -1724,8 +1719,8 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
             group_match_diversity_mismatch_entropy_ratio(freq_tables=temp_tables, dimensions=(6, 6))
 
     def test_group_match_diversity_mismatch_entropy_angle(self):
-        expected_match_diversity = diversity_computation(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
-        expected_mismatch_entropy = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        expected_match_diversity = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
+        expected_mismatch_entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         # This test does not cover all cases because the simple frequency tables used do not cover all cases. All cases
         # should be covered from the ratio_computation test but it would be good to make that test explicit from this
         # function as well.
@@ -1748,7 +1743,7 @@ class TestPositionalScorerMatchDiversityMismatchEntropyScores(TestCase):
         temp_table.set_depth(3.0)
         temp_table.finalize_table()
         temp_tables = {'match': temp_table, 'mismatch': mm_freq_tables['mismatch']}
-        mismatch_entropy = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        mismatch_entropy = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         angle_mat = group_match_diversity_mismatch_entropy_angle(freq_tables=temp_tables, dimensions=(6, 6))
         expected_angle_mat = angle_computation(ratios=mismatch_entropy)
         self.assertFalse((angle_mat - expected_angle_mat).any())
@@ -2050,23 +2045,23 @@ class TestPositionalScorerScoreGroup(TestCase):
     def test_score_group_match_count_failure_single_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': None})
 
     def test_score_group_match_count_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
-        expected_scores = group_match_count_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_mismatch_count_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': None, 'mismatch': pro_single_ft})
 
     def test_score_group_mismatch_count_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
-        expected_scores = group_match_count_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_mismatch_count_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_match_mismatch_count_ratio_failure_mismatch_small(self):
@@ -2094,23 +2089,23 @@ class TestPositionalScorerScoreGroup(TestCase):
     def test_score_group_match_entropy_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': None})
 
     def test_score_group_match_entropy_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
-        expected_scores = group_match_entropy_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_mismatch_entropy_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': None, 'mismatch': pro_single_ft})
 
     def test_score_group_mismatch_entropy_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
-        expected_scores = group_mismatch_entropy_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_mismatch_entropy_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_match_mismatch_entropy_ratio_failure_mismatch_small(self):
@@ -2138,23 +2133,23 @@ class TestPositionalScorerScoreGroup(TestCase):
     def test_score_group_match_diversity_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': pro_single_ft, 'mismatch': None})
 
     def test_score_group_match_diversity_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
-        expected_scores = group_match_diversity_score(freq_table=mm_freq_tables['match'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_match_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_mismatch_diversity_failure_mismatch_small(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
         with self.assertRaises(ValueError):
-            ps.score_group(freq_table=pro_single_ft)
+            ps.score_group(freq_table={'match': None, 'mismatch': pro_single_ft})
 
     def test_score_group_mismatch_diversity_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
-        expected_scores = group_mismatch_diversity_score(freq_table=mm_freq_tables['mismatch'], dimensions=(6, 6))
+        scores = ps.score_group(freq_table=mm_freq_tables)
+        expected_scores = group_mismatch_diversity_score(freq_tables=mm_freq_tables, dimensions=(6, 6))
         self.assertFalse((scores - expected_scores).any())
 
     def test_score_group_match_mismatch_diversity_ratio_failure_mismatch_small(self):
@@ -2302,7 +2297,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_score_rank_match_count_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())
@@ -2314,7 +2309,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_score_rank_mismatch_count_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())
@@ -2350,7 +2345,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_score_rank_match_entropy_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())
@@ -2362,7 +2357,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_score_rank_mismatch_entropy_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())
@@ -2398,7 +2393,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_score_group_match_diversity_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
-        scores = ps.score_group(freq_table=mm_freq_tables['match'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())
@@ -2410,7 +2405,7 @@ class TestPositionalScorerScoreRank(TestCase):
 
     def test_rank_group_mismatch_diversity_pos_pair(self):
         ps = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
-        scores = ps.score_group(freq_table=mm_freq_tables['mismatch'])
+        scores = ps.score_group(freq_table=mm_freq_tables)
         ranks = ps.score_rank(scores, 2)
         expected_ranks = np.triu(rank_real_value_score(scores, 2), k=1)
         self.assertFalse((ranks - expected_ranks).any())

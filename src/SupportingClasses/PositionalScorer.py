@@ -302,7 +302,8 @@ def group_plain_entropy_score(freq_table, dimensions):
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = entropies
     else:
-        raise ValueError('group_plain_entropy_score is not implemented for dimensions describing axis other than 1 or 2.')
+        raise ValueError('group_plain_entropy_score is not implemented for dimensions describing axis other than '
+                         '1 or 2.')
     return final
 
 
@@ -474,6 +475,7 @@ def filtered_average_product_correction(mutual_information_matrix, threshold=0.0
     Args:
         mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
         mutual information with average product correction.
+        threshold (float): The mutual information value below which to set final scores to 0.0
     Returns:
         np.array: An upper triangle matrix with average product corrected mutual information scores. If the mutual
         information score at a given position is below the threshold the final score is overwritten with 0.0.
@@ -602,7 +604,7 @@ def angle_computation(ratios):
     return angles
 
 
-def group_match_count_score(freq_table, dimensions):
+def group_match_count_score(freq_tables, dimensions):
     """
     Group Match Count Score
 
@@ -611,18 +613,18 @@ def group_match_count_score(freq_table, dimensions):
     count_computation function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of matches for pairs of positions in an alignment, to use when
-        computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
         np.array: An array with the shape given by dimensions, containing the total character counts for all positions
         in the provided match frequency table.
     """
-    return count_computation(freq_table=freq_table, dimensions=dimensions)
+    return count_computation(freq_table=freq_tables['match'], dimensions=dimensions)
 
 
-def group_mismatch_count_score(freq_table, dimensions):
+def group_mismatch_count_score(freq_tables, dimensions):
     """
     Group Mismatch Count Score
 
@@ -631,15 +633,15 @@ def group_mismatch_count_score(freq_table, dimensions):
     function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of mismatches for pairs of positions in an alignment, to use
-        when computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
         np.array: An array with the shape given by dimensions, containing the total character counts for all positions
         in the provided mismatch frequency table.
     """
-    return count_computation(freq_table=freq_table, dimensions=dimensions)
+    return count_computation(freq_table=freq_tables['mismatch'], dimensions=dimensions)
 
 
 def group_match_mismatch_count_ratio(freq_tables, dimensions):
@@ -661,8 +663,8 @@ def group_match_mismatch_count_ratio(freq_tables, dimensions):
         match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and
         np.tan(np.pi / 2.0) corresponding to full variation.
     """
-    match_counts = group_match_count_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_counts = group_mismatch_count_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    match_counts = group_match_count_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_counts = group_mismatch_count_score(freq_tables=freq_tables, dimensions=dimensions)
     ratio = ratio_computation(match_table=match_counts, mismatch_table=mismatch_counts)
     return ratio
 
@@ -680,19 +682,19 @@ def group_match_mismatch_count_angle(freq_tables, dimensions):
         Arguments:
             freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
             objects.
-            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
-            will return a 2-D array.
+            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected
+            and will return a 2-D array.
         Returns:
-            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between the
-            match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and np.pi / 2.0
-            corresponding to full variation.
+            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between
+            the match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and
+            np.pi / 2.0 corresponding to full variation.
         """
     ratios = group_match_mismatch_count_ratio(freq_tables=freq_tables, dimensions=dimensions)
     angles = angle_computation(ratios=ratios)
     return angles
 
 
-def group_match_entropy_score(freq_table, dimensions):
+def group_match_entropy_score(freq_tables, dimensions):
     """
     Group Match Entropy Score
 
@@ -701,8 +703,8 @@ def group_match_entropy_score(freq_table, dimensions):
     count_computation function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of matches for pairs of positions in an alignment, to use when
-        computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
@@ -710,7 +712,7 @@ def group_match_entropy_score(freq_table, dimensions):
         all positions in the provided match frequency table.
     """
     if len(dimensions) == 2:
-        entropy = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
         # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
         entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
     else:
@@ -719,7 +721,7 @@ def group_match_entropy_score(freq_table, dimensions):
     return entropy
 
 
-def group_mismatch_entropy_score(freq_table, dimensions):
+def group_mismatch_entropy_score(freq_tables, dimensions):
     """
     Group Mismatch Entropy Score
 
@@ -728,8 +730,8 @@ def group_mismatch_entropy_score(freq_table, dimensions):
     function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of mismatches for pairs of positions in an alignment, to use
-        when computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
@@ -737,7 +739,7 @@ def group_mismatch_entropy_score(freq_table, dimensions):
         all positions in the provided mismatch frequency table.
     """
     if len(dimensions) == 2:
-        entropy = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
         # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
         entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
     else:
@@ -765,8 +767,8 @@ def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
         match and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
         np.finfo(float).max corresponding to full variation.
     """
-    match_entropy = group_match_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_entropy = group_mismatch_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    match_entropy = group_match_entropy_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_entropy = group_mismatch_entropy_score(freq_tables=freq_tables, dimensions=dimensions)
     ratio = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
     return ratio
 
@@ -795,7 +797,7 @@ def group_match_mismatch_entropy_angle(freq_tables, dimensions):
     return angles
 
 
-def group_match_diversity_score(freq_table, dimensions):
+def group_match_diversity_score(freq_tables, dimensions):
     """
     Group Match Diversity Score
 
@@ -804,18 +806,18 @@ def group_match_diversity_score(freq_table, dimensions):
     diversity_computation function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of matches for pairs of positions in an alignment, to use when
-        computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
         np.array: An array with the shape given by dimensions, containing the diversity only matching characters for all
         positions in the provided match frequency table.
     """
-    return diversity_computation(freq_table=freq_table, dimensions=dimensions)
+    return diversity_computation(freq_table=freq_tables['match'], dimensions=dimensions)
 
 
-def group_mismatch_diversity_score(freq_table, dimensions):
+def group_mismatch_diversity_score(freq_tables, dimensions):
     """
     Group Mismatch Diversity Score
 
@@ -824,15 +826,15 @@ def group_mismatch_diversity_score(freq_table, dimensions):
     function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of mismatches for pairs of positions in an alignment, to use
-        when computing the counts.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
         dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
         will return a 2-D array.
     Return:
         np.array: An array with the shape given by dimensions, containing the diversity for only mismatch characters for
         all positions in the provided mismatch frequency table.
     """
-    return diversity_computation(freq_table=freq_table, dimensions=dimensions)
+    return diversity_computation(freq_table=freq_tables['mismatch'], dimensions=dimensions)
 
 
 def group_match_mismatch_diversity_ratio(freq_tables, dimensions):
@@ -854,8 +856,8 @@ def group_match_mismatch_diversity_ratio(freq_tables, dimensions):
         match and mismatch diversity axes, with a ratio of 0 corresponding to invariance or covariation and
         np.tan(np.pi / 2.0) corresponding to full variation.
     """
-    match_diversity = group_match_diversity_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_diversity = group_mismatch_diversity_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+    match_diversity = group_match_diversity_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_diversity = group_mismatch_diversity_score(freq_tables=freq_tables, dimensions=dimensions)
     ratio = ratio_computation(match_table=match_diversity, mismatch_table=mismatch_diversity)
     return ratio
 
@@ -873,12 +875,12 @@ def group_match_mismatch_diversity_angle(freq_tables, dimensions):
         Arguments:
             freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
             objects.
-            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
-            will return a 2-D array.
+            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected
+            and will return a 2-D array.
         Returns:
-            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between the
-            match and mismatch diversity axes, with a ratio of 0 corresponding to invariance or covariation and np.pi / 2.0
-            corresponding to full variation.
+            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between
+            the match and mismatch diversity axes, with a ratio of 0 corresponding to invariance or covariation and
+            np.pi / 2.0 corresponding to full variation.
         """
     ratios = group_match_mismatch_diversity_ratio(freq_tables=freq_tables, dimensions=dimensions)
     angles = angle_computation(ratios=ratios)
