@@ -553,9 +553,12 @@ def check_freq_table(low_memory, node_name, table_type, out_dir):
     check = False
     fn = None
     if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
-        if os.path.isfile(fn):
-            check = True
+        if (node_name is None) or (table_type is None) or (out_dir is None):
+            raise ValueError('All values: node_name, table_type, and out_dir must be provided when low_memory is True.')
+        else:
+            fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
+            if os.path.isfile(fn):
+                check = True
     return check, fn
 
 
@@ -578,8 +581,8 @@ def save_freq_table(freq_table, low_memory, node_name, table_type, out_dir):
         to a file where the FrequencyTable has been saved.
     """
     if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
-        if not os.path.isfile(fn):
+        check, fn = check_freq_table(low_memory=low_memory, node_name=node_name, table_type=table_type, out_dir=out_dir)
+        if not check:
             with open(fn, 'wb') as handle:
                 pickle.dump(freq_table, handle, pickle.HIGHEST_PROTOCOL)
         freq_table = fn
@@ -603,6 +606,8 @@ def load_freq_table(freq_table, low_memory):
     """
     if low_memory and isinstance(freq_table, FrequencyTable):
         raise ValueError('Low memory setting active but frequency table provided is not a path.')
+    elif (not low_memory) and not isinstance(freq_table, FrequencyTable):
+        raise ValueError('Low memory setting not active, a frequency table is expected as input.')
     elif low_memory:
         if not os.path.isfile(freq_table):
             raise ValueError('File path is not valid: {}'.format(freq_table))
@@ -611,6 +616,94 @@ def load_freq_table(freq_table, low_memory):
     else:
         pass
     return freq_table
+
+
+def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
+    """
+    Check Frequency Table
+
+    This function is used to check wither the desired FrequencyTable has already been produced and stored or not.
+
+    Args:
+        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
+        node_name (str): A string which will be used in identifying the save file.
+        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
+        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
+        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
+        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
+    Returns:
+        bool: Whether or not the desired table has previously been saved (if low_memory is False, False is returned by
+        default).
+        str/None: If low_memory is True the expected path to the file, whether it is present or not.
+    """
+    check = False
+    fn = None
+    if low_memory:
+        if (node_name is None) or (pos_type is None) or (score_type is None) or (metric is None) or (out_dir is None):
+            raise ValueError('All values: node_name, pos_type, score_type, metric, and out_dir must be provided when '
+                             'low_memory is True.')
+        else:
+            fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
+            if os.path.isfile(fn):
+                check = True
+    return check, fn
+
+
+def save_numpy_array(mat, out_dir, node_name, pos_type, score_type, metric, low_memory):
+    """
+    Save Numpy Array
+
+    This function returns either the np.array that was provided to it or the path where that np.array has been stored if
+    the low memory option was set. The FrequencyTable will be saved to a file in the out_dir with
+    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
+
+    Args:
+        mat (np.array): The np.array instance to either serialize or pass through.
+        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
+        node_name (str): A string which will be used in identifying the save file.
+        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
+        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
+        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
+        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
+    Returns:
+        np.array/str: Either the provided np.array (if low_memory is False) or a string providing the path to a file
+        where the np.array has been saved.
+    """
+    if low_memory:
+        check, fn = check_numpy_array(low_memory=low_memory, node_name=node_name, pos_type=pos_type,
+                                      score_type=score_type, metric=metric, out_dir=out_dir)
+        if not check:
+            np.savez(fn, mat=mat)
+        mat = fn
+    return mat
+
+
+def load_numpy_array(mat, low_memory):
+    """
+    Load Numpy Array
+
+    This function returns a np.array. If a np.array was provided to it and low_memory is False the instance
+    returned is the same as the one passed in. If a string was passed in and low_memory is True a np.array is
+    returned after loading it from the file specified by the string.
+
+    Args:
+        mat (np.array/str): A np.array or the path to one which should be loaded from file.
+        low_memory (bool): Whether or not to load the np.array from file.
+    Returns:
+        np.array: Either the np.array passed in or the one loaded from the file specified by a passed in string.
+    """
+    if low_memory and isinstance(mat, np.ndarray):
+        raise ValueError('Low memory setting active but matrix provided is not a path.')
+    elif (not low_memory) and not isinstance(mat, np.ndarray):
+        raise ValueError('Low memory setting not active, a numpy array is expected as input.')
+    elif low_memory:
+        if not os.path.isfile(mat):
+            raise ValueError('File path is not valid: {}'.format(mat))
+        load = np.load(mat)
+        mat = load['mat']
+    else:
+        pass
+    return mat
 
 
 def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
@@ -1048,87 +1141,6 @@ def characterization_mm(node_name, node_type):
 #                         char_dict[node][status][char] = 0
 #                     char_dict[node][status][char] += 1
 #     return pos, char_dict
-
-
-def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
-    """
-    Check Frequency Table
-
-    This function is used to check wither the desired FrequencyTable has already been produced and stored or not.
-
-    Args:
-        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
-        node_name (str): A string which will be used in identifying the save file.
-        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
-        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
-        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
-        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
-    Returns:
-        bool: Whether or not the desired table has previously been saved (if low_memory is False, False is returned by
-        default).
-        str/None: If low_memory is True the expected path to the file, whether it is present or not.
-    """
-    check = False
-    fn = None
-    if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
-        if os.path.isfile(fn):
-            check = True
-    return check, fn
-
-
-def save_numpy_array(mat, out_dir, node_name, pos_type, score_type, metric, low_memory):
-    """
-    Save Numpy Array
-
-    This function returns either the np.array that was provided to it or the path where that np.array has been stored if
-    the low memory option was set. The FrequencyTable will be saved to a file in the out_dir with
-    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
-
-    Args:
-        mat (np.array): The np.array instance to either serialize or pass through.
-        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
-        node_name (str): A string which will be used in identifying the save file.
-        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
-        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
-        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
-        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
-    Returns:
-        np.array/str: Either the provided np.array (if low_memory is False) or a string providing the path to a file
-        where the np.array has been saved.
-    """
-    if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
-        if not os.path.isfile(fn):
-            np.savez(fn, mat=mat)
-        mat = fn
-    return mat
-
-
-def load_numpy_array(mat, low_memory):
-    """
-    Load Numpy Array
-
-    This function returns a np.array. If a np.array was provided to it and low_memory is False the instance
-    returned is the same as the one passed in. If a string was passed in and low_memory is True a np.array is
-    returned after loading it from the file specified by the string.
-
-    Args:
-        mat (np.array/str): A np.array or the path to one which should be loaded from file.
-        low_memory (bool): Whether or not to load the np.array from file.
-    Returns:
-        np.array: Either the np.array passed in or the one loaded from the file specified by a passed in string.
-    """
-    if low_memory and isinstance(mat, np.ndarray):
-        raise ValueError('Low memory setting active but matrix provided is not a path.')
-    elif low_memory:
-        if not os.path.isfile(mat):
-            raise ValueError('File path is not valid: {}'.format(mat))
-        load = np.load(mat)
-        mat = load['mat']
-    else:
-        pass
-    return mat
 
 
 def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dict, low_memory, unique_dir):
