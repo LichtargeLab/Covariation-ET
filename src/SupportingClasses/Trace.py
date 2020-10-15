@@ -12,7 +12,9 @@ from copy import deepcopy
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from multiprocessing import Manager, Pool, Lock
+from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
+from PhylogeneticTree import PhylogeneticTree
 from MatchMismatchTable import MatchMismatchTable
 from EvolutionaryTraceAlphabet import MultiPositionAlphabet
 from utils import gap_characters, build_mapping, compute_rank_and_coverage
@@ -58,24 +60,37 @@ class Trace(object):
             low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
             resources.
         """
+        if not isinstance(alignment, SeqAlignment):
+            raise ValueError('Provided alignment must be a SeqAlignment object!')
         self.aln = alignment
+        if not isinstance(phylo_tree, PhylogeneticTree):
+            raise ValueError('Provided tree must be a PhylogeneticTree object!')
         self.phylo_tree = phylo_tree
+        if not isinstance(group_assignments, dict):
+            raise ValueError('Provided tree must be a dictionary produced by PhylogeneticTree.assign_group_rank()!')
         self.assignments = group_assignments
-        self.unique_nodes = None
-        self.rank_scores = None
-        self.final_scores = None
-        self.final_ranks = None
-        self.final_coverage = None
+        if ((not isinstance(position_specific, bool)) or (not isinstance(pair_specific, bool)) or
+                (not isinstance(match_mismatch, bool)) or (not isinstance(low_memory, bool))):
+            raise ValueError('Input of type bool is expected for arguments position_specific, pair_specific, '
+                             'match_mismatch, and low_memory!')
+        if (not position_specific) and (not pair_specific):
+            raise ValueError('A Trace must be either position specific, pair specific, or both, selecting neither is '
+                             'not meaningful!')
         self.pos_specific = position_specific
         self.pair_specific = pair_specific
         self.match_mismatch = match_mismatch
+        self.low_memory = low_memory
         if output_dir is None:
             self.out_dir = os.getcwd()
         else:
             if not os.path.isdir(output_dir):
                 os.makedirs(output_dir)
             self.out_dir = output_dir
-        self.low_memory = low_memory
+        self.unique_nodes = None
+        self.rank_scores = None
+        self.final_scores = None
+        self.final_ranks = None
+        self.final_coverage = None
 
     def characterize_rank_groups_standard(self, unique_dir, single_size, single_mapping, single_reverse, processes=1,
                                           write_out_sub_aln=True, write_out_freq_table=True):

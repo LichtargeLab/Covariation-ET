@@ -55,6 +55,13 @@ aln.import_alignment()
 os.remove(aln_fn)
 num_aln = aln._alignment_to_num(mapping=protein_map)
 
+adc = AlignmentDistanceCalculator(model='identity')
+dm = adc.get_distance(msa=protein_msa, processes=2)
+
+phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+phylo_tree.construct_tree(dm=dm)
+rank_dict = phylo_tree.assign_group_rank(ranks=None)
+
 pro_single_ft = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
 pro_single_ft.characterize_alignment(num_aln=num_aln)
 
@@ -429,11 +436,350 @@ class TestTraceLoadNumpyArray(TestCase):
     def test_load_numpy_array_not_low_memory_failure_no_file_name(self):
         with self.assertRaises(ValueError):
             load_numpy_array(mat=None, low_memory=False)
+
+
 # class TestTraceCharacterizationPool(TestCase):
+#
+#     # init_characterization_pool must be tested by proxy for now, I am not sure how to test the global variables, and
+#     # testing variable assignment is not essential.
+#
+#     def test_characterization_pool_single_low_memory_single_process(self):
+#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+#         pool_manager = Manager()
+#         freq_tables = pool_manager.dict()
+#         tables_lock = Lock()
+#         u_dir = os.path.join(os.getcwd(), 'char_test')
+#         os.mkdir(u_dir)
+#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
+#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
+#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
+#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
+#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=1)
+#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
+#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+#         rmtree(u_dir)
+#
+#     def test_characterization_pool_single_low_memory_multi_process(self):
+#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+#         pool_manager = Manager()
+#         freq_tables = pool_manager.dict()
+#         tables_lock = Lock()
+#         u_dir = os.path.join(os.getcwd(), 'char_test')
+#         os.mkdir(u_dir)
+#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
+#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
+#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
+#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
+#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=2)
+#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
+#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+#         rmtree(u_dir)
+#
+#     def test_characterization_pool_single_not_low_memory_single_process(self):
+#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+#         pool_manager = Manager()
+#         freq_tables = pool_manager.dict()
+#         tables_lock = Lock()
+#         u_dir = os.path.join(os.getcwd(), 'char_test')
+#         os.mkdir(u_dir)
+#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
+#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
+#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
+#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
+#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=1)
+#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded1 = freq_tables[node_name]['single']
+#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded2 = freq_tables[node_name]['single']
+#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
+#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+#         rmtree(u_dir)
+#
+#     def test_characterization_pool_single_not_low_memory_multi_process(self):
+#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+#         pool_manager = Manager()
+#         freq_tables = pool_manager.dict()
+#         tables_lock = Lock()
+#         u_dir = os.path.join(os.getcwd(), 'char_test')
+#         os.mkdir(u_dir)
+#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
+#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
+#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
+#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
+#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=2)
+#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded1 = freq_tables[node_name]['single']
+#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded2 = freq_tables[node_name]['single']
+#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
+#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+#         rmtree(u_dir)
+#
+#     def test_characterization_pool_single_write_out(self):
+#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+#         pool_manager = Manager()
+#         freq_tables = pool_manager.dict()
+#         tables_lock = Lock()
+#         u_dir = os.path.join(os.getcwd(), 'char_test')
+#         os.mkdir(u_dir)
+#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
+#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
+#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
+#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
+#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+#                                    write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+#
+#             expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
+#             self.assertTrue(os.path.isfile(expected_path1a))
+#             expected_path1b = os.path.join(u_dir, f'{node_name}_position_freq_table.tsv')
+#             self.assertTrue(os.path.isfile(expected_path1a))
+#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+#             characterization(node_name=node_name, node_type='component')
+#             self.assertTrue(node_name in freq_tables)
+#             self.assertTrue('single' in freq_tables[node_name])
+#             self.assertIsInstance(freq_tables[node_name]['single'], str)
+#             self.assertTrue('pair' in freq_tables[node_name])
+#             self.assertIsNone(freq_tables[node_name]['pair'])
+#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
+#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
+#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+#         rmtree(u_dir)
+    # def test_characterization_pool_single_failure_no_node_name(self):
+    # def test_characterization_pool_single_failure_missing_node_name(self):
+    # def test_characterization_pool_single_failure_no_node_type(self):
+    # def test_characterization_pool_single_failure_unexpected_node_type(self):
+    # def test_characterization_pool_single_failure_no_single_alphabet(self):
+    # def test_characterization_pool_single_failure_no_alignment(self):
+    # def test_characterization_pool_single_failure_no_pos_specific(self):
+    # def test_characterization_pool_single_failure_no_components(self):
+    # def test_characterization_pool_single_failure_no_shareable_dict(self):
+    # def test_characterization_pool_single_failure_no_shareable_lock(self):
+    # def test_characterization_pool_single_failure_no_unique_dir(self):
+    # def test_characterization_pool_pair_low_memory_single_process(self):
+    # def test_characterization_pool_pair_low_memory_multi_process(self):
+    # def test_characterization_pool_pair_not_low_memory_single_process(self):
+    # def test_characterization_pool_pair_not_low_memory_multi_process(self):
+    # def test_characterization_pool_pair_write_out_aln(self):
+    # def test_characterization_pool_pair_write_out_freq_table(self):
+    # def test_characterization_pool_pair_failure_no_node_name(self):
+    # def test_characterization_pool_pair_failure_missing_node_name(self):
+    # def test_characterization_pool_pair_failure_no_node_type(self):
+    # def test_characterization_pool_pair_failure_unexpected_node_type(self):
+    # def test_characterization_pool_pair_failure_no_single_alphabet(self):
+    # def test_characterization_pool_pair_failure_no_alignment(self):
+    # def test_characterization_pool_pair_failure_no_pos_specific(self):
+    # def test_characterization_pool_pair_failure_no_components(self):
+    # def test_characterization_pool_pair_failure_no_shareable_dict(self):
+    # def test_characterization_pool_pair_failure_no_shareable_lock(self):
+    # def test_characterization_pool_pair_failure_no_unique_dir(self):
+
 # class TestTraceCharacterizationMMPool(TestCase):
 # class TestTraceTraceGroups(TestCase):
 # class TestTraceTraceRanks(TestCase):
-# class TestTraceInit(TestCase):
+
+
+class TestTraceInit(TestCase):
+
+    def test_init_out_dir(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                      pair_specific=True, match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        self.assertIs(trace.aln, aln)
+        self.assertIs(trace.phylo_tree, phylo_tree)
+        self.assertIs(trace.assignments, rank_dict)
+        self.assertTrue(trace.pos_specific)
+        self.assertTrue(trace.pair_specific)
+        self.assertFalse(trace.match_mismatch)
+        self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.out_dir, expected_dir)
+        self.assertIsNone(trace.unique_nodes)
+        self.assertIsNone(trace.rank_scores)
+        self.assertIsNone(trace.final_scores)
+        self.assertIsNone(trace.final_ranks)
+        self.assertIsNone(trace.final_coverage)
+        rmtree(expected_dir)
+
+    def test_init_out_dir_does_not_exist(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        self.assertFalse(os.path.isdir(expected_dir))
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                      pair_specific=True, match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        self.assertIs(trace.aln, aln)
+        self.assertIs(trace.phylo_tree, phylo_tree)
+        self.assertIs(trace.assignments, rank_dict)
+        self.assertTrue(trace.pos_specific)
+        self.assertTrue(trace.pair_specific)
+        self.assertFalse(trace.match_mismatch)
+        self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.out_dir, expected_dir)
+        self.assertIsNone(trace.unique_nodes)
+        self.assertIsNone(trace.rank_scores)
+        self.assertIsNone(trace.final_scores)
+        self.assertIsNone(trace.final_ranks)
+        self.assertIsNone(trace.final_coverage)
+        self.assertTrue(os.path.isdir(expected_dir))
+        rmtree(expected_dir)
+
+    def test_init_no_out_dir(self):
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                      pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+        self.assertIs(trace.aln, aln)
+        self.assertIs(trace.phylo_tree, phylo_tree)
+        self.assertIs(trace.assignments, rank_dict)
+        self.assertTrue(trace.pos_specific)
+        self.assertTrue(trace.pair_specific)
+        self.assertFalse(trace.match_mismatch)
+        self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.out_dir, os.getcwd())
+        self.assertIsNone(trace.unique_nodes)
+        self.assertIsNone(trace.rank_scores)
+        self.assertIsNone(trace.final_scores)
+        self.assertIsNone(trace.final_ranks)
+        self.assertIsNone(trace.final_coverage)
+
+    def test_init_failure_bad_alignment(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=None, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_phylo_tree(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=None, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_group_assignments(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=None, position_specific=True,
+                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_position_specific(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=None,
+                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_pair_specific(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=None, match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_match_mismatch(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=True, match_mismatch=None, output_dir=None, low_memory=False)
+
+    def test_init_failure_bad_low_memory(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=None)
+
+    def test_init_failure_bad_output_dir(self):
+        with self.assertRaises(TypeError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
+                  pair_specific=True, match_mismatch=False, output_dir=100, low_memory=False)
 # class TestTraceCharacterizeRankGroupStandard(TestCase):
 # class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
 # class TestTraceCharacterizeRankGroups(TestCase):
