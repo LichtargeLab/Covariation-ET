@@ -678,7 +678,26 @@ class TestTraceLoadNumpyArray(TestCase):
 
 # class TestTraceCharacterizationMMPool(TestCase):
 # class TestTraceTraceGroups(TestCase):
-# class TestTraceTraceRanks(TestCase):
+
+
+class TestTraceTraceRanks(TestCase):
+
+    # init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory, unique_dir):
+    # trace_ranks(rank):
+
+    def test_trace_ranks_pos_specific(self):
+    def test_trace_ranks_pair_specific(self):
+    def test_trace_ranks_pos_and_pair_specific(self):
+    def test_trace_ranks_low_mem_pos_specific(self):
+    def test_trace_ranks_low_mem_pair_specific(self):
+    def test_trace_ranks_low_mem_pos_and_pair_specific(self):
+    def test_trace_ranks_failure_no_rank(self):
+    def test_trace_ranks_failure_no_scorer(self):
+    def test_trace_ranks_failure_neither_pos_nor_pair_specific(self):
+    def test_trace_ranks_failure_no_a_dict(self):
+    def test_trace_ranks_failure_no_u_dict(self):
+    def test_trace_ranks_failure_no_low_memory(self):
+    def test_trace_ranks_failure_low_memory_no_unique_dir(self):
 
 
 class TestTraceInit(TestCase):
