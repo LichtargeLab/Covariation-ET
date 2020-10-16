@@ -33,8 +33,6 @@ class Trace(object):
         characterization of sub-alignments and group scoring during the trace procedure to reduce the required
         computations.
         rank_scores (dict): A dictionary to track the the scores at each rank in the assignments dictionary.
-        position_specific (bool): Whether this trace will perform position specific analyses or not.
-        pair_specific (bool): Whether this trace will perform pair specific analyses or not.
         match_mismatch (bool): Whether to use the match mismatch characterization (looking at all possible transitions
         in a position/pair between sequences of an alignment, True) or the standard protocol (looking at each position
         only once for each sequence in the alignment, False).
@@ -43,8 +41,8 @@ class Trace(object):
         resources.
     """
 
-    def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True,
-                 match_mismatch=False, output_dir=None, low_memory=False):
+    def __init__(self, alignment, phylo_tree, group_assignments, pos_size, match_mismatch=False, output_dir=None,
+                 low_memory=False):
         """
         Initializer for Trace object.
 
@@ -52,8 +50,8 @@ class Trace(object):
             alignment (SeqAlignment): The alignment for which to perform a trace analysis.
             phylo_tree (PhylogeneticTree): The tree based on the alignment to use during the trace analysis.
             group_assignments (dict): The group assignments for nodes in the tree.
-            position_specific (bool): Whether or not to perform the trace for specific positions.
-            pair_specific (bool): Whether or not to perform the trace for pairs of positions.
+            pos_size (int): The size of the the positions being analyzed (expecting 1 single position scores or 2 pair
+            position scores).
             match_mismatch (bool): Whether to use the match mismatch characterization (True) or the standard protocol
             (False).
             output_dir (str/path): Where results from a trace should be stored.
@@ -67,17 +65,15 @@ class Trace(object):
             raise ValueError('Provided tree must be a PhylogeneticTree object!')
         self.phylo_tree = phylo_tree
         if not isinstance(group_assignments, dict):
-            raise ValueError('Provided tree must be a dictionary produced by PhylogeneticTree.assign_group_rank()!')
+            raise ValueError('Provided assignments must be a dictionary produced by '
+                             'PhylogeneticTree.assign_group_rank()!')
         self.assignments = group_assignments
-        if ((not isinstance(position_specific, bool)) or (not isinstance(pair_specific, bool)) or
-                (not isinstance(match_mismatch, bool)) or (not isinstance(low_memory, bool))):
-            raise ValueError('Input of type bool is expected for arguments position_specific, pair_specific, '
-                             'match_mismatch, and low_memory!')
-        if (not position_specific) and (not pair_specific):
-            raise ValueError('A Trace must be either position specific, pair specific, or both, selecting neither is '
-                             'not meaningful!')
-        self.pos_specific = position_specific
-        self.pair_specific = pair_specific
+        if (not isinstance(match_mismatch, bool)) or (not isinstance(low_memory, bool)):
+            raise ValueError('Input of type bool is expected for arguments match_mismatch, and low_memory!')
+        if (pos_size < 1) or (pos_size > 2):
+            raise ValueError('Currently the only supported positions sizes are 1 (position specific) and 2 (pairs of '
+                             'positions)!')
+        self.pos_size = pos_size
         self.match_mismatch = match_mismatch
         self.low_memory = low_memory
         if output_dir is None:

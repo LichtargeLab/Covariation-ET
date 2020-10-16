@@ -680,24 +680,24 @@ class TestTraceLoadNumpyArray(TestCase):
 # class TestTraceTraceGroups(TestCase):
 
 
-class TestTraceTraceRanks(TestCase):
-
-    # init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory, unique_dir):
-    # trace_ranks(rank):
-
-    def test_trace_ranks_pos_specific(self):
-    def test_trace_ranks_pair_specific(self):
-    def test_trace_ranks_pos_and_pair_specific(self):
-    def test_trace_ranks_low_mem_pos_specific(self):
-    def test_trace_ranks_low_mem_pair_specific(self):
-    def test_trace_ranks_low_mem_pos_and_pair_specific(self):
-    def test_trace_ranks_failure_no_rank(self):
-    def test_trace_ranks_failure_no_scorer(self):
-    def test_trace_ranks_failure_neither_pos_nor_pair_specific(self):
-    def test_trace_ranks_failure_no_a_dict(self):
-    def test_trace_ranks_failure_no_u_dict(self):
-    def test_trace_ranks_failure_no_low_memory(self):
-    def test_trace_ranks_failure_low_memory_no_unique_dir(self):
+# class TestTraceTraceRanks(TestCase):
+#
+#     # init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory, unique_dir):
+#     # trace_ranks(rank):
+#
+#     def test_trace_ranks_pos_specific(self):
+#     def test_trace_ranks_pair_specific(self):
+#     def test_trace_ranks_pos_and_pair_specific(self):
+#     def test_trace_ranks_low_mem_pos_specific(self):
+#     def test_trace_ranks_low_mem_pair_specific(self):
+#     def test_trace_ranks_low_mem_pos_and_pair_specific(self):
+#     def test_trace_ranks_failure_no_rank(self):
+#     def test_trace_ranks_failure_no_scorer(self):
+#     def test_trace_ranks_failure_neither_pos_nor_pair_specific(self):
+#     def test_trace_ranks_failure_no_a_dict(self):
+#     def test_trace_ranks_failure_no_u_dict(self):
+#     def test_trace_ranks_failure_no_low_memory(self):
+#     def test_trace_ranks_failure_low_memory_no_unique_dir(self):
 
 
 class TestTraceInit(TestCase):
@@ -705,15 +705,14 @@ class TestTraceInit(TestCase):
     def test_init_out_dir(self):
         expected_dir = os.path.join(os.getcwd(), 'test_case')
         os.makedirs(expected_dir)
-        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                      pair_specific=True, match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
         self.assertIs(trace.aln, aln)
         self.assertIs(trace.phylo_tree, phylo_tree)
         self.assertIs(trace.assignments, rank_dict)
-        self.assertTrue(trace.pos_specific)
-        self.assertTrue(trace.pair_specific)
         self.assertFalse(trace.match_mismatch)
         self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.pos_size, 1)
         self.assertEqual(trace.out_dir, expected_dir)
         self.assertIsNone(trace.unique_nodes)
         self.assertIsNone(trace.rank_scores)
@@ -725,15 +724,14 @@ class TestTraceInit(TestCase):
     def test_init_out_dir_does_not_exist(self):
         expected_dir = os.path.join(os.getcwd(), 'test_case')
         self.assertFalse(os.path.isdir(expected_dir))
-        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                      pair_specific=True, match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
         self.assertIs(trace.aln, aln)
         self.assertIs(trace.phylo_tree, phylo_tree)
         self.assertIs(trace.assignments, rank_dict)
-        self.assertTrue(trace.pos_specific)
-        self.assertTrue(trace.pair_specific)
         self.assertFalse(trace.match_mismatch)
         self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.pos_size, 1)
         self.assertEqual(trace.out_dir, expected_dir)
         self.assertIsNone(trace.unique_nodes)
         self.assertIsNone(trace.rank_scores)
@@ -744,14 +742,29 @@ class TestTraceInit(TestCase):
         rmtree(expected_dir)
 
     def test_init_no_out_dir(self):
-        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                      pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=None, low_memory=False)
         self.assertIs(trace.aln, aln)
         self.assertIs(trace.phylo_tree, phylo_tree)
         self.assertIs(trace.assignments, rank_dict)
-        self.assertTrue(trace.pos_specific)
-        self.assertTrue(trace.pair_specific)
         self.assertFalse(trace.match_mismatch)
+        self.assertFalse(trace.low_memory)
+        self.assertEqual(trace.pos_size, 1)
+        self.assertEqual(trace.out_dir, os.getcwd())
+        self.assertIsNone(trace.unique_nodes)
+        self.assertIsNone(trace.rank_scores)
+        self.assertIsNone(trace.final_scores)
+        self.assertIsNone(trace.final_ranks)
+        self.assertIsNone(trace.final_coverage)
+
+    def test_init_position_size_2(self):
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=False, output_dir=None, low_memory=False)
+        self.assertIs(trace.aln, aln)
+        self.assertIs(trace.phylo_tree, phylo_tree)
+        self.assertIs(trace.assignments, rank_dict)
+        self.assertFalse(trace.match_mismatch)
+        self.assertEqual(trace.pos_size, 2)
         self.assertFalse(trace.low_memory)
         self.assertEqual(trace.out_dir, os.getcwd())
         self.assertIsNone(trace.unique_nodes)
@@ -760,45 +773,46 @@ class TestTraceInit(TestCase):
         self.assertIsNone(trace.final_ranks)
         self.assertIsNone(trace.final_coverage)
 
+    def test_init_failure_position_size_low(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=0,
+                  match_mismatch=False, output_dir=None, low_memory=False)
+
+    def test_init_failure_position_size_high(self):
+        with self.assertRaises(ValueError):
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=3,
+                  match_mismatch=False, output_dir=None, low_memory=False)
+
     def test_init_failure_bad_alignment(self):
         with self.assertRaises(ValueError):
-            Trace(alignment=None, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+            Trace(alignment=None, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                  match_mismatch=False, output_dir=None, low_memory=False)
 
     def test_init_failure_bad_phylo_tree(self):
         with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=None, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
+            Trace(alignment=aln, phylo_tree=None, group_assignments=rank_dict, pos_size=1,
+                  match_mismatch=False, output_dir=None, low_memory=False)
 
     def test_init_failure_bad_group_assignments(self):
         with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=None, position_specific=True,
-                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
-
-    def test_init_failure_bad_position_specific(self):
-        with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=None,
-                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=False)
-
-    def test_init_failure_bad_pair_specific(self):
-        with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=None, match_mismatch=False, output_dir=None, low_memory=False)
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=None, pos_size=1,
+                  match_mismatch=False, output_dir=None, low_memory=False)
 
     def test_init_failure_bad_match_mismatch(self):
         with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=True, match_mismatch=None, output_dir=None, low_memory=False)
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                  match_mismatch=None, output_dir=None, low_memory=False)
 
     def test_init_failure_bad_low_memory(self):
         with self.assertRaises(ValueError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=True, match_mismatch=False, output_dir=None, low_memory=None)
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                  match_mismatch=False, output_dir=None, low_memory=None)
 
     def test_init_failure_bad_output_dir(self):
         with self.assertRaises(TypeError):
-            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, position_specific=True,
-                  pair_specific=True, match_mismatch=False, output_dir=100, low_memory=False)
+            Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                  match_mismatch=False, output_dir=100, low_memory=False)
+
 # class TestTraceCharacterizeRankGroupStandard(TestCase):
 # class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
 # class TestTraceCharacterizeRankGroups(TestCase):
