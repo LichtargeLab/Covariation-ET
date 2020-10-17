@@ -1246,8 +1246,7 @@ def trace_groups(node_name):
     return node_name, components
 
 
-def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory,
-                     unique_dir):
+def init_trace_ranks(scorer, a_dict, u_dict, low_memory, unique_dir):
     """
     Init Trace Ranks
 
@@ -1256,8 +1255,6 @@ def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_me
 
     Args:
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
         a_dict (dict): The rank and group assignments for nodes in the tree.
         u_dict (dict): A dictionary containing the node characterizations and group level scores for those nodes.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
@@ -1265,10 +1262,8 @@ def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_me
         unique_dir (str/path): The directory where group score vectors/matrices can be loaded from and where rank
         scores can be written.
     """
-    global pos_scorer, single, pair, assignments, unique_nodes, low_mem, u_dir
+    global pos_scorer, assignments, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    single = pos_specific
-    pair = pair_specific
     assignments = a_dict
     unique_nodes = u_dict
     low_mem = low_memory
@@ -1291,51 +1286,23 @@ def trace_ranks(rank):
         int: The rank which has been scored (this will be used to update the rank_scores dictionary).
         dict: A dictionary containing the single and pair position rank score for the specified rank.
     """
+    pos_type = 'single' if pos_scorer.position_size == 1 else 'pair'
     # Check whether the group score has already been saved to file.
-    single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
-                                                score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
-    pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
-                                            score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
+    arr_check, arr_fn = check_numpy_array(low_memory=low_mem, node_name=str(rank), pos_type=pos_type,
+                                          score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
     # If the file(s) were found set the return values for this rank.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        single_rank_scores = single_fn if single else None
-        pair_rank_scores = pair_fn if pair else None
+    if low_mem and arr_check:
+        rank_scores = arr_fn
     else:
         # Retrieve all group scores for this rank
-        if single:
-            single_group_scores = np.zeros(pos_scorer.dimensions)
-        else:
-            single_group_scores = None
-        if pair:
-            pair_group_scores = np.zeros(pos_scorer.dimensions)
-        else:
-            pair_group_scores = None
+        group_scores = np.zeros(pos_scorer.dimensions)
         # For each group in the rank update the cumulative sum for the rank
         for g in assignments[rank]:
             node_name = assignments[rank][g]['node'].name
-            if single:
-                single_group_score = unique_nodes[node_name]['single_scores']
-                single_group_score = load_numpy_array(mat=single_group_score, low_memory=low_mem)
-                single_group_scores += single_group_score
-            if pair:
-                pair_group_score = unique_nodes[node_name]['pair_scores']
-                pair_group_score = load_numpy_array(mat=pair_group_score, low_memory=low_mem)
-                pair_group_scores += pair_group_score
+            group_score = load_numpy_array(mat=unique_nodes[node_name]['group_scores'], low_memory=low_mem)
+            group_scores += group_score
         # Compute the rank score over the cumulative sum of group scores.
-        if single:
-            single_rank_scores = pos_scorer.score_rank(single_group_scores, rank)
-            single_rank_scores = save_numpy_array(mat=single_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                  node_name=rank, pos_type='single', score_type='rank',
-                                                  metric=pos_scorer.metric)
-        else:
-            single_rank_scores = None
-        if pair:
-            pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
-            pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                node_name=rank, pos_type='pair', score_type='rank',
-                                                metric=pos_scorer.metric)
-        else:
-            pair_rank_scores = None
-    # Store the rank score so that it can be retrieved once the pool completes
-    components = {'single_ranks': single_rank_scores, 'pair_ranks': pair_rank_scores}
-    return rank, components
+        rank_scores = pos_scorer.score_rank(group_scores, rank)
+        rank_scores = save_numpy_array(mat=rank_scores, out_dir=u_dir, low_memory=low_mem, node_name=str(rank),
+                                       pos_type='single', score_type='rank', metric=pos_scorer.metric)
+    return rank, rank_scores

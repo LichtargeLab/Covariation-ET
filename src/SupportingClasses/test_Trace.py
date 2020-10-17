@@ -64,6 +64,26 @@ rank_dict = phylo_tree.assign_group_rank(ranks=None)
 
 pro_single_ft = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
 pro_single_ft.characterize_alignment(num_aln=num_aln)
+pro_single_ft_i2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft_i2.characterize_alignment(num_aln=num_aln[[1, 2], :])
+pro_single_ft_s1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft_s1.characterize_alignment(num_aln=np.array([num_aln[0, :]]))
+pro_single_ft_s2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft_s2.characterize_alignment(num_aln=np.array([num_aln[1, :]]))
+pro_single_ft_s3 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft_s3.characterize_alignment(num_aln=np.array([num_aln[2, :]]))
+
+pro_pair_ft = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
+pro_pair_ft_i2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft_i2.characterize_alignment(num_aln=num_aln[[1, 2], :], single_to_pair=pro_single_to_pair)
+pro_pair_ft_s1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft_s1.characterize_alignment(num_aln=np.array([num_aln[0, :]]), single_to_pair=pro_single_to_pair)
+pro_pair_ft_s2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft_s2.characterize_alignment(num_aln=np.array([num_aln[1, :]]), single_to_pair=pro_single_to_pair)
+pro_pair_ft_s3 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft_s3.characterize_alignment(num_aln=np.array([num_aln[2, :]]), single_to_pair=pro_single_to_pair)
+
 
 
 class TestTraceCheckFreqTable(TestCase):
@@ -680,24 +700,237 @@ class TestTraceLoadNumpyArray(TestCase):
 # class TestTraceTraceGroups(TestCase):
 
 
-# class TestTraceTraceRanks(TestCase):
-#
-#     # init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory, unique_dir):
-#     # trace_ranks(rank):
-#
-#     def test_trace_ranks_pos_specific(self):
-#     def test_trace_ranks_pair_specific(self):
-#     def test_trace_ranks_pos_and_pair_specific(self):
-#     def test_trace_ranks_low_mem_pos_specific(self):
-#     def test_trace_ranks_low_mem_pair_specific(self):
-#     def test_trace_ranks_low_mem_pos_and_pair_specific(self):
-#     def test_trace_ranks_failure_no_rank(self):
-#     def test_trace_ranks_failure_no_scorer(self):
-#     def test_trace_ranks_failure_neither_pos_nor_pair_specific(self):
-#     def test_trace_ranks_failure_no_a_dict(self):
-#     def test_trace_ranks_failure_no_u_dict(self):
-#     def test_trace_ranks_failure_no_low_memory(self):
-#     def test_trace_ranks_failure_low_memory_no_unique_dir(self):
+class TestTraceTraceRanks(TestCase):
+
+    def evaluate_trace_ranks(self, scorer, u_dict, mode, mem=None):
+        for r in [3, 2, 1]:
+            cumulative_ranks = np.zeros(scorer.dimensions)
+            for g in range(1, r + 1):
+                if mem == 'low':
+                    cumulative_ranks += load_numpy_array(u_dict[rank_dict[r][g]['node'].name]['group_scores'], True)
+                else:
+                    cumulative_ranks += u_dict[rank_dict[r][g]['node'].name]['group_scores']
+            if mode == 'int':
+                expected_ranks = cumulative_ranks > 0
+            elif mode == 'real':
+                expected_ranks = cumulative_ranks / float(r)
+            else:
+                raise ValueError('Bad mode in trace_ranks evaluation!')
+            if scorer.position_size == 2:
+                expected_ranks = np.triu(expected_ranks, k=1)
+            curr_rank, curr_ranks = trace_ranks(r)
+            self.assertEqual(curr_rank, r)
+            if mem == 'low':
+                self.assertIsInstance(curr_ranks, str)
+                curr_ranks = load_numpy_array(curr_ranks, True)
+            else:
+                self.assertIsInstance(curr_ranks, np.ndarray)
+            self.assertFalse((curr_ranks - expected_ranks).any())
+
+    def test_trace_ranks_pos_size_1_integer_rank(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_single_ft)},
+                       'Inner2': {'group_scores': scorer.score_group(pro_single_ft_i2)},
+                       'seq1': {'group_scores': scorer.score_group(pro_single_ft_s1)},
+                       'seq2': {'group_scores': scorer.score_group(pro_single_ft_s2)},
+                       'seq3': {'group_scores': scorer.score_group(pro_single_ft_s3)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='int')
+
+    def test_trace_ranks_pos_size_2_integer_rank(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_pair_ft)},
+                       'Inner2': {'group_scores': scorer.score_group(pro_pair_ft_i2)},
+                       'seq1': {'group_scores': scorer.score_group(pro_pair_ft_s1)},
+                       'seq2': {'group_scores': scorer.score_group(pro_pair_ft_s2)},
+                       'seq3': {'group_scores': scorer.score_group(pro_pair_ft_s3)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='int')
+
+    def test_trace_ranks_low_mem_pos_size_1_integer_rank(self):
+        u_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(u_dir)
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft), out_dir=u_dir,
+                                                                   node_name='Inner1', pos_type='single',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'Inner2': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_i2), out_dir=u_dir,
+                                                                   node_name='Inner2', pos_type='single',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'seq1': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s1), out_dir=u_dir,
+                                                                 node_name='seq1', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq2': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s2), out_dir=u_dir,
+                                                                 node_name='seq2', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq3': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s3), out_dir=u_dir,
+                                                                 node_name='seq3', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=True,
+                         unique_dir=u_dir)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='int', mem='low')
+        rmtree(u_dir)
+
+    def test_trace_ranks_low_mem_pos_size_2_integer_rank(self):
+        u_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(u_dir)
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft), out_dir=u_dir,
+                                                                   node_name='Inner1', pos_type='pair',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'Inner2': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_i2), out_dir=u_dir,
+                                                                   node_name='Inner2', pos_type='pair',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'seq1': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s1), out_dir=u_dir,
+                                                                 node_name='seq1', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq2': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s2), out_dir=u_dir,
+                                                                 node_name='seq2', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq3': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s3), out_dir=u_dir,
+                                                                 node_name='seq3', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=True,
+                         unique_dir=u_dir)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='int', mem='low')
+        rmtree(u_dir)
+
+    def test_trace_ranks_pos_size_1_real_rank(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_single_ft)},
+                       'Inner2': {'group_scores': scorer.score_group(pro_single_ft_i2)},
+                       'seq1': {'group_scores': scorer.score_group(pro_single_ft_s1)},
+                       'seq2': {'group_scores': scorer.score_group(pro_single_ft_s2)},
+                       'seq3': {'group_scores': scorer.score_group(pro_single_ft_s3)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='real')
+
+    def test_trace_ranks_pos_size_2_real_rank(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_pair_ft)},
+                       'Inner2': {'group_scores': scorer.score_group(pro_pair_ft_i2)},
+                       'seq1': {'group_scores': scorer.score_group(pro_pair_ft_s1)},
+                       'seq2': {'group_scores': scorer.score_group(pro_pair_ft_s2)},
+                       'seq3': {'group_scores': scorer.score_group(pro_pair_ft_s3)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='real')
+
+    def test_trace_ranks_low_mem_pos_size_1_real_rank(self):
+        u_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(u_dir)
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        unique_dict = {'Inner1': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft), out_dir=u_dir,
+                                                                   node_name='Inner1', pos_type='single',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'Inner2': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_i2), out_dir=u_dir,
+                                                                   node_name='Inner2', pos_type='single',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'seq1': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s1), out_dir=u_dir,
+                                                                 node_name='seq1', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq2': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s2), out_dir=u_dir,
+                                                                 node_name='seq2', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq3': {'group_scores': save_numpy_array(scorer.score_group(pro_single_ft_s3), out_dir=u_dir,
+                                                                 node_name='seq3', pos_type='single',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=True,
+                         unique_dir=u_dir)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='real', mem='low')
+        rmtree(u_dir)
+
+    def test_trace_ranks_low_mem_pos_size_2_real_rank(self):
+        u_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(u_dir)
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        unique_dict = {'Inner1': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft), out_dir=u_dir,
+                                                                   node_name='Inner1', pos_type='pair',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'Inner2': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_i2), out_dir=u_dir,
+                                                                   node_name='Inner2', pos_type='pair',
+                                                                   score_type='group', metric=scorer.metric,
+                                                                   low_memory=True)},
+                       'seq1': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s1), out_dir=u_dir,
+                                                                 node_name='seq1', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq2': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s2), out_dir=u_dir,
+                                                                 node_name='seq2', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)},
+                       'seq3': {'group_scores': save_numpy_array(scorer.score_group(pro_pair_ft_s3), out_dir=u_dir,
+                                                                 node_name='seq3', pos_type='pair',
+                                                                 score_type='group', metric=scorer.metric,
+                                                                 low_memory=True)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=True,
+                         unique_dir=u_dir)
+        self.evaluate_trace_ranks(scorer=scorer, u_dict=unique_dict, mode='real', mem='low')
+        rmtree(u_dir)
+
+    def test_trace_ranks_failure_no_rank(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_single_ft)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        with self.assertRaises(KeyError):
+            trace_ranks(None)
+
+    def test_trace_ranks_failure_no_scorer(self):
+        unique_dict = {'Inner1': {'group_scores': np.random.rand(6)}}
+        init_trace_ranks(scorer=None, a_dict=rank_dict, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        with self.assertRaises(AttributeError):
+            trace_ranks(1)
+
+    def test_trace_ranks_failure_no_a_dict(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_single_ft)}}
+        init_trace_ranks(scorer=scorer, a_dict=None, u_dict=unique_dict, low_memory=False,
+                         unique_dir=None)
+        with self.assertRaises(TypeError):
+            trace_ranks(1)
+
+    def test_trace_ranks_failure_no_u_dict(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=None, low_memory=False,
+                         unique_dir=None)
+        with self.assertRaises(TypeError):
+            trace_ranks(1)
+
+    def test_trace_ranks_failure_bad_low_memory(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': {'group_scores': scorer.score_group(pro_single_ft)}}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory='low_mem',
+                         unique_dir=None)
+        with self.assertRaises(ValueError):
+            trace_ranks(1)
+
+    def test_trace_ranks_failure_low_memory_no_unique_dir(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        unique_dict = {'Inner1': None}
+        init_trace_ranks(scorer=scorer, a_dict=rank_dict, u_dict=unique_dict, low_memory=True, unique_dir=None)
+        with self.assertRaises(ValueError):
+            trace_ranks(1)
 
 
 class TestTraceInit(TestCase):
