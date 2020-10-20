@@ -36,9 +36,11 @@ pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
 pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
 quad_protein_alpha = MultiPositionAlphabet(protein_alpha, size=4)
 pro_quad_alpha_size, _, pro_quad_map, pro_quad_rev = build_mapping(quad_protein_alpha)
-pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1))
+pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
+pro_single_to_pair_map = {}
 for char in pro_pair_map:
     pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
+    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
 pro_single_to_quad = {}
 for char in pro_quad_map:
     key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
@@ -84,6 +86,19 @@ pro_pair_ft_s2.characterize_alignment(num_aln=np.array([num_aln[1, :]]), single_
 pro_pair_ft_s3 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
 pro_pair_ft_s3.characterize_alignment(num_aln=np.array([num_aln[2, :]]), single_to_pair=pro_single_to_pair)
 
+protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                                      single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                      larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                      larger_reverse_mapping=pro_pair_rev,
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
+protein_mm_table.identify_matches_mismatches()
+
+protein_mm_table_large = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                                            single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                            larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                            larger_reverse_mapping=pro_quad_rev,
+                                            single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+protein_mm_table_large.identify_matches_mismatches()
 
 
 class TestTraceCheckFreqTable(TestCase):
@@ -697,7 +712,422 @@ class TestTraceLoadNumpyArray(TestCase):
     # def test_characterization_pool_pair_failure_no_unique_dir(self):
 
 # class TestTraceCharacterizationMMPool(TestCase):
-# class TestTraceTraceGroups(TestCase):
+
+
+class TestTraceTraceGroups(TestCase):
+
+    def setUp(self):
+        self.single_u_dict = {'Inner1': {'freq_table': pro_single_ft},
+                              'Inner2': {'freq_table': pro_single_ft_i2},
+                              'seq1': {'freq_table': pro_single_ft_s1},
+                              'seq2': {'freq_table': pro_single_ft_s2},
+                              'seq3': {'freq_table': pro_single_ft_s3}}
+        self.pair_u_dict = {'Inner1': {'freq_table': pro_pair_ft},
+                            'Inner2': {'freq_table': pro_pair_ft_i2},
+                            'seq1': {'freq_table': pro_pair_ft_s1},
+                            'seq2': {'freq_table': pro_pair_ft_s2},
+                            'seq3': {'freq_table': pro_pair_ft_s3}}
+        single_mm_decoy = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        single_mm_decoy.set_depth(1)
+        self.single_mm_dict = {'Inner1': {'match': deepcopy(single_mm_decoy),
+                                          'mismatch': deepcopy(single_mm_decoy)},
+                               'Inner2': {'match': deepcopy(single_mm_decoy),
+                                          'mismatch': deepcopy(single_mm_decoy)},
+                               'seq1': {'match': deepcopy(single_mm_decoy),
+                                        'mismatch': deepcopy(single_mm_decoy)},
+                               'seq2': {'match': deepcopy(single_mm_decoy),
+                                        'mismatch': deepcopy(single_mm_decoy)},
+                               'seq3': {'match': deepcopy(single_mm_decoy),
+                                        'mismatch': deepcopy(single_mm_decoy)}}
+        for pos in range(6):
+            for s1 in range(3):
+                for s2 in range(s1 + 1, 3):
+                    stat, curr_char = protein_mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
+                    self.single_mm_dict['Inner1'][stat]._increment_count(pos=pos, char=curr_char)
+                    if s1 >= 1 and s2 >= 2:
+                        self.single_mm_dict['Inner2'][stat]._increment_count(pos=pos, char=curr_char)
+        for node in self.single_mm_dict:
+            for status in self.single_mm_dict[node]:
+                if node == 'Inner1':
+                    self.single_mm_dict[node][status].set_depth(3)
+                self.single_mm_dict[node][status].finalize_table()
+        pair_mm_decoy = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        pair_mm_decoy.set_depth(1)
+        self.pair_mm_dict = {'Inner1': {'match': deepcopy(pair_mm_decoy),
+                                        'mismatch': deepcopy(pair_mm_decoy)},
+                             'Inner2': {'match': deepcopy(pair_mm_decoy),
+                                        'mismatch': deepcopy(pair_mm_decoy)},
+                             'seq1': {'match': deepcopy(pair_mm_decoy),
+                                      'mismatch': deepcopy(pair_mm_decoy)},
+                             'seq2': {'match': deepcopy(pair_mm_decoy),
+                                      'mismatch': deepcopy(pair_mm_decoy)},
+                             'seq3': {'match': deepcopy(pair_mm_decoy),
+                                      'mismatch': deepcopy(pair_mm_decoy)}}
+        for p1 in range(6):
+            for p2 in range(p1, 6):
+                for s1 in range(3):
+                    for s2 in range(s1 + 1, 3):
+                        stat, curr_char = protein_mm_table_large.get_status_and_character(pos=(p1, p2), seq_ind1=s1,
+                                                                                          seq_ind2=s2)
+                        self.pair_mm_dict['Inner1'][stat]._increment_count(pos=(p1, p2), char=curr_char)
+                        if s1 >= 1 and s2 >= 2:
+                            self.pair_mm_dict['Inner2'][stat]._increment_count(pos=(p1, p2), char=curr_char)
+        for node in self.pair_mm_dict:
+            for status in self.pair_mm_dict[node]:
+                if node == 'Inner1':
+                    self.pair_mm_dict[node][status].set_depth(3)
+                self.pair_mm_dict[node][status].finalize_table()
+
+    def evaluate_trace_groups_standard(self, scorer, u_dict, mem, u_dir, mm=False):
+        init_trace_groups(scorer=scorer, match_mismatch=mm, u_dict=u_dict,
+                          low_memory=(True if mem == 'low' else False), unique_dir=u_dir)
+        for node in u_dict:
+            curr_node_name, curr_scores = trace_groups(node_name=node)
+            self.assertEqual(curr_node_name, node)
+            if mem == 'low':
+                self.assertIsInstance(curr_scores, str)
+                self.assertTrue(os.path.isfile(curr_scores))
+                curr_scores = load_numpy_array(curr_scores, True)
+            else:
+                self.assertIsInstance(curr_scores, np.ndarray)
+            if mm:
+                curr_tables = {'match': load_freq_table(u_dict[node]['match'], mem == 'low'),
+                               'mismatch': load_freq_table(u_dict[node]['mismatch'], mem == 'low')}
+                self.assertFalse((curr_scores - scorer.score_group(curr_tables)).any())
+            else:
+                self.assertFalse((curr_scores - scorer.score_group(load_freq_table(u_dict[node]['freq_table'],
+                                                                                   mem == 'low'))).any())
+
+    def test_trace_groups_identity_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.single_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_identity_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_plain_entropy_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.single_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_plain_entropy_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_mi_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_u_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mi_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mutual_information')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_nmi_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_u_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_nmi_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='normalized_mutual_information')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_mip_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_u_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mip_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='average_product_corrected_mutual_information')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_fmip_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2,
+                                  metric='filtered_average_product_corrected_mutual_information')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_u_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_fmip_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2,
+                                  metric='filtered_average_product_corrected_mutual_information')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_u_dict, mem='high', u_dir=None)
+
+    def test_trace_groups_match_count_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_match_count_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mismatch_count_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mismatch_count_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_count')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_count_ratio_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_count_ratio_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_ratio')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_count_angle_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_count_angle_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_count_angle')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_match_entropy_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_match_entropy_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mismatch_entropy_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mismatch_entropy_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_entropy_ratio_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_entropy_ratio_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_ratio')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_entropy_angle_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_entropy_angle_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_entropy_angle')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_match_diversity_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_match_diversity_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mismatch_diversity_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mismatch_diversity_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='mismatch_diversity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_diversity_ratio_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_diversity_ratio_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_ratio')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_mm_diversity_angle_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_mm_diversity_angle_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_mismatch_diversity_angle')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_match_diversity_mismatch_entropy_ratio_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_match_diversity_mismatch_entropy_ratio_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_ratio')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_match_diversity_mismatch_entropy_angle_single(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        init_trace_groups(scorer=scorer, match_mismatch=True, u_dict=self.single_mm_dict, low_memory=False,
+                          unique_dir=None)
+        for node in self.single_mm_dict:
+            with self.assertRaises(ValueError):
+                trace_groups(node)
+
+    def test_trace_groups_match_diversity_mismatch_entropy_angle_pair(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_diversity_mismatch_entropy_angle')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=self.pair_mm_dict, mem='high', u_dir=None, mm=True)
+
+    def test_trace_groups_int_single_low_mem(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(test_dir)
+        new_u_dict = {}
+        for node in self.single_u_dict:
+            new_u_dict[node] = {'freq_table': save_freq_table(self.single_u_dict[node]['freq_table'], True, node,
+                                                              'single', test_dir)}
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=new_u_dict, mem='low', u_dir=test_dir)
+        rmtree(test_dir)
+
+    def test_trace_groups_int_pair_low_mem(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(test_dir)
+        new_u_dict = {}
+        for node in self.pair_u_dict:
+            new_u_dict[node] = {'freq_table': save_freq_table(self.pair_u_dict[node]['freq_table'], True, node,
+                                                              'pair', test_dir)}
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='identity')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=new_u_dict, mem='low', u_dir=test_dir)
+        rmtree(test_dir)
+
+    def test_trace_groups_real_single_low_mem(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(test_dir)
+        new_u_dict = {}
+        for node in self.single_u_dict:
+            new_u_dict[node] = {'freq_table': save_freq_table(self.single_u_dict[node]['freq_table'], True, node,
+                                                              'single', test_dir)}
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='plain_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=new_u_dict, mem='low', u_dir=test_dir)
+        rmtree(test_dir)
+
+    def test_trace_groups_real_pair_low_mem(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(test_dir)
+        new_u_dict = {}
+        for node in self.pair_u_dict:
+            new_u_dict[node] = {'freq_table': save_freq_table(self.pair_u_dict[node]['freq_table'], True, node,
+                                                              'pair', test_dir)}
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='plain_entropy')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=new_u_dict, mem='low', u_dir=test_dir)
+        rmtree(test_dir)
+
+    def test_trace_groups_match_mismatch_low_mem(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(test_dir)
+        new_u_dict = {}
+        for node in self.pair_mm_dict:
+            new_u_dict[node] = {'match': save_freq_table(self.pair_mm_dict[node]['match'], True, node, 'pair_match',
+                                                         test_dir),
+                                'mismatch': save_freq_table(self.pair_mm_dict[node]['mismatch'], True, node,
+                                                            'pair_mismatch', test_dir)}
+        scorer = PositionalScorer(seq_length=6, pos_size=2, metric='match_count')
+        self.evaluate_trace_groups_standard(scorer=scorer, u_dict=new_u_dict, mem='low', u_dir=test_dir, mm=True)
+        rmtree(test_dir)
+
+    def test_trace_groups_failure_no_node_name(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        with self.assertRaises(KeyError):
+            trace_groups(None)
+
+    def test_trace_groups_failure_no_scorer(self):
+        init_trace_groups(scorer=None, match_mismatch=False, u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        with self.assertRaises(AttributeError):
+            trace_groups('Inner1')
+
+    def test_trace_groups_failure_bad_match_mismatch(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_groups(scorer=scorer, match_mismatch='no', u_dict=self.single_u_dict, low_memory=False,
+                          unique_dir=None)
+        with self.assertRaises(KeyError):
+            trace_groups('Inner1')
+
+    def test_trace_groups_failure_no_u_dict(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=None, low_memory=False, unique_dir=None)
+        with self.assertRaises(TypeError):
+            trace_groups('Inner1')
+
+    def test_trace_groups_failure_bad_low_mem(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory='High',
+                          unique_dir=None)
+        with self.assertRaises(ValueError):
+            trace_groups('Inner1')
+
+    def test_trace_groups_failure_low_mem_no_u_dir(self):
+        scorer = PositionalScorer(seq_length=6, pos_size=1, metric='identity')
+        init_trace_groups(scorer=scorer, match_mismatch=False, u_dict=self.single_u_dict, low_memory=True,
+                          unique_dir=None)
+        with self.assertRaises(ValueError):
+            trace_groups('Inner1')
 
 
 class TestTraceTraceRanks(TestCase):
@@ -722,6 +1152,7 @@ class TestTraceTraceRanks(TestCase):
             self.assertEqual(curr_rank, r)
             if mem == 'low':
                 self.assertIsInstance(curr_ranks, str)
+                self.assertTrue(os.path.isfile(curr_ranks))
                 curr_ranks = load_numpy_array(curr_ranks, True)
             else:
                 self.assertIsInstance(curr_ranks, np.ndarray)

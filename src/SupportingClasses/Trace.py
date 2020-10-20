@@ -1153,8 +1153,7 @@ def characterization_mm(node_name, node_type):
 #                     char_dict[node][status][char] += 1
 #     return pos, char_dict
 
-
-def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dict, low_memory, unique_dir):
+def init_trace_groups(scorer, match_mismatch, u_dict, low_memory, unique_dir):
     """
     Init Trace Pool
 
@@ -1163,8 +1162,6 @@ def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dic
 
     Args:
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
         match_mismatch (bool): Whether or not characterization was of the match_mismatch type (comparison of all
         possible transitions for a given position/pair, or considering each position/pair only once for each sequence
         present).
@@ -1173,10 +1170,8 @@ def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dic
         resources.
         unique_dir (str/path): The directory where group score vectors/matrices can be written.
     """
-    global pos_scorer, single, pair, mm_analysis, unique_nodes, low_mem, u_dir
+    global pos_scorer, mm_analysis, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    single = pos_specific
-    pair = pair_specific
     mm_analysis = match_mismatch
     unique_nodes = u_dict
     low_mem = low_memory
@@ -1201,49 +1196,118 @@ def trace_groups(node_name):
         dict: The single and pair position group scores which will be added to unique_nodes under the name of the node
         which has been scored.
     """
+    pos_type = 'single' if pos_scorer.position_size == 1 else 'pair'
     # Check whether the group score has already been saved to file.
-    single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
-                                                score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
-    pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='pair',
-                                            score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
+    arr_check, arr_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type=pos_type,
+                                          score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
     # If the file(s) were found set the return values for this node.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        single_group_score = single_fn if single else None
-        pair_group_score = pair_fn if pair else None
+    if low_mem and arr_check:
+        group_score = arr_fn
     else:
         # Using the provided scorer and the characterization for the node found in unique nodes, compute the
         # group score
-        if single:
-            if mm_analysis:
-                single_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
-                                                              low_memory=low_mem),
-                                     'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
-                                                                 low_memory=low_mem)}
-            else:
-                single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
-            single_group_score = pos_scorer.score_group(single_freq_table)
-            single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
-                                                  node_name=node_name, pos_type='single',
-                                                  metric=pos_scorer.metric, score_type='group')
+        if mm_analysis:
+            freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'], low_memory=low_mem),
+                          'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+                                                      low_memory=low_mem)}
         else:
-            single_group_score = None
-        if pair:
-            if mm_analysis:
-                pair_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
-                                                            low_memory=low_mem),
-                                   'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
-                                                               low_memory=low_mem)}
-            else:
-                pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
-            pair_group_score = pos_scorer.score_group(pair_freq_table)
-            pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
-                                                node_name=node_name, pos_type='pair',
-                                                metric=pos_scorer.metric, score_type='group')
-        else:
-            pair_group_score = None
-    # Store the group scores so they can be retrieved when the pool completes processing
-    components = {'single_scores': single_group_score, 'pair_scores': pair_group_score}
-    return node_name, components
+            freq_table = load_freq_table(freq_table=unique_nodes[node_name]['freq_table'], low_memory=low_mem)
+        group_score = pos_scorer.score_group(freq_table)
+        group_score = save_numpy_array(mat=group_score, out_dir=u_dir, low_memory=low_mem, node_name=node_name,
+                                       pos_type=pos_type, metric=pos_scorer.metric, score_type='group')
+    return node_name, group_score
+
+
+# def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dict, low_memory, unique_dir):
+#     """
+#     Init Trace Pool
+#
+#     This function initializes a pool of workers with shared resources so that they can quickly perform the group level
+#     scoring for the trace algorithm.
+#
+#     Args:
+#         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
+#         pos_specific (bool): Whether or not to characterize single positions.
+#         pair_specific (bool): Whether or not to characterize pairs of positions.
+#         match_mismatch (bool): Whether or not characterization was of the match_mismatch type (comparison of all
+#         possible transitions for a given position/pair, or considering each position/pair only once for each sequence
+#         present).
+#         u_dict (dict): A dictionary containing the node characterizations.
+#         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
+#         resources.
+#         unique_dir (str/path): The directory where group score vectors/matrices can be written.
+#     """
+#     global pos_scorer, single, pair, mm_analysis, unique_nodes, low_mem, u_dir
+#     pos_scorer = scorer
+#     single = pos_specific
+#     pair = pair_specific
+#     mm_analysis = match_mismatch
+#     unique_nodes = u_dict
+#     low_mem = low_memory
+#     u_dir = unique_dir
+#
+#
+# def trace_groups(node_name):
+#     """
+#     Trace Groups
+#
+#     A function which performs the group scoring part of the trace algorithm. It depends on the init_trace_groups
+#     function to set up the necessary shared resources. For each node name provided a group score is computed based on
+#     he FrequencyTable stored in unique_nodes for that node name. This can be performed for any node previously
+#     characterized and stored in unique_nodes.
+#
+#     Args:
+#         node_name (str): The node whose group score to calculate from the characterization in the unique_nodes dict
+#         made available by init_trace_groups.
+#     Returns:
+#         str: The name of the node which has been scored, returned so that the proper position can be updated in
+#         unique_nodes.
+#         dict: The single and pair position group scores which will be added to unique_nodes under the name of the node
+#         which has been scored.
+#     """
+#     # Check whether the group score has already been saved to file.
+#     single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
+#                                                 score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
+#     pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='pair',
+#                                             score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
+#     # If the file(s) were found set the return values for this node.
+#     if low_mem and (single_check >= single) and (pair_check >= pair):
+#         single_group_score = single_fn if single else None
+#         pair_group_score = pair_fn if pair else None
+#     else:
+#         # Using the provided scorer and the characterization for the node found in unique nodes, compute the
+#         # group score
+#         if single:
+#             if mm_analysis:
+#                 single_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
+#                                                               low_memory=low_mem),
+#                                      'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+#                                                                  low_memory=low_mem)}
+#             else:
+#                 single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
+#             single_group_score = pos_scorer.score_group(single_freq_table)
+#             single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
+#                                                   node_name=node_name, pos_type='single',
+#                                                   metric=pos_scorer.metric, score_type='group')
+#         else:
+#             single_group_score = None
+#         if pair:
+#             if mm_analysis:
+#                 pair_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
+#                                                             low_memory=low_mem),
+#                                    'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+#                                                                low_memory=low_mem)}
+#             else:
+#                 pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
+#             pair_group_score = pos_scorer.score_group(pair_freq_table)
+#             pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
+#                                                 node_name=node_name, pos_type='pair',
+#                                                 metric=pos_scorer.metric, score_type='group')
+#         else:
+#             pair_group_score = None
+#     # Store the group scores so they can be retrieved when the pool completes processing
+#     components = {'single_scores': single_group_score, 'pair_scores': pair_group_score}
+#     return node_name, components
 
 
 def init_trace_ranks(scorer, a_dict, u_dict, low_memory, unique_dir):
