@@ -473,243 +473,606 @@ class TestTraceLoadNumpyArray(TestCase):
             load_numpy_array(mat=None, low_memory=False)
 
 
-# class TestTraceCharacterizationPool(TestCase):
-#
-#     # init_characterization_pool must be tested by proxy for now, I am not sure how to test the global variables, and
-#     # testing variable assignment is not essential.
-#
-#     def test_characterization_pool_single_low_memory_single_process(self):
-#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
-#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
-#         pool_manager = Manager()
-#         freq_tables = pool_manager.dict()
-#         tables_lock = Lock()
-#         u_dir = os.path.join(os.getcwd(), 'char_test')
-#         os.mkdir(u_dir)
-#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
-#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
-#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
-#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
-#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=1)
-#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
-#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
-#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
-#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
-#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
-#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
-#         rmtree(u_dir)
-#
-#     def test_characterization_pool_single_low_memory_multi_process(self):
-#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
-#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
-#         pool_manager = Manager()
-#         freq_tables = pool_manager.dict()
-#         tables_lock = Lock()
-#         u_dir = os.path.join(os.getcwd(), 'char_test')
-#         os.mkdir(u_dir)
-#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
-#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
-#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
-#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
-#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=2)
-#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
-#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
-#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
-#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
-#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
-#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
-#         rmtree(u_dir)
-#
-#     def test_characterization_pool_single_not_low_memory_single_process(self):
-#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
-#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
-#         pool_manager = Manager()
-#         freq_tables = pool_manager.dict()
-#         tables_lock = Lock()
-#         u_dir = os.path.join(os.getcwd(), 'char_test')
-#         os.mkdir(u_dir)
-#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
-#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
-#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
-#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
-#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
-#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=1)
-#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded1 = freq_tables[node_name]['single']
-#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
-#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
-#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
-#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded2 = freq_tables[node_name]['single']
-#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
-#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
-#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
-#         rmtree(u_dir)
-#
-#     def test_characterization_pool_single_not_low_memory_multi_process(self):
-#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
-#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
-#         pool_manager = Manager()
-#         freq_tables = pool_manager.dict()
-#         tables_lock = Lock()
-#         u_dir = os.path.join(os.getcwd(), 'char_test')
-#         os.mkdir(u_dir)
-#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
-#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
-#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
-#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
-#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
-#                                    write_out_sub_aln=False, write_out_freq_table=False, processes=2)
-#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded1 = freq_tables[node_name]['single']
-#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
-#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
-#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
-#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], FrequencyTable)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded2 = freq_tables[node_name]['single']
-#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
-#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
-#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
-#         rmtree(u_dir)
-#
-#     def test_characterization_pool_single_write_out(self):
-#         components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
-#                       'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
-#         pool_manager = Manager()
-#         freq_tables = pool_manager.dict()
-#         tables_lock = Lock()
-#         u_dir = os.path.join(os.getcwd(), 'char_test')
-#         os.mkdir(u_dir)
-#         init_characterization_pool(single_size=protein_alpha_size, single_mapping=protein_map,
-#                                    single_reverse=protein_rev, pair_size=None, pair_mapping=None,
-#                                    pair_reverse=None, single_to_pair=None, alignment=aln, pos_specific=True,
-#                                    pair_specific=False, components=components, sharable_dict=freq_tables,
-#                                    sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-#                                    write_out_sub_aln=True, write_out_freq_table=True, processes=1)
-#         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded1 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
-#             self.assertEqual(loaded1.get_depth(), expected1.get_depth())
-#             self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
-#
-#             expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
-#             self.assertTrue(os.path.isfile(expected_path1a))
-#             expected_path1b = os.path.join(u_dir, f'{node_name}_position_freq_table.tsv')
-#             self.assertTrue(os.path.isfile(expected_path1a))
-#         for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
-#             characterization(node_name=node_name, node_type='component')
-#             self.assertTrue(node_name in freq_tables)
-#             self.assertTrue('single' in freq_tables[node_name])
-#             self.assertIsInstance(freq_tables[node_name]['single'], str)
-#             self.assertTrue('pair' in freq_tables[node_name])
-#             self.assertIsNone(freq_tables[node_name]['pair'])
-#             loaded2 = load_freq_table(freq_tables[node_name]['single'], True)
-#             expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-#             expected2.characterize_alignment(num_aln=num_aln[inds, :])
-#             self.assertEqual(loaded2.get_depth(), expected2.get_depth())
-#             self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
-#         rmtree(u_dir)
-    # def test_characterization_pool_single_failure_no_node_name(self):
-    # def test_characterization_pool_single_failure_missing_node_name(self):
-    # def test_characterization_pool_single_failure_no_node_type(self):
-    # def test_characterization_pool_single_failure_unexpected_node_type(self):
-    # def test_characterization_pool_single_failure_no_single_alphabet(self):
-    # def test_characterization_pool_single_failure_no_alignment(self):
-    # def test_characterization_pool_single_failure_no_pos_specific(self):
-    # def test_characterization_pool_single_failure_no_components(self):
-    # def test_characterization_pool_single_failure_no_shareable_dict(self):
-    # def test_characterization_pool_single_failure_no_shareable_lock(self):
-    # def test_characterization_pool_single_failure_no_unique_dir(self):
-    # def test_characterization_pool_pair_low_memory_single_process(self):
-    # def test_characterization_pool_pair_low_memory_multi_process(self):
-    # def test_characterization_pool_pair_not_low_memory_single_process(self):
-    # def test_characterization_pool_pair_not_low_memory_multi_process(self):
-    # def test_characterization_pool_pair_write_out_aln(self):
-    # def test_characterization_pool_pair_write_out_freq_table(self):
-    # def test_characterization_pool_pair_failure_no_node_name(self):
-    # def test_characterization_pool_pair_failure_missing_node_name(self):
-    # def test_characterization_pool_pair_failure_no_node_type(self):
-    # def test_characterization_pool_pair_failure_unexpected_node_type(self):
-    # def test_characterization_pool_pair_failure_no_single_alphabet(self):
-    # def test_characterization_pool_pair_failure_no_alignment(self):
-    # def test_characterization_pool_pair_failure_no_pos_specific(self):
-    # def test_characterization_pool_pair_failure_no_components(self):
-    # def test_characterization_pool_pair_failure_no_shareable_dict(self):
-    # def test_characterization_pool_pair_failure_no_shareable_lock(self):
-    # def test_characterization_pool_pair_failure_no_unique_dir(self):
+class TestTraceCharacterizationPool(TestCase):
+
+    def test_characterization_pool_single_low_memory_single_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_pool(alpha_size=protein_alpha_size, alpha_mapping=protein_map, alpha_reverse=protein_rev,
+                                   single_to_pair=None, alignment=aln, pos_size=1, components=components,
+                                   sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                   low_memory=True, write_out_sub_aln=False, write_out_freq_table=False, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_pool_single_low_memory_multi_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_pool(alpha_size=protein_alpha_size, alpha_mapping=protein_map, alpha_reverse=protein_rev,
+                                   single_to_pair=None, alignment=aln, pos_size=1, components=components,
+                                   sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                   low_memory=True, write_out_sub_aln=False, write_out_freq_table=False, processes=2)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_pool_single_not_low_memory_single_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=protein_alpha_size, alpha_mapping=protein_map,
+                                   alpha_reverse=protein_rev, single_to_pair=None, alignment=aln, pos_size=1,
+                                   components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                   unique_dir=None, low_memory=False, write_out_sub_aln=False,
+                                   write_out_freq_table=False, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+
+    def test_characterization_pool_single_not_low_memory_multi_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=protein_alpha_size, alpha_mapping=protein_map,
+                                   alpha_reverse=protein_rev, single_to_pair=None, alignment=aln, pos_size=1,
+                                   components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                   unique_dir=None, low_memory=False, write_out_sub_aln=False,
+                                   write_out_freq_table=False, processes=2)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+
+    def test_characterization_pool_single_write_out(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=protein_alpha_size, alpha_mapping=protein_map,
+                                   alpha_reverse=protein_rev, single_to_pair=None, alignment=aln, pos_size=1,
+                                   components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                   unique_dir=u_dir, low_memory=False, write_out_sub_aln=True,
+                                   write_out_freq_table=True, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+
+            expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(u_dir, f'{node_name}_single_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+            expected_path2a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(u_dir, f'{node_name}_single_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+        rmtree(u_dir)
+
+    def test_characterization_pool_pair_low_memory_single_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_pool_pair_low_memory_multi_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=2)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(freq_tables[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_pool_pair_not_low_memory_single_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+
+    def test_characterization_pool_pair_not_low_memory_multi_process(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=2)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+
+    def test_characterization_pool_pair_write_out(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded1 = freq_tables[node_name]['freq_table']
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+            expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(u_dir, f'{node_name}_pair_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('freq_table' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['freq_table'], FrequencyTable)
+            loaded2 = freq_tables[node_name]['freq_table']
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+            expected_path2a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(u_dir, f'{node_name}_pair_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_node_name(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(KeyError):
+            characterization(node_name=None, node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_missing_node_name(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(KeyError):
+            characterization(node_name='seq4', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_node_type(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(ValueError):
+            characterization(node_name='seq1', node_type=None)
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_unexpected_node_type(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(ValueError):
+            characterization(node_name='seq1', node_type='root')
+        rmtree(u_dir)
+
+    # Missing (i.e. None) alphabet size, mapping, reverse mapping, and single to pair mapping will all succeed because
+    # the characterize_positions and characterize_positions2 methods in SeqAlignment which are called by this method
+    # will generate those if missing from the provided alignment.
+
+    def test_characterization_pool_failure_no_alignment(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=None,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(AttributeError):
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_pos_size(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        with self.assertRaises(ValueError):
+            init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                       alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                       pos_size=None, components=components, sharable_dict=freq_tables,
+                                       sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                       write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_bad_pos_size(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        with self.assertRaises(ValueError):
+            init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                       alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                       pos_size=3, components=components, sharable_dict=freq_tables,
+                                       sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                       write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_components(self):
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=None, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(TypeError):
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_shareable_dict(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=None,
+                                   sharable_lock=tables_lock, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(TypeError):
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_no_shareable_lock(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=None, unique_dir=u_dir, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(AttributeError):
+            characterization(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_pool_failure_bad_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory='low',
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(ValueError):
+            characterization(node_name='seq1', node_type='component')
+
+    def test_characterization_pool_failure_low_memory_no_unique_dir(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=True,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
+        with self.assertRaises(ValueError):
+            characterization(node_name='seq1', node_type='component')
+
+    def test_characterization_pool_failure_no_processes(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=None)
+        with self.assertRaises(TypeError):
+            characterization(node_name='seq1', node_type='component')
+
+    def test_characterization_pool_failure_write_out_no_u_dir(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=None)
+        with self.assertRaises(TypeError):
+            characterization(node_name='seq1', node_type='component')
 
 # class TestTraceCharacterizationMMPool(TestCase):
 

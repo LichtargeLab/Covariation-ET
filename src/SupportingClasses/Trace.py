@@ -717,10 +717,9 @@ def load_numpy_array(mat, low_memory):
     return mat
 
 
-def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                               single_to_pair, alignment, pos_specific, pair_specific, components, sharable_dict,
-                               sharable_lock, unique_dir, low_memory, write_out_sub_aln, write_out_freq_table,
-                               processes):
+def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, alignment, pos_size,
+                               components, sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
+                               write_out_freq_table, processes):
     """
     Init Characterization Pool
 
@@ -728,20 +727,16 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
     alignments for each node in the phylogenetic tree.
 
     Args:
-        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
-        gap character).
-        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
-        pair_size (int): The size of the paired letter alphabet for the alignment being characterized (including the
-        gap character).
-        pair_mapping (dict): A dictionary mapping the paired letter alphabet to numerical positions.
-        pair_reverse (np.array): An array mapping numerical positions back to the paired letter alphabet.
+        alpha_size (int): The size of the alphabet needed for the alignment and position size being characterized
+        (including the gap character).
+        alpha_mapping (dict): A dictionary mapping the letters of the alphabet to numerical positions.
+        alpha_reverse (np.array): An array mapping numerical positions back to the letter alphabet of the alphabet.
         single_to_pair (np.array): A two dimensional array mapping single letter numeric positions to paired letter
-        numeric positions.
+        numeric positions. Only needed for pairs of positions.
         alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
         sub alignments for the terminal nodes in the tree.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
+        pos_size (int): The size of the the positions being analyzed (expecting 1 single position scores or 2 pair
+        position scores).
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
@@ -753,18 +748,32 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
         processes (int): The number of processes being used by the initialized pool.
     """
-    global s_size, s_map, s_rev, p_size, p_map, p_rev, s_to_p, aln, single, pair, comps, freq_tables, freq_lock,\
-        freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, cpu_count, sleep_time
-    s_size = single_size
-    s_map = single_mapping
-    s_rev = single_reverse
-    p_size = pair_size
-    p_map = pair_mapping
-    p_rev = pair_reverse
+    global s_to_p, aln, comps, freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table,\
+        cpu_count, sleep_time, table_type, single, pair, s_size, s_map, s_rev, p_size, p_map, p_rev
     s_to_p = single_to_pair
     aln = alignment
-    single = pos_specific
-    pair = pair_specific
+    if pos_size == 1:
+        table_type = 'single'
+        single = True
+        pair = False
+        s_size = alpha_size
+        s_map = alpha_mapping
+        s_rev = alpha_reverse
+        p_size = None
+        p_map = None
+        p_rev = None
+    elif pos_size == 2:
+        table_type = 'pair'
+        single = False
+        pair = True
+        s_size = None
+        s_map = None
+        s_rev = None
+        p_size = alpha_size
+        p_map = alpha_mapping
+        p_rev = alpha_reverse
+    else:
+        raise ValueError('pos_size must be defined as 1 or 2.')
     comps = components
     freq_tables = sharable_dict
     freq_lock = sharable_lock
@@ -810,14 +819,11 @@ def characterization(node_name, node_type):
     # Since sleep_time may be updated this function must declare that it is referencing the global variable sleep_time
     global sleep_time
     # Check whether the alignment characterization has already been saved to file.
-    single_check, single_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='single',
-                                               out_dir=u_dir)
-    pair_check, pair_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='pair',
-                                           out_dir=u_dir)
-    # If the file(s) were found set the return values for this sub-alignment.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        pos_table = single_fn if single else None
-        pair_table = pair_fn if pair else None
+    ft_check, ft_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type=table_type,
+                                       out_dir=u_dir)
+    # If the file was found set the return values for this sub-alignment.
+    if low_mem and ft_check:
+        freq_table = ft_fn
     else:  # Check what kind of node is being processed
         # Generate the sub alignment for the current node.
         sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
@@ -838,6 +844,12 @@ def characterization(node_name, node_type):
                     single=single, pair=pair, single_letter_size=s_size, single_letter_mapping=s_map,
                     single_letter_reverse=s_rev, pair_letter_size=p_size, pair_letter_mapping=p_map,
                     pair_letter_reverse=p_rev, single_to_pair=s_to_p)
+            if table_type == 'single':
+                freq_table = pos_table
+            elif table_type == 'pair':
+                freq_table = pair_table
+            else:
+                raise ValueError('Unknown table type encountered in characterization!')
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
@@ -863,37 +875,24 @@ def characterization(node_name, node_type):
                 except KeyError:
                     descendants.add(descendant)
                     sleep(sleep_time)
-            pos_table = None
-            pair_table = None
+            freq_table = None
             # Merge the descendants' FrequencyTable(s) to generate the one for this node.
             for i in range(len(components)):
-                if single:
-                    curr_pos_table = load_freq_table(components[i]['single'], low_memory=low_mem)
-                    if pos_table is None:
-                        pos_table = curr_pos_table
-                    else:
-                        pos_table += curr_pos_table
-                if pair:
-                    curr_pair_table = load_freq_table(components[i]['pair'], low_memory=low_mem)
-                    if pair_table is None:
-                        pair_table = curr_pair_table
-                    else:
-                        pair_table += curr_pair_table
+                curr_freq_table = load_freq_table(components[i]['freq_table'], low_memory=low_mem)
+                if freq_table is None:
+                    freq_table = curr_freq_table
+                else:
+                    freq_table += curr_freq_table
         else:
             raise ValueError("node_type must be either 'component' or 'inner'.")
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
-        if single:
-            if write_freq_table:
-                pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node_name)))
-            pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
-                                        node_name=node_name, table_type='single'.format(node_name), out_dir=u_dir)
-        if pair:
-            if write_freq_table:
-                pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node_name)))
-            pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
-                                         node_name=node_name, table_type='pair'.format(node_name), out_dir=u_dir)
+        if write_freq_table:
+
+            freq_table.to_csv(os.path.join(u_dir, f'{node_name}_{table_type}_freq_table.tsv'))
+        freq_table = save_freq_table(freq_table=freq_table, low_memory=low_mem, node_name=node_name,
+                                     table_type=table_type, out_dir=u_dir)
     # Store the current nodes characterization in the shared dictionary.
-    tables = {'single': pos_table, 'pair': pair_table}
+    tables = {'freq_table': freq_table}
     freq_lock.acquire()
     freq_tables[node_name] = tables
     freq_lock.release()
