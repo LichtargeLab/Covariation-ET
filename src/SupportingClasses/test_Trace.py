@@ -1070,11 +1070,636 @@ class TestTraceCharacterizationPool(TestCase):
                                    alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
                                    pos_size=2, components=components, sharable_dict=freq_tables,
                                    sharable_lock=tables_lock, unique_dir=None, low_memory=False,
-                                   write_out_sub_aln=True, write_out_freq_table=True, processes=None)
+                                   write_out_sub_aln=True, write_out_freq_table=True, processes=1)
         with self.assertRaises(TypeError):
             characterization(node_name='seq1', node_type='component')
 
-# class TestTraceCharacterizationMMPool(TestCase):
+
+class TestTraceCharacterizationMMPool(TestCase):
+
+    def setUp(self):
+        self.expected_single_tables = {'Inner1': {'match': FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1),
+                                                  'mismatch': FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)},
+                                       'Inner2': {'match': FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1),
+                                                  'mismatch': FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)}}
+        self.expected_pair_tables = {'Inner1': {'match': FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2),
+                                                'mismatch': FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)},
+                                     'Inner2': {'match': FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2),
+                                                'mismatch': FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)}}
+        for node in self.expected_single_tables:
+            if node == 'Inner1':
+                expected_depth = 3
+            else:
+                expected_depth = 1
+            for stat in self.expected_single_tables[node]:
+                self.expected_single_tables[node][stat].set_depth(expected_depth)
+                self.expected_pair_tables[node][stat].set_depth(expected_depth)
+        for s1 in range(3):
+            for s2 in range(s1 + 1, 3):
+                for pos1 in range(6):
+                    single_stat, single_char = protein_mm_table.get_status_and_character(pos=pos1, seq_ind1=s1,
+                                                                                         seq_ind2=s2)
+                    if single_stat == 'match':
+                        self.expected_single_tables['Inner1']['match']._increment_count(pos=pos1, char=single_char)
+                        if s1 > 0 and s2 > 0:
+                            self.expected_single_tables['Inner2']['match']._increment_count(pos=pos1, char=single_char)
+                    else:
+                        self.expected_single_tables['Inner1']['mismatch']._increment_count(pos=pos1, char=single_char)
+                        if s1 > 0 and s2 > 0:
+                            self.expected_single_tables['Inner2']['mismatch']._increment_count(pos=pos1,
+                                                                                               char=single_char)
+                    for pos2 in range(pos1, 6):
+                        pair_stat, pair_char = protein_mm_table_large.get_status_and_character(pos=(pos1, pos2),
+                                                                                               seq_ind1=s1, seq_ind2=s2)
+                        if pair_stat == 'match':
+                            self.expected_pair_tables['Inner1']['match']._increment_count(pos=(pos1, pos2),
+                                                                                          char=pair_char)
+                            if s1 > 0 and s2 > 0:
+                                self.expected_pair_tables['Inner2']['match']._increment_count(pos=(pos1, pos2),
+                                                                                              char=pair_char)
+                        else:
+                            self.expected_pair_tables['Inner1']['mismatch']._increment_count(pos=(pos1, pos2),
+                                                                                             char=pair_char)
+                            if s1 > 0 and s2 > 0:
+                                self.expected_pair_tables['Inner2']['mismatch']._increment_count(pos=(pos1, pos2),
+                                                                                                 char=pair_char)
+        for node in self.expected_single_tables:
+            for stat in self.expected_single_tables[node]:
+                self.expected_single_tables[node][stat].finalize_table()
+                self.expected_pair_tables[node][stat].finalize_table()
+
+    def test_characterization_mm_pool_single_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                      larger_reverse=pro_pair_rev, match_mismatch_table=protein_mm_table,
+                                      alignment=aln, position_size=1, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded1a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded2a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), self.expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              self.expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), self.expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_single_not_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                      larger_reverse=pro_pair_rev, match_mismatch_table=protein_mm_table,
+                                      alignment=aln, position_size=1, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                      write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], FrequencyTable)
+            loaded1a = freq_tables[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], FrequencyTable)
+            loaded1b = freq_tables[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], FrequencyTable)
+            loaded2a = freq_tables[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), self.expected_single_tables[node_name]['match'].get_depth())
+            for pos in range(6):
+                self.assertFalse((loaded2a.get_count_matrix() -
+                                  self.expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], FrequencyTable)
+            loaded2b = freq_tables[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), self.expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+
+    def test_characterization_mm_pool_single_write_out(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                      larger_reverse=pro_pair_rev, match_mismatch_table=protein_mm_table,
+                                      alignment=aln, position_size=1, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded1a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+            expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(u_dir, f'{node_name}_single_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            expected_path1c = os.path.join(u_dir, f'{node_name}_single_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1c))
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded2a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), self.expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              self.expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), self.expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+            expected_path2a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(u_dir, f'{node_name}_single_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            expected_path2c = os.path.join(u_dir, f'{node_name}_single_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2c))
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_pair_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded1a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded2a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), self.expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              self.expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), self.expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_pair_not_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                      write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], FrequencyTable)
+            loaded1a = freq_tables[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], FrequencyTable)
+            loaded1b = freq_tables[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], FrequencyTable)
+            loaded2a = freq_tables[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), self.expected_pair_tables[node_name]['match'].get_depth())
+            for pos in range(6):
+                self.assertFalse((loaded2a.get_count_matrix() -
+                                  self.expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], FrequencyTable)
+            loaded2b = freq_tables[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), self.expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+
+    def test_characterization_mm_pool_pair_write_out(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            curr_node = characterization_mm(node_name=node_name, node_type='component')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded1a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+            expected_path1a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(u_dir, f'{node_name}_pair_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            expected_path1c = os.path.join(u_dir, f'{node_name}_pair_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1c))
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            curr_node = characterization_mm(node_name=node_name, node_type='inner')
+            self.assertEqual(curr_node, node_name)
+            self.assertTrue(node_name in freq_tables)
+            self.assertTrue('match' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['match'], str)
+            loaded2a = load_freq_table(freq_tables[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), self.expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              self.expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in freq_tables[node_name])
+            self.assertIsInstance(freq_tables[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(freq_tables[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), self.expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              self.expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+            expected_path2a = os.path.join(u_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(u_dir, f'{node_name}_pair_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            expected_path2c = os.path.join(u_dir, f'{node_name}_pair_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2c))
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_node_name(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name=None, node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_missing_node_name(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(KeyError):
+            characterization_mm(node_name='Seq4', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_node_type(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type=None)
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_unexpected_node_type(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='intermediate')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_larger_size(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=None, larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      match_mismatch_table=protein_mm_table_large, alignment=aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_larger_mapping(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=None, larger_reverse=pro_quad_rev,
+                                      match_mismatch_table=protein_mm_table_large, alignment=aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(AttributeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_larger_reverse(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map, larger_reverse=None,
+                                      match_mismatch_table=protein_mm_table_large, alignment=aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_match_mismatch_table(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        freq_tables['seq2'] = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                       reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2),
+                               'mismatch': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
+        freq_tables['seq3'] = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                       reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2),
+                               'mismatch': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=None, alignment=aln,
+                                      position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(AttributeError):
+            characterization_mm(node_name='Inner2', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_alignment(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=None, position_size=2, components=components, sharable_dict=freq_tables,
+                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
+                                      write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(AttributeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_pos_size(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        with self.assertRaises(ValueError):
+            init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                          larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                          alignment=aln, position_size=None, components=components,
+                                          sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                          low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_bad_pos_size(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        with self.assertRaises(ValueError):
+            init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                          larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                          alignment=aln, position_size=3, components=components,
+                                          sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                          low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_components(self):
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=None,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_shareable_dict(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components,
+                                      sharable_dict=None, sharable_lock=tables_lock, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_shareable_lock(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=None, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(AttributeError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_bad_low_memory(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
+                                      low_memory='low', write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='component')
+
+    def test_characterization_mm_pool_failure_low_memory_no_unique_dir(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='component')
+
+    def test_characterization_mm_pool_failure_write_out_no_u_dir(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
+                                      alignment=aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
+                                      low_memory=False, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
 
 
 class TestTraceTraceGroups(TestCase):

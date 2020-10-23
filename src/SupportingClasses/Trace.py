@@ -899,10 +899,9 @@ def characterization(node_name, node_type):
     return node_name
 
 
-def init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
-                                  larger_reverse, single_to_larger, match_mismatch_table, alignment,
-                                  position_size, position_type, table_type, components, sharable_dict, sharable_lock,
-                                  unique_dir, low_memory, write_out_sub_aln, write_out_freq_table):
+def init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, match_mismatch_table, alignment,
+                                  position_size, components, sharable_dict, sharable_lock, unique_dir, low_memory,
+                                  write_out_sub_aln, write_out_freq_table):
     """
     Init Characterization Match Mismatch Pool
 
@@ -910,26 +909,16 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     and mismatches of sub-alignments for each node in the phylogenetic tree.
 
     Args:
-        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
-        gap character).
-        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
         larger_size (int): The size of the pair, quad, or larger letter alphabet for the alignment being characterized
         (including the gap character).
         larger_mapping (dict): A dictionary mapping the pair, quad, or larger letter alphabet to numerical positions.
         larger_reverse (np.array): An array mapping numerical positions back to the larger letter alphabet.
-        single_to_larger (dict): A dictionary mapping single letter numeric positions to pair, quad, or larger letter
-        alphabet numeric positions.
         match_mismatch_table (MatchMismatchTable): A characterization of all the matches and mismatches of single
         positions in the full alignment being characterized, which can be used to check the match/mismatch status and
         character at a given position and pair of sequences.
         alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
         sub alignments for the terminal nodes in the tree.
         position_size (int): The size of the positions being considered (1 for single positions, 2 for pairs, etc.).
-        position_type (str): The type of position being considered ('position' for single positions, and 'pair' for
-        pairs of positions.
-        table_type (str): The type of table being generated and serialized; if specified ('single' for single positions
-        and 'pair' for pairs of positions).
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
@@ -940,20 +929,20 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
     """
-    global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, mm_table, aln, p_size, p_type, t_type, comps,\
-        freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time
-    s_size = single_size
-    s_map = single_mapping
-    s_rev = single_reverse
+    global l_size, l_map, l_rev, mm_table, aln, p_size, t_type, comps, freq_tables, freq_lock, freq_lock, u_dir,\
+        low_mem, write_sub_aln, write_freq_table, sleep_time
     l_size = larger_size
     l_map = larger_mapping
     l_rev = larger_reverse
-    s_to_l = single_to_larger
     mm_table = match_mismatch_table
     aln = alignment
     p_size = position_size
-    p_type = position_type
-    t_type = table_type
+    if p_size == 1:
+        t_type = 'single'
+    elif p_size == 2:
+        t_type = 'pair'
+    else:
+        raise ValueError('position_size must be 1 or 2 for charcterization_mm!')
     comps = components
     freq_tables = sharable_dict
     freq_lock = sharable_lock
@@ -1034,7 +1023,7 @@ def characterization_mm(node_name, node_type):
                         char_dict[status][char] += 1
                 for m in char_dict:
                     for char in char_dict[m]:
-                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
+                        tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
             for m in tables:
                 tables[m].finalize_table()
         elif node_type == 'inner':
@@ -1088,69 +1077,13 @@ def characterization_mm(node_name, node_type):
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
         for m in tables:
             if write_freq_table:
-                tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, m)))
+                tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, t_type, m)))
             tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
                                         table_type=t_type + '_' + m, out_dir=u_dir)
     freq_lock.acquire()
     freq_tables[node_name] = tables
     freq_lock.release()
     return node_name
-
-
-# def init_characterization_mm_pool(depth, node_sequences, match_mismatch_table, processes):
-#     """
-#     Init Characterization Pool
-#
-#     This function initializes a pool of workers with shared resources so that they can quickly characterize the
-#     positions for each node in the phylogenetic tree and each pair of sequences.
-#
-#     Args:
-#         depth (int): The number of sequences in the alignment being characterized.
-#         node_sequences (dict): The indices of each of the sequences from the overall alignment present in each specific
-#         node.
-#         match_mismatch_table (MatchMismatchTable): A table with the match and mismatch status of all pairs of sequences
-#         for all positions in the alignment.
-#         shareable_locks (dict): A dictionary full of multiprocessing.Lock objects to be used for synchronization of the
-#         characterization process over all positions and match/mismatch status.
-#         shareable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
-#         update FrequencyTables for every node depending on match/mismatch status, position, and character.
-#         processes (int): The number of processes being used by the initialized pool.
-#     """
-#     global aln_depth, node_seq_ind, mm_table, freq_lock, freq_tables, cpu_count
-#     aln_depth = depth
-#     node_seq_ind = node_sequences
-#     mm_table = match_mismatch_table
-#     cpu_count = processes
-#
-#
-# def characterization_mm(pos):
-#     """
-#     Characterization Match Mismatch
-#
-#     This function accepts a position and characterizes its matches and mismatches for all possible pairs of sequences
-#     over all nodes in the phylogenetic tree.
-#
-#     Args:
-#         pos (int/tuple): The alignment position to process, this will be used to check what the match/mismatch status
-#         of the alignment as well as the character at every pair of sequence comparisons using the MatchMismatchTable for
-#         the full alignment.
-#     Return:
-#         int/tuple: The position is returned to keep track of which position has been most recently processed (in the
-#         multiprocessing context).
-#     """
-#     print('CHARACTERIZATION MM: {}'.format(pos))
-#     char_dict = {}
-#     for seq1 in range(aln_depth):
-#         for seq2 in range(seq1 + 1, aln_depth):
-#             status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=seq1, seq_ind2=seq2)
-#             for node in node_seq_ind.keys():
-#                 if node not in char_dict:
-#                     char_dict[node] = {'match': {}, 'mismatch': {}}
-#                 if seq1 in node_seq_ind[node] and seq2 in node_seq_ind[node]:
-#                     if char not in char_dict[node][status]:
-#                         char_dict[node][status][char] = 0
-#                     char_dict[node][status][char] += 1
-#     return pos, char_dict
 
 def init_trace_groups(scorer, match_mismatch, u_dict, low_memory, unique_dir):
     """
