@@ -88,39 +88,30 @@ class Trace(object):
         self.final_ranks = None
         self.final_coverage = None
 
-    def characterize_rank_groups_standard(self, unique_dir, single_size, single_mapping, single_reverse, processes=1,
-                                          write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
+                                          single_to_pair=None, processes=1, write_out_sub_aln=True,
+                                          write_out_freq_table=True):
         """
         Characterize Rank Group
 
         This function iterates over the rank and group assignments and characterizes all positions for each sub
         alignment. Characterization consists of FrequencyTable objects which are added to the group_assignments
-        dictionary provided at initialization (single position FrequencyTables are added under the key 'single', while
-        FrequencyTables for pairs of positions are added under the key 'pair').
+        dictionary provided at initialization (FrequencyTables are added under the key 'freq_table').
 
         Args:
             unique_dir (str/path): The path to the directory where unique node data can be stored.
-            single_size (int): The size of the single letter alphabet being used.
-            single_mapping (dict): A dictionary from character to integer representation.
-            single_reverse (np.array): An array mapping from an integer (index) representation back to a single letter
-            character.
+            alpha_size (int): The size of the alphabet needed for the alignment and position size being characterized
+            (including the gap character).
+            alpha_mapping (dict): A dictionary mapping the letters of the alphabet to numerical positions.
+            alpha_reverse (np.array): An array mapping numerical positions back to the letter alphabet of the alphabet.
+            single_to_pair (np.array): A two dimensional array mapping single letter numeric positions to paired letter
+            numeric positions. Only needed for pairs of positions.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
         """
-        if self.pair_specific:
-            pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
-            pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
-            single_to_pair = np.zeros((max(single_mapping.values()) + 1, max(single_mapping.values()) + 1))
-            for char in pair_mapping:
-                single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
-        else:
-            pair_size = None
-            pair_mapping = None
-            pair_reverse = None
-            single_to_pair = None
         visited = {}
         components = False
         to_characterize = []
@@ -155,9 +146,8 @@ class Trace(object):
         frequency_tables = pool_manager.dict()
         tables_lock = Lock()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, visited,
-                              frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
+                    initargs=(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, self.aln, self.pos_size,
+                              visited, frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
                               write_out_freq_table, processes))
         for char_node in to_characterize:
             pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
@@ -165,6 +155,8 @@ class Trace(object):
         pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
+        if len(frequency_tables) != len(to_characterize):
+            raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
 
     # def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
@@ -1084,6 +1076,7 @@ def characterization_mm(node_name, node_type):
     freq_tables[node_name] = tables
     freq_lock.release()
     return node_name
+
 
 def init_trace_groups(scorer, match_mismatch, u_dict, low_memory, unique_dir):
     """
