@@ -435,7 +435,7 @@ class FrequencyTable(object):
             df = pd.DataFrame(out_dict)
             df.to_csv(file_path, sep='\t', columns=columns, header=True, index=False)
 
-    def load_csv(self, file_path):
+    def load_csv(self, file_path, intended_depth=None):
         """
         Load CSV
 
@@ -444,6 +444,9 @@ class FrequencyTable(object):
 
         Args:
             file_path (str): The path to the file written by to_csv from which the FrequencyTable data should be loaded.
+            intended_depth (int): The depth of the table being imported. This can be used for tables where the counts of
+            each position may not be equal (as in the match/mismatch tables which split observations at each position
+            across two tables). Not required for tables where observations for each position have a consistent count.
         """
         if isinstance(self.__position_table, csc_matrix):
             raise AttributeError('The table has already been finalized, loading data would overwrite the table.')
@@ -458,7 +461,7 @@ class FrequencyTable(object):
         max_depth = None
         with open(file_path, 'r') as file_handle:
             for line in file_handle:
-                elements = line.strip().split('\t')
+                elements = line.rstrip('\n').split('\t')
                 if header is None:
                     header = elements
                     indices = {col: i for i, col in enumerate(header)}
@@ -476,8 +479,8 @@ class FrequencyTable(object):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
                     position = self._convert_pos(pos=pos)
-                chars = elements[indices['Characters']].split(',')
-                counts = [int(x) for x in elements[indices['Counts']].split(',')]
+                chars = [] if elements[indices['Characters']] == '' else elements[indices['Characters']].split(',')
+                counts = [] if elements[indices['Counts']] == '' else [int(x) for x in elements[indices['Counts']].split(',')]
                 if len(chars) != len(counts):
                     raise ValueError('Frequency Table written to file incorrectly the length of Characters, Counts, and'
                                      ' Frequencies does not match for position: {}'.format(pos))
@@ -491,12 +494,20 @@ class FrequencyTable(object):
                     self.__position_table['i'].append(position)
                     self.__position_table['j'].append(char_pos)
                     curr_depth = np.sum(counts)
-                    if max_depth is None:
+                    if (max_depth is None) and (intended_depth is None):
                         max_depth = curr_depth
+                    if (max_depth is None) and (intended_depth is not None):
+                        pass
                     else:
                         if curr_depth != max_depth:
                             raise RuntimeError('Depth at position {} does not match the depth from previous positions '
                                                '{} vs {}'.format(pos, max_depth, curr_depth))
+        if (max_depth is None) and (intended_depth is None):
+            max_depth = 1
+        elif (max_depth is None) and (intended_depth is not None):
+            max_depth = intended_depth
+        else:
+            assert max_depth is not None
         self.finalize_table()
         self.__depth = max_depth
         end = time()
