@@ -1116,6 +1116,21 @@ class TestTraceCharacterizationPool(TestCase):
         with self.assertRaises(TypeError):
             characterization(node_name='seq1', node_type='component')
 
+    def test_characterization_pool_failure_max_iters_reached(self):
+        components = {'Inner1': rank_dict[1][1], 'Inner2': rank_dict[2][1],
+                      'seq1': rank_dict[3][3], 'seq2': rank_dict[3][2], 'seq3': rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        init_characterization_pool(alpha_size=pro_pair_alpha_size, alpha_mapping=pro_pair_map,
+                                   alpha_reverse=pro_pair_rev, single_to_pair=pro_single_to_pair, alignment=aln,
+                                   pos_size=2, components=components, sharable_dict=freq_tables,
+                                   sharable_lock=tables_lock, unique_dir=None, low_memory=False,
+                                   write_out_sub_aln=False, write_out_freq_table=False, processes=1,
+                                   maximum_iterations=10)
+        with self.assertRaises(TimeoutError):
+            characterization(node_name='Inner1', node_type='inner')
+
 
 class TestTraceCharacterizationMMPool(TestCase):
 
@@ -1691,6 +1706,8 @@ class TestTraceCharacterizationMMPool(TestCase):
                                       low_memory=False, write_out_sub_aln=True, write_out_freq_table=True)
         with self.assertRaises(TypeError):
             characterization_mm(node_name='seq1', node_type='component')
+
+    # Need to add a test for maximum_iterations
 
 
 class TestTraceTraceGroups(TestCase):
@@ -2763,6 +2780,18 @@ class TestTraceCharacterizeRankGroupStandard(TestCase):
                                                     write_out_freq_table=True)
         rmtree(expected_dir)
 
+    def test_characterize_rank_groups_standard_failure_max_iters_reached(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        with self.assertRaises(ValueError):
+            trace.characterize_rank_groups_standard(unique_dir=None, alpha_size=protein_alpha_size,
+                                                    alpha_mapping=protein_map, alpha_reverse=protein_rev,
+                                                    single_to_pair=None, processes=None, write_out_sub_aln=False,
+                                                    write_out_freq_table=False, maximum_iterations=10)
+        rmtree(expected_dir)
+
 
 class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
 
@@ -3215,7 +3244,631 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
                                                           write_out_freq_table=True)
         rmtree(expected_dir)
 
-# class TestTraceCharacterizeRankGroups(TestCase):
+    # Need to add a test for maximum_iterations
+
+
+class TestTraceCharacterizeRankGroups(TestCase):
+
+    def test_characterize_rank_groups_single(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_single_multi_process(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=2, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_single_low_mem(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=True)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(trace.unique_nodes[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(trace.unique_nodes[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_single_write_out(self):
+        starting_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(starting_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=starting_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=True, write_out_freq_table=True)
+        expected_dir = os.path.join(starting_dir, 'unique_node_data')
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]))
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+            expected_path1a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a), expected_path1a)
+            expected_path1b = os.path.join(expected_dir, f'{node_name}_single_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            loaded_1 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            loaded_1.load_csv(expected_path1b)
+            self.assertEqual(loaded_1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded_1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :])
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+            expected_path2a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(expected_dir, f'{node_name}_single_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            loaded_2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+            loaded_2.load_csv(expected_path2b)
+            self.assertEqual(loaded_2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded_2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(starting_dir)
+
+    def test_characterize_rank_groups_pair(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_pair_multi_process(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=2, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_pair_low_mem(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=True)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], str)
+            loaded1 = load_freq_table(trace.unique_nodes[node_name]['freq_table'], True)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], str)
+            loaded2 = load_freq_table(trace.unique_nodes[node_name]['freq_table'], True)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(loaded2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_pair_write_out(self):
+        starting_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(starting_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=False, output_dir=starting_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=True, write_out_freq_table=True)
+        expected_dir = os.path.join(starting_dir, 'unique_node_data')
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected1.characterize_alignment(num_aln=np.array([num_aln[ind, :]]), single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected1.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected1.get_count_matrix()).any())
+            expected_path1a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(expected_dir, f'{node_name}_pair_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            loaded_1 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            loaded_1.load_csv(expected_path1b)
+            self.assertEqual(loaded_1.get_depth(), expected1.get_depth())
+            self.assertFalse((loaded_1.get_count_matrix() - expected1.get_count_matrix()).any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('freq_table' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['freq_table'], FrequencyTable)
+            expected2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            expected2.characterize_alignment(num_aln=num_aln[inds, :], single_to_pair=pro_single_to_pair)
+            self.assertEqual(trace.unique_nodes[node_name]['freq_table'].get_depth(), expected2.get_depth())
+            self.assertFalse((trace.unique_nodes[node_name]['freq_table'].get_count_matrix() -
+                              expected2.get_count_matrix()).any())
+            expected_path2a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(expected_dir, f'{node_name}_pair_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            loaded_2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+            loaded_2.load_csv(expected_path2b)
+            self.assertEqual(loaded_2.get_depth(), expected2.get_depth())
+            self.assertFalse((loaded_2.get_count_matrix() - expected2.get_count_matrix()).any())
+        rmtree(starting_dir)
+
+    def test_characterize_rank_groups_mm_single(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_single_multi_process(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=2, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_single_low_mem(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=True)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], str)
+            loaded1a = load_freq_table(trace.unique_nodes[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(trace.unique_nodes[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], str)
+            loaded2a = load_freq_table(trace.unique_nodes[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(trace.unique_nodes[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_single_write_out(self):
+        starting_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(starting_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=True, output_dir=starting_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=True, write_out_freq_table=True)
+        expected_dir = os.path.join(starting_dir, 'unique_node_data')
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+            expected_path1a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(expected_dir, f'{node_name}_single_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            loaded_1a = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+            loaded_1a.load_csv(expected_path1b)
+            self.assertEqual(loaded_1a.get_depth(), 1)
+            self.assertFalse(loaded_1a.get_count_matrix().any())
+            expected_path1c = os.path.join(expected_dir, f'{node_name}_single_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1c))
+            loaded_1b = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+            loaded_1b.load_csv(expected_path1c)
+            self.assertEqual(loaded_1b.get_depth(), 1)
+            self.assertFalse(loaded_1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+            expected_path2a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(expected_dir, f'{node_name}_single_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            loaded_2a = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+            loaded_2a.load_csv(expected_path2b, expected_single_tables[node_name]['match'].get_depth())
+            self.assertEqual(loaded_2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded_2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            expected_path2c = os.path.join(expected_dir, f'{node_name}_single_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2c))
+            loaded_2b = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+            loaded_2b.load_csv(expected_path2c, expected_single_tables[node_name]['match'].get_depth())
+            self.assertEqual(loaded_2b.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded_2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(starting_dir)
+
+    def test_characterize_rank_groups_mm_pair(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_pair_multi_process(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=2, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_pair_low_mem(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=True)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], str)
+            loaded1a = load_freq_table(trace.unique_nodes[node_name]['match'], True)
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], str)
+            loaded1b = load_freq_table(trace.unique_nodes[node_name]['mismatch'], True)
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], str)
+            loaded2a = load_freq_table(trace.unique_nodes[node_name]['match'], True)
+            self.assertEqual(loaded2a.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], str)
+            loaded2b = load_freq_table(trace.unique_nodes[node_name]['mismatch'], True)
+            self.assertEqual(loaded2b.get_depth(), expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_pair_write_out(self):
+        starting_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(starting_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=2,
+                      match_mismatch=True, output_dir=starting_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=1, write_out_sub_aln=True, write_out_freq_table=True)
+        expected_dir = os.path.join(starting_dir, 'unique_node_data')
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+            expected_path1a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path1a))
+            expected_path1b = os.path.join(expected_dir, f'{node_name}_pair_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1b))
+            loaded_1a = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+            loaded_1a.load_csv(expected_path1b)
+            self.assertEqual(loaded_1a.get_depth(), 1)
+            self.assertFalse(loaded_1a.get_count_matrix().any())
+            expected_path1c = os.path.join(expected_dir, f'{node_name}_pair_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path1c))
+            loaded_1b = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+            loaded_1b.load_csv(expected_path1c)
+            self.assertEqual(loaded_1b.get_depth(), 1)
+            self.assertFalse(loaded_1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_pair_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+            expected_path2a = os.path.join(expected_dir, f'{node_name}.fa')
+            self.assertTrue(os.path.isfile(expected_path2a))
+            expected_path2b = os.path.join(expected_dir, f'{node_name}_pair_match_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2b))
+            loaded_2a = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+            loaded_2a.load_csv(expected_path2b, expected_pair_tables[node_name]['match'].get_depth())
+            self.assertEqual(loaded_2a.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded_2a.get_count_matrix() -
+                              expected_pair_tables[node_name]['match'].get_count_matrix()).any())
+            expected_path2c = os.path.join(expected_dir, f'{node_name}_pair_mismatch_freq_table.tsv')
+            self.assertTrue(os.path.isfile(expected_path2c))
+            loaded_2b = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+            loaded_2b.load_csv(expected_path2c, expected_pair_tables[node_name]['match'].get_depth())
+            self.assertEqual(loaded_2b.get_depth(), expected_pair_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded_2b.get_count_matrix() -
+                              expected_pair_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(starting_dir)
+
+    def test_characterize_rank_groups_failure_no_processes(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=False, output_dir=expected_dir, low_memory=False)
+        with self.assertRaises(ValueError):
+            trace.characterize_rank_groups(processes=None, maximum_iterations=10,
+                                           write_out_sub_aln=False, write_out_freq_table=False)
+        rmtree(expected_dir)
+
+    def test_characterize_rank_groups_mm_success_no_processes(self):
+        expected_dir = os.path.join(os.getcwd(), 'test_case')
+        os.makedirs(expected_dir)
+        trace = Trace(alignment=aln, phylo_tree=phylo_tree, group_assignments=rank_dict, pos_size=1,
+                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
+        trace.characterize_rank_groups(processes=None, write_out_sub_aln=False, write_out_freq_table=False)
+        for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded1a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded1a.get_depth(), 1)
+            self.assertFalse(loaded1a.get_count_matrix().any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded1b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded1b.get_depth(), 1)
+            self.assertFalse(loaded1b.get_count_matrix().any())
+        for inds, node_name in [([1, 2], 'Inner2'), ([0, 1, 2], 'Inner1')]:
+            self.assertTrue(node_name in trace.unique_nodes)
+            self.assertTrue('match' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['match'], FrequencyTable)
+            loaded2a = trace.unique_nodes[node_name]['match']
+            self.assertEqual(loaded2a.get_depth(), expected_single_tables[node_name]['match'].get_depth())
+            self.assertFalse((loaded2a.get_count_matrix() -
+                              expected_single_tables[node_name]['match'].get_count_matrix()).any())
+            self.assertTrue('mismatch' in trace.unique_nodes[node_name])
+            self.assertIsInstance(trace.unique_nodes[node_name]['mismatch'], FrequencyTable)
+            loaded2b = trace.unique_nodes[node_name]['mismatch']
+            self.assertEqual(loaded2b.get_depth(), expected_single_tables[node_name]['mismatch'].get_depth())
+            self.assertFalse((loaded2b.get_count_matrix() -
+                              expected_single_tables[node_name]['mismatch'].get_count_matrix()).any())
+        rmtree(expected_dir)
+
 # class TestTraceTrace(TestCase):
 
 # class TestTrace(TestBase):

@@ -90,7 +90,7 @@ class Trace(object):
 
     def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
                                           single_to_pair=None, processes=1, write_out_sub_aln=True,
-                                          write_out_freq_table=True):
+                                          write_out_freq_table=True, maximum_iterations=10000):
         """
         Characterize Rank Group
 
@@ -111,6 +111,7 @@ class Trace(object):
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
         """
         visited = {}
         components = False
@@ -148,7 +149,7 @@ class Trace(object):
         pool = Pool(processes=processes, initializer=init_characterization_pool,
                     initargs=(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, self.aln, self.pos_size,
                               visited, frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-                              write_out_freq_table, processes))
+                              write_out_freq_table, processes, maximum_iterations))
         for char_node in to_characterize:
             pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
         pool.close()
@@ -160,7 +161,8 @@ class Trace(object):
         self.unique_nodes = frequency_tables
 
     def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
-                                                processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+                                                processes=1, write_out_sub_aln=True, write_out_freq_table=True,
+                                                maximum_iterations=10000):
         """
         Characterize Rank Groups Match Mismatch
 
@@ -180,6 +182,7 @@ class Trace(object):
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
         """
         if self.pos_size == 1:
             pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
@@ -239,7 +242,7 @@ class Trace(object):
         pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
                     initargs=(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
                               self.pos_size, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
-                              write_out_sub_aln, write_out_freq_table))
+                              write_out_sub_aln, write_out_freq_table, maximum_iterations))
         for char_node in to_characterize:
             pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
         pool.close()
@@ -250,7 +253,8 @@ class Trace(object):
             raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
 
-    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups(self, processes=1, maximum_iterations=10000, write_out_sub_aln=True,
+                                 write_out_freq_table=True):
         """
         Characterize Rank Groups:
 
@@ -259,6 +263,7 @@ class Trace(object):
 
         Arguments:
             processes (int): The maximum number of sequences to use when performing this characterization.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
@@ -270,19 +275,30 @@ class Trace(object):
         single_alphabet = Gapped(self.aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
         if self.match_mismatch:
-            # self.characterize_rank_groups_match_mismatch(unique_dir=unique_dir, single_size=single_size,
-            #                                              single_mapping=single_mapping, single_reverse=single_reverse,
-            #                                              processes=processes, write_out_sub_aln=write_out_sub_aln,
-            #                                              write_out_freq_table=write_out_freq_table)
             self.characterize_rank_groups_match_mismatch(unique_dir=unique_dir, single_size=single_size,
                                                          single_mapping=single_mapping, single_reverse=single_reverse,
                                                          processes=processes, write_out_sub_aln=write_out_sub_aln,
-                                                         write_out_freq_table=write_out_freq_table)
+                                                         write_out_freq_table=write_out_freq_table,
+                                                         maximum_iterations=maximum_iterations)
         else:
-            self.characterize_rank_groups_standard(unique_dir=unique_dir, single_size=single_size,
-                                                   single_mapping=single_mapping, single_reverse=single_reverse,
-                                                   processes=processes, write_out_sub_aln=write_out_sub_aln,
-                                                   write_out_freq_table=write_out_freq_table)
+            if self.pos_size == 2:
+                pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
+                curr_size, _, curr_mapping, curr_reverse = build_mapping(alphabet=pair_alphabet)
+                curr_single_to_pair = pro_single_to_pair = np.zeros((max(single_mapping.values()) + 1,
+                                                                     max(single_mapping.values()) + 1), dtype=np.int)
+                for char in curr_mapping:
+                    pro_single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = curr_mapping[char]
+            else:
+                curr_size = single_size
+                curr_mapping = single_mapping
+                curr_reverse = single_reverse
+                curr_single_to_pair = None
+            self.characterize_rank_groups_standard(unique_dir=unique_dir, alpha_size=curr_size,
+                                                   alpha_mapping=curr_mapping, alpha_reverse=curr_reverse,
+                                                   single_to_pair=curr_single_to_pair, processes=processes,
+                                                   write_out_sub_aln=write_out_sub_aln,
+                                                   write_out_freq_table=write_out_freq_table,
+                                                   maximum_iterations=maximum_iterations)
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
@@ -588,7 +604,7 @@ def load_numpy_array(mat, low_memory):
 
 def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, alignment, pos_size,
                                components, sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
-                               write_out_freq_table, processes):
+                               write_out_freq_table, processes, maximum_iterations=10000):
     """
     Init Characterization Pool
 
@@ -616,9 +632,10 @@ def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
         processes (int): The number of processes being used by the initialized pool.
+        maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
     """
     global s_to_p, aln, comps, freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table,\
-        cpu_count, sleep_time, table_type, single, pair, s_size, s_map, s_rev, p_size, p_map, p_rev
+        cpu_count, sleep_time, table_type, single, pair, s_size, s_map, s_rev, p_size, p_map, p_rev, max_iters
     s_to_p = single_to_pair
     aln = alignment
     if pos_size == 1:
@@ -656,6 +673,7 @@ def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_
     # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
     # single node.
     sleep_time = 0.1
+    max_iters = maximum_iterations
 
 
 def characterization(node_name, node_type):
@@ -731,7 +749,7 @@ def characterization(node_name, node_type):
             # Since the node is non-terminal retrieve its descendants' characterizations and merge them to get the
             # parent characterization.
             descendants = set([d.name for d in comps[node_name]['descendants']])
-            # tries = 0
+            tries = {}
             components = []
             while len(descendants) > 0:
                 descendant = descendants.pop()
@@ -742,6 +760,12 @@ def characterization(node_name, node_type):
                     component = freq_tables[descendant]
                     components.append(component)
                 except KeyError:
+                    if descendant not in tries:
+                        tries[descendant] = 0
+                    elif tries[descendant] == max_iters:
+                        raise TimeoutError('Too many attempts made to access the descendant data!')
+                    else:
+                        tries[descendant] += 1
                     descendants.add(descendant)
                     sleep(sleep_time)
             freq_table = None
@@ -770,7 +794,7 @@ def characterization(node_name, node_type):
 
 def init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, match_mismatch_table, alignment,
                                   position_size, components, sharable_dict, sharable_lock, unique_dir, low_memory,
-                                  write_out_sub_aln, write_out_freq_table):
+                                  write_out_sub_aln, write_out_freq_table, maximum_iterations=10000):
     """
     Init Characterization Match Mismatch Pool
 
@@ -797,9 +821,10 @@ def init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, m
         resources.
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
+        maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
     """
     global l_size, l_map, l_rev, mm_table, aln, p_size, t_type, comps, freq_tables, freq_lock, freq_lock, u_dir,\
-        low_mem, write_sub_aln, write_freq_table, sleep_time
+        low_mem, write_sub_aln, write_freq_table, sleep_time, max_iters
     l_size = larger_size
     l_map = larger_mapping
     l_rev = larger_reverse
@@ -824,6 +849,7 @@ def init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, m
     # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
     # single node.
     sleep_time = 0.1
+    max_iters = maximum_iterations
 
 
 def characterization_mm(node_name, node_type):
@@ -900,6 +926,7 @@ def characterization_mm(node_name, node_type):
             # descendants, then retrieve its descendants' characterizations and merge all to get the parent
             # characterization.
             descendants = set()
+            tries = {}
             terminal_indices = []
             for d in comps[node_name]['descendants']:
                 descendants.add(d.name)
@@ -931,6 +958,12 @@ def characterization_mm(node_name, node_type):
                     component = freq_tables[descendant]
                     components.append(component)
                 except KeyError:
+                    if descendant not in tries:
+                        tries[descendant] = 0
+                    elif tries[descendant] == max_iters:
+                        raise TimeoutError('Too many attempts made to access the descendant data!')
+                    else:
+                        tries[descendant] += 1
                     descendants.add(descendant)
                     sleep(sleep_time)
             # Merge the descendants' FrequencyTable(s) to generate the one for this node.
