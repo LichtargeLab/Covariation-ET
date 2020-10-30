@@ -335,6 +335,8 @@ class Trace(object):
                 final_scores += rank_scores
             final_scores += 1
         """
+        if scorer.position_size != self.pos_size:
+            raise ValueError('Scorer and Trace position size do not agree!')
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_pbar = tqdm(total=len(self.unique_nodes), unit='group')
@@ -351,13 +353,12 @@ class Trace(object):
                 dictionary containing the single and pair position scores for that node.
             """
             completed_name, completed_components = return_tuple
-            self.unique_nodes[completed_name].update(completed_components)
+            self.unique_nodes[completed_name]['group_scores'] = completed_components
             group_pbar.update(1)
             group_pbar.refresh()
 
         pool1 = Pool(processes=processes, initializer=init_trace_groups,
-                     initargs=(scorer, self.pos_specific, self.pair_specific, self.match_mismatch, self.unique_nodes,
-                               self.low_memory, unique_dir))
+                     initargs=(scorer, self.match_mismatch, self.unique_nodes, self.low_memory, unique_dir))
         for node_name in self.unique_nodes:
             pool1.apply_async(trace_groups, (node_name,), callback=update_group)
         pool1.close()
@@ -378,29 +379,24 @@ class Trace(object):
                 return_tuple (tuple): A tuple consisting of the rank (int) which has been scored and a dictionary
                 containing the single and pair position scores for that ranks.
             """
-            rank, components = return_tuple
-            self.rank_scores[rank] = components
+            rank, component = return_tuple
+            self.rank_scores[rank] = component
             rank_pbar.update(1)
             rank_pbar.refresh()
 
         pool2 = Pool(processes=processes, initializer=init_trace_ranks,
-                     initargs=(scorer, self.pos_specific, self.pair_specific, self.assignments,
-                               self.unique_nodes, self.low_memory, unique_dir))
+                     initargs=(scorer, self.assignments, self.unique_nodes, self.low_memory, unique_dir))
         for rank in sorted(self.assignments.keys(), reverse=True):
             pool2.apply_async(trace_ranks, (rank,), callback=update_rank)
         pool2.close()
         pool2.join()
         rank_pbar.close()
+        if len(self.rank_scores) < len(self.assignments):
+            raise ValueError('Trace incomplete, check initialization and/or input variables.')
         # Combine rank scores to generate a final score for each position
         final_scores = np.zeros(scorer.dimensions)
         for rank in self.rank_scores:
-            if self.pair_specific:
-                rank_scores = self.rank_scores[rank]['pair_ranks']
-            elif self.pos_specific:
-                rank_scores = self.rank_scores[rank]['single_ranks']
-            else:
-                raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
-            rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
+            rank_scores = load_numpy_array(mat=self.rank_scores[rank], low_memory=self.low_memory)
             final_scores += rank_scores
         if scorer.rank_type == 'min':
             if scorer.position_size == 1:
@@ -413,16 +409,31 @@ class Trace(object):
             # The FrequencyTable for the root node is used because it characterizes all sequences and its depth is equal
             # to the alignment size. The resulting gap frequencies are equivalent to gap count / alignment size.
             root_node_name = self.phylo_tree.tree.root.name
-            freq_table = load_freq_table(freq_table=self.unique_nodes[root_node_name][pos_type],
-                                         low_memory=self.low_memory)
-            gap_chars = list(set(Gapped(self.aln.alphabet).letters).intersection(gap_characters))
+            if self.match_mismatch:
+                freq_table = (load_freq_table(freq_table=self.unique_nodes[root_node_name]['match'],
+                                              low_memory=self.low_memory) +
+                              load_freq_table(freq_table=self.unique_nodes[root_node_name]['mismatch'],
+                                              low_memory=self.low_memory))
+            else:
+                freq_table = load_freq_table(freq_table=self.unique_nodes[root_node_name]['freq_table'],
+                                             low_memory=self.low_memory)
+            resized_gap_characters = set([(x * len(freq_table.reverse_mapping[0])) for x in list(gap_characters)])
+            gap_chars = list(set(freq_table.reverse_mapping).intersection(resized_gap_characters))
             if len(gap_chars) > 1:
                 raise ValueError('More than one gap character present in alignment alphabet! {}'.format(gap_chars))
             gap_char = gap_chars[0]
-            max_rank_score = np.max(final_scores)
-            for i in range(freq_table.sequence_length):
+            if scorer.rank_type == 'min':
+                worst_rank_score = np.max(final_scores)
+            else:
+                worst_rank_score = np.min(final_scores[final_scores != 0])
+            for i in freq_table.get_positions():
                 if freq_table.get_frequency(pos=i, char=gap_char) > gap_correction:
-                    final_scores[i] = max_rank_score
+                    if self.pos_size == 1:
+                        final_scores[i] = worst_rank_score
+                    elif self.pos_size == 2 and i[0] != i[1]:
+                        final_scores[i[0], i[1]] = worst_rank_score
+                    else:
+                        pass
         self.final_scores = final_scores
         self.final_ranks, self.final_coverage = compute_rank_and_coverage(
             seq_length=self.aln.seq_length, scores=self.final_scores, pos_size=scorer.position_size,
