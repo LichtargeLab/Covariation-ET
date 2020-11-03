@@ -4,10 +4,23 @@ Created onJune 19, 2019
 @author: daniel
 """
 import os
+from datetime import datetime
 from unittest import TestCase
 from multiprocessing import cpu_count
 from DataSetGenerator import DataSetGenerator
 
+
+def generate_temp_fn(suffix):
+    return f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.{suffix}'
+
+
+def write_out_temp_fn(suffix, out_str=None):
+    fn = generate_temp_fn(suffix=suffix)
+    with open(fn, 'a') as handle:
+        os.utime(fn)
+        if out_str:
+            handle.write(out_str)
+    return fn
 
 class TestBase(TestCase):
 
