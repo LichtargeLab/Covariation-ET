@@ -9,12 +9,9 @@ from unittest import TestCase
 import numpy as np
 from copy import deepcopy
 from time import time, sleep
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
 from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
-from test_Base import TestBase
+from test_Base import protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa
 from utils import build_mapping, convert_seq_to_numeric
 from ETMIPWrapper import ETMIPWrapper
 from SeqAlignment import SeqAlignment
@@ -23,127 +20,101 @@ from AlignmentDistanceCalculator import (AlignmentDistanceCalculator, convert_ar
                                          pairwise, init_identity, identity, init_characterize_sequence,
                                          characterize_sequence, init_similarity, similarity)
 
-protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
-protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
-protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
-protein_msa = MultipleSeqAlignment(records=[protein_seq1, protein_seq2, protein_seq3], alphabet=FullIUPACProtein())
-dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPACDNA()))
-dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
-
 
 class TestAlignmentDistanceCalculatorInit(TestCase):
 
-    def test_init(self):
-        expected_alpha = FullIUPACProtein()
-        expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
-                                                                                     skip_letters=None)
-        adc = AlignmentDistanceCalculator()
-        self.assertEqual(adc.aln_type, 'protein')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'identity')
+    def setUp(self):
+        self.protein_alpha = FullIUPACProtein()
+        self.protein_alpha_size, self.protein_gap_chars, self.protein_mapping, self.protein_reverse = build_mapping(
+            alphabet=self.protein_alpha, skip_letters=None)
+        self.protein_identity_mat = np.eye(self.protein_alpha_size + 2)
+        self.protein_identity_mat[-1, -1] = 0
+        self.dna_alpha = FullIUPACDNA()
+        self.dna_alpha_size, self.dna_gap_chars, self.dna_mapping, self.dna_reverse = build_mapping(
+            alphabet=self.dna_alpha, skip_letters=None)
+        self.dna_identity_mat = np.eye(self.dna_alpha_size + 2)
+        self.dna_identity_mat[-1, -1] = 0
+
+    def evaluate_init(self, adc, q_type, expected_letters, dist_model, expected_alpha_size, expected_gap_chars,
+                      expected_mapping, expected_reverse, expected_scoring_mat):
+        self.assertEqual(adc.aln_type, q_type)
+        self.assertEqual(adc.alphabet.letters, expected_letters)
+        self.assertEqual(adc.model, dist_model)
         self.assertEqual(adc.alphabet_size, expected_alpha_size)
         self.assertEqual(adc.gap_characters, expected_gap_chars)
         self.assertEqual(adc.mapping, expected_mapping)
-        expected_scoring_mat = np.eye(expected_alpha_size + 2)
-        expected_scoring_mat[-1, -1] = 0
-        self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        if dist_model == 'identity':
+            self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        elif dist_model == 'blosum62':
+            for i in range(expected_alpha_size):
+                for j in range(expected_alpha_size):
+                    try:
+                        self.assertEqual(adc.scoring_matrix[i, j], blosum62[(expected_reverse[i], expected_reverse[j])])
+                    except KeyError:
+                        self.assertEqual(adc.scoring_matrix[i, j], blosum62[(expected_reverse[j], expected_reverse[i])])
+        elif dist_model == 'blastn':
+            for i in range(expected_alpha_size):
+                for j in range(expected_alpha_size):
+                    try:
+                        self.assertEqual(adc.scoring_matrix[i, j], DistanceCalculator.blastn[i][j])
+                    except IndexError:
+                        self.assertEqual(adc.scoring_matrix[i, j], DistanceCalculator.blastn[j][i])
+        else:
+            raise ValueError('Unexpected model in evaluate!')
+
+    def test_init(self):
+        adc = AlignmentDistanceCalculator()
+        self.evaluate_init(adc=adc, q_type='protein', expected_letters=self.protein_alpha.letters,
+                           dist_model='identity', expected_alpha_size=self.protein_alpha_size,
+                           expected_gap_chars=self.protein_gap_chars, expected_mapping=self.protein_mapping,
+                           expected_reverse=None, expected_scoring_mat=self.protein_identity_mat)
 
     def test_init_protein_identity_no_skip_letters(self):
-        expected_alpha = FullIUPACProtein()
-        expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
-                                                                                     skip_letters=None)
         adc = AlignmentDistanceCalculator(protein=True, model='identity', skip_letters=None)
-        self.assertEqual(adc.aln_type, 'protein')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'identity')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        expected_scoring_mat = np.eye(expected_alpha_size + 2)
-        expected_scoring_mat[-1, -1] = 0
-        self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        self.evaluate_init(adc=adc, q_type='protein', expected_letters=self.protein_alpha.letters,
+                           dist_model='identity', expected_alpha_size=self.protein_alpha_size,
+                           expected_gap_chars=self.protein_gap_chars, expected_mapping=self.protein_mapping,
+                           expected_reverse=None, expected_scoring_mat=self.protein_identity_mat)
 
     def test_init_protein_blosum62_no_skip_letters(self):
-        expected_alpha = FullIUPACProtein()
-        expected_alpha_size, expected_gap_chars, expected_mapping, expected_reverse = build_mapping(
-            alphabet=expected_alpha, skip_letters=None)
         adc = AlignmentDistanceCalculator(protein=True, model='blosum62', skip_letters=None)
-        self.assertEqual(adc.aln_type, 'protein')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'blosum62')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        for i in range(expected_alpha_size):
-            for j in range(expected_alpha_size):
-                try:
-                    self.assertEqual(adc.scoring_matrix[i, j], blosum62[(expected_reverse[i], expected_reverse[j])])
-                except KeyError:
-                    self.assertEqual(adc.scoring_matrix[i, j], blosum62[(expected_reverse[j], expected_reverse[i])])
+        self.evaluate_init(adc=adc, q_type='protein', expected_letters=self.protein_alpha.letters,
+                           dist_model='blosum62', expected_alpha_size=self.protein_alpha_size,
+                           expected_gap_chars=self.protein_gap_chars, expected_mapping=self.protein_mapping,
+                           expected_reverse=self.protein_reverse, expected_scoring_mat=None)
 
     def test_init_protein_identity_skip_letters(self):
         expected_alpha = FullIUPACProtein()
         expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
                                                                                      skip_letters=['.', '*'])
         adc = AlignmentDistanceCalculator(protein=True, model='identity', skip_letters=['.', '*'])
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'identity')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        expected_scoring_mat = np.eye(expected_alpha_size + 2)
-        expected_scoring_mat[-1, -1] = 0
-        self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        self.evaluate_init(adc=adc, q_type='protein', expected_letters=expected_alpha.letters, dist_model='identity',
+                           expected_alpha_size=expected_alpha_size, expected_gap_chars=expected_gap_chars,
+                           expected_mapping=expected_mapping, expected_reverse=None,
+                           expected_scoring_mat=self.protein_identity_mat)
 
     def test_init_dna_identity_no_skip_letters(self):
-        expected_alpha = FullIUPACDNA()
-        expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
-                                                                                     skip_letters=None)
         adc = AlignmentDistanceCalculator(protein=False, model='identity', skip_letters=None)
-        self.assertEqual(adc.aln_type, 'dna')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'identity')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        expected_scoring_mat = np.eye(expected_alpha_size + 2)
-        expected_scoring_mat[-1, -1] = 0
-        self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        self.evaluate_init(adc=adc, q_type='dna', expected_letters=self.dna_alpha.letters, dist_model='identity',
+                           expected_alpha_size=self.dna_alpha_size, expected_gap_chars=self.dna_gap_chars,
+                           expected_mapping=self.dna_mapping, expected_reverse=None,
+                           expected_scoring_mat=self.dna_identity_mat)
 
     def test_init_dna_blastn_no_skip_letters(self):
-        expected_alpha = FullIUPACDNA()
-        expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
-                                                                                     skip_letters=None)
         adc = AlignmentDistanceCalculator(protein=False, model='blastn', skip_letters=None)
-        self.assertEqual(adc.aln_type, 'dna')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'blastn')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        for i in range(expected_alpha_size):
-            for j in range(expected_alpha_size):
-                try:
-                    self.assertEqual(adc.scoring_matrix[i, j], DistanceCalculator.blastn[i][j])
-                except IndexError:
-                    self.assertEqual(adc.scoring_matrix[i, j], DistanceCalculator.blastn[j][i])
+        self.evaluate_init(adc=adc, q_type='dna', expected_letters=self.dna_alpha.letters, dist_model='blastn',
+                           expected_alpha_size=self.dna_alpha_size, expected_gap_chars=self.dna_gap_chars,
+                           expected_mapping=self.dna_mapping, expected_reverse=None, expected_scoring_mat=None)
 
     def test_init_dna_identity_skip_letters(self):
         expected_alpha = FullIUPACDNA()
         expected_alpha_size, expected_gap_chars, expected_mapping, _ = build_mapping(alphabet=expected_alpha,
                                                                                      skip_letters=['.', '*'])
         adc = AlignmentDistanceCalculator(protein=False, model='identity', skip_letters=['.', '*'])
-        self.assertEqual(adc.aln_type, 'dna')
-        self.assertEqual(adc.alphabet.letters, expected_alpha.letters)
-        self.assertEqual(adc.model, 'identity')
-        self.assertEqual(adc.alphabet_size, expected_alpha_size)
-        self.assertEqual(adc.gap_characters, expected_gap_chars)
-        self.assertEqual(adc.mapping, expected_mapping)
-        expected_scoring_mat = np.eye(expected_alpha_size + 2)
-        expected_scoring_mat[-1, -1] = 0
-        self.assertFalse((adc.scoring_matrix - expected_scoring_mat).any())
+        self.evaluate_init(adc=adc, q_type='dna', expected_letters=expected_alpha.letters, dist_model='identity',
+                           expected_alpha_size=expected_alpha_size, expected_gap_chars=expected_gap_chars,
+                           expected_mapping=expected_mapping, expected_reverse=None,
+                           expected_scoring_mat=self.dna_identity_mat)
 
     def test_init_fail_type_error_protein(self):
         with self.assertRaises(AssertionError):
@@ -998,80 +969,6 @@ class TestAlignmentDistanceCalculatorConvertArrayToDistanceMatrix(TestCase):
         lit_of_lists = convert_array_to_distance_matrix(arr, dm.names)
         self.assertEqual(lit_of_lists.names, dm.names)
         self.assertEqual(lit_of_lists.matrix, expected_list)
-
-# class TestAlignmentDistanceCalculator(TestBase):
-#
-#     @classmethod
-#     def setUpClass(cls):
-#         super(TestAlignmentDistanceCalculator, cls).setUpClass()
-#         cls.query_aln_fa_small = SeqAlignment(
-#             file_name=cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln'],
-#             query_id=cls.small_structure_id)
-#         cls.query_aln_fa_small.import_alignment()
-#         cls.out_small_dir = os.path.join(cls.testing_dir, cls.small_structure_id)
-#         cls.out_large_dir = os.path.join(cls.testing_dir, cls.large_structure_id)
-#
-#     def setUp(self):
-#         self.query_aln_fa_small = SeqAlignment(file_name=self.data_set.protein_data[self.small_structure_id]['Final_FA_Aln'],
-#                                                query_id=self.small_structure_id)
-#         self.query_aln_fa_small.import_alignment()
-#         self.query_aln_fa_large = SeqAlignment(file_name=self.data_set.protein_data[self.large_structure_id]['Final_FA_Aln'],
-#                                                query_id=self.large_structure_id)
-#         self.query_aln_fa_large.import_alignment()
-#         self.query_aln_msf_small = deepcopy(self.query_aln_fa_small)
-#         self.query_aln_msf_small.file_name = self.data_set.protein_data[self.small_structure_id]['Final_MSF_Aln']
-#         self.query_aln_msf_large = deepcopy(self.query_aln_fa_large)
-#         self.query_aln_msf_large.file_name = self.data_set.protein_data[self.large_structure_id]['Final_MSF_Aln']
-#
-#     def tearDown(self):
-#         if os.path.exists('./identity.pkl'):
-#             os.remove('./identity.pkl')
-#         wetc_test_dir = os.path.join(self.testing_dir, 'WETC_Test')
-#         # if os.path.exists(wetc_test_dir):
-#         #     rmtree(wetc_test_dir)
-#
-#     def evaluate_get_et_distance(self, query_id, aln_fn, aln, processes, out_dir):
-#         et_mip_obj = ETMIPWrapper(query=query_id, aln_file=aln_fn, out_dir=out_dir)
-#         et_mip_obj.calculate_scores(method='intET', delete_files=False)
-#         aln_dist_df, id_dist_df, intermediate_df1 = et_mip_obj.import_distance_matrices(prefix='etc_out_intET')
-#         aln_dist_array = np.asarray(aln_dist_df, dtype=float)
-#         id_dist_array = np.asarray(id_dist_df, dtype=float)
-#         aln_dist_dm1 = convert_array_to_distance_matrix(aln_dist_array, list(aln_dist_df.columns))
-#         id_dist_dm1 = convert_array_to_distance_matrix(id_dist_array.T, list(id_dist_df.columns))
-#         et_calc = AlignmentDistanceCalculator(model='blosum62')
-#         id_dist_dm2, aln_dist_dm2, intermediate_df2, threshold = et_calc.get_et_distance(aln, processes=processes)
-#         diff_aln_dist = np.abs(np.array(aln_dist_dm1) - np.array(aln_dist_dm2))
-#         diff_aln_dist_threshold = diff_aln_dist > 1e-3  # Differences may arise in the third decimal place.
-#         diff_id_dist = np.abs(np.array(id_dist_dm1) - np.array(id_dist_dm2))
-#         diff_id_threshold = diff_id_dist > 1e-3  # Differences may arise in the third decimal place.
-#         joined = intermediate_df1.merge(intermediate_df2, on=['Seq1', 'Seq2'], how='inner', suffixes=('ETC', 'Python'))
-#         self.assertTrue(joined['Min_Seq_LengthETC'].equals(joined['Min_Seq_LengthPython']))
-#         self.assertTrue(joined['Id_CountETC'].equals(joined['Id_CountPython']))
-#         self.assertTrue(joined['Threshold_CountETC'].equals(joined['Threshold_CountPython']))
-#         self.assertTrue(id_dist_dm1.names == id_dist_dm2.names)
-#         self.assertTrue(not diff_id_threshold.any())
-#         self.assertTrue(aln_dist_dm1.names == aln_dist_dm2.names)
-#         self.assertTrue(not diff_aln_dist_threshold.any())
-#
-#     def test10a_get_et_distance_small(self):
-#         self.evaluate_get_et_distance(query_id=self.small_structure_id, aln_fn=self.query_aln_fa_small.file_name,
-#                                       aln=self.query_aln_fa_small.remove_gaps().alignment, processes=1,
-#                                       out_dir=self.out_small_dir)
-#
-#     def test10b_get_et_distance_small(self):
-#         self.evaluate_get_et_distance(query_id=self.small_structure_id, aln_fn=self.query_aln_fa_small.file_name,
-#                                       aln=self.query_aln_fa_small.remove_gaps().alignment, processes=self.max_threads,
-#                                       out_dir=self.out_small_dir)
-#
-#     def test10c_get_et_distance_small(self):
-#         self.evaluate_get_et_distance(query_id=self.large_structure_id, aln_fn=self.query_aln_fa_large.file_name,
-#                                       aln=self.query_aln_fa_large.remove_gaps().alignment, processes=1,
-#                                       out_dir=self.out_large_dir)
-#
-#     def test10d_get_et_distance_small(self):
-#         self.evaluate_get_et_distance(query_id=self.large_structure_id, aln_fn=self.query_aln_fa_large.file_name,
-#                                       aln=self.query_aln_fa_large.remove_gaps().alignment, processes=self.max_threads,
-#                                       out_dir=self.out_large_dir)
 
 
 if __name__ == '__main__':
