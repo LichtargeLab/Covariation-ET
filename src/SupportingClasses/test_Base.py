@@ -8,7 +8,9 @@ from datetime import datetime
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.TreeConstruction import DistanceMatrix
 from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
+from AlignmentDistanceCalculator import AlignmentDistanceCalculator
 from unittest import TestCase
 from multiprocessing import cpu_count
 from DataSetGenerator import DataSetGenerator
@@ -40,6 +42,10 @@ dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPAC
 dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
+
+min_dm = DistanceMatrix(names=['seq1', 'seq2', 'seq3'])
+id_adc = AlignmentDistanceCalculator(model='identity')
+id_dm = id_adc.get_distance(msa=protein_msa, processes=2)
 
 
 # class TestBase(TestCase):
