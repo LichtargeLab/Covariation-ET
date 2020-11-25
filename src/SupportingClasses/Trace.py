@@ -319,8 +319,8 @@ class Trace(object):
                                                   single_alphabet_size=single_size, single_mapping=single_mapping,
                                                   single_reverse_mapping=single_reverse,
                                                   larger_alphabet_size=larger_size,
-                                                  larger_alphabet_mapping=larger_mapping,
-                                                  larger_alphabet_reverse_mapping=larger_reverse,
+                                                  larger_mapping=larger_mapping,
+                                                  larger_reverse_mapping=larger_reverse,
                                                   single_to_larger_mapping=single_to_larger,
                                                   pos_size=pos_size)
         match_mismatch_table.identify_matches_mismatches()
@@ -824,9 +824,8 @@ def characterization(node_name, node_type):
             else:
                 # If the node is larger characterize the whole alignment, one position at a time.
                 pos_table, pair_table = sub_aln.characterize_positions2(
-                    single=single, pair=pair, single_letter_size=s_size, single_letter_mapping=s_map,
-                    single_letter_reverse=s_rev, pair_letter_size=p_size, pair_letter_mapping=p_map,
-                    pair_letter_reverse=p_rev, single_to_pair=s_to_p)
+                    single=single, pair=pair, single_size=s_size, single_mapping=s_map, single_reverse=s_rev,
+                    pair_size=p_size, pair_mapping=p_map, pair_reverse=p_rev, single_to_pair=s_to_p)
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
