@@ -655,10 +655,16 @@ def get_cluster_spanner(agg_clusterer):
     # version 0.19.0 previously. In that version agg_clusterer.pooling_func was set to np.mean by default. The new
     # behavior is less tractable to this method of conversion. To try to preserve the behavior assuming the actual tree
     # construction is still similar/the same if the deprecation is encountered, the old default function is called.
-    if isinstance(agg_clusterer.pooling_func, str) and (agg_clusterer.pooling_func == 'deprecated'):
+    # In the newest versions of agg_clusterer pooling_func has been completely removed, to handle this case and making
+    # the same assumption has the previous comment, if accessing that variable fails, I will fall back on the previous
+    # default function
+    try:
+        if isinstance(agg_clusterer.pooling_func, str) and (agg_clusterer.pooling_func == 'deprecated'):
+            pooling_func = np.mean
+        else:
+            pooling_func = agg_clusterer.pooling_func
+    except AttributeError:
         pooling_func = np.mean
-    else:
-        pooling_func = agg_clusterer.pooling_func
     if agg_clusterer.linkage == 'ward':
         if agg_clusterer.affinity == 'euclidean':
             spanner = lambda x: np.sum((x - pooling_func(x, axis=0)) ** 2)
