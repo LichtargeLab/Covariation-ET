@@ -103,10 +103,11 @@ class PDBReference(object):
                     for residue in chain:
                         if is_aa(residue.get_resname(), standard=True) and not residue.id[0].startswith('H_'):
                             res_name = three_to_one(residue.get_resname())
-                            seq[chain.id] += res_name
                             res_num = residue.get_id()[1]
                             residue_pos[chain.id][res_num] = res_name
-                            pdb_residue_list[chain.id].append(res_num)
+                    for curr_res in sorted(residue_pos[chain.id]):
+                        pdb_residue_list[chain.id].append(curr_res)
+                        seq[chain.id] += residue_pos[chain.id][curr_res]
             if save_file is not None:
                 with open(save_file, 'wb') as handle:
                     pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), handle,
