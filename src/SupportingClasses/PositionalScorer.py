@@ -507,8 +507,8 @@ def count_computation(freq_table, dimensions):
     if len(dimensions) != freq_table.position_size:
         raise ValueError('FrequencyTable position size and dimensions do not agree!')
     elif len(dimensions) == 2:
-        counts = freq_table.get_count_matrix()
-        position_sums = np.sum(counts, axis=1)
+        counts = freq_table.get_table()
+        position_sums = counts.sum(axis=1).flatten()
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = position_sums
         # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
