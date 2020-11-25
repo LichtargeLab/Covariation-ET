@@ -7,11 +7,13 @@ import os
 import math
 import numpy as np
 import pandas as pd
+from pymol import cmd
 from time import time
 from math import floor
 from multiprocessing import Pool
 from Bio import pairwise2
 from Bio.PDB.Polypeptide import one_to_three
+from Bio.SubsMat import MatrixInfo as matlist
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
 matplotlib.use('Agg')
@@ -125,6 +127,8 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
         """
+        gap_open = -10
+        gap_extend = -0.5
         if (self.best_chain is None) or (self.query_pdb_mapping is None):
             start = time()
             if self.query_alignment is None:
@@ -144,15 +148,18 @@ class ContactScorer(object):
                 best_chain = None
                 best_alignment = None
                 for ch in self.query_structure.seq:
-                    curr_align = pairwise2.align.globalxs(self.query_alignment.query_sequence,
-                                                          self.query_structure.seq[ch], -1, 0)
+                    curr_align = pairwise2.align.globalds(self.query_alignment.query_sequence,
+                                                          self.query_structure.seq[ch], matlist.blosum62, gap_open,
+                                                          gap_extend)
                     if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
                         best_alignment = curr_align
                         best_chain = ch
                 self.best_chain = best_chain
             else:
-                best_alignment = pairwise2.align.globalxs(self.query_alignment.query_sequence,
-                                                          self.query_structure.seq[self.best_chain], -1, 0)
+                best_alignment = pairwise2.align.globalds(self.query_alignment.query_sequence,
+                                                          self.query_structure.seq[self.best_chain], matlist.blosum62,
+                                                          gap_open, gap_extend)
+            print(pairwise2.format_alignment(*best_alignment[0]))
             if self.query_pdb_mapping is None:
                 f_counter = 0
                 p_counter = 0
@@ -222,10 +229,7 @@ class ContactScorer(object):
             end = time()
             print('Constructing internal representation took {} min'.format((end - start) / 60.0))
 
-
-
-    @staticmethod
-    def _get_all_coords(residue):
+    def _get_all_coords(self, residue):
         """
         Get All Coords
 
@@ -238,12 +242,16 @@ class ContactScorer(object):
             residue.
         """
         all_coords = []
-        for atom in residue:
-            all_coords.append(atom.get_coord())
+        cmd.select('curr_res', f'best_chain and resi {residue.get_id()[1]}')
+        model = cmd.get_model('curr_res')
+        if len(model.atom) > 0:
+            for atm in model.atom:
+                all_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
+        else:
+            raise ValueError(f'No atoms found for Structure: {self.query} Chain: {self.best_chain} Residue: {residue.get_id()[1]}')
         return all_coords
 
-    @staticmethod
-    def _get_c_alpha_coords(residue):
+    def _get_c_alpha_coords(self, residue):
         """
         Get C Alpha Coords
 
@@ -256,14 +264,16 @@ class ContactScorer(object):
             list: A list of lists where the only sub list contains the x, y, and z coordinates of the C alpha atom.
         """
         c_alpha_coords = []
-        try:
-            c_alpha_coords.append(residue['CA'].get_coord())
-        except KeyError:
-            c_alpha_coords += ContactScorer._get_all_coords(residue)
+        cmd.select('curr_res_ca', f'best_chain and resi {residue.get_id()[1]} and name CA')
+        model = cmd.get_model('curr_res_ca')
+        if len(model.atom) > 0:
+            for atm in model.atom:
+                c_alpha_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
+        else:
+            c_alpha_coords = self._get_all_coords(residue)
         return c_alpha_coords
 
-    @staticmethod
-    def _get_c_beta_coords(residue):
+    def _get_c_beta_coords(self, residue):
         """
         Get C Beta Coords
 
@@ -276,14 +286,16 @@ class ContactScorer(object):
             list: A list of lists where the only sub list contains the x, y, and z coordinates of the C beta atom.
         """
         c_beta_coords = []
-        try:
-            c_beta_coords.append(residue['CB'].get_coord())
-        except KeyError:
-            c_beta_coords = ContactScorer._get_c_alpha_coords(residue)
+        cmd.select('curr_res_cb', f'best_chain and resi {residue.get_id()[1]} and name CB')
+        model = cmd.get_model('curr_res_cb')
+        if len(model.atom) > 0:
+            for atm in model.atom:
+                c_beta_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
+        else:
+            c_beta_coords = self._get_c_alpha_coords(residue)
         return c_beta_coords
 
-    @staticmethod
-    def _get_coords(residue, method='Any'):
+    def _get_coords(self, residue, method='Any'):
         """
         Get Coords
 
@@ -298,12 +310,13 @@ class ContactScorer(object):
             list: A list of lists where each list is a single set of x, y, and z coordinates for an atom in the
             specified residue.
         """
+
         if method == 'Any':
-            return ContactScorer._get_all_coords(residue)
+            return self._get_all_coords(residue)
         elif method == 'CA':
-            return ContactScorer._get_c_alpha_coords(residue)
+            return self._get_c_alpha_coords(residue)
         elif method == 'CB':
-            return ContactScorer._get_c_beta_coords(residue)
+            return self._get_c_beta_coords(residue)
         else:
             raise ValueError("method variable must be either 'Any', 'CA', or 'CB' but {} was provided".format(method))
 
@@ -340,20 +353,23 @@ class ContactScorer(object):
             if self.best_chain is None:
                 self.fit()
             self.data['Distance'] = '-'
+            # Open and load PDB structure in pymol, needed for get_coord methods
+            cmd.load(self.query_structure.file_name, self.query)
+            cmd.select('best_chain', f'{self.query} and chain {self.best_chain}')
             dists = np.zeros((self.query_structure.size[self.best_chain], self.query_structure.size[self.best_chain]))
             coords = {}
             counter = 0
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for res_num1 in self.query_structure.residue_pos[self.best_chain]:
+            for res_num1 in self.query_structure.pdb_residue_list[self.best_chain]:
                 residue = self.query_structure.structure[0][self.best_chain][res_num1]
                 # Loop over residues to calculate distance between all residues i and j
                 if res_num1 not in coords:
                     pos[res_num1] = counter
                     key[counter] = res_num1
                     counter += 1
-                    coords[res_num1] = np.vstack(ContactScorer._get_coords(residue, method))
+                    coords[res_num1] = np.vstack(self._get_coords(residue, method))
                 for j in range(pos[res_num1]):
                     res_num2 = key[j]
                     if res_num2 not in pos:
@@ -363,6 +379,8 @@ class ContactScorer(object):
                     res1 = (coords[res_num1] - coords[res_num2][:, np.newaxis])
                     norms = np.linalg.norm(res1, axis=2)
                     dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = np.min(norms)
+            # Delete loaded structure from pymol session
+            cmd.delete(self.query)
             if save_file is not None:
                 np.savez(save_file, dists=dists)
         indices = self.data.loc[(self.data['Struct Pos 1'] != '-') & (self.data['Struct Pos 2'] != '-')].index
@@ -747,7 +765,7 @@ class ContactScorer(object):
                       df['True Prediction'].values, pos_label=True)
         return f1
 
-    def score_clustering_of_contact_predictions(self, bias=True, file_path='./z_score.tsv', w2_ave_sub=None,
+    def score_clustering_of_contact_predictions(self, bias=True, file_path='./z_score.tsv', w_and_w2_ave_sub=None,
                                                 processes=1):
         """
         Score Clustering Of Contact Predictions
@@ -762,7 +780,8 @@ class ContactScorer(object):
             factor accounting for the sequence separation of residues, as well as their distance, is added to the
             calculation.
             file_path (str): path where the z-scoring results should be written to.
-            w2_ave_sub (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+            w_and_w2_ave_sub (dict): A dictionary of the precomputed scores for E[w] and E[w^2] also returned by this
+            function.
             processes (int): How many processes may be used in computing the clustering Z-scores.
         Returns:
             pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
@@ -813,20 +832,20 @@ class ContactScorer(object):
                 prev_size = curr_size
             else:
                 unique_sets[counter].append(pair)
-        # Compute the precomputable part (w2_ave_sub)
-        if w2_ave_sub is None:
-            w2_ave_sub = {'Case1': 0, 'Case2': 0, 'Case3': 0}
-            pool = Pool(processes=processes, initializer=init_compute_w2_ave_sub,
-                        initargs=(self.distances, bias))
-            res = pool.map_async(compute_w2_ave_sub, range(self.distances.shape[0]))
+        # Compute the precomputable part (w_ave_pre, w2_ave_sub)
+        if w_and_w2_ave_sub is None:
+            w_and_w2_ave_sub = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
+            pool = Pool(processes=processes, initializer=init_compute_w_and_w2_ave_sub,
+                        initargs=(self.distances, self.query_structure.pdb_residue_list[self.best_chain], bias))
+            res = pool.map_async(compute_w_and_w2_ave_sub, range(self.distances.shape[0]))
             pool.close()
             pool.join()
             for cases in res.get():
                 for key in cases:
-                    w2_ave_sub[key] += cases[key]
+                    w_and_w2_ave_sub[key] += cases[key]
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
-                     initargs=(bias, w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
+                     initargs=(bias, w_and_w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
                                self.best_chain))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
@@ -842,7 +861,7 @@ class ContactScorer(object):
             data['W2_Ave'] += [curr_res[9]] * curr_len
             data['Sigma'] += [curr_res[10]] * curr_len
             data['Num_Residues'] += [curr_res[11]] * curr_len
-            if curr_res[6] not in set([None, '-', 'NA']):
+            if curr_res[6] not in {None, '-', 'NA'}:
                 y_z_score.append(curr_res[6])
                 x_coverage.append(float(curr_res[11]) / self.query_alignment.seq_length)
         data_df['Z-Score'] = data['Z-Score']
@@ -873,7 +892,7 @@ class ContactScorer(object):
             path_or_buf=file_path, sep='\t', header=True, index=False)
         end = time()
         print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
-        return df, w2_ave_sub, au_scw_z_score_curve
+        return df, w_and_w2_ave_sub, au_scw_z_score_curve
 
     def write_out_clustering_results(self, today, output_dir, file_name=None, prefix=None):
         """
@@ -1238,20 +1257,23 @@ def surface_plot(name, data_mat, output_dir=None):
     plt.close()
 
 
-def init_compute_w2_ave_sub(dists, bias_bool):
+def init_compute_w_and_w2_ave_sub(dists, structure_res_num, bias_bool):
     """
-    Init Compute w^2 Average Sub
+    Init Compute w and w^2 Average Sub-problems
 
-    Method initializes shared values used by all processes working on parts of the w^2 average sub-problems.
+    Method initializes shared values used by all processes working on parts of the w and w^2 average sub-problems.
 
     Args:
         dists (np.array): The array of distances between residues in the tested structure.
+        structure_res_num (list/array): The residue numbers for each position in the structure as assigned in the PDB.
         bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
         factor accounting for the sequence separation of residues, as well as their distance, is added to the
         calculation.
     """
     global distances
     distances = dists
+    global w2_ave_residues
+    w2_ave_residues = structure_res_num
     global bias
     bias = bias_bool
     global cutoff
@@ -1261,33 +1283,34 @@ def init_compute_w2_ave_sub(dists, bias_bool):
     cutoff = 4.0
 
 
-def compute_w2_ave_sub(res_i):
+def compute_w_and_w2_ave_sub(res_i):
     """
-    Compute W^2 Average Sub
+    Compute W and W^2 Average Sub-problems
 
-    Solves the cases of the w^2 average sub-problem for a specific position in the protein. These can be combined across
-    all positions to get the complete solution (after the pool of workers has finished).
+    Solves the cases of the w and w^2 average sub-problem for a specific position in the protein. These can be combined
+    across all positions to get the complete solution (after the pool of workers has finished).
 
     Args:
-        res_i (int): The position in the protein for which to compute the parts of the w^2 average sub-problems.
+        res_i (int): The position in the protein for which to compute the parts of the w and w^2 average sub-problems.
     Returns:
-        dict: The parts of E[w^2] which can be pre-calculated and reused for later computations (i.e. cases 1, 2, and
-        3).
+        dict: The parts of E[w] (w_ave before multiplication with the pi1 coefficient, i.e. w_ave_pre) and E[w^2] (cases
+         1, 2, and 3) which can be pre-calculated and reused for later computations.
     """
-    cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
+    cases = {'w_ave': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
     for res_j in range(res_i + 1, distances.shape[1]):
         if distances[res_i][res_j] >= cutoff:
             continue
         if bias:
-            s_ij = res_j - res_i
+            s_ij = np.abs(w2_ave_residues[res_j] - w2_ave_residues[res_i])
         else:
             s_ij = 1
+        cases['w_ave_pre'] += s_ij
         for res_x in range(distances.shape[0]):
             for res_y in range(res_x + 1, distances.shape[1]):
                 if distances[res_x][res_y] >= cutoff:
                     continue
                 if bias:
-                    s_xy = (res_y - res_x)
+                    s_xy = np.abs(w2_ave_residues[res_y] - w2_ave_residues[res_x])
                 else:
                     s_xy = 1
                 if (res_i == res_x and res_j == res_y) or (res_i == res_y and res_j == res_x):
@@ -1300,7 +1323,7 @@ def compute_w2_ave_sub(res_i):
     return cases
 
 
-def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, best_chain):
+def init_clustering_z_score(bias_bool, w_and_w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, best_chain):
     """
     Init Clustering Z-Score
 
@@ -1311,7 +1334,7 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
         bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
         factor accounting for the sequence separation of residues, as well as their distance, is added to the
         calculation.
-        w2_ave_sub_dict (dict): A dictionary of the precomputed scores for E[w^2] also returned by this function.
+        w_and_w2_ave_sub_dict (dict): A dictionary of the precomputed scores for E[w] and E[w^2].
         curr_pdb (PDBReference): Instance representing the PDB from which the structural data for this analysis comes.
         map_to_structure (dict): A mapping from the index of the query sequence to the index of the pdb chain's
         sequence for those positions which match according to a pairwise global alignment.
@@ -1321,8 +1344,8 @@ def init_clustering_z_score(bias_bool, w2_ave_sub_dict, curr_pdb, map_to_structu
     """
     global bias
     bias = bias_bool
-    global w2_ave_sub
-    w2_ave_sub = w2_ave_sub_dict
+    global w_and_w2_ave_sub
+    w_and_w2_ave_sub = w_and_w2_ave_sub_dict
     global query_structure
     query_structure = curr_pdb
     global query_pdb_mapping
@@ -1376,6 +1399,7 @@ def clustering_z_score(res_list):
         3. Wilkins AD, Lua R, Erdin S, Ward RM, Lichtarge O. Sequence and structure continuity of evolutionary
         importance improves protein functional site discovery and annotation. Protein Sci. 2010;19(7):1296-311.
     """
+    res_list = sorted(res_list)
     if query_structure is None:
         print('Z-Score cannot be measured, because no PDB was provided.')
         return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
@@ -1392,15 +1416,16 @@ def clustering_z_score(res_list):
         print(', '.join([str(x) for x in res_list]))
         print(', '.join([str(x) for x in query_pdb_mapping.keys()]))
         return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
-    positions = range(distances.shape[0])
+    positions = list(range(distances.shape[0]))
     a = distances < cutoff
     a[positions, positions] = 0
     s_i = np.in1d(positions, [query_pdb_mapping[r] for r in res_list])
     s_ij = np.outer(s_i, s_i)
     s_ij[positions, positions] = 0
     if bias:
-        bias_ij = np.subtract.outer(positions, positions)
-        bias_ij[np.triu_indices(distances.shape[0], 1)] *= -1
+        converted_positions = np.array(query_structure.pdb_residue_list[query_chain])
+        bias_ij = np.subtract.outer(converted_positions, converted_positions)
+        bias_ij = np.abs(bias_ij)
     else:
         bias_ij = np.ones(s_ij.shape, dtype=np.float64)
     w = np.sum(np.tril(a * s_ij * bias_ij))
@@ -1411,8 +1436,8 @@ def clustering_z_score(res_list):
     pi1 = m * (m - 1.0) / (l * (l - 1.0))
     pi2 = pi1 * (m - 2.0) / (l - 2.0)
     pi3 = pi2 * (m - 3.0) / (l - 3.0)
-    w_ave = np.sum(np.tril(a * bias_ij)) * pi1
-    w2_ave = (pi1 * w2_ave_sub['Case1']) + (pi2 * w2_ave_sub['Case2']) + (pi3 * w2_ave_sub['Case3'])
+    w_ave = w_and_w2_ave_sub['w_ave_pre'] * pi1
+    w2_ave = (pi1 * w_and_w2_ave_sub['Case1']) + (pi2 * w_and_w2_ave_sub['Case2']) + (pi3 * w_and_w2_ave_sub['Case3'])
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
