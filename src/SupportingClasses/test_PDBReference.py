@@ -22,14 +22,19 @@ chain_a_pdb_partial = 'ATOM      9  N   GLU A   2     153.913  21.571  52.586  1
                       'ATOM     22  CB  THR A   3      25.405  13.382  39.929  1.00 11.10           C  \n'\
                       'ATOM     23  OG1 THR A   3      26.603  13.084  39.227  1.00 13.57           O  \n'\
                       'ATOM     24  CG2 THR A   3      25.336  12.578  41.212  1.00 15.68           C  \n'
-chain_a_pdb = 'ATOM      1  N   MET A   1     152.897  26.590  66.235  1.00 57.82           N  \n'\
-              'ATOM      2  CA  MET A   1     153.488  26.592  67.584  1.00 57.79           C  \n'\
-              'ATOM      3  C   MET A   1     153.657  28.043  68.066  1.00 57.26           C  \n'\
-              'ATOM      4  O   MET A   1     153.977  28.924  67.266  1.00 57.37           O  \n'\
-              'ATOM      5  CB  MET A   1     154.843  25.881  67.544  1.00 58.16           C  \n'\
-              'ATOM      6  CG  MET A   1     155.689  25.983  68.820  1.00 59.67           C  \n'\
-              'ATOM      7  SD  MET A   1     157.418  25.517  68.551  1.00 62.17           S  \n'\
-              'ATOM      8  CE  MET A   1     158.062  26.956  67.686  1.00 61.68           C  \n' + chain_a_pdb_partial
+
+chain_a_pdb_partial2 = 'ATOM      1  N   MET A   1     152.897  26.590  66.235  1.00 57.82           N  \n'\
+                       'ATOM      2  CA  MET A   1     153.488  26.592  67.584  1.00 57.79           C  \n'\
+                       'ATOM      3  C   MET A   1     153.657  28.043  68.066  1.00 57.26           C  \n'\
+                       'ATOM      4  O   MET A   1     153.977  28.924  67.266  1.00 57.37           O  \n'\
+                       'ATOM      5  CB  MET A   1     154.843  25.881  67.544  1.00 58.16           C  \n'\
+                       'ATOM      6  CG  MET A   1     155.689  25.983  68.820  1.00 59.67           C  \n'\
+                       'ATOM      7  SD  MET A   1     157.418  25.517  68.551  1.00 62.17           S  \n'\
+                       'ATOM      8  CE  MET A   1     158.062  26.956  67.686  1.00 61.68           C  \n'
+
+chain_a_pdb = chain_a_pdb_partial2 + chain_a_pdb_partial
+
+
 chain_b_pdb_partial = 'ATOM     40  N   ARG B   3      24.805   9.537  22.454  1.00 12.48           N  \n'\
                       'ATOM     41  CA  ARG B   3      24.052   8.386  22.974  1.00 10.49           C  \n'\
                       'ATOM     42  C   ARG B   3      24.897   7.502  23.849  1.00 10.61           C  \n'\
@@ -273,6 +278,30 @@ class TestImportPDB(TestCase):
         os.remove(fn)
         os.remove(save_fname)
 
+    def test_import_pdb_misordered_numbering_seq(self):
+        fn = write_out_temp_pdb(chain_a_pdb_partial2 + chain_a_pdb_partial)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A'})
+        self.assertEqual(pdb.seq, {'A': 'MET'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
+        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
+        self.assertEqual(pdb.size, {'A': 3})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
+
+        fn = write_out_temp_pdb(chain_a_pdb_partial + chain_a_pdb_partial2)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        self.assertEqual(len(pdb.structure), 1)
+        self.assertEqual(pdb.chains, {'A'})
+        self.assertEqual(pdb.seq, {'A': 'MET'})
+        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
+        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
+        self.assertEqual(pdb.size, {'A': 3})
+        self.assertIsNone(pdb.external_seq)
+        os.remove(fn)
 
 class GetPDBSequence(TestCase):
 
