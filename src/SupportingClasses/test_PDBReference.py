@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest import TestCase
 from Bio.ExPASy import get_sprot_raw
-from Bio.PDB.Structure import Structure
+from test_Base import generate_temp_fn, write_out_temp_fn
 from PDBReference import PDBReference
 
 chain_a_pdb_partial = 'ATOM      9  N   GLU A   2     153.913  21.571  52.586  1.00 65.12           N  \n'\
@@ -105,12 +105,12 @@ chain_g_unp_seqres = 'SEQRES   1 G   74  MET ASP PRO GLU GLY PRO ASP ASN ASP GLU
                      'SEQRES   5 G   74  THR ARG SER ASN SER GLY THR ALA THR ALA GLN HIS LEU          \n'\
                      'SEQRES   6 G   74  LEU GLN PRO GLY GLU ALA THR GLU CYS                          \n'
 chain_a_gb_id1 = '11497664'
-chain_a_gb_id2 = 'NP_068884'
+chain_a_gb_id2 = 'WP_010877557'
 chain_a_gb_seq = 'MKICVFHDYFGAIGGGEKVALTISKLFNADVITTDVDAVPEEFRNKVISLGETIKLPPLKQIDASLKFYFSDFPDYDFYILSGNWVMFASKRHIPNLLYC'\
                  'YTPPRAFYDLYGDYLKKRNILTKPAFILWVKFHRKWAERMLKHIDKVVCISQNIKSRCKNFWGIDAEVIYPPVETSKFKFKCYGDFWLSVNRIYPEKRIE'\
                  'LQLEVFKKLQDEKLYIVGWFSKGDHAERYARKIMKIAPDNVKFLGSVSEEELIDLYSRCKGLLCTAKDEDFGLTPIEAMASGKPVIAVNEGGFKETVINE'\
                  'KTGYLVNADVNEIIDAMKKVSKNPDKFKKDCFRRAKEFDISIFKNKIKDAIRIVKKNFKNNTC'
-chain_a_gb_dbref = 'DBREF  2F9F A    1   167  GB     11497664 NP_068884      172    338             \n'
+chain_a_gb_dbref = 'DBREF  2F9F A    1   167  GB     11497664 WP_010877557      172    338             \n'
 chain_a_gb_seqres = 'SEQRES   1 A  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
                     'SEQRES   2 A  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
                     'SEQRES   3 A  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
@@ -125,7 +125,7 @@ chain_a_gb_seqres = 'SEQRES   1 A  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS 
                     'SEQRES  12 A  177  LEU VAL ASN ALA ASP VAL ASN GLU ILE ILE ASP ALA MSE          \n'\
                     'SEQRES  13 A  177  LYS LYS VAL SER LYS ASN PRO ASP LYS PHE LYS LYS ASP          \n'\
                     'SEQRES  14 A  177  CYS PHE ARG ARG ALA LYS GLU PHE       \n'
-chain_b_gb_dbref = 'DBREF  2F9F B    1   167  GB     11497664 NP_068884      172    338             \n'
+chain_b_gb_dbref = 'DBREF  2F9F B    1   167  GB     11497664 WP_010877557      172    338             \n'
 chain_b_gb_seqres = 'SEQRES   1 B  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
                     'SEQRES   2 B  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
                     'SEQRES   3 B  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
@@ -142,105 +142,66 @@ chain_b_gb_seqres = 'SEQRES   1 B  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS 
                     'SEQRES  14 B  177  CYS PHE ARG ARG ALA LYS GLU PHE       \n'
 
 
-def generate_temp_fn():
-    return f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pdb'
-
-
-def write_out_temp_pdb(out_str=None):
-    fn = generate_temp_fn()
-    with open(fn, 'a') as handle:
-        os.utime(fn)
-        if out_str:
-            handle.write(out_str)
-    return fn
-
-
 class TestImportPDB(TestCase):
 
-    def test_init_None(self):
-        with self.assertRaises(AttributeError):
-            PDBReference(pdb_file=None)
-
-    def test_init_bad_file_path(self):
-        fname = generate_temp_fn()
-        with self.assertRaises(AttributeError):
-            PDBReference(pdb_file=fname)
+    def evaluate_import_pdb(self, pdb, expected_struct_len, expected_chain, expected_seq, expected_res_list,
+                            expected_res_pos, expected_size):
+        self.assertEqual(len(pdb.structure), expected_struct_len)
+        self.assertEqual(pdb.chains, expected_chain)
+        self.assertEqual(pdb.seq, expected_seq)
+        self.assertEqual(pdb.pdb_residue_list, expected_res_list)
+        self.assertEqual(pdb.residue_pos, expected_res_pos)
+        self.assertEqual(pdb.size, expected_size)
+        self.assertIsNone(pdb.external_seq)
 
     def test_init(self):
-        fn = write_out_temp_pdb()
+        fn = write_out_temp_fn(suffix='pdb')
         pdb = PDBReference(pdb_file=fn)
         self.assertTrue(pdb.file_name.endswith(fn))
         os.remove(fn)
 
-    def test_import_pdb_empty(self):
-        fn = write_out_temp_pdb()
-        pdb = PDBReference(pdb_file=fn)
-        pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 0)
-        self.assertEqual(pdb.chains, set())
-        self.assertEqual(pdb.seq, {})
-        self.assertEqual(pdb.pdb_residue_list, {})
-        self.assertEqual(pdb.residue_pos, {})
-        self.assertEqual(pdb.size, {})
-        self.assertIsNone(pdb.external_seq)
-        os.remove(fn)
-
     def test_import_pdb_single_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A'})
-        self.assertEqual(pdb.seq, {'A': 'MET'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
-        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
-        self.assertEqual(pdb.size, {'A': 3})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A'}, expected_seq={'A': 'MET'},
+                                 expected_res_list={'A': [1, 2, 3]}, expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'}},
+                                 expected_size={'A': 3})
         os.remove(fn)
 
     def test_import_pdb_multiple_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb + chain_b_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb + chain_b_pdb)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A', 'B'})
-        self.assertEqual(pdb.seq, {'A': 'MET', 'B': 'MTREE'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]})
-        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'},
-                                           'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}})
-        self.assertEqual(pdb.size, {'A': 3, 'B': 5})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A', 'B'},
+                                 expected_seq={'A': 'MET', 'B': 'MTREE'},
+                                 expected_res_list={'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]},
+                                 expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'},
+                                                   'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}},
+                                 expected_size={'A': 3, 'B': 5})
         os.remove(fn)
 
     def test_import_pdb_missing_positions_single_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb_partial)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb_partial)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A'})
-        self.assertEqual(pdb.seq, {'A': 'ET'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [2, 3]})
-        self.assertEqual(pdb.residue_pos, {'A': {2: 'E', 3: 'T'}})
-        self.assertEqual(pdb.size, {'A': 2})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A'}, expected_seq={'A': 'ET'},
+                                 expected_res_list={'A': [2, 3]}, expected_res_pos={'A': {2: 'E', 3: 'T'}},
+                                 expected_size={'A': 2})
         os.remove(fn)
 
     def test_import_pdb_missing_positions_multiple_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb_partial + chain_b_pdb_partial)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb_partial + chain_b_pdb_partial)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A', 'B'})
-        self.assertEqual(pdb.seq, {'A': 'ET', 'B': 'REE'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [2, 3], 'B': [3, 4, 5]})
-        self.assertEqual(pdb.residue_pos, {'A': {2: 'E', 3: 'T'},
-                                           'B': {3: 'R', 4: 'E', 5: 'E'}})
-        self.assertEqual(pdb.size, {'A': 2, 'B': 3})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A', 'B'},
+                                 expected_seq={'A': 'ET', 'B': 'REE'}, expected_res_list={'A': [2, 3], 'B': [3, 4, 5]},
+                                 expected_res_pos={'A': {2: 'E', 3: 'T'}, 'B': {3: 'R', 4: 'E', 5: 'E'}},
+                                 expected_size={'A': 2, 'B': 3})
         os.remove(fn)
 
     def test_import_pdb_save_single_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         save_fname = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
         pdb = PDBReference(pdb_file=fn)
         self.assertFalse(os.path.isfile(save_fname))
@@ -248,18 +209,14 @@ class TestImportPDB(TestCase):
         self.assertTrue(os.path.isfile(save_fname))
         pdb2 = PDBReference(pdb_file=fn)
         pdb2.import_pdb(structure_id='1TES', save_file=save_fname)
-        self.assertEqual(len(pdb2.structure), 1)
-        self.assertEqual(pdb2.chains, {'A'})
-        self.assertEqual(pdb2.seq, {'A': 'MET'})
-        self.assertEqual(pdb2.pdb_residue_list, {'A': [1, 2, 3]})
-        self.assertEqual(pdb2.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
-        self.assertEqual(pdb2.size, {'A': 3})
-        self.assertIsNone(pdb2.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A'}, expected_seq={'A': 'MET'},
+                                 expected_res_list={'A': [1, 2, 3]}, expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'}},
+                                 expected_size={'A': 3})
         os.remove(fn)
         os.remove(save_fname)
 
     def test_import_pdb_save_multiple_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb + chain_b_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb + chain_b_pdb)
         save_fname = f'temp_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.pkl'
         pdb = PDBReference(pdb_file=fn)
         self.assertFalse(os.path.isfile(save_fname))
@@ -267,137 +224,147 @@ class TestImportPDB(TestCase):
         self.assertTrue(os.path.isfile(save_fname))
         pdb2 = PDBReference(pdb_file=fn)
         pdb2.import_pdb(structure_id='1TES', save_file=save_fname)
-        self.assertEqual(len(pdb2.structure), 1)
-        self.assertEqual(pdb2.chains, {'A', 'B'})
-        self.assertEqual(pdb2.seq, {'A': 'MET', 'B': 'MTREE'})
-        self.assertEqual(pdb2.pdb_residue_list, {'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]})
-        self.assertEqual(pdb2.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'},
-                                            'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}})
-        self.assertEqual(pdb2.size, {'A': 3, 'B': 5})
-        self.assertIsNone(pdb2.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A', 'B'},
+                                 expected_seq={'A': 'MET', 'B': 'MTREE'},
+                                 expected_res_list={'A': [1, 2, 3], 'B': [1, 2, 3, 4, 5]},
+                                 expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'},
+                                                   'B': {1: 'M', 2: 'T', 3: 'R', 4: 'E', 5: 'E'}},
+                                 expected_size={'A': 3, 'B': 5})
         os.remove(fn)
         os.remove(save_fname)
 
     def test_import_pdb_misordered_numbering_seq(self):
-        fn = write_out_temp_pdb(chain_a_pdb_partial2 + chain_a_pdb_partial)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb_partial2 + chain_a_pdb_partial)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A'})
-        self.assertEqual(pdb.seq, {'A': 'MET'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
-        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
-        self.assertEqual(pdb.size, {'A': 3})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A'}, expected_seq={'A': 'MET'},
+                                 expected_res_list={'A': [1, 2, 3]}, expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'}},
+                                 expected_size={'A': 3})
         os.remove(fn)
 
-        fn = write_out_temp_pdb(chain_a_pdb_partial + chain_a_pdb_partial2)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb_partial + chain_a_pdb_partial2)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
-        self.assertEqual(len(pdb.structure), 1)
-        self.assertEqual(pdb.chains, {'A'})
-        self.assertEqual(pdb.seq, {'A': 'MET'})
-        self.assertEqual(pdb.pdb_residue_list, {'A': [1, 2, 3]})
-        self.assertEqual(pdb.residue_pos, {'A': {1: 'M', 2: 'E', 3: 'T'}})
-        self.assertEqual(pdb.size, {'A': 3})
-        self.assertIsNone(pdb.external_seq)
+        self.evaluate_import_pdb(pdb=pdb, expected_struct_len=1, expected_chain={'A'}, expected_seq={'A': 'MET'},
+                                 expected_res_list={'A': [1, 2, 3]}, expected_res_pos={'A': {1: 'M', 2: 'E', 3: 'T'}},
+                                 expected_size={'A': 3})
         os.remove(fn)
+
+    def test_init_failure_none(self):
+        with self.assertRaises(AttributeError):
+            PDBReference(pdb_file=None)
+
+    def test_init_failure_bad_file_path(self):
+        fname = generate_temp_fn(suffix='pdb')
+        with self.assertRaises(AttributeError):
+            PDBReference(pdb_file=fname)
+
+    def test_import_pdb_failure_empty_file(self):
+        fn = write_out_temp_fn(suffix='pdb')
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdb.import_pdb(structure_id='1TES')
+        os.remove(fn)
+
 
 class GetPDBSequence(TestCase):
 
-    def test_get_seq_fail_bad_source(self):
-        fn = write_out_temp_pdb()
-        pdb = PDBReference(pdb_file=fn)
-        with self.assertRaises(ValueError):
-            pdb.get_sequence(chain='A', source='NCBI')
-
-    def test_get_seq_pdb_fail_import(self):
-        fn = write_out_temp_pdb()
-        pdb = PDBReference(pdb_file=fn)
-        with self.assertRaises(AttributeError):
-            pdb.get_sequence(chain='A', source='PDB')
+    def evaluate_get_sequence(self, seq, expected_ids, expected_seq):
+        self.assertTrue(seq[0] in expected_ids)
+        self.assertEqual(seq[1], expected_seq)
 
     def test_get_seq_pdb(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
         seq = pdb.get_sequence(chain='A', source='PDB')
-        self.assertEqual(seq[0], '1TES')
-        self.assertEqual(seq[1], 'MET')
+        self.evaluate_get_sequence(seq=seq, expected_ids=['1TES'], expected_seq='MET')
         os.remove(fn)
 
-    def test_get_seq_pdb_fail_chain(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+    def test_get_seq_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_unp_id1], expected_seq=chain_a_unp_seq)
+        os.remove(fn)
+
+    def test_get_seq_unp_multiple(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='G', source='UNP')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_g_unp_id1, chain_g_unp_id2],
+                                   expected_seq=chain_g_unp_seq)
+        seq2 = pdb.get_sequence(chain='A', source='UNP')
+        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_unp_id1, chain_a_unp_id2],
+                                   expected_seq=chain_a_unp_seq)
+        os.remove(fn)
+
+    def test_get_seq_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='GB')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
+        os.remove(fn)
+
+    def test_get_seq_gb_multiple(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='GB')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
+        seq2 = pdb.get_sequence(chain='A', source='GB')
+        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
+        os.remove(fn)
+
+    def test_get_seq_failure_bad_source(self):
+        fn = write_out_temp_fn(suffix='pdb')
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdb.get_sequence(chain='A', source='NCBI')
+        os.remove(fn)
+
+    def test_get_seq_pdb_failure_import(self):
+        fn = write_out_temp_fn(suffix='pdb')
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(AttributeError):
+            pdb.get_sequence(chain='A', source='PDB')
+        os.remove(fn)
+
+    def test_get_seq_pdb_failure_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         pdb.import_pdb(structure_id='1TES')
         with self.assertRaises(KeyError):
             pdb.get_sequence(chain='B', source='PDB')
         os.remove(fn)
 
-    def test_get_seq_unp_fail_no_entries(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+    def test_get_seq_unp_failure_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         seq = pdb.get_sequence(chain='A', source='UNP')
         self.assertIsNone(seq[0])
         self.assertIsNone(seq[1])
         os.remove(fn)
 
-    def test_get_seq_unp(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='UNP')
-        self.assertEqual(seq[0], chain_a_unp_id1)
-        self.assertEqual(seq[1], chain_a_unp_seq)
-        os.remove(fn)
-
-    def test_get_seq_unp_multiple(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='G', source='UNP')
-        self.assertTrue(seq[0] in [chain_g_unp_id1, chain_g_unp_id2])
-        self.assertEqual(seq[1], chain_g_unp_seq)
-        seq2 = pdb.get_sequence(chain='A', source='UNP')
-        self.assertTrue(seq2[0] in [chain_a_unp_id1, chain_a_unp_id2])
-        self.assertEqual(seq2[1], chain_a_unp_seq)
-        os.remove(fn)
-
-    def test_get_seq_unp_fail_bad_chain(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+    def test_get_seq_unp_failure_bad_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
         pdb = PDBReference(pdb_file=fn)
         seq = pdb.get_sequence(chain='B', source='UNP')
         self.assertIsNone(seq[0])
         self.assertIsNone(seq[1])
         os.remove(fn)
 
-    def test_get_seq_gb_fail_no_entries(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+    def test_get_seq_gb_failure_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         seq = pdb.get_sequence(chain='A', source='GB')
         self.assertIsNone(seq[0])
         self.assertIsNone(seq[1])
         os.remove(fn)
 
-    def test_get_seq_gb(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='GB')
-        self.assertTrue(seq[0] in [chain_a_gb_id1, chain_a_gb_id2])
-        self.assertEqual(seq[1], chain_a_gb_seq)
-        os.remove(fn)
-
-    def test_get_seq_gb_multiple(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='B', source='GB')
-        self.assertTrue(seq[0] in [chain_a_gb_id1, chain_a_gb_id2])
-        self.assertEqual(seq[1], chain_a_gb_seq)
-        seq2 = pdb.get_sequence(chain='A', source='GB')
-        self.assertTrue(seq2[0] in [chain_a_gb_id1, chain_a_gb_id2])
-        self.assertEqual(seq2[1], chain_a_gb_seq)
-        os.remove(fn)
-
-    def test_get_seq_gb_fail_bad_chain(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+    def test_get_seq_gb_failure_bad_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
         pdb = PDBReference(pdb_file=fn)
         seq = pdb.get_sequence(chain='B', source='GB')
         self.assertIsNone(seq[0])
@@ -419,9 +386,9 @@ class TestParseUniprotHandle(TestCase):
 
 class TestRetrieveUniprotSeq(TestCase):
 
-    def test_retrieve_acc_fail_none(self):
-        with self.assertRaises(TypeError):
-            PDBReference._retrieve_uniprot_seq(None)
+    def evaluate_retrieve_uniprot_seq(self, res, expected_id, expected_seq):
+        self.assertEqual(res[0], expected_id)
+        self.assertEqual(str(res[1]), expected_seq)
 
     def test_retrieve_acc_empty(self):
         res = PDBReference._retrieve_uniprot_seq([])
@@ -430,20 +397,22 @@ class TestRetrieveUniprotSeq(TestCase):
 
     def test_retrieve_acc_id_type1(self):
         res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id1])
-        self.assertEqual(res[0], chain_a_unp_id1)
-        self.assertEqual(str(res[1]), chain_a_unp_seq)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id=chain_a_unp_id1, expected_seq=chain_a_unp_seq)
 
     def test_retrieve_acc_id_type2(self):
         res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id2])
-        self.assertEqual(res[0], chain_a_unp_id2)
-        self.assertEqual(str(res[1]), chain_a_unp_seq)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id=chain_a_unp_id2, expected_seq=chain_a_unp_seq)
+
+    def test_retrieve_acc_failure_none(self):
+        with self.assertRaises(TypeError):
+            PDBReference._retrieve_uniprot_seq(None)
 
 
 class TestRetrieveGenBankSeq(TestCase):
 
-    def test_retrieve_acc_fail_none(self):
-        with self.assertRaises(TypeError):
-            PDBReference._retrieve_genbank_seq(None)
+    def evaluate_retrieve_genbank(self, res, expected_id, expected_seq):
+        self.assertEqual(res[0], expected_id)
+        self.assertEqual(str(res[1]), expected_seq)
 
     def test_retrieve_acc_empty(self):
         res = PDBReference._retrieve_genbank_seq([])
@@ -452,52 +421,57 @@ class TestRetrieveGenBankSeq(TestCase):
 
     def test_retrieve_acc_id_type1(self):
         res = PDBReference._retrieve_genbank_seq([chain_a_gb_id1])
-        self.assertEqual(res[0], chain_a_gb_id1)
-        self.assertEqual(str(res[1]), chain_a_gb_seq)
+        self.evaluate_retrieve_genbank(res=res, expected_id=chain_a_gb_id1, expected_seq=chain_a_gb_seq)
 
     def test_retrieve_acc_id_type2(self):
         res = PDBReference._retrieve_genbank_seq([chain_a_gb_id2])
-        self.assertEqual(res[0], chain_a_gb_id2)
-        self.assertEqual(str(res[1]), chain_a_gb_seq)
+        self.evaluate_retrieve_genbank(res=res, expected_id=chain_a_gb_id2, expected_seq=chain_a_gb_seq)
+
+    def test_retrieve_acc_failure_none(self):
+        with self.assertRaises(TypeError):
+            PDBReference._retrieve_genbank_seq(None)
 
 
 class TestParseExternalSequenceAccessions(TestCase):
 
     def test_parse_external_seq_acc_no_entries(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {})
         os.remove(fn)
 
     def test_parse_external_seq_acc_single_unp(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2]}})
         os.remove(fn)
 
     def test_parse_external_seq_acc_multiple_unp(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
                                        'G': [chain_g_unp_id1, chain_g_unp_id2]}})
         os.remove(fn)
 
     def test_parse_external_seq_acc_single_gb(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2]}})
         os.remove(fn)
 
     def test_parse_external_seq_acc_multiple_gb(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2],
                                       'B': [chain_a_gb_id1, chain_a_gb_id2]}})
         os.remove(fn)
 
     def test_parse_external_seq_acc_multiple_sources(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref + chain_b_gb_dbref +
-                                chain_a_unp_seqres + chain_g_unp_seqres + chain_a_gb_seqres + chain_b_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
+                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
+                                                      chain_a_gb_seqres + chain_b_gb_seqres))
         acc = PDBReference._parse_external_sequence_accessions(fn)
         self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
                                        'G': [chain_g_unp_id1, chain_g_unp_id2]},
@@ -509,21 +483,22 @@ class TestParseExternalSequenceAccessions(TestCase):
 class TestParseExternalSequences(TestCase):
 
     def test_parse_external_seqs_no_entries(self):
-        fn = write_out_temp_pdb(chain_a_pdb)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {})
         os.remove(fn)
 
     def test_parse_external_seqs_single_unp(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_a_unp_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq)}})
         os.remove(fn)
 
     def test_parse_external_seqs_multiple_unp(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres + chain_g_unp_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),
@@ -531,14 +506,15 @@ class TestParseExternalSequences(TestCase):
         os.remove(fn)
 
     def test_parse_external_seqs_single_gb(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_a_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq)}})
         os.remove(fn)
 
     def test_parse_external_seqs_multiple_gb(self):
-        fn = write_out_temp_pdb(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres + chain_b_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
@@ -546,8 +522,9 @@ class TestParseExternalSequences(TestCase):
         os.remove(fn)
 
     def test_parse_external_seqs_multiple_sources(self):
-        fn = write_out_temp_pdb(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref + chain_b_gb_dbref +
-                                chain_a_unp_seqres + chain_g_unp_seqres + chain_a_gb_seqres + chain_b_gb_seqres)
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
+                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
+                                                      chain_a_gb_seqres + chain_b_gb_seqres))
         pdb = PDBReference(pdb_file=fn)
         external_seqs = pdb._parse_external_sequences()
         self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),

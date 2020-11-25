@@ -2,22 +2,9 @@ import os
 import unittest
 from shutil import rmtree
 from unittest import TestCase
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo.TreeConstruction import DistanceMatrix
-from EvolutionaryTraceAlphabet import FullIUPACProtein
+from test_Base import protein_seq1, protein_seq2, protein_seq3, protein_msa, min_dm
+from test_Base import id_dm as dm
 from PhylogeneticTree import PhylogeneticTree, get_path_length
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-
-
-protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
-protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
-protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
-protein_msa = MultipleSeqAlignment(records=[protein_seq1, protein_seq2, protein_seq3], alphabet=FullIUPACProtein())
-adc = AlignmentDistanceCalculator(model='identity')
-dm = adc.get_distance(msa=protein_msa, processes=2)
-min_dm = DistanceMatrix(names=['seq1', 'seq2', 'seq3'])
 
 
 class TestPhylogeneticTreeInit(TestCase):
@@ -204,8 +191,7 @@ class TestPhylogeneticTreeConstructTree(TestCase):
 
     def test_construct_tree_agglomerative(self):
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-                                      tree_building_args={'cache_dir': os.getcwd(),
-                                                          'affinity': 'euclidean',
+                                      tree_building_args={'cache_dir': os.getcwd(), 'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.construct_tree(dm=dm)
         cache_dir_path = os.path.join(os.getcwd(), 'joblib')
@@ -216,8 +202,7 @@ class TestPhylogeneticTreeConstructTree(TestCase):
     def test_construct_tree_agglomerative_new_cache_dir(self):
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
                                       tree_building_args={'cache_dir': os.path.join(os.getcwd(), 'test'),
-                                                          'affinity': 'euclidean',
-                                                          'linkage': 'ward'})
+                                                          'affinity': 'euclidean', 'linkage': 'ward'})
         phylo_tree.construct_tree(dm=dm)
         cache_dir_path = os.path.join(os.getcwd(), 'test')
         self.assertTrue(os.path.isdir(cache_dir_path))
@@ -238,9 +223,7 @@ class TestPhylogeneticTreeConstructTree(TestCase):
 
     def test_construct_tree_agglomerative_failure_no_distance_matrix(self):
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-                                      tree_building_args={'cache_dir': None,
-                                                          'affinity': 'euclidean',
-                                                          'linkage': 'ward'})
+                                      tree_building_args={'cache_dir': None, 'affinity': 'euclidean', 'linkage': 'ward'})
         with self.assertRaises(ValueError):
             phylo_tree.construct_tree(dm=None)
 
@@ -248,8 +231,7 @@ class TestPhylogeneticTreeConstructTree(TestCase):
         test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
         with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
             handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
-        phylo_tree = PhylogeneticTree(tree_building_method='custom',
-                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree = PhylogeneticTree(tree_building_method='custom', tree_building_args={'tree_path': test_tree_path})
         phylo_tree.construct_tree(dm=min_dm)
         self.evaluate_construct_method(phylo_tree)
         os.remove(test_tree_path)
@@ -348,30 +330,36 @@ class TestPhylogeneticTreeWriteOutTree(TestCase):
 
 class TestPhylogeneticTreeTraversal(TestCase):
 
-    def evaluate_traversal(self, p_tree, dist_mat, expectation):
+    def evaluate_traversal(self, dist_mat, expectation, method):
+        p_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         p_tree.construct_tree(dm=dist_mat)
-        gen = p_tree.traverse_top_down()
-        nodes = [n.name for n in gen]
+        if method == 'top_down':
+            gen = p_tree.traverse_top_down()
+        elif method == 'bottom_up':
+            gen = p_tree.traverse_bottom_up()
+        elif method == 'by_rank':
+            gen = p_tree.traverse_by_rank()
+        else:
+            raise ValueError('Bad traversal method.')
+        nodes = []
+        for level in gen:
+            try:
+                nodes.append(level.name)
+            except AttributeError:
+                nodes.append([x.name for x in level])
         self.assertEqual(nodes, expectation)
 
     def test_traverse_top_down(self):
-        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         expected_nodes = ['Inner1', 'Inner2', 'seq1', 'seq2', 'seq3']
-        self.evaluate_traversal(phylo_tree, dm, expected_nodes)
+        self.evaluate_traversal(dm, expected_nodes, method='top_down')
 
     def test_traverse_bottom_up(self):
-        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         expected_nodes = ['seq1', 'seq2', 'seq3', 'Inner2', 'Inner1']
-        self.evaluate_traversal(phylo_tree, dm, expected_nodes)
+        self.evaluate_traversal(dm, expected_nodes, method='bottom_up')
 
     def test_traverse_by_rank(self):
-        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
-        phylo_tree.construct_tree(dm=dm)
-        gen = phylo_tree.traverse_by_rank()
         expected_nodes = [['Inner1'], ['Inner2', 'seq1'], ['seq3', 'seq2', 'seq1']]
-        for i, nodes in enumerate(gen):
-            node_names = [n.name for n in nodes]
-            self.assertEqual(node_names, expected_nodes[i])
+        self.evaluate_traversal(dm, expected_nodes, method='by_rank')
 
 
 class TestPhylogeneticTreeRenameInternalNodes(TestCase):
@@ -404,8 +392,7 @@ class TestPhylogeneticTreeRenameInternalNodes(TestCase):
 
     def test_rename_internal_nodes_agglomerative(self):
         phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
-                                      tree_building_args={'cache_dir': os.getcwd(),
-                                                          'affinity': 'euclidean',
+                                      tree_building_args={'cache_dir': os.getcwd(), 'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.distance_matrix = dm
         tree = phylo_tree._agglomerative_clustering(cache_dir=phylo_tree.tree_args['cache_dir'],
@@ -437,18 +424,14 @@ class TestPhylogeneticTreeRenameInternalNodes(TestCase):
 class TestPhylogeneticTreeAssignRank(TestCase):
 
     def evaluate_group_rank_dict(self, r_dict, expectation):
-        print(r_dict)
         self.assertEqual(len(r_dict), len(expectation))
         for rank in r_dict:
-            print(rank)
             self.assertTrue(rank in expectation)
             self.assertEqual(len(r_dict[rank]), len(expectation[rank]))
             for group in r_dict[rank]:
-                print(f'\t{group}')
                 self.assertTrue(group in expectation[rank])
                 self.assertEqual(len(r_dict[rank][group]), len(expectation[rank][group]))
                 for field in r_dict[rank][group]:
-                    print(f'\t\t{field}')
                     self.assertTrue(field in expectation[rank][group])
                     if field == 'node':
                         self.assertEqual(r_dict[rank][group][field].name, expectation[rank][group][field])
@@ -469,105 +452,60 @@ class TestPhylogeneticTreeAssignRank(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         rank_dict = phylo_tree.assign_group_rank(ranks=None)
-        expected_rank_dict = {1: {1: {'node': 'Inner1',
-                                      'terminals': ['seq3', 'seq2', 'seq1'],
+        expected_rank_dict = {1: {1: {'node': 'Inner1', 'terminals': ['seq3', 'seq2', 'seq1'],
                                       'descendants': ['Inner2', 'seq1']}},
-                              2: {1: {'node': 'Inner2',
-                                      'terminals': ['seq3', 'seq2'],
-                                      'descendants': ['seq2', 'seq3']},
-                                  2: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}},
-                              3: {1: {'node': 'seq3',
-                                      'terminals': ['seq3'],
-                                      'descendants': None},
-                                  2: {'node': 'seq2',
-                                      'terminals': ['seq2'],
-                                      'descendants': None},
-                                  3: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}}}
+                              2: {1: {'node': 'Inner2', 'terminals': ['seq3', 'seq2'], 'descendants': ['seq2', 'seq3']},
+                                  2: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}},
+                              3: {1: {'node': 'seq3', 'terminals': ['seq3'], 'descendants': None},
+                                  2: {'node': 'seq2', 'terminals': ['seq2'], 'descendants': None},
+                                  3: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}}}
         self.evaluate_group_rank_dict(rank_dict, expected_rank_dict)
 
     def test_assign_group_rank_all(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         rank_dict = phylo_tree.assign_group_rank(ranks={1, 2, 3})
-        expected_rank_dict = {1: {1: {'node': 'Inner1',
-                                      'terminals': ['seq3', 'seq2', 'seq1'],
+        expected_rank_dict = {1: {1: {'node': 'Inner1', 'terminals': ['seq3', 'seq2', 'seq1'],
                                       'descendants': ['Inner2', 'seq1']}},
-                              2: {1: {'node': 'Inner2',
-                                      'terminals': ['seq3', 'seq2'],
-                                      'descendants': ['seq2', 'seq3']},
-                                  2: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}},
-                              3: {1: {'node': 'seq3',
-                                      'terminals': ['seq3'],
-                                      'descendants': None},
-                                  2: {'node': 'seq2',
-                                      'terminals': ['seq2'],
-                                      'descendants': None},
-                                  3: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}}}
+                              2: {1: {'node': 'Inner2', 'terminals': ['seq3', 'seq2'], 'descendants': ['seq2', 'seq3']},
+                                  2: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}},
+                              3: {1: {'node': 'seq3', 'terminals': ['seq3'], 'descendants': None},
+                                  2: {'node': 'seq2', 'terminals': ['seq2'], 'descendants': None},
+                                  3: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}}}
         self.evaluate_group_rank_dict(rank_dict, expected_rank_dict)
 
     def test_assign_group_rank_not_root(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         rank_dict = phylo_tree.assign_group_rank(ranks={2, 3})
-        expected_rank_dict = {1: {1: {'node': 'Inner1',
-                                      'terminals': ['seq3', 'seq2', 'seq1'],
+        expected_rank_dict = {1: {1: {'node': 'Inner1', 'terminals': ['seq3', 'seq2', 'seq1'],
                                       'descendants': ['Inner2', 'seq1']}},
-                              2: {1: {'node': 'Inner2',
-                                      'terminals': ['seq3', 'seq2'],
-                                      'descendants': ['seq2', 'seq3']},
-                                  2: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}},
-                              3: {1: {'node': 'seq3',
-                                      'terminals': ['seq3'],
-                                      'descendants': None},
-                                  2: {'node': 'seq2',
-                                      'terminals': ['seq2'],
-                                      'descendants': None},
-                                  3: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}}}
+                              2: {1: {'node': 'Inner2', 'terminals': ['seq3', 'seq2'], 'descendants': ['seq2', 'seq3']},
+                                  2: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}},
+                              3: {1: {'node': 'seq3', 'terminals': ['seq3'], 'descendants': None},
+                                  2: {'node': 'seq2', 'terminals': ['seq2'], 'descendants': None},
+                                  3: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}}}
         self.evaluate_group_rank_dict(rank_dict, expected_rank_dict)
 
     def test_assign_group_rank_not_leaves(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         rank_dict = phylo_tree.assign_group_rank(ranks={1, 2})
-        expected_rank_dict = {1: {1: {'node': 'Inner1',
-                                      'terminals': ['seq3', 'seq2', 'seq1'],
+        expected_rank_dict = {1: {1: {'node': 'Inner1', 'terminals': ['seq3', 'seq2', 'seq1'],
                                       'descendants': ['Inner2', 'seq1']}},
-                              2: {1: {'node': 'Inner2',
-                                      'terminals': ['seq3', 'seq2'],
-                                      'descendants': None},
-                                  2: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}}}
+                              2: {1: {'node': 'Inner2', 'terminals': ['seq3', 'seq2'], 'descendants': None},
+                                  2: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}}}
         self.evaluate_group_rank_dict(rank_dict, expected_rank_dict)
 
     def test_assign_group_rank_not_intermediate(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         rank_dict = phylo_tree.assign_group_rank(ranks={1, 3})
-        expected_rank_dict = {1: {1: {'node': 'Inner1',
-                                      'terminals': ['seq3', 'seq2', 'seq1'],
+        expected_rank_dict = {1: {1: {'node': 'Inner1', 'terminals': ['seq3', 'seq2', 'seq1'],
                                       'descendants': ['seq1', 'seq2', 'seq3']}},
-                              3: {1: {'node': 'seq3',
-                                      'terminals': ['seq3'],
-                                      'descendants': None},
-                                  2: {'node': 'seq2',
-                                      'terminals': ['seq2'],
-                                      'descendants': None},
-                                  3: {'node': 'seq1',
-                                      'terminals': ['seq1'],
-                                      'descendants': None}}}
+                              3: {1: {'node': 'seq3', 'terminals': ['seq3'], 'descendants': None},
+                                  2: {'node': 'seq2', 'terminals': ['seq2'], 'descendants': None},
+                                  3: {'node': 'seq1', 'terminals': ['seq1'], 'descendants': None}}}
         self.evaluate_group_rank_dict(rank_dict, expected_rank_dict)
 
     def test_assign_group_rank_failure_rank_0(self):
@@ -584,46 +522,45 @@ class TestPhylogeneticTreeAssignRank(TestCase):
 
 class TestPhylogeneticTreeGetPathLength(TestCase):
 
+    def evaluate_get_path_length(self, path, expected_length):
+        length = get_path_length(path)
+        self.assertLessEqual((length - expected_length), 1E-3)
+
     def test_get_path_length_empty_path(self):
-        length = get_path_length([])
-        self.assertEqual(length, 0)
+        self.evaluate_get_path_length(path=[], expected_length=0)
 
     def test_get_path_length_single_path1(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root])
-        self.assertEqual(length, 0)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root], expected_length=0)
 
     def test_get_path_length_single_path2(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root.clades[0]])
-        self.assertLessEqual(length - 0.2916, 1E-4)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root.clades[0]], expected_length=0.2916)
 
     def test_get_path_length_single_path3(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root.clades[0].clades[0]])
-        self.assertLessEqual(length - 0.083, 1E-3)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root.clades[0].clades[0]], expected_length=0.083)
 
     def test_get_path_length_double_path1(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root, phylo_tree.tree.root.clades[0]])
-        self.assertLessEqual(length - 0.2916, 1E-4)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root, phylo_tree.tree.root.clades[0]],
+                                      expected_length=0.2916)
 
     def test_get_path_length_double_path2(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root.clades[0], phylo_tree.tree.root.clades[0].clades[0]])
-        self.assertLessEqual(length - 0.375, 1E-3)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root.clades[0], phylo_tree.tree.root.clades[0].clades[0]],
+                                      expected_length=0.375)
 
     def test_get_path_length_triple(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        length = get_path_length([phylo_tree.tree.root, phylo_tree.tree.root.clades[0],
-                                  phylo_tree.tree.root.clades[0].clades[0]])
-        self.assertLessEqual(length - 0.375, 1E-3)
+        self.evaluate_get_path_length(path=[phylo_tree.tree.root, phylo_tree.tree.root.clades[0],
+                                            phylo_tree.tree.root.clades[0].clades[0]], expected_length=0.375)
 
     def test_get_path_length_failure_broken_path(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})

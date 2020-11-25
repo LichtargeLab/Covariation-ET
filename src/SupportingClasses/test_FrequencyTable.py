@@ -18,6 +18,7 @@ from test_seqAlignment import generate_temp_fn, write_out_temp_fasta
 from utils import build_mapping
 from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
+from MatchMismatchTable import MatchMismatchTable
 from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 
 dna_alpha = Gapped(FullIUPACDNA())
@@ -31,9 +32,11 @@ for char in dna_pair_map:
     dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
 pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
 pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
-pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1))
+pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
+pro_single_to_pair_map = {}
 for char in pro_pair_map:
     pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
+    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
 protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
 protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
 protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
@@ -42,6 +45,13 @@ dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPAC
 dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
 dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
+
+aln_fn = write_out_temp_fasta(
+                out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+aln.import_alignment()
+os.remove(aln_fn)
+num_aln = aln._alignment_to_num(mapping=protein_map)
 
 
 class TestFrequencyTableInit(TestCase):
@@ -1572,6 +1582,59 @@ class TestFrequencyTableCSV(TestCase):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         with self.assertRaises(TypeError):
             freq_table.load_csv(file_path=None)
+
+    def test_load_csv_failure_match_mismatch_freq_table(self):
+        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                              larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                              larger_reverse_mapping=pro_pair_rev,
+                                              single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
+        protein_mm_table.identify_matches_mismatches()
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        for s1 in range(3):
+            for s2 in range(s1 + 1, 3):
+                for pos1 in range(6):
+                    single_stat, single_char = protein_mm_table.get_status_and_character(pos=pos1, seq_ind1=s1,
+                                                                                         seq_ind2=s2)
+                    if single_stat == 'match':
+                        freq_table._increment_count(pos=pos1, char=single_char)
+        freq_table.set_depth(3)
+        freq_table.finalize_table()
+        table = freq_table.get_table()
+        csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
+        freq_table.to_csv(file_path=csv_path)
+        freq_table2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        freq_table2.load_csv(csv_path, 3)
+        table2 = freq_table2.get_table()
+        self.assertIsInstance(table, csc_matrix)
+        self.assertIsInstance(table2, csc_matrix)
+        self.assertFalse((table - table2).toarray().any())
+        self.assertEqual(freq_table.get_depth(), freq_table2.get_depth())
+        os.remove(csv_path)
+
+    def test_load_csv_failure_match_mismatch_freq_table_no_depth(self):
+        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
+                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                              larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
+                                              larger_reverse_mapping=pro_pair_rev,
+                                              single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
+        protein_mm_table.identify_matches_mismatches()
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        for s1 in range(3):
+            for s2 in range(s1 + 1, 3):
+                for pos1 in range(6):
+                    single_stat, single_char = protein_mm_table.get_status_and_character(pos=pos1, seq_ind1=s1,
+                                                                                         seq_ind2=s2)
+                    if single_stat == 'match':
+                        freq_table._increment_count(pos=pos1, char=single_char)
+        freq_table.set_depth(3)
+        freq_table.finalize_table()
+        csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
+        freq_table.to_csv(file_path=csv_path)
+        freq_table2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        with self.assertRaises(RuntimeError):
+            freq_table2.load_csv(csv_path)
+        os.remove(csv_path)
 
 
 class TestFrequencyTableAdd(TestCase):
