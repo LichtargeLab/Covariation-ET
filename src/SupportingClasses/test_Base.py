@@ -56,17 +56,33 @@ protein_alpha = Gapped(FullIUPACProtein())
 protein_alpha_size, _, protein_map, protein_rev = build_mapping(protein_alpha)
 pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
 dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
+quad_dna_alpha = MultiPositionAlphabet(dna_alpha, size=4)
+dna_quad_alpha_size, _, dna_quad_map, dna_quad_rev = build_mapping(quad_dna_alpha)
 dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1))
 for char in dna_pair_map:
     dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
+dna_single_to_pair_map = {}
+for char in dna_pair_map:
+    dna_single_to_pair_map[(dna_map[char[0]], dna_map[char[1]])] = dna_pair_map[char]
+dna_single_to_quad_map = {}
+for char in dna_quad_map:
+    dna_single_to_quad_map[(dna_map[char[0]], dna_map[char[1]], dna_map[char[2]], dna_map[char[3]])] = dna_quad_map[char]
 pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
 pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
+quad_protein_alpha = MultiPositionAlphabet(protein_alpha, size=4)
+pro_quad_alpha_size, _, pro_quad_map, pro_quad_rev = build_mapping(quad_protein_alpha)
 pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
 pro_single_to_pair_map = {}
 for char in pro_pair_map:
     pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
     pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
-
+pro_single_to_pair_map = {}
+for char in pro_pair_map:
+    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
+pro_single_to_quad_map = {}
+for char in pro_quad_map:
+    key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
+    pro_single_to_quad_map[key] = pro_quad_map[char]
 
 # class TestBase(TestCase):
 #

@@ -6,109 +6,63 @@ Created on Mar 4, 2020
 import os
 import unittest
 import numpy as np
-import pandas as pd
 from unittest import TestCase
-from scipy.sparse import lil_matrix, csc_matrix
-from Bio.Seq import Seq
-from Bio.Alphabet import Gapped
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
-from test_Base import TestBase
-from utils import build_mapping
+from test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size, protein_map,
+                       protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map, dna_pair_rev, quad_dna_alpha,
+                       dna_quad_alpha_size, dna_quad_map, dna_quad_rev, pair_protein_alpha, pro_pair_alpha_size,
+                       pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size, pro_quad_map, pro_quad_rev,
+                       dna_single_to_pair_map, dna_single_to_quad_map, pro_single_to_pair_map, pro_single_to_quad_map,
+                       protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
+                       generate_temp_fn, write_out_temp_fn)
 from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
 from MatchMismatchTable import MatchMismatchTable
-from test_seqAlignment import generate_temp_fn, write_out_temp_fasta
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
-
-dna_alpha = Gapped(FullIUPACDNA())
-dna_alpha_size, _, dna_map, dna_rev = build_mapping(dna_alpha)
-protein_alpha = Gapped(FullIUPACProtein())
-protein_alpha_size, _, protein_map, protein_rev = build_mapping(protein_alpha)
-pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
-dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
-quad_dna_alpha = MultiPositionAlphabet(dna_alpha, size=4)
-dna_quad_alpha_size, _, dna_quad_map, dna_quad_rev = build_mapping(quad_dna_alpha)
-dna_single_to_pair = {}
-for char in dna_pair_map:
-    dna_single_to_pair[(dna_map[char[0]], dna_map[char[1]])] = dna_pair_map[char]
-dna_single_to_quad = {}
-for char in dna_quad_map:
-    dna_single_to_quad[(dna_map[char[0]], dna_map[char[1]], dna_map[char[2]], dna_map[char[3]])] = dna_quad_map[char]
-pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
-pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
-quad_protein_alpha = MultiPositionAlphabet(protein_alpha, size=4)
-pro_quad_alpha_size, _, pro_quad_map, pro_quad_rev = build_mapping(quad_protein_alpha)
-pro_single_to_pair = {}
-for char in pro_pair_map:
-    pro_single_to_pair[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
-pro_single_to_quad = {}
-for char in pro_quad_map:
-    key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
-    pro_single_to_quad[key] = pro_quad_map[char]
-protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
-protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
-protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
-protein_msa = MultipleSeqAlignment(records=[protein_seq1, protein_seq2, protein_seq3], alphabet=FullIUPACProtein())
-dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPACDNA()))
-dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
 
 
 class TestMatchMismatchTableInit(TestCase):
 
+    def evaluate_init(self, aln, alpha_size, alpha_map, alpha_rev, large_alpha_size, large_alpha_map, large_alpha_rev,
+                      small_to_large, seq_len, pos_size):
+        num_aln = aln._alignment_to_num(mapping=alpha_map)
+        mm_table = MatchMismatchTable(seq_len=seq_len, num_aln=num_aln, single_alphabet_size=alpha_size,
+                                      single_mapping=alpha_map, single_reverse_mapping=alpha_rev,
+                                      larger_alphabet_size=large_alpha_size, larger_mapping=large_alpha_map,
+                                      larger_reverse_mapping=large_alpha_rev,
+                                      single_to_larger_mapping=small_to_large, pos_size=pos_size)
+        self.assertEqual(mm_table.seq_len, seq_len)
+        self.assertEqual(mm_table.pos_size, pos_size)
+        self.assertFalse((mm_table.num_aln - num_aln).any())
+        self.assertEqual(mm_table.single_alphabet_size, alpha_size)
+        self.assertEqual(mm_table.single_mapping, alpha_map)
+        self.assertEqual(mm_table.single_reverse_mapping.tolist(), alpha_rev.tolist())
+        self.assertEqual(mm_table.larger_alphabet_size, large_alpha_size)
+        self.assertEqual(mm_table.larger_mapping, large_alpha_map)
+        self.assertEqual(mm_table.larger_reverse_mapping.tolist(), large_alpha_rev.tolist())
+        self.assertEqual(mm_table.single_to_larger_mapping, small_to_large)
+        self.assertIsNone(mm_table.match_mismatch_tables)
+
     def test_init_single_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        mm_table = MatchMismatchTable(seq_len=18, num_aln=num_aln, single_alphabet_size=dna_alpha_size,
-                                      single_mapping=dna_map, single_reverse_mapping=dna_rev,
-                                      larger_alphabet_size=dna_pair_alpha_size, larger_mapping=dna_pair_map,
-                                      larger_reverse_mapping=dna_pair_rev,
-                                      single_to_larger_mapping=dna_single_to_pair, pos_size=1)
-        self.assertEqual(mm_table.seq_len, 18)
-        self.assertEqual(mm_table.pos_size, 1)
-        self.assertFalse((mm_table.num_aln - num_aln).any())
-        self.assertEqual(mm_table.single_alphabet_size, dna_alpha_size)
-        self.assertEqual(mm_table.single_mapping, dna_map)
-        self.assertEqual(mm_table.single_reverse_mapping.tolist(), dna_rev.tolist())
-        self.assertEqual(mm_table.larger_alphabet_size, dna_pair_alpha_size)
-        self.assertEqual(mm_table.larger_mapping, dna_pair_map)
-        self.assertEqual(mm_table.larger_reverse_mapping.tolist(), dna_pair_rev.tolist())
-        self.assertEqual(mm_table.single_to_larger_mapping, dna_single_to_pair)
-        self.assertIsNone(mm_table.match_mismatch_tables)
+        self.evaluate_init(aln=aln, alpha_size=dna_alpha_size, alpha_map=dna_map, alpha_rev=dna_rev,
+                           large_alpha_size=dna_pair_alpha_size, large_alpha_map=dna_pair_map,
+                           large_alpha_rev=dna_pair_rev, small_to_large=dna_single_to_pair_map, seq_len=18, pos_size=1)
         os.remove(aln_fn)
 
     def test_init_pair_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        mm_table = MatchMismatchTable(seq_len=18, num_aln=num_aln, single_alphabet_size=dna_alpha_size,
-                                      single_mapping=dna_map, single_reverse_mapping=dna_rev,
-                                      larger_alphabet_size=dna_quad_alpha_size, larger_mapping=dna_quad_map,
-                                      larger_reverse_mapping=dna_quad_rev,
-                                      single_to_larger_mapping=dna_single_to_quad, pos_size=2)
-        self.assertEqual(mm_table.seq_len, 18)
-        self.assertEqual(mm_table.pos_size, 2)
-        self.assertFalse((mm_table.num_aln - num_aln).any())
-        self.assertEqual(mm_table.single_alphabet_size, dna_alpha_size)
-        self.assertEqual(mm_table.single_mapping, dna_map)
-        self.assertEqual(mm_table.single_reverse_mapping.tolist(), dna_rev.tolist())
-        self.assertEqual(mm_table.larger_alphabet_size, dna_quad_alpha_size)
-        self.assertEqual(mm_table.larger_mapping, dna_quad_map)
-        self.assertEqual(mm_table.larger_reverse_mapping.tolist(), dna_quad_rev.tolist())
-        self.assertEqual(mm_table.single_to_larger_mapping, dna_single_to_quad)
-        self.assertIsNone(mm_table.match_mismatch_tables)
+        self.evaluate_init(aln=aln, alpha_size=dna_alpha_size, alpha_map=dna_map, alpha_rev=dna_rev,
+                           large_alpha_size=dna_quad_alpha_size, large_alpha_map=dna_quad_map,
+                           large_alpha_rev=dna_quad_rev, small_to_large=dna_single_to_quad_map, seq_len=18, pos_size=2)
         os.remove(aln_fn)
 
     def test_init_failure_pair_to_quad(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -122,8 +76,8 @@ class TestMatchMismatchTableInit(TestCase):
         os.remove(aln_fn)
 
     def test_init_failure_pair_to_single(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -142,65 +96,61 @@ class TestMatchMismatchTableInit(TestCase):
                                           single_mapping=dna_map, single_reverse_mapping=dna_rev,
                                           larger_alphabet_size=dna_pair_alpha_size, larger_mapping=dna_pair_map,
                                           larger_reverse_mapping=dna_pair_rev,
-                                          single_to_larger_mapping=dna_single_to_pair, pos_size=1)
+                                          single_to_larger_mapping=dna_single_to_pair_map, pos_size=1)
 
 
 class TestMatchMismatchTableIdentifyMatchesMismatches(TestCase):
 
-    def test_identify_matches_mismatches_single_to_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
-                                      single_mapping=protein_map, single_reverse_mapping=protein_rev,
-                                      larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
-                                      larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+    def evaluate_identify_matches_mismatches(self, aln, seq_len, pos_size, depth, alpha_size, alpha_map, alpha_rev,
+                                             pair_alpha_size, pair_map, pair_rev, small_to_large):
+        num_aln = aln._alignment_to_num(mapping=alpha_map)
+        mm_table = MatchMismatchTable(seq_len=seq_len, num_aln=num_aln, single_alphabet_size=alpha_size,
+                                      single_mapping=alpha_map, single_reverse_mapping=alpha_rev,
+                                      larger_alphabet_size=pair_alpha_size, larger_mapping=pair_map,
+                                      larger_reverse_mapping=pair_rev, single_to_larger_mapping=small_to_large,
+                                      pos_size=pos_size)
         mm_table.identify_matches_mismatches()
-        for i in range(6):
+        for i in range(seq_len):
             self.assertTrue(i in mm_table.match_mismatch_tables)
-            expected_table = np.zeros((3, 3))
-            for j in range(3):
-                for k in range(j + 1, 3):
+            expected_table = np.zeros((depth, depth))
+            for j in range(depth):
+                for k in range(j + 1, depth):
                     if num_aln[j, i] == num_aln[k, i]:
                         expected_table[j, k] = 1
                     else:
                         expected_table[j, k] = -1
             self.assertFalse((mm_table.match_mismatch_tables[i] - expected_table).any())
 
-    def test_identify_matches_mismatches_pair_to_quad(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+    def test_identify_matches_mismatches_single_to_pair(self):
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
-                                      single_mapping=protein_map, single_reverse_mapping=protein_rev,
-                                      larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
-        mm_table.identify_matches_mismatches()
-        for i in range(6):
-            self.assertTrue(i in mm_table.match_mismatch_tables)
-            expected_table = np.zeros((3, 3))
-            for j in range(3):
-                for k in range(j + 1, 3):
-                    if num_aln[j, i] == num_aln[k, i]:
-                        expected_table[j, k] = 1
-                    else:
-                        expected_table[j, k] = -1
-            self.assertFalse((mm_table.match_mismatch_tables[i] - expected_table).any())
+        self.evaluate_identify_matches_mismatches(aln=aln, seq_len=6, pos_size=1, depth=3,
+                                                  alpha_size=protein_alpha_size, alpha_map=protein_map,
+                                                  alpha_rev=protein_rev, pair_alpha_size=pro_pair_alpha_size,
+                                                  pair_map=pro_pair_map, pair_rev=pro_pair_rev,
+                                                  small_to_large=pro_single_to_pair_map)
+
+    def test_identify_matches_mismatches_pair_to_quad(self):
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        self.evaluate_identify_matches_mismatches(aln=aln, seq_len=6, pos_size=2, depth=3,
+                                                  alpha_size=protein_alpha_size, alpha_map=protein_map,
+                                                  alpha_rev=protein_rev, pair_alpha_size=pro_quad_alpha_size,
+                                                  pair_map=pro_quad_map, pair_rev=pro_quad_rev,
+                                                  small_to_large=pro_single_to_quad_map)
 
 
 class TestMatchMismatchTable(TestCase):
 
     def test_get_status_and_character_single_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -209,7 +159,7 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         for i in range(6):
             for j in range(3):
@@ -222,8 +172,8 @@ class TestMatchMismatchTable(TestCase):
                     self.assertEqual(curr_char, protein_msa[j, i] + protein_msa[k, i])
 
     def test_get_status_and_character_pair_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -232,7 +182,7 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         for i in range(6):
             for j in range(i + 1, 6):
@@ -249,8 +199,8 @@ class TestMatchMismatchTable(TestCase):
                         self.assertEqual(curr_char, pair_k + pair_l)
 
     def test_get_status_and_character_failure_not_initialized(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -259,13 +209,13 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         with self.assertRaises(AttributeError):
             mm_table.get_status_and_character(pos=0, seq_ind1=0, seq_ind2=1)
 
     def test_get_status_and_character_failure_disordered_seq_ind(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -274,14 +224,14 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         with self.assertRaises(ValueError):
             mm_table.get_status_and_character(pos=0, seq_ind1=1, seq_ind2=0)
 
     def test_get_status_and_character_failure_pos_size_mismatch_bigger(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -290,14 +240,14 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         with self.assertRaises(ValueError):
             mm_table.get_status_and_character(pos=(0, 1), seq_ind1=0, seq_ind2=1)
 
     def test_get_status_and_character_failure_pos_size_mismatch_smaller(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -306,14 +256,14 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         with self.assertRaises(ValueError):
             mm_table.get_status_and_character(pos=0, seq_ind1=0, seq_ind2=1)
 
     def test_get_status_and_character_failure_bad_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -322,7 +272,7 @@ class TestMatchMismatchTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         with self.assertRaises(ValueError):
             mm_table.get_status_and_character(pos=[1, 2], seq_ind1=0, seq_ind2=1)
@@ -331,8 +281,8 @@ class TestMatchMismatchTable(TestCase):
 class TestMatchMismatchTableGetDepth(TestCase):
 
     def test_get_depth_single(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -342,12 +292,12 @@ class TestMatchMismatchTableGetDepth(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         self.assertEqual(mm_table.get_depth(), 1)
 
     def test_get_depth_double(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -356,12 +306,12 @@ class TestMatchMismatchTableGetDepth(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         self.assertEqual(mm_table.get_depth(), 2)
 
     def test_get_depth_triple(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -370,15 +320,15 @@ class TestMatchMismatchTableGetDepth(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         self.assertEqual(mm_table.get_depth(), 3)
 
 
 class TestMatchMismatchTableGetSubTable(TestCase):
 
     def test__get_characters_and_statuses_single_pos_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -387,7 +337,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         ind1 = [0, 0, 1]
         ind2 = [1, 2, 2]
@@ -404,8 +354,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertFalse((statuses - expected_statuses).any())
 
     def test__get_characters_and_statuses_single_pos_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -414,7 +364,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         ind1 = [1, 2, 2]
         ind2 = [0, 0, 1]
@@ -429,8 +379,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertFalse((statuses - expected_statuses).any())
 
     def test__get_characters_and_statuses_single_pos_failure_uninitialized(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -439,13 +389,13 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         with self.assertRaises(AttributeError):
             mm_table._get_characters_and_statuses_single_pos(pos=0, indices1=[0, 1, 2], indices2=[0, 1, 2])
 
     def test__get_characters_and_statuses_multi_pos_pair_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -454,7 +404,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         ind1 = [0, 0, 1]
         ind2 = [1, 2, 2]
@@ -475,8 +425,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertFalse((statuses - expected_statuses).any())
 
     def test__get_characters_and_statuses_multi_pos_pair_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -485,7 +435,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         ind1 = [1, 2, 2]
         ind2 = [0, 0, 1]
@@ -503,8 +453,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertFalse((statuses - expected_statuses).any())
 
     def test__get_characters_and_statuses_multi_pos_pair_failure_uninitiated(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -513,13 +463,13 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         with self.assertRaises(AttributeError):
             mm_table._get_characters_and_statuses_single_pos(pos=(0, 1), indices1=[0, 1, 2], indices2=[0, 1, 2])
 
     def test_get_upper_triangle_single_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -528,7 +478,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         ind = [0, 1, 2]
         ind1 = [0, 0, 1]
@@ -542,8 +492,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_triangle_single_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -552,7 +502,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         ind = [1, 2, 0]
         ind1 = [0, 0, 1]
@@ -566,8 +516,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_triangle_single_failure_uninitiated(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -576,13 +526,13 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         with self.assertRaises(AttributeError):
             mm_table.get_upper_triangle(pos=0, indices=[1, 2])
 
     def test_get_upper_triangle_pair_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -591,7 +541,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         ind = [0, 1, 2]
         ind1 = [0, 0, 1]
@@ -609,8 +559,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_triangle_pair_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -619,7 +569,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         ind = [1, 2, 0]
         ind1 = [0, 0, 1]
@@ -637,8 +587,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_triangle_pair_failure_uninitiated(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -647,7 +597,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         with self.assertRaises(AttributeError):
             mm_table.get_upper_triangle(pos=(0, 1), indices=[1, 2])
 
@@ -655,8 +605,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
     # def test_get_upper_rectangle_pair(self):
 
     def test_get_upper_rectangle_single_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -665,7 +615,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         full_ind1 = [0, 0]
         ind1 = [0]
@@ -679,8 +629,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_rectangle_single_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -689,7 +639,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         mm_table.identify_matches_mismatches()
         full_ind1 = [0, 0]
         full_ind2 = [1, 2]
@@ -704,8 +654,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
             self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_rectangle_single_failure_uninitiated(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -714,13 +664,13 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
-                                      single_to_larger_mapping=pro_single_to_pair, pos_size=1)
+                                      single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
         with self.assertRaises(AttributeError):
             mm_table.get_upper_rectangle(pos=0, indices1=[0], indices2=[1, 2])
 
     def test_get_upper_rectangle_pair_correctly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -729,7 +679,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         full_ind1 = [0, 0]
         ind1 = [0]
@@ -747,8 +697,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_rectangle_pair_incorrectly_ordered(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -757,7 +707,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         mm_table.identify_matches_mismatches()
         full_ind1 = [0, 0]
         full_ind2 = [1, 2]
@@ -777,8 +727,8 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                 self.assertEqual(statuses.tolist(), expected_statuses)
 
     def test_get_upper_rectangle_pair_failure_uninitiated(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         os.remove(aln_fn)
@@ -787,7 +737,7 @@ class TestMatchMismatchTableGetSubTable(TestCase):
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
                                       larger_reverse_mapping=pro_quad_rev,
-                                      single_to_larger_mapping=pro_single_to_quad, pos_size=2)
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
         with self.assertRaises(AttributeError):
             mm_table.get_upper_rectangle(pos=(0, 1), indices1=[0], indices2=[1, 2])
 
