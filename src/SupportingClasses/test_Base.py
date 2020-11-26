@@ -4,13 +4,16 @@ Created onJune 19, 2019
 @author: daniel
 """
 import os
+import numpy as np
 from datetime import datetime
 from Bio.Seq import Seq
+from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceMatrix
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
+from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from utils import build_mapping
 from unittest import TestCase
 from multiprocessing import cpu_count
 from DataSetGenerator import DataSetGenerator
@@ -46,6 +49,23 @@ dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=
 min_dm = DistanceMatrix(names=['seq1', 'seq2', 'seq3'])
 id_adc = AlignmentDistanceCalculator(model='identity')
 id_dm = id_adc.get_distance(msa=protein_msa, processes=2)
+
+dna_alpha = Gapped(FullIUPACDNA())
+dna_alpha_size, _, dna_map, dna_rev = build_mapping(dna_alpha)
+protein_alpha = Gapped(FullIUPACProtein())
+protein_alpha_size, _, protein_map, protein_rev = build_mapping(protein_alpha)
+pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
+dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
+dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1))
+for char in dna_pair_map:
+    dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
+pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
+pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
+pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
+pro_single_to_pair_map = {}
+for char in pro_pair_map:
+    pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
+    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
 
 
 # class TestBase(TestCase):

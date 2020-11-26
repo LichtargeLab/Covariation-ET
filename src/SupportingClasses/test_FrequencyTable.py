@@ -10,48 +10,19 @@ import pandas as pd
 from unittest import TestCase
 from itertools import combinations
 from scipy.sparse import csc_matrix
-from Bio.Alphabet import Gapped
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
-from test_seqAlignment import generate_temp_fn, write_out_temp_fasta
-from utils import build_mapping
+from test_Base import (protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
+                       dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size, protein_map,
+                       protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map, dna_pair_rev, dna_single_to_pair,
+                       pair_protein_alpha, pro_pair_alpha_size, pro_pair_map, pro_pair_rev, pro_single_to_pair,
+                       pro_single_to_pair_map, generate_temp_fn, write_out_temp_fn)
 from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
 from MatchMismatchTable import MatchMismatchTable
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 
-dna_alpha = Gapped(FullIUPACDNA())
-dna_alpha_size, _, dna_map, dna_rev = build_mapping(dna_alpha)
-protein_alpha = Gapped(FullIUPACProtein())
-protein_alpha_size, _, protein_map, protein_rev = build_mapping(protein_alpha)
-pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
-dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
-dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1))
-for char in dna_pair_map:
-    dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
-pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
-pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
-pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
-pro_single_to_pair_map = {}
-for char in pro_pair_map:
-    pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
-    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
-protein_seq1 = SeqRecord(id='seq1', seq=Seq('MET---', alphabet=FullIUPACProtein()))
-protein_seq2 = SeqRecord(id='seq2', seq=Seq('M-TREE', alphabet=FullIUPACProtein()))
-protein_seq3 = SeqRecord(id='seq3', seq=Seq('M-FREE', alphabet=FullIUPACProtein()))
-protein_msa = MultipleSeqAlignment(records=[protein_seq1, protein_seq2, protein_seq3], alphabet=FullIUPACProtein())
-dna_seq1 = SeqRecord(id='seq1', seq=Seq('ATGGAGACT---------', alphabet=FullIUPACDNA()))
-dna_seq2 = SeqRecord(id='seq2', seq=Seq('ATG---ACTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_seq3 = SeqRecord(id='seq3', seq=Seq('ATG---TTTAGAGAGGAG', alphabet=FullIUPACDNA()))
-dna_msa = MultipleSeqAlignment(records=[dna_seq1, dna_seq2, dna_seq3], alphabet=FullIUPACDNA())
-
-aln_fn = write_out_temp_fasta(
-                out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-aln.import_alignment()
-os.remove(aln_fn)
-num_aln = aln._alignment_to_num(mapping=protein_map)
+dna_aln_str = f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}'
+dna_one_seq_aln_str = f'>seq1\n{str(dna_seq1.seq)}'
+protein_aln_str = f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}'
+protein_one_seq_aln_str = f'>seq1\n{str(protein_seq1.seq)}'
 
 
 class TestFrequencyTableInit(TestCase):
@@ -109,35 +80,35 @@ class TestFrequencyTableInit(TestCase):
 
 class TestFrequencyTableConvertPos(TestCase):
 
+    def evaluate_convert_pos(self, alpha_size, mapping, rev, seq_len, pos_size, curr_pos, expected_pos):
+        freq_table = FrequencyTable(alpha_size, mapping, rev, seq_len, pos_size)
+        pos = freq_table._convert_pos(curr_pos)
+        self.assertEqual(pos, expected_pos)
+
     def test__convert_pos_single_pos_first(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        pos = freq_table._convert_pos(0)
-        self.assertEqual(pos, 0)
+        self.evaluate_convert_pos(alpha_size=dna_alpha_size, mapping=dna_map, rev=dna_rev, seq_len=18, pos_size=1,
+                                  curr_pos=0, expected_pos=0)
 
     def test__convert_pos_single_pos_middle(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        pos = freq_table._convert_pos(9)
-        self.assertEqual(pos, 9)
+        self.evaluate_convert_pos(alpha_size=dna_alpha_size, mapping=dna_map, rev=dna_rev, seq_len=18, pos_size=1,
+                                  curr_pos=9, expected_pos=9)
 
     def test__convert_pos_single_pos_last(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        pos = freq_table._convert_pos(17)
-        self.assertEqual(pos, 17)
+        self.evaluate_convert_pos(alpha_size=dna_alpha_size, mapping=dna_map, rev=dna_rev, seq_len=18, pos_size=1,
+                                  curr_pos=17, expected_pos=17)
 
     def test__convert_pos_pair_pos_first(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        pos = freq_table._convert_pos((0, 0))
-        self.assertEqual(pos, 0)
+        self.evaluate_convert_pos(alpha_size=dna_pair_alpha_size, mapping=dna_pair_map, rev=dna_pair_rev, seq_len=18,
+                                  pos_size=2, curr_pos=(0, 0), expected_pos=0)
 
     def test__convert_pos_pair_pos_middle(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        pos = freq_table._convert_pos((1, 2))
-        self.assertEqual(pos, 18 + 2 - 1)
+        self.evaluate_convert_pos(alpha_size=dna_pair_alpha_size, mapping=dna_pair_map, rev=dna_pair_rev, seq_len=18,
+                                  pos_size=2, curr_pos=(1, 2), expected_pos=18 + 2 - 1)
 
     def test__convert_pos_pair_pos_last(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        pos = freq_table._convert_pos((17, 17))
-        self.assertEqual(pos, len(list(combinations(range(18), 2))) + 18 - 1)
+        self.evaluate_convert_pos(alpha_size=dna_pair_alpha_size, mapping=dna_pair_map, rev=dna_pair_rev, seq_len=18,
+                                  pos_size=2, curr_pos=(17, 17),
+                                  expected_pos=len(list(combinations(range(18), 2))) + 18 - 1)
 
     def test__convert_pos_failure_tuple_single_pos(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -172,153 +143,124 @@ class TestFrequencyTableConvertPos(TestCase):
 
 class TestFrequencyTableIncrementCount(TestCase):
 
+    def evaluate_increment_count(self, freq_table, first_table, second_table, expected_values, expected_positions,
+                                 expected_chars, expected_shape, expected_depth):
+        self.assertNotEqual(first_table, second_table)
+        self.assertEqual(second_table['values'], expected_values)
+        self.assertEqual(second_table['i'], expected_positions)
+        self.assertEqual(second_table['j'], expected_chars)
+        self.assertEqual(second_table['shape'], expected_shape)
+        self.assertEqual(freq_table.get_depth(), expected_depth)
+
     def test__increment_count_single_pos_default(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=0, char='A')
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [0])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[0], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_one(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=0, char='A', amount=1)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [0])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[0], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_two(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=0, char='A', amount=2)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [2])
-        self.assertEqual(t2['i'], [0])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[2],
+                                      expected_positions=[0], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_pair_pos_default(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=(0, 1), char='AA')
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [1])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[1], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_one(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [1])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[1], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_two(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=(0, 1), char='AA', amount=2)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertEqual(t2['values'], [2])
-        self.assertEqual(t2['i'], [1])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[2],
+                                      expected_positions=[1], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_single_pos_multiple_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=0, char='A', amount=1)
         t2 = freq_table.get_table()
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[0], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
         freq_table._increment_count(pos=0, char='A', amount=1)
         t3 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertNotEqual(t2, t3)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [0])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(t3['values'], [1, 1])
-        self.assertEqual(t3['i'], [0, 0])
-        self.assertEqual(t3['j'], [0, 0])
-        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
+                                      expected_positions=[0, 0], expected_chars=[0, 0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_multiple_different_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=0, char='A', amount=1)
         t2 = freq_table.get_table()
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[0], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
         freq_table._increment_count(pos=5, char='C', amount=1)
         t3 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertNotEqual(t2, t3)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [0])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(t3['values'], [1, 1])
-        self.assertEqual(t3['i'], [0, 5])
-        self.assertEqual(t3['j'], [0, 2])
-        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
+                                      expected_positions=[0, 5], expected_chars=[0, 2], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_pair_pos_multiple_increments(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
         t2 = freq_table.get_table()
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[1], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
         t3 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertNotEqual(t2, t3)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [1])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(t3['values'], [1, 1])
-        self.assertEqual(t3['i'], [1, 1])
-        self.assertEqual(t3['j'], [0, 0])
-        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
+                                      expected_positions=[1, 1], expected_chars=[0, 0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_multiple_different_increments(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         t1 = freq_table.get_table()
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
         t2 = freq_table.get_table()
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
+                                      expected_positions=[1], expected_chars=[0], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
         freq_table._increment_count(pos=(0, 4), char='AC', amount=1)
         t3 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertNotEqual(t2, t3)
-        self.assertEqual(t2['values'], [1])
-        self.assertEqual(t2['i'], [1])
-        self.assertEqual(t2['j'], [0])
-        self.assertEqual(t2['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(t3['values'], [1, 1])
-        self.assertEqual(t3['i'], [1, 4])
-        self.assertEqual(t3['j'], [0, 2])
-        self.assertEqual(t3['shape'], (freq_table.num_pos, dna_pair_alpha_size))
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
+                                      expected_positions=[1, 4], expected_chars=[0, 2], expected_depth=0,
+                                      expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_single_pos_failure_negative(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -363,14 +305,18 @@ class TestFrequencyTableIncrementCount(TestCase):
 
 class TestFrequencyTableFinalizeTable(TestCase):
 
+    def evaluate_finalize_table(self, table1, table2, expected_sum, expected_value):
+        self.assertNotEqual(type(table1), type(table2))
+        self.assertEqual(type(table2), csc_matrix)
+        self.assertEqual(np.sum(table2), expected_sum)
+        self.assertEqual(table2[0, 0], expected_value)
+
     def test_finalize_table_no_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         t1 = freq_table.get_table()
         freq_table.finalize_table()
         t2 = freq_table.get_table()
-        self.assertNotEqual(type(t1), type(t2))
-        self.assertEqual(type(t2), csc_matrix)
-        self.assertEqual(np.sum(t2), 0)
+        self.evaluate_finalize_table(table1=t1, table2=t2, expected_sum=0, expected_value=0)
 
     def test_finalize_table_one_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -378,10 +324,7 @@ class TestFrequencyTableFinalizeTable(TestCase):
         freq_table._increment_count(pos=0, char='A', amount=1)
         freq_table.finalize_table()
         t2 = freq_table.get_table()
-        self.assertNotEqual(type(t1), type(t2))
-        self.assertEqual(type(t2), csc_matrix)
-        self.assertEqual(np.sum(t2), 1)
-        self.assertEqual(t2[0, 0], 1)
+        self.evaluate_finalize_table(table1=t1, table2=t2, expected_sum=1, expected_value=1)
 
     def test_finalize_table_two_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -390,10 +333,7 @@ class TestFrequencyTableFinalizeTable(TestCase):
         freq_table._increment_count(pos=0, char='A', amount=1)
         freq_table.finalize_table()
         t2 = freq_table.get_table()
-        self.assertNotEqual(type(t1), type(t2))
-        self.assertEqual(type(t2), csc_matrix)
-        self.assertEqual(np.sum(t2), 2)
-        self.assertEqual(t2[0, 0], 2)
+        self.evaluate_finalize_table(table1=t1, table2=t2, expected_sum=2, expected_value=2)
 
 
 class TestFrequencyTableSetDepth(TestCase):
@@ -430,8 +370,14 @@ class TestFrequencyTableSetDepth(TestCase):
 
 class TestFrequencyTableCharacterizeAlignment(TestCase):
 
+    def evaluate_characterize_alignment(self, freq_table, table1, table2, expected_table, expected_depth):
+        self.assertNotEqual(table1, table2)
+        self.assertTrue(isinstance(table2, csc_matrix))
+        self.assertFalse((table2 - expected_table).any())
+        self.assertEqual(freq_table.get_depth(), expected_depth)
+
     def test_characterize_alignment_dna_single_pos(self):
-        aln_fn = write_out_temp_fasta(out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -439,8 +385,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros(shape=(18, dna_alpha_size))
         expected_table[0, 0] = 3
         expected_table[1, 1] = 3
@@ -453,20 +397,19 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[8, 1] = 3
         expected_table[9, [0, 4]] = [2, 1]
         expected_table[10, [3, 4]] = [2, 1]
-        expected_table[11, [0, 4]]= [2, 1]
+        expected_table[11, [0, 4]] = [2, 1]
         expected_table[12, [3, 4]] = [2, 1]
         expected_table[13, [0, 4]] = [2, 1]
         expected_table[14, [3, 4]] = [2, 1]
         expected_table[15, [3, 4]] = [2, 1]
         expected_table[16, [0, 4]] = [2, 1]
         expected_table[17, [3, 4]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_protein_single_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=protein_map)
@@ -474,8 +417,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros((6, protein_alpha_size))
         expected_table[0, 11] = 3
         expected_table[1, [4, 23]] = [1, 2]
@@ -483,13 +424,12 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[3, [15, 23]] = [2, 1]
         expected_table[4, [4, 23]] = [2, 1]
         expected_table[5, [4, 23]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_dna_pair_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -497,8 +437,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros(shape=(freq_table.num_pos, dna_pair_alpha_size))
         expected_table[0, 0] = 3
         expected_table[1, 1] = 3
@@ -671,13 +609,12 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[168, [0, 24]] = [2, 1]
         expected_table[169, [3, 24]] = [2, 1]
         expected_table[170, [18, 24]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_protein_pair_pos(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=protein_map)
@@ -685,8 +622,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros((freq_table.num_pos, pro_pair_alpha_size))
         expected_table[0, 275] = 3
         expected_table[1, [268, 287]] = [1, 2]
@@ -709,13 +644,12 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[18, [100, 575]] = [2, 1]
         expected_table[19, [100, 575]] = [2, 1]
         expected_table[20, [100, 575]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_dna_single_pos_single_to_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -723,8 +657,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros(shape=(18, dna_alpha_size))
         expected_table[0, 0] = 3
         expected_table[1, 1] = 3
@@ -744,13 +676,12 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[15, [3, 4]] = [2, 1]
         expected_table[16, [0, 4]] = [2, 1]
         expected_table[17, [3, 4]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_protein_single_pos_single_to_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=protein_map)
@@ -758,8 +689,6 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         t1 = freq_table.get_table()
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, csc_matrix))
         expected_table = np.zeros((6, protein_alpha_size))
         expected_table[0, 11] = 3
         expected_table[1, [4, 23]] = [1, 2]
@@ -767,13 +696,12 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         expected_table[3, [15, 23]] = [2, 1]
         expected_table[4, [4, 23]] = [2, 1]
         expected_table[5, [4, 23]] = [2, 1]
-        self.assertFalse((t2 - expected_table).any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
+                                             expected_depth=3)
         os.remove(aln_fn)
 
     def test_characterize_alignment_failure_dna_pair_pos_no_single_to_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -783,8 +711,7 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         os.remove(aln_fn)
 
     def test_characterize_alignment_failure_protein_pair_pos_no_single_to_pair(self):
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=protein_map)
@@ -816,205 +743,75 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
 
 class TestFrequencyTableCharacterizeSequence(TestCase):
 
-    def test_characterize_sequence_dna_single_pos(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+    def evaluate_characterize_sequence(self, seqs, seq_aln, seq_type, alpha_size, alpha_map, alpha_rev, seq_len,
+                                       pos_size, single_map, expected_depth=1, single_to_pair=None):
+        freq_table = FrequencyTable(alpha_size, alpha_map, alpha_rev, seq_len, pos_size)
         t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=dna_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, dict))
+        for seq in seqs:
+            freq_table.characterize_sequence(seq=seq)
+            t2 = freq_table.get_table()
+            self.assertNotEqual(t1, t2)
+            self.assertTrue(isinstance(t2, dict))
+            t1 = t2
         freq_table.finalize_table()
         t3 = freq_table.get_table()
         self.assertTrue(isinstance(t3, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=seq_aln)
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type=seq_type)
         aln.import_alignment()
         os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        freq_table2 = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table2.characterize_alignment(num_aln=num_aln)
+        num_aln = aln._alignment_to_num(mapping=single_map)
+        freq_table2 = FrequencyTable(alpha_size, alpha_map, alpha_rev, seq_len, pos_size)
+        freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         expected_table = freq_table2.get_table()
         self.assertFalse((t3 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 1)
+        self.assertEqual(freq_table.get_depth(), expected_depth)
+
+    def test_characterize_sequence_dna_single_pos(self):
+        self.evaluate_characterize_sequence(seqs=[dna_seq1], seq_aln=dna_one_seq_aln_str, seq_type='DNA',
+                                            alpha_size=dna_alpha_size, alpha_map=dna_map, alpha_rev=dna_rev, seq_len=18,
+                                            pos_size=1, single_map=dna_map)
 
     def test_characterize_sequence_protein_single_pos(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=protein_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, dict))
-        freq_table.finalize_table()
-        t3 = freq_table.get_table()
-        self.assertTrue(isinstance(t3, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        freq_table2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table2.characterize_alignment(num_aln=num_aln)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t3 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 1)
+        self.evaluate_characterize_sequence(seqs=[protein_seq1], seq_aln=protein_one_seq_aln_str, seq_type='Protein',
+                                            alpha_size=protein_alpha_size, alpha_map=protein_map, alpha_rev=protein_rev,
+                                            seq_len=6, pos_size=1, single_map=protein_map)
 
     def test_characterize_sequence_dna_single_pair(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=dna_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, dict))
-        freq_table.finalize_table()
-        t3 = freq_table.get_table()
-        self.assertTrue(isinstance(t3, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
-        aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        os.remove(aln_fn)
-        freq_table2 = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t3 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 1)
+        self.evaluate_characterize_sequence(seqs=[dna_seq1], seq_aln=dna_one_seq_aln_str, seq_type='DNA',
+                                            alpha_size=dna_pair_alpha_size, alpha_map=dna_pair_map,
+                                            alpha_rev=dna_pair_rev, seq_len=18, pos_size=2, single_map=dna_map,
+                                            single_to_pair=dna_single_to_pair)
 
     def test_characterize_sequence_protein_single_pair(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=protein_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        self.assertTrue(isinstance(t2, dict))
-        freq_table.finalize_table()
-        t3 = freq_table.get_table()
-        self.assertTrue(isinstance(t3, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        os.remove(aln_fn)
-        freq_table2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t3 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 1)
+        self.evaluate_characterize_sequence(seqs=[protein_seq1], seq_aln=protein_one_seq_aln_str, seq_type='Protein',
+                                            alpha_size=pro_pair_alpha_size, alpha_map=pro_pair_map,
+                                            alpha_rev=pro_pair_rev, seq_len=6, pos_size=2, single_map=protein_map,
+                                            single_to_pair=pro_single_to_pair)
 
     def test_characterize_multi_sequence_dna_single_pos(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=dna_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        freq_table.characterize_sequence(seq=dna_seq2)
-        t3 = freq_table.get_table()
-        self.assertNotEqual(t2, t3)
-        freq_table.characterize_sequence(seq=dna_seq3)
-        t4 = freq_table.get_table()
-        self.assertNotEqual(t3, t4)
-        self.assertTrue(isinstance(t4, dict))
-        freq_table.finalize_table()
-        t5 = freq_table.get_table()
-        self.assertTrue(isinstance(t5, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        freq_table2 = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table2.characterize_alignment(num_aln=num_aln)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t5 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_sequence(seqs=[dna_seq1, dna_seq2, dna_seq3], seq_aln=dna_aln_str,
+                                            seq_type='DNA', alpha_size=dna_alpha_size, alpha_map=dna_map,
+                                            alpha_rev=dna_rev, seq_len=18, pos_size=1, single_map=dna_map,
+                                            expected_depth=3)
 
     def test_characterize_multi_sequence_protein_single_pos(self):
-        freq_table = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=protein_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        freq_table.characterize_sequence(seq=protein_seq2)
-        t3 = freq_table.get_table()
-        self.assertNotEqual(t2, t3)
-        freq_table.characterize_sequence(seq=protein_seq3)
-        t4 = freq_table.get_table()
-        self.assertNotEqual(t3, t4)
-        self.assertTrue(isinstance(t4, dict))
-        freq_table.finalize_table()
-        t5 = freq_table.get_table()
-        self.assertTrue(isinstance(t5, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        freq_table2 = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
-        freq_table2.characterize_alignment(num_aln=num_aln)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t5 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_sequence(seqs=[protein_seq1, protein_seq2, protein_seq3], seq_aln=protein_aln_str,
+                                            seq_type='Protein', alpha_size=protein_alpha_size, alpha_map=protein_map,
+                                            alpha_rev=protein_rev, seq_len=6, pos_size=1, single_map=protein_map,
+                                            expected_depth=3)
 
     def test_characterize_multi_sequence_dna_pair_pos(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=dna_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        freq_table.characterize_sequence(seq=dna_seq2)
-        t3 = freq_table.get_table()
-        self.assertNotEqual(t2, t3)
-        freq_table.characterize_sequence(seq=dna_seq3)
-        t4 = freq_table.get_table()
-        self.assertNotEqual(t3, t4)
-        self.assertTrue(isinstance(t4, dict))
-        freq_table.finalize_table()
-        t5 = freq_table.get_table()
-        self.assertTrue(isinstance(t5, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
-        aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=dna_map)
-        os.remove(aln_fn)
-        freq_table2 = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t5 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_sequence(seqs=[dna_seq1, dna_seq2, dna_seq3], seq_aln=dna_aln_str, seq_type='DNA',
+                                            alpha_size=dna_pair_alpha_size, alpha_map=dna_pair_map,
+                                            alpha_rev=dna_pair_rev, seq_len=18, pos_size=2, single_map=dna_map,
+                                            single_to_pair=dna_single_to_pair, expected_depth=3)
 
     def test_characterize_multi_sequence_protein_pair_pos(self):
-        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        t1 = freq_table.get_table()
-        freq_table.characterize_sequence(seq=protein_seq1)
-        t2 = freq_table.get_table()
-        self.assertNotEqual(t1, t2)
-        freq_table.characterize_sequence(seq=protein_seq2)
-        t3 = freq_table.get_table()
-        self.assertNotEqual(t2, t3)
-        freq_table.characterize_sequence(seq=protein_seq3)
-        t4 = freq_table.get_table()
-        self.assertNotEqual(t3, t4)
-        self.assertTrue(isinstance(t4, dict))
-        freq_table.finalize_table()
-        t5 = freq_table.get_table()
-        self.assertTrue(isinstance(t5, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        os.remove(aln_fn)
-        freq_table2 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
-        freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
-        expected_table = freq_table2.get_table()
-        self.assertFalse((t5 - expected_table).toarray().any())
-        self.assertEqual(freq_table.get_depth(), 3)
+        self.evaluate_characterize_sequence(seqs=[protein_seq1, protein_seq2, protein_seq3], seq_aln=protein_aln_str,
+                                            seq_type='Protein', alpha_size=pro_pair_alpha_size, alpha_map=pro_pair_map,
+                                            alpha_rev=pro_pair_rev, seq_len=6, pos_size=2, single_map=protein_map,
+                                            single_to_pair=pro_single_to_pair, expected_depth=3)
 
 
     # def test_characterize_sequence_fail_dna_single_pos_wrong_mapping(self):
@@ -1047,134 +844,22 @@ class TestFrequencyTableCharacterizeSequence(TestCase):
 
 class TestFrequencyTableGetters(TestCase):
 
-    def test_get_initial(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+    def evaluate_getters_initial(self, freq_table, expected_dict, expected_depth, expected_positions, test_char):
         table = freq_table.get_table()
         self.assertTrue(isinstance(table, dict))
-        self.assertEqual(table, {'values': [], 'i': [], 'j': [], 'shape': (freq_table.num_pos, dna_alpha_size)})
-        self.assertEqual(freq_table.get_depth(), 0)
+        self.assertEqual(table, expected_dict)
+        self.assertEqual(freq_table.get_depth(), expected_depth)
         positions = freq_table.get_positions()
-        expected_positions = list(range(18))
-        self.assertEqual(positions, expected_positions)
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                freq_table.get_chars(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
-        freq_table.finalize_table()
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                self.assertEqual(freq_table.get_chars(pos=p), [])
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
-
-    def test_get_single_update_single_pos(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table._increment_count(pos=0, char='A', amount=1)
-        table = freq_table.get_table()
-        self.assertTrue(isinstance(table, dict))
-        self.assertEqual(table, {'values': [1], 'i': [0], 'j': [0], 'shape': (freq_table.num_pos, dna_alpha_size)})
-        self.assertEqual(freq_table.get_depth(), 0)
-        positions = freq_table.get_positions()
-        expected_positions = list(range(18))
-        self.assertEqual(positions, expected_positions)
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                freq_table.get_chars(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
-        freq_table.finalize_table()
-        table2 = freq_table.get_table()
-        self.assertTrue(isinstance(table2, csc_matrix))
-        expected_table = np.zeros((freq_table.num_pos, dna_alpha_size))
-        expected_table[0, 0] = 1
-        self.assertFalse((table2 - expected_table).any())
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                self.assertEqual(freq_table.get_chars(pos=p))
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
-
-    def test_get_single_update_pair_pos(self):
-        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        freq_table._increment_count(pos=(0, 0), char='AA', amount=1)
-        table = freq_table.get_table()
-        self.assertTrue(isinstance(table, dict))
-        self.assertEqual(table, {'values': [1], 'i': [0], 'j': [0], 'shape': (freq_table.num_pos, dna_pair_alpha_size)})
-        self.assertEqual(freq_table.get_depth(), 0)
-        positions = freq_table.get_positions()
-        expected_positions = list(combinations(range(18), 2)) + [(x, x) for x in range(18)]
         self.assertEqual(set(positions), set(expected_positions))
         for p in positions:
             with self.assertRaises(AttributeError):
                 freq_table.get_chars(pos=p)
             with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
+                freq_table.get_count(pos=p, char=test_char)
             with self.assertRaises(AttributeError):
                 freq_table.get_count_array(pos=p)
             with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
-        freq_table.finalize_table()
-        table2 = freq_table.get_table()
-        self.assertTrue(isinstance(table2, csc_matrix))
-        expected_table = np.zeros((freq_table.num_pos, dna_pair_alpha_size))
-        expected_table[0, 0] = 1
-        self.assertFalse((table2 - expected_table).any())
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                freq_table.get_chars(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
+                freq_table.get_frequency(pos=p, char=test_char)
             with self.assertRaises(AttributeError):
                 freq_table.get_frequency_array(pos=p)
         with self.assertRaises(AttributeError):
@@ -1182,35 +867,109 @@ class TestFrequencyTableGetters(TestCase):
         with self.assertRaises(AttributeError):
             freq_table.get_frequency_matrix()
 
-    def test_get_single_seq_single_pos(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table.characterize_sequence(seq=dna_seq1)
+    def evaluate_getters_finalized_0_depth(self, freq_table, positions, expected_table, test_char):
         table = freq_table.get_table()
-        self.assertTrue(isinstance(table, dict))
-        self.assertEqual(freq_table.get_depth(), 1)
-        positions = freq_table.get_positions()
-        expected_positions = list(range(18))
-        self.assertEqual(positions, expected_positions)
+        self.assertFalse((table - expected_table).any())
         for p in positions:
             with self.assertRaises(AttributeError):
                 freq_table.get_chars(pos=p)
             with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='A')
+                freq_table.get_count(pos=p, char=test_char)
             with self.assertRaises(AttributeError):
                 freq_table.get_count_array(pos=p)
             with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='A')
+                freq_table.get_frequency(pos=p, char=test_char)
             with self.assertRaises(AttributeError):
                 freq_table.get_frequency_array(pos=p)
         with self.assertRaises(AttributeError):
             freq_table.get_count_matrix()
         with self.assertRaises(AttributeError):
             freq_table.get_frequency_matrix()
+
+    # def evaluate_getters_finalized(self, freq_table, positions, aln_str, query, query_type, alpha_size, alpha_map,
+    #                                alpha_rev, seq_len, pos_size, expected_chars, expected_counts):
+    #     table2 = freq_table.get_table()
+    #     self.assertTrue(isinstance(table2, csc_matrix))
+    #     aln_fn = write_out_temp_fn(suffix='fasta', out_str=aln_str)
+    #     aln = SeqAlignment(aln_fn, query, polymer_type=query_type)
+    #     aln.import_alignment()
+    #     num_aln = aln._alignment_to_num(mapping=alpha_map)
+    #     os.remove(aln_fn)
+    #     freq_table2 = FrequencyTable(alpha_size, alpha_map, alpha_rev,seq_len, pos_size)
+    #     freq_table2.characterize_alignment(num_aln=num_aln)
+    #     expected_table = freq_table2.get_table()
+    #     self.assertFalse((table2 - expected_table).toarray().any())
+    #     for p in positions:
+    #         chars = []
+    #         for seq in aln:
+    #             if pos_size == 1:
+    #                 chars.append(seq[p])
+    #             elif pos_size == 2:
+    #                 chars.append(seq[p[0]] + seq[p[1]])
+    #             else:
+    #                 raise ValueError('Bad pos_size encountered.')
+    #         self.assertEqual(set(freq_table.get_chars(pos=p)), set(chars))
+    #         self.assertFalse((freq_table.get_count_array(pos=p) - np.array([1])).any())
+    #         self.assertFalse((freq_table.get_frequency_array(pos=p) - np.array([1.0])).any())
+    #         for c in dna_rev:
+    #             if dna_seq1[p] == c:
+    #                 self.assertEqual(freq_table.get_count(pos=p, char=c), 1)
+    #                 self.assertEqual(freq_table.get_frequency(pos=p, char=c), 1.0)
+    #             else:
+    #                 self.assertEqual(freq_table.get_count(pos=p, char=c), 0)
+    #                 self.assertEqual(freq_table.get_frequency(pos=p, char=c), 0.0)
+    #     self.assertFalse((freq_table.get_count_matrix() - expected_table).any())
+    #     self.assertFalse((freq_table.get_frequency_matrix() - expected_table).any())
+
+    def test_get_initial(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        expected_dict = {'values': [], 'i': [], 'j': [], 'shape': (freq_table.num_pos, dna_alpha_size)}
+        expected_positions = list(range(18))
+        self.evaluate_getters_initial(freq_table=freq_table, expected_dict=expected_dict, expected_depth=0,
+                                      expected_positions=expected_positions, test_char='A')
+        freq_table.finalize_table()
+        expected_table = np.zeros((freq_table.num_pos, dna_alpha_size))
+        self.evaluate_getters_finalized_0_depth(freq_table=freq_table, positions=expected_positions,
+                                                expected_table=expected_table, test_char='A')
+
+    def test_get_single_update_single_pos(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table._increment_count(pos=0, char='A', amount=1)
+        expected_dict = {'values': [1], 'i': [0], 'j': [0], 'shape': (freq_table.num_pos, dna_alpha_size)}
+        expected_positions = list(range(18))
+        self.evaluate_getters_initial(freq_table=freq_table, expected_dict=expected_dict, expected_depth=0,
+                                      expected_positions=expected_positions, test_char='A')
+        freq_table.finalize_table()
+        expected_table = np.zeros((freq_table.num_pos, dna_alpha_size))
+        expected_table[0, 0] = 1
+        self.evaluate_getters_finalized_0_depth(freq_table=freq_table, positions=expected_positions,
+                                                expected_table=expected_table, test_char='A')
+
+    def test_get_single_update_pair_pos(self):
+        freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
+        freq_table._increment_count(pos=(0, 0), char='AA', amount=1)
+        expected_dict = {'values': [1], 'i': [0], 'j': [0], 'shape': (freq_table.num_pos, dna_pair_alpha_size)}
+        expected_positions = list(combinations(range(18), 2)) + [(x, x) for x in range(18)]
+        self.evaluate_getters_initial(freq_table=freq_table, expected_dict=expected_dict, expected_depth=0,
+                                      expected_positions=expected_positions, test_char='A')
+        freq_table.finalize_table()
+        expected_table = np.zeros((freq_table.num_pos, dna_pair_alpha_size))
+        expected_table[0, 0] = 1
+        self.evaluate_getters_finalized_0_depth(freq_table=freq_table, positions=expected_positions,
+                                                expected_table=expected_table, test_char='A')
+
+    def test_get_single_seq_single_pos(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table.characterize_sequence(seq=dna_seq1)
+        expected_positions = list(range(18))
+        expected_dict = {'values': [1] * 18, 'i': list(range(18)), 'j': [0, 1, 3, 3, 0, 3, 0, 2, 1] + [4] * 9,
+                         'shape': (freq_table.num_pos, dna_alpha_size)}
+        self.evaluate_getters_initial(freq_table=freq_table, expected_dict=expected_dict, expected_depth=1,
+                                      expected_positions=expected_positions, test_char='A')
         freq_table.finalize_table()
         table2 = freq_table.get_table()
         self.assertTrue(isinstance(table2, csc_matrix))
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_one_seq_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1219,7 +978,7 @@ class TestFrequencyTableGetters(TestCase):
         freq_table2.characterize_alignment(num_aln=num_aln)
         expected_table = freq_table2.get_table()
         self.assertFalse((table2 - expected_table).toarray().any())
-        for p in positions:
+        for p in expected_positions:
             self.assertEqual(freq_table.get_chars(pos=p), [dna_seq1[p]])
             self.assertFalse((freq_table.get_count_array(pos=p) - np.array([1])).any())
             self.assertFalse((freq_table.get_frequency_array(pos=p) - np.array([1.0])).any())
@@ -1236,31 +995,19 @@ class TestFrequencyTableGetters(TestCase):
     def test_get_single_seq_pair_pos(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         freq_table.characterize_sequence(seq=dna_seq1)
-        table = freq_table.get_table()
-        self.assertTrue(isinstance(table, dict))
-        self.assertEqual(freq_table.get_depth(), 1)
-        positions = freq_table.get_positions()
-        expected_positions = list(combinations(range(18), 2)) + [(x, x) for x in range(18)]
-        self.assertEqual(set(positions), set(expected_positions))
-        for p in positions:
-            with self.assertRaises(AttributeError):
-                freq_table.get_chars(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_count(pos=p, char='AA')
-            with self.assertRaises(AttributeError):
-                freq_table.get_count_array(pos=p)
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency(pos=p, char='AA')
-            with self.assertRaises(AttributeError):
-                freq_table.get_frequency_array(pos=p)
-        with self.assertRaises(AttributeError):
-            freq_table.get_count_matrix()
-        with self.assertRaises(AttributeError):
-            freq_table.get_frequency_matrix()
+        expected_positions = [(x, y) for x in range(18) for y in range(x, 18)]
+        expected_dict = {'values': [1] * freq_table.num_pos, 'i': list(range(len(expected_positions))),
+                         'j': ([0, 1, 3, 3, 0, 3, 0, 2, 1] + [4] * 9 + [6, 8, 8, 5, 8, 5, 7, 6] + [9] * 9 +
+                               [18, 18, 15, 18, 15, 17, 16] + [19] * 9 + [18, 15, 18, 15, 17, 16] + [19] * 9 +
+                               [0, 3, 0, 2, 1] + [4] * 9 + [18, 15, 17, 16] + [19] * 9 + [0, 2, 1] + [4] * 9 +
+                               [12, 11] + [14] * 9 + [6] + [9] * 9 + [24] * np.sum(list(range(10)))),
+                         'shape': (freq_table.num_pos, dna_pair_alpha_size)}
+        self.evaluate_getters_initial(freq_table=freq_table, expected_dict=expected_dict, expected_depth=1,
+                                      expected_positions=expected_positions, test_char='AA')
         freq_table.finalize_table()
         table2 = freq_table.get_table()
         self.assertTrue(isinstance(table2, csc_matrix))
-        aln_fn = write_out_temp_fasta(out_str=f'>seq1\n{str(dna_seq1.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_one_seq_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1269,7 +1016,7 @@ class TestFrequencyTableGetters(TestCase):
         freq_table2.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         expected_table = freq_table2.get_table()
         self.assertFalse((table2 - expected_table).toarray().any())
-        for p in positions:
+        for p in expected_positions:
             curr_char = dna_seq1[p[0]] + dna_seq1[p[1]]
             self.assertEqual(freq_table.get_chars(pos=p), [curr_char])
             self.assertFalse((freq_table.get_count_array(pos=p) - np.array([1])).any())
@@ -1286,8 +1033,7 @@ class TestFrequencyTableGetters(TestCase):
 
     def test_get_aln_update_single_pos(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1314,8 +1060,7 @@ class TestFrequencyTableGetters(TestCase):
 
     def test_get_aln_update_pair_pos(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1347,105 +1092,74 @@ class TestFrequencyTableGetters(TestCase):
 
 class TestFrequencyTableCSV(TestCase):
 
+    def evaluate_to_csv(self, freq_table, csv_path, alpha_map):
+        freq_table.to_csv(file_path=csv_path)
+        self.assertTrue(os.path.isfile(csv_path))
+        df = pd.read_csv(csv_path, sep='\t', header=0, index_col=None)
+        self.assertEqual(set(df.columns), {'Position', 'Variability', 'Characters', 'Counts', 'Frequencies'})
+        expected_positions = freq_table.get_positions()
+        table = freq_table.get_table()
+        for i in df.index:
+            if freq_table.position_size == 1:
+                expected_position = expected_positions[i]
+            elif freq_table.position_size == 2:
+                expected_position = str((expected_positions[i][0], expected_positions[i][1]))
+            else:
+                raise ValueError('Bas position_size')
+            self.assertEqual(df.loc[i, 'Position'], expected_position)
+            chars = df.loc[i, 'Characters'].split(',')
+            self.assertEqual(df.loc[i, 'Variability'], len(chars))
+            expected_chars = freq_table.get_chars(pos=expected_positions[i])
+            self.assertEqual(set(chars), set(expected_chars))
+            try:
+                counts = df.loc[i, 'Counts'].split(',')
+            except AttributeError:
+                counts = [str(df.loc[i, 'Counts'])]
+            expected_counts = [str(table[i, alpha_map[c]]) for c in chars]
+            self.assertEqual(counts, expected_counts)
+            try:
+                freqs = df.loc[i, 'Frequencies'].split(',')
+            except AttributeError:
+                freqs = [str(df.loc[i, 'Frequencies'])]
+            expected_freqs = [str(int(x) / float(freq_table.get_depth())) for x in counts]
+            self.assertEqual(freqs, expected_freqs)
+        os.remove(csv_path)
+
     def test_to_csv_single_pos_single_update(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
         freq_table.characterize_sequence(seq=dna_seq1)
         freq_table.finalize_table()
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
-        freq_table.to_csv(file_path=csv_path)
-        self.assertTrue(os.path.isfile(csv_path))
-        df = pd.read_csv(csv_path, sep='\t', header=0, index_col=None)
-        self.assertEqual(set(df.columns), {'Position', 'Variability', 'Characters', 'Counts', 'Frequencies'})
-        expected_positions = list(range(18))
-        for i in df.index:
-            self.assertEqual(df.loc[i, 'Position'], expected_positions[i])
-            self.assertEqual(df.loc[i, 'Variability'], 1)
-            self.assertEqual(df.loc[i, 'Characters'], dna_seq1[i])
-            self.assertEqual(df.loc[i, 'Counts'], 1)
-            self.assertEqual(df.loc[i, 'Frequencies'], 1.0)
-        os.remove(csv_path)
+        self.evaluate_to_csv(freq_table=freq_table, csv_path=csv_path, alpha_map=dna_map)
 
     def test_to_csv_single_pos_multi_update(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
         os.remove(aln_fn)
         freq_table.characterize_alignment(num_aln=num_aln)
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
-        freq_table.to_csv(file_path=csv_path)
-        self.assertTrue(os.path.isfile(csv_path))
-        df = pd.read_csv(csv_path, sep='\t', header=0, index_col=None)
-        self.assertEqual(set(df.columns), {'Position', 'Variability', 'Characters', 'Counts', 'Frequencies'})
-        expected_positions = list(range(18))
-        table = freq_table.get_table()
-        for i in df.index:
-            self.assertEqual(df.loc[i, 'Position'], expected_positions[i])
-            chars = df.loc[i, 'Characters'].split(',')
-            self.assertEqual(df.loc[i, 'Variability'], len(chars))
-            expected_chars = {dna_seq1[i], dna_seq2[i], dna_seq3[i]}
-            self.assertEqual(set(chars), expected_chars)
-            counts = df.loc[i, 'Counts'].split(',')
-            expected_counts = [str(table[i, dna_map[c]]) for c in chars]
-            self.assertEqual(counts, expected_counts)
-            freqs = df.loc[i, 'Frequencies'].split(',')
-            expected_freqs = [str(int(x) / float(freq_table.get_depth())) for x in counts]
-            self.assertEqual(freqs, expected_freqs)
-        os.remove(csv_path)
+        self.evaluate_to_csv(freq_table=freq_table, csv_path=csv_path, alpha_map=dna_map)
 
     def test_to_csv_pair_pos_single_update(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
         freq_table.characterize_sequence(seq=dna_seq1)
         freq_table.finalize_table()
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
-        freq_table.to_csv(file_path=csv_path)
-        self.assertTrue(os.path.isfile(csv_path))
-        df = pd.read_csv(csv_path, sep='\t', header=0, index_col=None)
-        self.assertEqual(set(df.columns), {'Position', 'Variability', 'Characters', 'Counts', 'Frequencies'})
-        ind = 0
-        for i in range(18):
-            for j in range(i, 18):
-                self.assertEqual(df.loc[ind, 'Position'], str((i, j)))
-                self.assertEqual(df.loc[ind, 'Variability'], 1)
-                self.assertEqual(df.loc[ind, 'Characters'], dna_seq1[i] + dna_seq1[j])
-                self.assertEqual(df.loc[ind, 'Counts'], 1)
-                self.assertEqual(df.loc[ind, 'Frequencies'], 1.0)
-                ind += 1
-        os.remove(csv_path)
+        self.evaluate_to_csv(freq_table=freq_table, csv_path=csv_path, alpha_map=dna_pair_map)
 
     def test_to_csv_pair_pos_multi_update(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
         os.remove(aln_fn)
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
-        freq_table.to_csv(file_path=csv_path)
-        self.assertTrue(os.path.isfile(csv_path))
-        df = pd.read_csv(csv_path, sep='\t', header=0, index_col=None)
-        self.assertEqual(set(df.columns), {'Position', 'Variability', 'Characters', 'Counts', 'Frequencies'})
-        table = freq_table.get_table()
-        ind = 0
-        for i in range(18):
-            for j in range(i, 18):
-                self.assertEqual(df.loc[ind, 'Position'], str((i, j)))
-                chars = df.loc[ind, 'Characters'].split(',')
-                self.assertEqual(df.loc[ind, 'Variability'], len(chars))
-                expected_chars = {dna_seq1[i] + dna_seq1[j], dna_seq2[i] + dna_seq2[j], dna_seq3[i] + dna_seq3[j]}
-                self.assertEqual(set(chars), expected_chars)
-                counts = df.loc[ind, 'Counts'].split(',')
-                expected_counts = [str(table[ind, dna_pair_map[c]]) for c in chars]
-                self.assertEqual(counts, expected_counts)
-                freqs = df.loc[ind, 'Frequencies'].split(',')
-                expected_freqs = [str(int(x) / float(freq_table.get_depth())) for x in counts]
-                self.assertEqual(freqs, expected_freqs)
-                ind += 1
-        os.remove(csv_path)
+        self.evaluate_to_csv(freq_table=freq_table, csv_path=csv_path, alpha_map=dna_pair_map)
 
     def test_to_csv_failure_no_updates(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -1460,8 +1174,7 @@ class TestFrequencyTableCSV(TestCase):
 
     def test_to_csv_failure_no_path(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1470,14 +1183,11 @@ class TestFrequencyTableCSV(TestCase):
         with self.assertRaises(TypeError):
             freq_table.to_csv(file_path=None)
 
-    def test_load_csv_single_pos_single_update(self):
-        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table.characterize_sequence(seq=dna_seq1)
-        freq_table.finalize_table()
+    def evaluate_load_csv(self, freq_table, alpha_size, alpha_map, alpha_rev, seq_len, pos_size):
         table = freq_table.get_table()
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
         freq_table.to_csv(file_path=csv_path)
-        freq_table2 = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table2 = FrequencyTable(alpha_size, alpha_map, alpha_rev, seq_len, pos_size)
         freq_table2.load_csv(file_path=csv_path)
         table2 = freq_table2.get_table()
         self.assertIsInstance(table, csc_matrix)
@@ -1486,26 +1196,23 @@ class TestFrequencyTableCSV(TestCase):
         self.assertEqual(freq_table.get_depth(), freq_table2.get_depth())
         os.remove(csv_path)
 
+    def test_load_csv_single_pos_single_update(self):
+        freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
+        freq_table.characterize_sequence(seq=dna_seq1)
+        freq_table.finalize_table()
+        self.evaluate_load_csv(freq_table=freq_table, alpha_size=dna_alpha_size, alpha_map=dna_map, alpha_rev=dna_rev,
+                               seq_len=18, pos_size=1)
+
     def test_load_csv_single_pos_multi_update(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
         os.remove(aln_fn)
         freq_table.characterize_alignment(num_aln=num_aln)
-        table = freq_table.get_table()
-        csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
-        freq_table.to_csv(file_path=csv_path)
-        freq_table2 = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        freq_table2.load_csv(file_path=csv_path)
-        table2 = freq_table2.get_table()
-        self.assertIsInstance(table, csc_matrix)
-        self.assertIsInstance(table2, csc_matrix)
-        self.assertFalse((table - table2).toarray().any())
-        self.assertEqual(freq_table.get_depth(), freq_table2.get_depth())
-        os.remove(csv_path)
+        self.evaluate_load_csv(freq_table=freq_table, alpha_size=dna_alpha_size, alpha_map=dna_map, alpha_rev=dna_rev,
+                               seq_len=18, pos_size=1)
 
     def test_load_csv_pair_pos_single_update(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
@@ -1513,20 +1220,12 @@ class TestFrequencyTableCSV(TestCase):
         freq_table.finalize_table()
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
         freq_table.to_csv(file_path=csv_path)
-        table = freq_table.get_table()
-        freq_table2 = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        freq_table2.load_csv(file_path=csv_path)
-        table2 = freq_table2.get_table()
-        self.assertIsInstance(table, csc_matrix)
-        self.assertIsInstance(table2, csc_matrix)
-        self.assertFalse((table - table2).toarray().any())
-        self.assertEqual(freq_table.get_depth(), freq_table2.get_depth())
-        os.remove(csv_path)
+        self.evaluate_load_csv(freq_table=freq_table, alpha_size=dna_pair_alpha_size, alpha_map=dna_pair_map,
+                               alpha_rev=dna_pair_rev, seq_len=18, pos_size=2)
 
     def test_load_csv_pair_pos_multi_update(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        aln_fn = write_out_temp_fasta(
-            out_str=f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}')
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=dna_aln_str)
         aln = SeqAlignment(aln_fn, 'seq1', polymer_type='DNA')
         aln.import_alignment()
         num_aln = aln._alignment_to_num(mapping=dna_map)
@@ -1534,15 +1233,9 @@ class TestFrequencyTableCSV(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         csv_path = os.path.join(os.getcwd(), 'Test_Freq_Table.csv')
         freq_table.to_csv(file_path=csv_path)
-        table = freq_table.get_table()
-        freq_table2 = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        freq_table2.load_csv(file_path=csv_path)
-        table2 = freq_table2.get_table()
-        self.assertIsInstance(table, csc_matrix)
-        self.assertIsInstance(table2, csc_matrix)
-        self.assertFalse((table - table2).toarray().any())
-        self.assertEqual(freq_table.get_depth(), freq_table2.get_depth())
-        os.remove(csv_path)
+
+        self.evaluate_load_csv(freq_table=freq_table, alpha_size=dna_pair_alpha_size, alpha_map=dna_pair_map,
+                               alpha_rev=dna_pair_rev, seq_len=18, pos_size=2)
 
     def test_load_csv_failure_mismatch_single_pair(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
@@ -1584,6 +1277,11 @@ class TestFrequencyTableCSV(TestCase):
             freq_table.load_csv(file_path=None)
 
     def test_load_csv_failure_match_mismatch_freq_table(self):
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
         protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
                                               single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                               larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
@@ -1613,6 +1311,11 @@ class TestFrequencyTableCSV(TestCase):
         os.remove(csv_path)
 
     def test_load_csv_failure_match_mismatch_freq_table_no_depth(self):
+        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
+        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
+        aln.import_alignment()
+        os.remove(aln_fn)
+        num_aln = aln._alignment_to_num(mapping=protein_map)
         protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
                                               single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                               larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
