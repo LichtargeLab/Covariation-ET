@@ -5,6 +5,7 @@ Created onJune 19, 2019
 """
 import os
 import numpy as np
+from copy import deepcopy
 from datetime import datetime
 from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
@@ -13,6 +14,9 @@ from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
 from AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from MatchMismatchTable import MatchMismatchTable
+from FrequencyTable import FrequencyTable
+from SeqAlignment import SeqAlignment
 from utils import build_mapping
 from unittest import TestCase
 from multiprocessing import cpu_count
@@ -83,6 +87,45 @@ pro_single_to_quad_map = {}
 for char in pro_quad_map:
     key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
     pro_single_to_quad_map[key] = pro_quad_map[char]
+
+protein_aln_fn = write_out_temp_fn(suffix='fasta',
+                                   out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
+protein_aln = SeqAlignment(protein_aln_fn, 'seq1', polymer_type='Protein')
+protein_aln.import_alignment()
+os.remove(protein_aln_fn)
+protein_num_aln = protein_aln._alignment_to_num(mapping=protein_map)
+
+pro_single_ft = FrequencyTable(protein_alpha_size, protein_map, protein_rev, 6, 1)
+pro_single_ft.characterize_alignment(num_aln=protein_num_aln)
+
+pro_pair_ft = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
+pro_pair_ft.characterize_alignment(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair)
+
+protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln, single_alphabet_size=protein_alpha_size,
+                                      single_mapping=protein_map, single_reverse_mapping=protein_rev,
+                                      larger_alphabet_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse_mapping=pro_quad_rev,
+                                      single_to_larger_mapping=pro_single_to_quad_map, pos_size=2)
+protein_mm_table.identify_matches_mismatches()
+protein_mm_freq_tables = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
+                                                  reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
+protein_mm_freq_tables['match'].mapping = pro_quad_map
+protein_mm_freq_tables['match'].set_depth(3)
+protein_mm_freq_tables['mismatch'] = deepcopy(protein_mm_freq_tables['match'])
+for pos in protein_mm_freq_tables['match'].get_positions():
+    char_dict = {'match': {}, 'mismatch': {}}
+    for i in range(3):
+        for j in range(i + 1, 3):
+            status, stat_char = protein_mm_table.get_status_and_character(pos=pos, seq_ind1=i, seq_ind2=j)
+            if stat_char not in char_dict[status]:
+                char_dict[status][stat_char] = 0
+            char_dict[status][stat_char] += 1
+    for m in char_dict:
+        for curr_char in char_dict[m]:
+            protein_mm_freq_tables[m]._increment_count(pos=pos, char=curr_char,
+                                                       amount=char_dict[m][curr_char])
+for m in ['match', 'mismatch']:
+    protein_mm_freq_tables[m].finalize_table()
 
 # class TestBase(TestCase):
 #
