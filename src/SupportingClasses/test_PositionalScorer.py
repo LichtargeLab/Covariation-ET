@@ -13,7 +13,7 @@ from test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alph
                        pro_pair_alpha_size, pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size,
                        pro_quad_map, pro_quad_rev, protein_seq1, protein_seq2, protein_seq3, protein_msa,
                        dna_seq1, dna_seq2, dna_seq3, dna_msa, dna_single_to_pair, pro_single_to_pair,
-                       pro_single_to_quad_map, write_out_temp_fn, pro_single_ft, pro_pair_ft, protein_mm_table,
+                       pro_single_to_quad_map, write_out_temp_fn, pro_single_ft, pro_pair_ft, protein_mm_table_large,
                        protein_mm_freq_tables)
 from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
@@ -567,8 +567,8 @@ class TestPositionalScorerCountComputation(TestCase):
                 if p1 < p2:
                     for s1 in range(3):  # sequence 1 in comparison
                         for s2 in range(s1 + 1, 3):  # sequence 2 in comparison
-                            curr_stat, _ = protein_mm_table.get_status_and_character(pos=(p1, p2), seq_ind1=s1,
-                                                                                     seq_ind2=s2)
+                            curr_stat, _ = protein_mm_table_large.get_status_and_character(pos=(p1, p2), seq_ind1=s1,
+                                                                                           seq_ind2=s2)
 
                             if curr_stat == 'match':
                                 expected_final[p1, p2] += 1
