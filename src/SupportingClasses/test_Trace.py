@@ -1926,7 +1926,7 @@ class TestTraceInit(TestCase):
 
 class TestTraceCharacterizeRankGroupStandard(TestCase):
 
-    def evaluate_characterize_rank_groups(self, pos_size, mm_bool, out_dir, low_mem, u_dir, alpha_size, alpha_map,
+    def evaluate_characterize_rank_groups(self, pos_size, out_dir, low_mem, u_dir, alpha_size, alpha_map,
                                           alpha_rev, s_to_p, processes, write_aln, write_ft):
         pos_type = 'single' if pos_size == 1 else 'pair'
         trace = Trace(alignment=protein_aln, phylo_tree=protein_phylo_tree, group_assignments=protein_rank_dict,
@@ -2018,7 +2018,7 @@ class TestTraceCharacterizeRankGroupStandard(TestCase):
     def test_characterize_rank_groups_standard_pair(self):
         expected_dir = os.path.join(os.getcwd(), 'test_case')
         os.makedirs(expected_dir)
-        self.evaluate_characterize_rank_groups(pos_size=2, ut_dir=expected_dir, low_mem=False, u_dir=None,
+        self.evaluate_characterize_rank_groups(pos_size=2, out_dir=expected_dir, low_mem=False, u_dir=None,
                                                alpha_size=pro_pair_alpha_size, alpha_map=pro_pair_map,
                                                alpha_rev=pro_pair_rev, s_to_p=pro_single_to_pair, processes=1,
                                                write_aln=False, write_ft=False)
