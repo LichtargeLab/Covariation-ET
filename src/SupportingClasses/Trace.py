@@ -61,7 +61,11 @@ class Trace(object):
         if not isinstance(alignment, SeqAlignment):
             raise ValueError('Provided alignment must be a SeqAlignment object!')
         self.aln = alignment
-        if not isinstance(phylo_tree, PhylogeneticTree):
+        # This check is being deprecated because it fails depending on how the PhylogeneticTree class is imported.
+        # if not isinstance(phylo_tree, PhylogeneticTree):
+        if type(phylo_tree).__name__ != 'PhylogeneticTree':
+            print(type(phylo_tree))
+            print(type(phylo_tree).__name__)
             raise ValueError('Provided tree must be a PhylogeneticTree object!')
         self.phylo_tree = phylo_tree
         if not isinstance(group_assignments, dict):

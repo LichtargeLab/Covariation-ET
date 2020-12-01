@@ -37,6 +37,46 @@ def write_out_temp_fn(suffix, out_str=None):
     return fn
 
 
+def compare_nodes_key(compare_nodes):
+    """Taken from: https://docs.python.org/3/howto/sorting.html"""
+    class K:
+        def __init__(self, obj, *args):
+            self.obj = obj
+
+        def __lt__(self, other):
+            return compare_nodes(self.obj, other.obj) < 0
+
+        def __gt__(self, other):
+            return compare_nodes(self.obj, other.obj) > 0
+
+        def __eq__(self, other):
+            return compare_nodes(self.obj, other.obj) == 0
+
+        def __le__(self, other):
+            return compare_nodes(self.obj, other.obj) <= 0
+
+        def __ge__(self, other):
+            return compare_nodes(self.obj, other.obj) >= 0
+
+        def __ne__(self, other):
+            return compare_nodes(self.obj, other.obj) != 0
+    return K
+
+
+def compare_nodes(node1, node2):
+    if node1.is_terminal and not node2.is_terminal():
+        return -1
+    elif not node1.is_terminal() and node2.is_terminal():
+        return 1
+    else:
+        if node1.name < node2.name:
+            return 1
+        elif node1.name > node2.name:
+            return -1
+        else:
+            return 0
+
+
 # Variables to be used by tests, some of these variables rely on classes which are being tested, only the precursors
 # data to a given class will be used in the tests of that class.
 processes = 2
