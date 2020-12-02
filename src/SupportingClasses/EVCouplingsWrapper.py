@@ -64,7 +64,7 @@ class EVCouplingsWrapper(Predictor):
         time (float): The time (in seconds) required to complete the computation of covariance scores by EVCouplings.
     """
 
-    def __init__(self, query, aln_file, protocol, out_dir='.'):
+    def __init__(self, query, aln_file, protocol, polymer_type='Protein', out_dir='.'):
         """
         __init__
 
@@ -76,10 +76,11 @@ class EVCouplingsWrapper(Predictor):
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             protocol (str): Which method ('standard' or 'mean_field') to apply when performing the EVCouplings
             computation.
+            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
         """
-        super().__init__(query, aln_file, 'Protein', out_dir)
+        super().__init__(query, aln_file, polymer_type, out_dir)
         self.method = 'EVCouplings'
         self.protocol = protocol
         self.probability = None

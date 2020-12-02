@@ -5,6 +5,7 @@ Created on February 5, 2020
 """
 import os
 import unittest
+from unittest import TestCase
 import numpy as np
 from time import time
 from shutil import rmtree
@@ -16,26 +17,23 @@ try:
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-from test_Base import TestBase
 from EVCouplingsWrapper import EVCouplingsWrapper
 from utils import compute_rank_and_coverage
+from test_Base import protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3, write_out_temp_fn
+from test_Base import processes as max_processes
 
 
-class TestEVCouplingsWrapper(TestBase):
+pro_str = f'>{protein_seq1.id}\n{protein_seq1.seq}\n>{protein_seq2.id}\n{protein_seq2.seq}\n>{protein_seq3.id}\n{protein_seq3.seq}'
+dna_str = f'>{dna_seq1.id}\n{dna_seq1.seq}\n>{dna_seq2.id}\n{dna_seq2.seq}\n>{dna_seq3.id}\n{dna_seq3.seq}'
+test_dir = os.path.join(os.getcwd(), 'TestCase')
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestEVCouplingsWrapper, cls).setUpClass()
-        cls.small_fa_fn = cls.data_set.protein_data[cls.small_structure_id]['Final_FA_Aln']
-        cls.large_fa_fn = cls.data_set.protein_data[cls.large_structure_id]['Final_FA_Aln']
-        cls.out_small_dir = os.path.join(cls.testing_dir, cls.small_structure_id)
-        rmtree(cls.out_small_dir, ignore_errors=True)
-        cls.out_large_dir = os.path.join(cls.testing_dir, cls.large_structure_id)
-        rmtree(cls.out_large_dir, ignore_errors=True)
 
-    def evaluate_init(self, query, aln_file, out_dir, expected_length, expected_sequence):
+class TestEVCouplingsWrapperInit(TestCase):
+
+    def evaluate_init(self, query, aln_file, out_dir, protocol, expected_length, expected_sequence, polymer_type='Protein'):
         self.assertFalse(os.path.isdir(os.path.abspath(out_dir)))
-        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
+        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol=protocol,
+                                 polymer_type=polymer_type)
         self.assertEqual(evc.out_dir, os.path.abspath(out_dir))
         self.assertTrue(os.path.isdir(os.path.abspath(out_dir)))
         self.assertEqual(evc.query, query)
@@ -50,27 +48,105 @@ class TestEVCouplingsWrapper(TestBase):
         self.assertEqual(evc.non_gapped_aln_fn, os.path.join(out_dir, 'Non-Gapped_Alignment.fa'))
         self.assertTrue(os.path.isfile(evc.non_gapped_aln_fn))
         self.assertEqual(evc.method, 'EVCouplings')
-        self.assertEqual(evc.protocol, 'standard')
+        self.assertEqual(evc.protocol, protocol)
         self.assertIsNone(evc.scores)
         self.assertIsNone(evc.probability)
         self.assertIsNone(evc.coverages)
         self.assertIsNone(evc.rankings)
         self.assertIsNone(evc.time)
 
-    def test_1a_init(self):
-        self.evaluate_init(query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-                           expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
-                           expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
+    def test_evcouplingswrapper_init_standard_protein_aln_1(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                           expected_length=3, expected_sequence='MET')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def test_1b_init(self):
-        self.evaluate_init(query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-                           expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-                           expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+    def test_evcouplingswrapper_init_standard_protein_aln_2(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq2', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                           expected_length=5, expected_sequence='MTREE')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def evaluate_configure_run(self, query, aln_file, out_dir, expected_length):
+    def test_evcouplingswrapper_init_standard_protein_aln_3(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq3', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                           expected_length=5, expected_sequence='MFREE')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_protein_aln_1(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=3, expected_sequence='MET')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_protein_aln_2(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq2', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=5, expected_sequence='MTREE')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_protein_aln_3(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_init(query='seq3', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=5, expected_sequence='MFREE')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_standard_dna_aln_1(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard', expected_length=9,
+                           expected_sequence='ATGGAGACT', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_standard_dna_aln_2(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq2', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard', expected_length=15,
+                           expected_sequence='ATGACTAGAGAGGAG', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_standard_dna_aln_3(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq3', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard', expected_length=15,
+                           expected_sequence='ATGTTTAGAGAGGAG', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_dna_aln_1(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=9, expected_sequence='ATGGAGACT', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_dna_aln_2(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq2', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=15, expected_sequence='ATGACTAGAGAGGAG', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_init_mean_field_dna_aln_3(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_init(query='seq3', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                           expected_length=15, expected_sequence='ATGTTTAGAGAGGAG', polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+
+class TestEVCouplingsWrapperConfigureRun(TestCase):
+
+    def evaluate_configure_run(self, query, aln_file, out_dir, protocol, polymer_type='Protein'):
         if os.path.isdir(out_dir):
             rmtree(out_dir)
-        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
+        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol=protocol,
+                                 polymer_type=polymer_type)
         expected_cpus = cpu_count()
         evc.configure_run(cores=expected_cpus)
         expected_config_fn = os.path.join(out_dir, "{}_config.txt".format(query))
@@ -117,7 +193,7 @@ class TestEVCouplingsWrapper(TestBase):
         self.assertEqual(config["align"]["minimum_sequence_coverage"], 0)
         self.assertEqual(config["align"]["minimum_column_coverage"], 0)
         self.assertFalse(config["align"]["extract_annotation"])
-        self.assertEqual(config["couplings"]["protocol"], 'standard')
+        self.assertEqual(config["couplings"]["protocol"], protocol)
         self.assertEqual(config["couplings"]["iterations"], 100)
         self.assertEqual(config["couplings"]["lambda_J"], 0.01)
         self.assertTrue(config["couplings"]["lambda_J_times_Lq"])
@@ -137,18 +213,38 @@ class TestEVCouplingsWrapper(TestBase):
         self.assertTrue(config["couplings"]["reuse_ecs"])
         self.assertEqual(config["couplings"]["min_sequence_distance"], 0)
 
-    def test_2a_configure_run(self):
-        self.evaluate_configure_run(
-            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
+    def test_evcouplingswrapper_configure_run_standard_protein_aln(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_configure_run(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def test_2b_configure_run(self):
-        self.evaluate_configure_run(
-            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
+    def test_evcouplingswrapper_configure_run_mean_field_protein_aln(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_configure_run(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field')
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def evaluate_import_scores(self, query, aln_file, out_dir, expected_length):
-        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
+    def test_evcouplingswrapper_configure_run_standard_dna_aln(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_configure_run(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard',
+                                    polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_configure_run_mean_field_dna_aln(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_configure_run(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                    polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+
+class TestEVCouplingsWrapperImportCovarianceScores(TestCase):
+
+    def evaluate_import_scores(self, query, aln_file, out_dir, expected_length, protocol, polymer_type='Protein'):
+        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol=protocol,
+                                 polymer_type=polymer_type)
         scores = np.random.RandomState(1234567890).rand(expected_length, expected_length)
         scores[np.tril_indices(expected_length, 1)] = 0
         scores += scores.T
@@ -166,14 +262,12 @@ class TestEVCouplingsWrapper(TestBase):
                 handle.write('{},X,{},X,0,{},X,X,{}\n'.format(sorted_x[i] + 1, sorted_y[i] + 1, sorted_scores[i],
                                                               sorted_probability[i]))
         evc.import_covariance_scores(out_path=expected_path)
-
         diff_expected_scores = scores - scores.T
         not_passing_expected_scores = diff_expected_scores > 1E-15
         self.assertFalse(not_passing_expected_scores.any())
         diff_computed_scores = evc.scores - evc.scores.T
         not_passing_computed_scores = diff_computed_scores > 1E-15
         self.assertFalse(not_passing_computed_scores.any())
-
         diff_scores = evc.scores - scores
         not_passing_scores = diff_scores > 1E-15
         self.assertFalse(not_passing_scores.any())
@@ -181,37 +275,44 @@ class TestEVCouplingsWrapper(TestBase):
         not_passing_protbabilities = diff_probabilities > 1E-15
         self.assertFalse(not_passing_protbabilities.any())
 
-    def test_3a_import_scores(self):
-        self.evaluate_import_scores(
-            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'])
+    def test_evcouplingswrapper_import_scores_standard_protein_aln(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_import_scores(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                                    expected_length=3)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def test_3b_import_scores(self):
-        self.evaluate_import_scores(
-            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'])
+    def test_evcouplingswrapper_import_scores_mean_field_protein_aln(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_import_scores(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                    expected_length=3)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def evaluate_calculate_scores(self, query, aln_file, out_dir, expected_length, expected_sequence):
-        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol='standard')
+    def test_evcouplingswrapper_import_scores_standard_dna_aln(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_import_scores(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard',
+                                    expected_length=9, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_import_scores_mean_field_dna_aln(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_import_scores(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                    expected_length=9, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+
+class TestEVCouplingsWrapperCalculateScores(TestCase):
+
+    def evaluate_calculate_scores(self, query, aln_file, out_dir, expected_length, protocol, polymer_type='Protein'):
+        evc = EVCouplingsWrapper(query=query, aln_file=aln_file, out_dir=out_dir, protocol=protocol,
+                                 polymer_type=polymer_type)
         start = time()
-        evc.calculate_scores(delete_files=False, cores=self.max_threads)
+        evc.calculate_scores(delete_files=False, cores=max_processes)
         end = time()
         expected_time = end - start
-        self.assertEqual(evc.out_dir, os.path.abspath(out_dir))
-        self.assertTrue(os.path.isdir(os.path.abspath(out_dir)))
-        self.assertEqual(evc.query, query)
-        self.assertIsNotNone(evc.original_aln)
-        self.assertGreaterEqual(evc.original_aln.seq_length, expected_length)
-        self.assertEqual(str(evc.original_aln.query_sequence).replace('-', ''), expected_sequence)
-        self.assertEqual(evc.original_aln_fn, os.path.join(out_dir, 'Original_Alignment.fa'))
-        self.assertTrue(os.path.isfile(evc.original_aln_fn))
-        self.assertIsNotNone(evc.non_gapped_aln)
-        self.assertEqual(evc.non_gapped_aln.seq_length, expected_length)
-        self.assertEqual(evc.non_gapped_aln.query_sequence, expected_sequence)
-        self.assertEqual(evc.non_gapped_aln_fn, os.path.join(out_dir, 'Non-Gapped_Alignment.fa'))
-        self.assertTrue(os.path.isfile(evc.non_gapped_aln_fn))
-        self.assertEqual(evc.method, 'EVCouplings')
-        self.assertEqual(evc.protocol, 'standard')
         self.assertIsNotNone(evc.scores)
         self.assertIsNotNone(evc.probability)
         expected_ranks, expected_coverages = compute_rank_and_coverage(expected_length, evc.scores, 2, 'max')
@@ -224,17 +325,89 @@ class TestEVCouplingsWrapper(TestBase):
         self.assertLessEqual(evc.time, expected_time)
         self.assertTrue(os.path.isfile(os.path.join(out_dir, 'EVCouplings.npz')))
 
-    def test_4a_calculate_scores(self):
-        self.evaluate_calculate_scores(
-            query=self.small_structure_id, aln_file=self.small_fa_fn, out_dir=self.out_small_dir,
-            expected_length=self.data_set.protein_data[self.small_structure_id]['Length'],
-            expected_sequence=str(self.data_set.protein_data[self.small_structure_id]['Sequence'].seq))
+    def test_evcouplingswrapper_calculate_scores_standard_protein_aln_1(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=3)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
 
-    def test_4b_calculate_scores(self):
-        self.evaluate_calculate_scores(
-            query=self.large_structure_id, aln_file=self.large_fa_fn, out_dir=self.out_large_dir,
-            expected_length=self.data_set.protein_data[self.large_structure_id]['Length'],
-            expected_sequence=str(self.data_set.protein_data[self.large_structure_id]['Sequence'].seq))
+    def test_evcouplingswrapper_calculate_scores_standard_protein_aln_2(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq2', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=5)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_standard_protein_aln_3(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq3', aln_file=protein_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=5)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_protein_aln_1(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq1', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=3)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_protein_aln_2(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq2', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=5)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_protein_aln_3(self):
+        protein_aln_fn = write_out_temp_fn(suffix='protein.fasta', out_str=pro_str)
+        self.evaluate_calculate_scores(query='seq3', aln_file=protein_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=5)
+        os.remove(protein_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_standard_dna_aln_1(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=9, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_standard_dna_aln_2(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq2', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=15, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_standard_dna_aln_3(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq3', aln_file=dna_aln_fn, out_dir=test_dir, protocol='standard',
+                                       expected_length=15, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_dna_aln_1(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq1', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=9, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_dna_aln_2(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq2', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=15, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
+
+    def test_evcouplingswrapper_calculate_scores_mean_field_dna_aln_3(self):
+        dna_aln_fn = write_out_temp_fn(suffix='dna.fasta', out_str=dna_str)
+        self.evaluate_calculate_scores(query='seq3', aln_file=dna_aln_fn, out_dir=test_dir, protocol='mean_field',
+                                       expected_length=15, polymer_type='DNA')
+        os.remove(dna_aln_fn)
+        rmtree(test_dir)
 
 
 if __name__ == '__main__':
