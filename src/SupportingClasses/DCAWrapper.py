@@ -52,7 +52,7 @@ class DCAWrapper(Predictor):
         covariance scores.
     """
 
-    def __init__(self, query, aln_file, out_dir='.'):
+    def __init__(self, query, aln_file, out_dir='.', polymer_type='Protein'):
         """
         __init__
 
@@ -63,8 +63,9 @@ class DCAWrapper(Predictor):
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
+            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
         """
-        super().__init__(query, aln_file, 'Protein', out_dir)
+        super().__init__(query, aln_file, polymer_type, out_dir)
         self.method = 'DCA'
 
     def import_covariance_scores(self, out_path):
