@@ -64,7 +64,7 @@ class EVCouplingsWrapper(Predictor):
         time (float): The time (in seconds) required to complete the computation of covariance scores by EVCouplings.
     """
 
-    def __init__(self, query, aln_file, protocol, polymer_type='Protein', out_dir='.'):
+    def __init__(self, query, aln_file, protocol, out_dir='.'):
         """
         __init__
 
@@ -80,8 +80,10 @@ class EVCouplingsWrapper(Predictor):
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
         """
-        super().__init__(query, aln_file, polymer_type, out_dir)
+        super().__init__(query, aln_file, 'Protein', out_dir)
         self.method = 'EVCouplings'
+        if protocol != 'standard':
+            raise ValueError("Currently only the 'standard' protocol is supported by this wrapper class.")
         self.protocol = protocol
         self.probability = None
 
