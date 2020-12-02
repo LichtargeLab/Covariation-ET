@@ -79,7 +79,7 @@ class EVCouplingsWrapper(Predictor):
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
         """
-        super().__init__(query, aln_file, out_dir)
+        super().__init__(query, aln_file, 'Protein', out_dir)
         self.method = 'EVCouplings'
         self.protocol = protocol
         self.probability = None

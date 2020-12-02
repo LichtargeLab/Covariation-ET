@@ -122,9 +122,8 @@ class EvolutionaryTrace(Predictor):
             low_memory (bool): Whether or not to serialize files during execution in order to avoid keeping everything
             in memory (this is important for large alignments).
         """
-        super().__init__(query, aln_file, out_dir)
+        super().__init__(query, aln_file, polymer_type, out_dir)
         self.method = 'ET'
-        self.polymer_type = polymer_type
         self.et_distance = et_distance
         self.distance_model = distance_model
         self.distance_matrix = None

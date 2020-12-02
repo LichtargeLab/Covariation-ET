@@ -30,7 +30,7 @@ class Predictor(object):
         provided alignment as determined from the calculated scores.
         time (float): The time (in seconds) required to complete the computation of importance/covariance scores.
     """
-    def __init__(self, query, aln_file, out_dir='.'):
+    def __init__(self, query, aln_file, polymer_type='Protein', out_dir='.'):
         """
         __init__
 
@@ -38,6 +38,7 @@ class Predictor(object):
 
         Arguments:
             query (str): The sequence identifier for the sequence being analyzed.
+            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
@@ -47,7 +48,8 @@ class Predictor(object):
             os.makedirs(out_dir, exist_ok=True)
         self.out_dir = out_dir
         self.query = query
-        self.original_aln = SeqAlignment(query_id=query, file_name=aln_file)
+        self.polymer_type = polymer_type
+        self.original_aln = SeqAlignment(query_id=query, file_name=aln_file, polymer_type=self.polymer_type)
         self.original_aln.import_alignment()
         self.original_aln_fn = os.path.join(out_dir, 'Original_Alignment.fa')
         self.original_aln.write_out_alignment(self.original_aln_fn)
