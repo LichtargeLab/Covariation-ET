@@ -1296,7 +1296,7 @@ def compute_w_and_w2_ave_sub(res_i):
         dict: The parts of E[w] (w_ave before multiplication with the pi1 coefficient, i.e. w_ave_pre) and E[w^2] (cases
          1, 2, and 3) which can be pre-calculated and reused for later computations.
     """
-    cases = {'w_ave': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
+    cases = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
     for res_j in range(res_i + 1, distances.shape[1]):
         if distances[res_i][res_j] >= cutoff:
             continue
@@ -1323,7 +1323,7 @@ def compute_w_and_w2_ave_sub(res_i):
     return cases
 
 
-def init_clustering_z_score(bias_bool, w_and_w2_ave_sub_dict, curr_pdb, map_to_structure, residue_dists, best_chain):
+def init_clustering_z_score(bias_bool, w_and_w2_ave_sub, curr_pdb, map_to_structure, residue_dists, best_chain):
     """
     Init Clustering Z-Score
 
@@ -1334,7 +1334,7 @@ def init_clustering_z_score(bias_bool, w_and_w2_ave_sub_dict, curr_pdb, map_to_s
         bias_bool (int or bool): Option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
         factor accounting for the sequence separation of residues, as well as their distance, is added to the
         calculation.
-        w_and_w2_ave_sub_dict (dict): A dictionary of the precomputed scores for E[w] and E[w^2].
+        w_and_w2_ave_sub (dict): A dictionary of the precomputed scores for E[w] and E[w^2].
         curr_pdb (PDBReference): Instance representing the PDB from which the structural data for this analysis comes.
         map_to_structure (dict): A mapping from the index of the query sequence to the index of the pdb chain's
         sequence for those positions which match according to a pairwise global alignment.
@@ -1344,8 +1344,8 @@ def init_clustering_z_score(bias_bool, w_and_w2_ave_sub_dict, curr_pdb, map_to_s
     """
     global bias
     bias = bias_bool
-    global w_and_w2_ave_sub
-    w_and_w2_ave_sub = w_and_w2_ave_sub_dict
+    global w_and_w2_ave_sub_dict
+    w_and_w2_ave_sub_dict = w_and_w2_ave_sub
     global query_structure
     query_structure = curr_pdb
     global query_pdb_mapping
@@ -1436,8 +1436,9 @@ def clustering_z_score(res_list):
     pi1 = m * (m - 1.0) / (l * (l - 1.0))
     pi2 = pi1 * (m - 2.0) / (l - 2.0)
     pi3 = pi2 * (m - 3.0) / (l - 3.0)
-    w_ave = w_and_w2_ave_sub['w_ave_pre'] * pi1
-    w2_ave = (pi1 * w_and_w2_ave_sub['Case1']) + (pi2 * w_and_w2_ave_sub['Case2']) + (pi3 * w_and_w2_ave_sub['Case3'])
+    w_ave = w_and_w2_ave_sub_dict['w_ave_pre'] * pi1
+    w2_ave = ((pi1 * w_and_w2_ave_sub_dict['Case1']) + (pi2 * w_and_w2_ave_sub_dict['Case2']) +
+              (pi3 * w_and_w2_ave_sub_dict['Case3']))
     sigma = math.sqrt(w2_ave - w_ave * w_ave)
     # Response to Bioinformatics reviewer 08/24/10
     if sigma == 0:
