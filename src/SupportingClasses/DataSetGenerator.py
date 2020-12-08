@@ -13,6 +13,9 @@ from re import compile
 from urllib.error import HTTPError
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
+import xml.etree.ElementTree as XMLET
+from Bio.Alphabet import Gapped
+from Bio.Alphabet.IUPAC import IUPACProtein
 from Bio import Entrez
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
@@ -169,15 +172,27 @@ class DataSetGenerator(object):
                 self.protein_data[related_p_id]['BLAST'] = blast_fn
         # Filter the BLAST hits for each query, align, filter again, and make final alignments.
         print('Filtering BLAST hits, aligning, filtering by identity, and re-aligning')
-        pool2 = Pool(processes, initializer=init_filtering_and_alignment_pool,
-                     initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-                               max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
-                               self.filtered_alignment_path, self.final_alignment_path, verbose))
-        res = pool2.map_async(filtering_and_alignment, [(p_id, self.protein_data[p_id]['Sequence'])
-                                                        for p_id in unique_ids])
-        pool2.close()
-        pool2.join()
-        res = res.get()
+        # pool2 = Pool(processes, initializer=init_filtering_and_alignment_pool,
+        # # pool2 = Pool(1, initializer=init_filtering_and_alignment_pool,
+        #              initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
+        #                        max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
+        #                        self.filtered_alignment_path, self.final_alignment_path, verbose))
+        # res = pool2.map_async(filtering_and_alignment, [(p_id, self.protein_data[p_id]['Sequence'])
+        #                                                 for p_id in unique_ids])
+        # pool2.close()
+        # pool2.join()
+        # res = res.get()
+
+        init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction,
+                                          min_identity, max_identity, msf, fasta, blast_fn, self.filtered_blast_path,
+                                          self.alignment_path, self.filtered_alignment_path, self.final_alignment_path,
+                                          verbose)
+        res = []
+        for p_id in unique_ids:
+            curr_res = filtering_and_alignment((p_id, self.protein_data[p_id]['Sequence']))
+            res.append(curr_res)
+
+
         summary = {'Protein_ID': [], 'BLAST_Hits': [], 'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Time': []}
         for data in res:
             # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
@@ -473,7 +488,8 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, proce
 
 
 def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
-                           min_identity=0.40, max_identity=0.98, alphabet=FullIUPACProtein(), verbose=False):
+                           # min_identity=0.40, max_identity=0.98, alphabet=FullIUPACProtein(), verbose=False):
+                           min_identity=0.40, max_identity=0.98, alphabet=Gapped(IUPACProtein()), verbose=False):
     """
     Filter BLAST Sequences
 
@@ -501,6 +517,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
         int: The number of sequences passing the filters.
         str: The file path to the list of sequences writen out after filtering.
     """
+    print(f'Filter Blast Sequences: {protein_id}')
     if not os.path.isdir(filter_path):
         os.makedirs(filter_path)
     pileup_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
@@ -513,6 +530,7 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                 if seq_record.description.startswith(protein_id):  # Add the target sequence without checking.
                     sequences.append(seq_record)
                     continue
+                print(seq_record.description)
                 hsp_data_match = hsp_data_pattern.match(seq_record.description)
                 subject_fraction = float(hsp_data_match.group(3))
                 if subject_fraction < min_fraction:
@@ -540,18 +558,41 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                         if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
                             subject_length = len(hsp.sbjct.replace('-', ''))
                             query_length = len(query_seq.seq)
-                            subject_fraction = min(subject_length / float(query_length),
-                                                   query_length / float(subject_length))
+                            try:
+                                subject_fraction = min(subject_length / float(query_length),
+                                                       query_length / float(subject_length))
+                            except ZeroDivisionError:
+                                # print('DIVIDE BY ZERO ENCOUNTERED')
+                                # print(f'Query Length: {query_length}')
+                                # print(f'Subject Length: {subject_length}')
+                                # print(hsp.sbjct)
+                                # raise ZeroDivisionError()
+                                continue
                             if min_fraction <= subject_fraction:
                                 identity = hsp.identities / float(hsp.align_length)
                                 if min_identity <= identity and identity <= max_identity:
                                     if (aln_identity is None) or (identity > aln_identity):
-                                        new_description = description_pattern.format(alignment.hit_def, hsp.identities,
-                                                                                     hsp.align_length, subject_fraction)
-                                        aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
-                                                                   id=alignment.hit_id, name=alignment.title,
-                                                                   description=new_description)
-                                        aln_identity = identity
+                                        if all([aa in alphabet.letters for aa in set(hsp.sbjct)]):
+                                            if not any([c in alignment.hit_def.lower() for c in set(['artificial', 'fragment', 'low quality', 'partial', 'synthetic'])]):
+                                                try:
+                                                    lineage = ';'.join(parse_lineage(alignment.hit_id)).lower()
+                                                except AttributeError:
+                                                    print(f'No Lineage: {alignment.hit_id}')
+                                                    lineage = ''
+                                                if not any([c in lineage for c in set(['synthetic', 'artificial'])]):
+                                                    new_description = description_pattern.format(
+                                                        alignment.hit_def, hsp.identities, hsp.align_length,
+                                                        subject_fraction)
+                                                    aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
+                                                                               id=alignment.hit_id, name=alignment.title,
+                                                                               description=new_description)
+                                                    aln_identity = identity
+                                        #         else:
+                                        #             print(f'Removing {alignment.hit_id} Lineage: {lineage}')
+                                        #     else:
+                                        #         print(f'Removing {alignment.hit_id} Description: {alignment.hit_def.lower()}')
+                                        # else:
+                                        #     print(f'Removing {alignment.hit_id} Seq: {hsp.sbjct}')
                     if aln_seq_record:
                         sequences.append(aln_seq_record)
         # Add query sequence so that this file can be fed directly to the alignment method.
@@ -581,6 +622,7 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True,
         str: The path to the fasta alignment produced by this method (None if fa=False).
         str: The path to the msf alignment produced by this method (None if msf=False).
     """
+    print(f'Align sequences: {protein_id}')
     clustalw_path = os.environ.get('CLUSTALW_PATH')
     if not os.path.isdir(alignment_path):
         os.makedirs(alignment_path)
@@ -640,15 +682,22 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
         int: The number of sequences which pass through this filtering process.
         str: The full path to the file where the filtered sequences were written.
     """
+    print(f'Identity Filter: {protein_id}')
     if alignment_fn is None:
         raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
     if not os.path.isdir(filter_path):
         os.makedirs(filter_path)
     identity_filtered_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
     if os.path.isfile(identity_filtered_fn):
-        filtered_alignment = SeqAlignment(file_name=identity_filtered_fn, query_id=protein_id)
-        filtered_alignment.import_alignment()
+        print('LOADING FILTERED ALIGNMENT')
+        count = 0
+        with open(identity_filtered_fn, 'rU') as handle:
+            for _ in parse(handle, 'fasta'):
+                count += 1
+        # filtered_alignment = SeqAlignment(file_name=identity_filtered_fn, query_id=protein_id)
+        # filtered_alignment.import_alignment()
     else:
+        print('FILTERING FROM SCRATCH')
         calculator = AlignmentDistanceCalculator()
         alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
         alignment.import_alignment()
@@ -678,8 +727,16 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
             raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
                 alignment.size, filtering_count, len(to_keep), len(to_remove)))
         filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
-        filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
-    count = filtered_alignment.size
+        ### New
+        filtered_sequences = []
+        for record in filtered_alignment.alignment:
+            record.seq = record.seq.ungap(gap='-')
+            filtered_sequences.append(record)
+        with open(identity_filtered_fn, 'w') as out_handle:
+            write(filtered_sequences, out_handle, 'fasta')
+        ###
+        # filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
+        count = filtered_alignment.size
     return count, identity_filtered_fn
 
 
@@ -767,17 +824,23 @@ def filtering_and_alignment(in_tup):
     start = time()
     protein_id = in_tup[0]
     curr_seq = in_tup[1]
+    print(f'Protein ID: {protein_id}')
     curr_filter_count, curr_filter_fn = filter_blast_sequences(
         protein_id=protein_id, filter_path=filtered_blast_dir, blast_fn=blast_file, query_seq=curr_seq,
         e_value_threshold=e_value, min_fraction=min_length, min_identity=min_id, max_identity=max_id)
     msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=aln_dir, pileup_fn=curr_filter_fn,
-                                    msf=make_msf, fasta=make_msf, verbose=verbose_out)
+                                    msf=make_msf, fasta=make_fasta, verbose=verbose_out)
     try:
         final_filter_count, final_filter_fn = identity_filter(
             protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
-    except ValueError:
+    except ValueError as e:
+        print('HIT A VALUE ERROR IN FILTERING')
         final_filter_count = 0
         final_filter_fn = None
+        print(e)
+    ###
+    print(f'{protein_id}: Final Filter Count: {final_filter_count}')
+    ###
     try:
         final_msf_fn, final_fa_fn = align_sequences(protein_id=protein_id, alignment_path=final_aln_dir,
                                                     pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta,
@@ -791,6 +854,47 @@ def filtering_and_alignment(in_tup):
     end = time()
     total = (end - start) / 60.0
     return protein_id, data, total
+
+
+def parse_genbank_lineage(full_id):
+    acc_pattern = re.compile(r'^(dbj|emb|gb|pdb|ref|sp)\|(.*)\|([A-Z])?$')
+    match_groups = acc_pattern.match(full_id)
+    if match_groups.group(1) == 'pdb':
+        acc = f'{match_groups.group(2)}_{match_groups.group(3)}'
+    else:
+        acc = match_groups.group(2)
+    Entrez.email = os.environ.get('EMAIL')
+    handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+    gb_set = XMLET.parse(handle).getroot()
+    gb_seq = gb_set[0]
+    gb_taxa = gb_seq.find('GBSeq_taxonomy')
+    full_lineage = gb_taxa.text.replace(' ', '').split(';')
+    return full_lineage
+
+
+def parse_uniref_lineage(full_id):
+    acc_pattern = re.compile(r'^UniRef\d+_([0-9A-Z]+)$')
+    acc = acc_pattern.match(full_id).group(1)
+    handle = get_sprot_raw(acc)
+    data = handle.read()
+    lines = data.split('\n')
+    taxonomy_pattern = re.compile(r'^OC\s+(.*)[;\.]$')
+    taxonomy_lines = [taxonomy_pattern.match(line).group(1) for line in lines if line.startswith('OC')]
+    full_lineage = []
+    for tax_line in taxonomy_lines:
+        full_lineage += tax_line.split('; ')
+    return full_lineage
+
+
+def parse_lineage(full_id):
+    try:
+        full_lineage = parse_uniref_lineage(full_id)
+    except Exception as e:
+        try:
+            full_lineage = parse_genbank_lineage(full_id)
+        except Exception as e:
+            raise e
+    return full_lineage
 
 
 def determine_identity_bin(identity_count, length, interval, abs_max_identity, abs_min_identity, identity_bins):
@@ -847,7 +951,7 @@ def batch_iterator(iterator, batch_size):
         batch = []
         while len(batch) < batch_size:
             try:
-                entry = iterator.next()
+                entry = next(iterator)
             except StopIteration:
                 entry = None
             if entry is None:
@@ -1023,8 +1127,8 @@ def parse_arguments():
     arguments = parser.parse_args()
     arguments = vars(arguments)
     processor_count = cpu_count()
-    arguments['num_threads'] = (arguments['num_threads'][0] if isinstance(arguments['num_threads'], list)
-                                else arguments['num_threads'])
+    arguments['processes'] = (arguments['processes'][0] if isinstance(arguments['processes'], list)
+                              else arguments['processes'])
     arguments['max_target_seqs'] = (arguments['max_target_seqs'][0] if isinstance(arguments['max_target_seqs'], list)
                                     else arguments['max_target_seqs'])
     arguments['e_value_threshold'] = (arguments['e_value_threshold'][0]
