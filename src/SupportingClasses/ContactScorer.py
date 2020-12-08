@@ -464,13 +464,15 @@ class ContactScorer(object):
         to extract the comparable predictions and distances.
 
         Args:
-            category (str): The category for which to return residue pairs. At the moment the following categories are
-            supported:
+            category (str/list): The category for which to return residue pairs. At the moment the following categories
+            are supported:
                 Neighbors - Residues 1 to 5 sequence positions apart.
                 Short - Residues 6 to 12 sequences positions apart.
                 Medium - Residues 13 to 24 sequences positions apart.
                 Long - Residues more than 24 sequence positions apart.
                 Any - Any/All pairs of residues.
+            In order to return a combination of labels, a list may be provided which contains any of the strings from
+            the above set of categories (e.g. ['Short', 'Medium', 'Long']).
             k (int): This value should only be specified if n is not specified. This is the number that L, the length of
             the query sequence, will be divided by to give the number of predictions to test.
             n (int): This value should only be specified if k is not specified. This is the number of predictions to
@@ -492,8 +494,10 @@ class ContactScorer(object):
                              'before a specific evaluation can be made.')
         if (k is not None) and (n is not None):
             raise ValueError('Both k and n were set for score_recall which is not a valid option.')
-        if category == 'Any':
+        if (category == 'Any') or ('Any' in category):
             category_subset = self.data
+        elif type(category) == list:
+            category_subset = self.data.loc[self.data['Seq Separation Category'].isin(category), :]
         else:
             category_subset = self.data.loc[self.data['Seq Separation Category'] == category, :]
         unmappable_index = category_subset.index[(category_subset['Struct Pos 1'] == '-') |
@@ -1050,7 +1054,8 @@ class ContactScorer(object):
         stats['AUPRC'] = []
         stats['Distance'] = []
         stats['Sequence_Separation'] = []
-        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long', ['Neighbors', 'Short', 'Medium'],
+                           ['Neighbors', 'Short'], ['Short', 'Medium', 'Long'], ['Medium', 'Long']]:
             # AUC Evaluation
             auc_roc = self.score_auc(category=separation)
             auc_prc = self.score_precision_recall(category=separation)
@@ -1082,7 +1087,8 @@ class ContactScorer(object):
             stats['AUROC'] += [auc_roc[2]] * duplicate
             stats['AUPRC'] += [auc_prc[2]] * duplicate
             stats['Distance'] += [dist] * duplicate
-            stats['Sequence_Separation'] += [separation] * duplicate
+            stats['Sequence_Separation'] += ((['-'.join(separation)] if isinstance(separation, list) else [separation])
+                                             * duplicate)
         duplicate *= 5
         if verbosity >= 3:
             # Score Prediction Clustering
