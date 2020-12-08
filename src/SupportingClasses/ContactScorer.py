@@ -1054,7 +1054,8 @@ class ContactScorer(object):
         stats['AUPRC'] = []
         stats['Distance'] = []
         stats['Sequence_Separation'] = []
-        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+        for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long', ['Neighbors', 'Short', 'Medium'],
+                           ['Neighbors', 'Short'], ['Short', 'Medium', 'Long'], ['Medium', 'Long']]:
             # AUC Evaluation
             auc_roc = self.score_auc(category=separation)
             auc_prc = self.score_precision_recall(category=separation)
@@ -1086,7 +1087,8 @@ class ContactScorer(object):
             stats['AUROC'] += [auc_roc[2]] * duplicate
             stats['AUPRC'] += [auc_prc[2]] * duplicate
             stats['Distance'] += [dist] * duplicate
-            stats['Sequence_Separation'] += [separation] * duplicate
+            stats['Sequence_Separation'] += ((['-'.join(separation)] if isinstance(separation, list) else [separation])
+                                             * duplicate)
         duplicate *= 5
         if verbosity >= 3:
             # Score Prediction Clustering
