@@ -244,14 +244,24 @@ class Trace(object):
         pool_manager = Manager()
         frequency_tables = pool_manager.dict()
         tables_lock = Lock()
-        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-                    initargs=(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
-                              self.pos_size, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
-                              write_out_sub_aln, write_out_freq_table, maximum_iterations))
+
+        #
+        init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
+                                      self.pos_size, visited, frequency_tables, tables_lock, unique_dir,
+                                      self.low_memory, write_out_sub_aln, write_out_freq_table, maximum_iterations)
         for char_node in to_characterize:
-            pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
-        pool.close()
-        pool.join()
+            curr_res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
+            update_characterization(curr_res)
+        #
+
+        # pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
+        #             initargs=(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
+        #                       self.pos_size, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
+        #                       write_out_sub_aln, write_out_freq_table, maximum_iterations))
+        # for char_node in to_characterize:
+        #     pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
+        # pool.close()
+        # pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         if len(frequency_tables) != len(to_characterize):
