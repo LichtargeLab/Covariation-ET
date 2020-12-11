@@ -513,6 +513,38 @@ class FrequencyTable(object):
         end = time()
         print('Loading FrequencyTable from file took {} min'.format((end - start) / 60.0))
 
+    # def characterize_aln
+    # 
+    # def characterize_match_mismatch(self, larger_alpha_size, larger_mapping, larger_reverse, small_to_large):
+    #     match_ft = FrequencyTable(alphabet_size=larger_alpha_size, mapping=larger_mapping,
+    #                               reverse_mapping=larger_reverse, seq_len=self.sequence_length,
+    #                               pos_size=self.position_size)
+    #     match_ft.set_depth(((self.__depth**2) - self.__depth) / 2)
+    #     match_ft.finalize_table()
+    #     mismatch_ft = FrequencyTable(alphabet_size=larger_alpha_size, mapping=larger_mapping,
+    #                                  reverse_mapping=larger_reverse, seq_len=self.sequence_length,
+    #                                  pos_size=self.position_size)
+    #     mismatch_ft.set_depth(match_ft.__depth)
+    #     mismatch_ft.finalize_table()
+    #     if isinstance(self.__position_table, dict):
+    #         raise ValueError('characterize_match_mismatch can only be called on a finalized FrequencyTable object!')
+    #     data = self.__position_table.nonzero()
+    #     for p in range(self.__position_table.shape[0]):
+    #         characters = data[1][data[0] == p]
+    #         for i in range(len(characters)):
+    #             i_char = characters[i]
+    #             i_val = self.__position_table[p, i_char]
+    #             match_ft.__position_table[p, small_to_large[i_char, i_char]] = (i_val * (i_val - 1)) / 2
+    #             for j in range(len(characters)):
+    #                 j_char = characters[j]
+    #                 j_val = self.__position_table[p, j_char]
+    #                 mapped_char = small_to_large[i_char, j_char]
+    #                 new_val = i_val * j_val
+    #                 if mapped_char < 0:
+    #                     mismatch_ft.__position_table[p, -1 * mapped_char] = new_val
+    #                 else:
+    #                     match_ft.__position_table[p, mapped_char] = new_val
+
     def __add__(self, other):
         """
         Overloads the + operator, combining the information from two FrequencyTables. The intention of this behavior is

@@ -94,7 +94,8 @@ class Trace(object):
 
     def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
                                           single_to_pair=None, processes=1, write_out_sub_aln=True,
-                                          write_out_freq_table=True, maximum_iterations=10000):
+                                          # write_out_freq_table=True, maximum_iterations=10000):
+                                          write_out_freq_table=True, maximum_iterations=10000, single_map=None):
         """
         Characterize Rank Group
 
@@ -153,7 +154,8 @@ class Trace(object):
         pool = Pool(processes=processes, initializer=init_characterization_pool,
                     initargs=(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, self.aln, self.pos_size,
                               visited, frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-                              write_out_freq_table, processes, maximum_iterations))
+                              # write_out_freq_table, processes, maximum_iterations))
+                              write_out_freq_table, processes, maximum_iterations, single_map))
         for char_node in to_characterize:
             pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
         pool.close()
@@ -313,7 +315,8 @@ class Trace(object):
                                                    single_to_pair=curr_single_to_pair, processes=processes,
                                                    write_out_sub_aln=write_out_sub_aln,
                                                    write_out_freq_table=write_out_freq_table,
-                                                   maximum_iterations=maximum_iterations)
+                                                   # maximum_iterations=maximum_iterations)
+                                                   maximum_iterations=maximum_iterations, single_map=single_mapping)
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
@@ -630,7 +633,8 @@ def load_numpy_array(mat, low_memory):
 
 def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, alignment, pos_size,
                                components, sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
-                               write_out_freq_table, processes, maximum_iterations=10000):
+                               # write_out_freq_table, processes, maximum_iterations=10000):
+                               write_out_freq_table, processes, maximum_iterations=10000, single_map=None):
     """
     Init Characterization Pool
 
@@ -679,7 +683,7 @@ def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_
         single = False
         pair = True
         s_size = None
-        s_map = None
+        s_map = single_map
         s_rev = None
         p_size = alpha_size
         p_map = alpha_mapping
@@ -762,6 +766,17 @@ def characterization(node_name, node_type):
                 freq_table = pair_table
             else:
                 raise ValueError('Unknown table type encountered in characterization!')
+            # Characterize the alignment using FrequencyTable()
+            # sub_num_aln = sub_aln._alignment_to_num(mapping=s_map)
+            # if single:
+            #     freq_table = FrequencyTable(alphabet_size=s_size, mapping=s_map, reverse_mapping=s_rev,
+            #                                 seq_len=sub_aln.seq_length, pos_size=1)
+            # elif pair:
+            #     freq_table = FrequencyTable(alphabet_size=p_size, mapping=p_map, reverse_mapping=p_rev,
+            #                                 seq_len=sub_aln.seq_length, pos_size=2)
+            # else:
+            #     raise ValueError('Unknown table type encountered in characterization!')
+            # freq_table.characterize_alignment(num_aln=sub_num_aln, single_to_pair=s_to_p)
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
