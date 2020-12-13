@@ -95,7 +95,7 @@ class Trace(object):
     def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
                                           single_to_pair=None, processes=1, write_out_sub_aln=True,
                                           # write_out_freq_table=True, maximum_iterations=10000):
-                                          write_out_freq_table=True, maximum_iterations=10000, single_map=None):
+                                          write_out_freq_table=True, maximum_iterations=100000, single_map=None):
         """
         Characterize Rank Group
 
@@ -168,7 +168,7 @@ class Trace(object):
 
     def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
                                                 processes=1, write_out_sub_aln=True, write_out_freq_table=True,
-                                                maximum_iterations=10000):
+                                                maximum_iterations=100000):
         """
         Characterize Rank Groups Match Mismatch
 
@@ -248,29 +248,29 @@ class Trace(object):
         tables_lock = Lock()
 
         #
-        init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
-                                      self.pos_size, visited, frequency_tables, tables_lock, unique_dir,
-                                      self.low_memory, write_out_sub_aln, write_out_freq_table, maximum_iterations)
-        for char_node in to_characterize:
-            curr_res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
-            update_characterization(curr_res)
+        # init_characterization_mm_pool(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
+        #                               self.pos_size, visited, frequency_tables, tables_lock, unique_dir,
+        #                               self.low_memory, write_out_sub_aln, write_out_freq_table, maximum_iterations)
+        # for char_node in to_characterize:
+        #     curr_res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
+        #     update_characterization(curr_res)
         #
 
-        # pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-        #             initargs=(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
-        #                       self.pos_size, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
-        #                       write_out_sub_aln, write_out_freq_table, maximum_iterations))
-        # for char_node in to_characterize:
-        #     pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
-        # pool.close()
-        # pool.join()
+        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
+                    initargs=(larger_size, larger_mapping, larger_reverse, match_mismatch_table, self.aln,
+                              self.pos_size, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
+                              write_out_sub_aln, write_out_freq_table, maximum_iterations))
+        for char_node in to_characterize:
+            pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
+        pool.close()
+        pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         if len(frequency_tables) != len(to_characterize):
             raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
 
-    def characterize_rank_groups(self, processes=1, maximum_iterations=10000, write_out_sub_aln=True,
+    def characterize_rank_groups(self, processes=1, maximum_iterations=100000, write_out_sub_aln=True,
                                  write_out_freq_table=True):
         """
         Characterize Rank Groups:
