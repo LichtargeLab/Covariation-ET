@@ -150,6 +150,45 @@ class FrequencyTable(object):
             raise ValueError('Depth cannot be negative, please provide a value >= 0.')
         self.__depth = deepcopy(depth)
 
+    def characterize_alignment_mm(self, num_aln, single_to_pair=None, comparison=None, mismatch_mask=None):
+        if num_aln is None:
+            raise ValueError('Numeric representation of an alignment must be provided as input.')
+        if self.position_size == 2 and single_to_pair is None:
+            raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
+        # Iterate over all positions
+        for i, pos in enumerate(self.get_positions()):
+            # If single is specified, track the amino acid for this sequence and position
+            if self.position_size == 1:
+                curr_pos = num_aln[:, i]
+            elif self.position_size == 2:
+                curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
+            else:
+                raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
+            if comparison:
+                full_pos = np.ndarray([], dtype=np.int32)
+                for j in range(num_aln.shape[0] - 1):
+                    full_pos = np.hstack((full_pos, comparison[curr_pos[j], curr_pos[j + 1:]]))
+            else:
+                full_pos = curr_pos
+            self.__position_table['values'] += [1] * full_pos.shape[0]
+            self.__position_table['i'] += [i] * full_pos.shape[0]
+            self.__position_table['j'] += full_pos.tolist()
+        # Update the depth to the number of sequences in the characterized alignment
+        self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
+        self.finalize_table()
+        if mismatch_mask:
+            mismatch_ft = FrequencyTable(alphabet_size=self.__position_table.shape[1], mapping=self.mapping,
+                                         reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
+                                         pos_size=self.position_size)
+            mismatch_ft.set_depth(depth=self.__depth)
+            mismatch_ft.finalize_table()
+            mismatch_ft.__position_table = csc_matrix(self.__position_table * mismatch_mask)
+            self.__position_table = csc_matrix(self.__position_table * (np.ones(mismatch_mask.shape) - mismatch_mask))
+        else:
+            mismatch_ft = None
+        return mismatch_ft
+
+
     def characterize_alignment(self, num_aln, single_to_pair=None):
         """
         Characterize Alignment
