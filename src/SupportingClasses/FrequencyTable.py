@@ -157,6 +157,7 @@ class FrequencyTable(object):
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
         # Iterate over all positions
         for i, pos in enumerate(self.get_positions()):
+            # print(f'i: {i} post: {pos}')
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
                 curr_pos = num_aln[:, i]
@@ -164,30 +165,51 @@ class FrequencyTable(object):
                 curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
             else:
                 raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
-            if comparison:
-                full_pos = np.ndarray([], dtype=np.int32)
+            # print('CURR POS:', curr_pos)
+            if comparison is not None:
+                # print('COMPARISON')
+                # full_pos = np.empty((1,), dtype=np.int32)
+                full_pos = []
+                # print('COMPARISON FULL POS INIT:', full_pos)
                 for j in range(num_aln.shape[0] - 1):
-                    full_pos = np.hstack((full_pos, comparison[curr_pos[j], curr_pos[j + 1:]]))
+                    # print(f'j: {j}')
+                    cur_comp = comparison[curr_pos[j], curr_pos[j + 1:]]
+                    # print(f'max curr comp: {max(cur_comp)}')
+                    full_pos += cur_comp.tolist()
+                # print('COMPARISON FULL POS FINAL:', full_pos)
             else:
-                full_pos = curr_pos
-            self.__position_table['values'] += [1] * full_pos.shape[0]
-            self.__position_table['i'] += [i] * full_pos.shape[0]
-            self.__position_table['j'] += full_pos.tolist()
+                # print('NO COMPARISON')
+                full_pos = curr_pos.tolist()
+            #     print('NO COMPARISON FULL POS:', full_pos)
+            # print('FULL POS LAST:', full_pos)
+            unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+            # self.__position_table['values'] += [1] * len(full_pos)
+            self.__position_table['values'] += unique_counts.tolist()
+            # self.__position_table['i'] += [i] * len(full_pos)
+            self.__position_table['i'] += [i] * unique_chars.shape[0]
+            # self.__position_table['j'] += full_pos
+            self.__position_table['j'] += unique_chars.tolist()
         # Update the depth to the number of sequences in the characterized alignment
         self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
+        # print('TABLE SHAPE:', self.__position_table['shape'])
+        # print(f"MAX I: {max(self.__position_table['i'])} MIN I: {min(self.__position_table['i'])}")
+        # print(f"MAX J: {max(self.__position_table['j'])} MIN J: {min(self.__position_table['j'])}")
         self.finalize_table()
-        if mismatch_mask:
+        # print(f'FINALIZED TABLE SHAPE: {self.__position_table.shape}')
+        # print(f'MISMATCH MASK SHAPE: {mismatch_mask.shape}')
+        if mismatch_mask is not None:
             mismatch_ft = FrequencyTable(alphabet_size=self.__position_table.shape[1], mapping=self.mapping,
                                          reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                          pos_size=self.position_size)
             mismatch_ft.set_depth(depth=self.__depth)
             mismatch_ft.finalize_table()
-            mismatch_ft.__position_table = csc_matrix(self.__position_table * mismatch_mask)
-            self.__position_table = csc_matrix(self.__position_table * (np.ones(mismatch_mask.shape) - mismatch_mask))
+            mismatch_ft.__position_table = csc_matrix(self.__position_table.multiply(mismatch_mask))
+            self.__position_table = csc_matrix(self.__position_table.multiply(np.ones(mismatch_mask.shape) - mismatch_mask))
+            # print(f'NEW MATCH TABLE SHAPE: {self.__position_table.shape}')
+            # print(f'NEW MISMATCH TABLE SHAPE: {mismatch_ft.__position_table.shape}')
         else:
             mismatch_ft = None
         return mismatch_ft
-
 
     def characterize_alignment(self, num_aln, single_to_pair=None):
         """

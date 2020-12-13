@@ -310,11 +310,11 @@ class Trace(object):
             quad_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=4)
             larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=quad_alphabet)
             # single_to_pair set above
-            comparison_mapping = np.zeros((pair_size, pair_size))
+            comparison_mapping = np.zeros((pair_size + 1, pair_size + 1))
             mismatch_mask = np.zeros(larger_size, dtype=np.bool_)
             for char in larger_mapping:
-                comparison_mapping[pair_mapping[char[:2], char[2:]]] = larger_mapping[char]
-                if ((char[0] != char[2]) and (char[1] == char[2])) or ((char[0] == char[2]) and (char[1] != char[2])):
+                comparison_mapping[pair_mapping[char[:2]], pair_mapping[char[2:]]] = larger_mapping[char]
+                if ((char[0] != char[2]) and (char[1] == char[3])) or ((char[0] == char[2]) and (char[1] != char[3])):
                     mismatch_mask[larger_mapping[char]] = True
         else:
             raise AttributeError('Match/Mismatch characterization requires that either pos_specific or pair_'
@@ -354,6 +354,7 @@ class Trace(object):
         tables_lock = Lock()
 
         #
+        # # print(f'LARGER ALPHABET SIZE: {larger_size}')
         # init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
         #                               comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited,
         #                               frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
@@ -368,7 +369,7 @@ class Trace(object):
                               tables_lock, unique_dir, self.low_memory, write_out_sub_aln, write_out_freq_table,
                               maximum_iterations))
         for char_node in to_characterize:
-            pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
+            pool.apply_async(func=characterization_mm, args=(char_node[0], ), callback=update_characterization)
         pool.close()
         pool.join()
         characterization_pbar.close()
