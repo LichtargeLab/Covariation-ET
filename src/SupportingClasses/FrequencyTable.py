@@ -224,7 +224,8 @@ class FrequencyTable(object):
         self.__depth = num_aln.shape[0]
         self.finalize_table()
 
-    def characterize_alignment_mm(self, num_aln, comparison, mismatch_mask, single_to_pair=None):
+    def characterize_alignment_mm(self, num_aln, comparison, mismatch_mask, single_to_pair=None, indexes1=None,
+                                  indexes2=None):
         """
         Characterize Alignment
 
@@ -233,7 +234,7 @@ class FrequencyTable(object):
         the alignment if position_size==2) and tracks the character count found at that position. When character counts
         have been identified all observed transitions (comparisons between one sequence and all other sequences) are
         determined and the count for each unique type of transition is stored in __position_table. The transition counts
-        are split into two FrequenyTable objects, the matches (invariance and covariation counts) are kept in the table
+        are split into two FrequencyTable objects, the matches (invariance and covariation counts) are kept in the table
         from which characterize_alignment_mm was called, while a new FrequencyTable object is created for the mismatch
         (variance) transitions. Both FrequencyTable objects are finalized (see finalize_table) and the __depth for both
         FrequencyTable objects is set to the size for the upper triangle of sequence comparisons
@@ -252,6 +253,12 @@ class FrequencyTable(object):
             mismatch_mask (np.array, dtype=np.bool_): An array identifying which positions in the alphabet (the values
             in the provided alphabet mapping) correspond to mismatches (variance events). This will be used to separate
             the counts into match and mismatch tables.
+            indexes1 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+            being characterized can be provided. indexes1 should have the the indexes for the sequences of interest for
+            one side of the comparison rectangle in sorted order. It should have a lower minimum than indexes2.
+            indexes2 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+            being characterized can be provided. indexes2 should have the the indexes for the sequences of interest for
+            one side of the comparison rectangle in sorted order. It should have a higher minimum than indexes2.
         Return:
             FrequencyTable: A new FrequencyTable containing counts for all variance transitions observed in the provided
             alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
@@ -265,6 +272,13 @@ class FrequencyTable(object):
             raise ValueError('An array indicating which characters are mismatch comparisons/transitions is required.')
         if self.position_size == 2 and single_to_pair is None:
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
+        if (indexes1 is not None) and (indexes2 is None):
+            raise ValueError('If indexes1 is provided indexes2 must also be provided.')
+        if (indexes2 is not None) and (indexes1 is None):
+            raise ValueError('If indexes2 is provided indexes1 must also be provided.')
+        if (indexes1 is not None) and (indexes2 is not None):
+            if np.min(indexes2) < np.min(indexes1):
+                raise ValueError('indexes1 must come before indexes2.')
         # Iterate over all positions
         for i, pos in enumerate(self.get_positions()):
             # If single is specified, track the amino acid for this sequence and position
@@ -276,9 +290,15 @@ class FrequencyTable(object):
                 raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
             # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
             full_pos = []
-            for j in range(num_aln.shape[0] - 1):
-                cur_comp = comparison[curr_pos[j], curr_pos[j + 1:]]
-                full_pos += cur_comp.tolist()
+            if indexes1 is None:
+                indexes1 = range(num_aln.shape[0] - 1)
+            for j in indexes1:
+                if indexes2 is None:
+                    comp_pos = curr_pos[j + 1:]
+                else:
+                    comp_pos = curr_pos[indexes2]
+                curr_comp = comparison[curr_pos[j], comp_pos]
+                full_pos += curr_comp.tolist()
             unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
             self.__position_table['values'] += unique_counts.tolist()
             self.__position_table['i'] += [i] * unique_chars.shape[0]
