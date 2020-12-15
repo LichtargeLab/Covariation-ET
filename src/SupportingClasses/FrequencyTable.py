@@ -304,6 +304,13 @@ class FrequencyTable(object):
             self.__position_table['i'] += [i] * unique_chars.shape[0]
             self.__position_table['j'] += unique_chars.tolist()
         # Update the depth to the number of sequences in the characterized alignment
+        # The depth needs to be the number of possible matches mismatches when comparing all elements of a column or
+        # pair of columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
+        # sub-alignments the size of the sub-alignment is 1 and therefore there are no values in the upper triangle
+        # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
+        # matrix and therefore not counted). Setting the depth to 0 causes divide by zero issues when calculating
+        # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
+        # the resulting frequencies should be calculated correctly.
         self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
         self.finalize_table()
         # Split the tables in two, keep matches (invariant or covarying transitions/comparisons in the current table),
