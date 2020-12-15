@@ -131,7 +131,7 @@ class FrequencyTable(object):
         """
         self.__position_table = csc_matrix((self.__position_table['values'],
                                             (self.__position_table['i'], self.__position_table['j'])),
-                                           shape=self.__position_table['shape'])
+                                           shape=self.__position_table['shape'], dtype=np.int32)
 
     def set_depth(self, depth):
         """
@@ -150,66 +150,34 @@ class FrequencyTable(object):
             raise ValueError('Depth cannot be negative, please provide a value >= 0.')
         self.__depth = deepcopy(depth)
 
-    def characterize_alignment_mm(self, num_aln, single_to_pair=None, comparison=None, mismatch_mask=None):
-        if num_aln is None:
-            raise ValueError('Numeric representation of an alignment must be provided as input.')
-        if self.position_size == 2 and single_to_pair is None:
-            raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
+    def characterize_sequence(self, seq):
+        """
+        Characterize Sequence
+
+        Characterize a single sequence from an alignment. This iterates over all positions (single positions in the the
+        alignment if position_size==1 and pairs of positions in the alignment if position_size==2) and updates the
+        character count found at that position in the sequence in __positional_table. Each call to this function updates
+        __depth by 1.
+
+        Args:
+            seq (Bio.Seq.Seq): The sequence from an alignment to characterize.
+        """
+        if seq is None:
+            raise ValueError('seq must not be None.')
         # Iterate over all positions
-        for i, pos in enumerate(self.get_positions()):
-            # print(f'i: {i} post: {pos}')
+        for i in range(self.sequence_length):
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
-                curr_pos = num_aln[:, i]
-            elif self.position_size == 2:
-                curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
-            else:
-                raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
-            # print('CURR POS:', curr_pos)
-            if comparison is not None:
-                # print('COMPARISON')
-                # full_pos = np.empty((1,), dtype=np.int32)
-                full_pos = []
-                # print('COMPARISON FULL POS INIT:', full_pos)
-                for j in range(num_aln.shape[0] - 1):
-                    # print(f'j: {j}')
-                    cur_comp = comparison[curr_pos[j], curr_pos[j + 1:]]
-                    # print(f'max curr comp: {max(cur_comp)}')
-                    full_pos += cur_comp.tolist()
-                # print('COMPARISON FULL POS FINAL:', full_pos)
-            else:
-                # print('NO COMPARISON')
-                full_pos = curr_pos.tolist()
-            #     print('NO COMPARISON FULL POS:', full_pos)
-            # print('FULL POS LAST:', full_pos)
-            unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
-            # self.__position_table['values'] += [1] * len(full_pos)
-            self.__position_table['values'] += unique_counts.tolist()
-            # self.__position_table['i'] += [i] * len(full_pos)
-            self.__position_table['i'] += [i] * unique_chars.shape[0]
-            # self.__position_table['j'] += full_pos
-            self.__position_table['j'] += unique_chars.tolist()
-        # Update the depth to the number of sequences in the characterized alignment
-        self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
-        # print('TABLE SHAPE:', self.__position_table['shape'])
-        # print(f"MAX I: {max(self.__position_table['i'])} MIN I: {min(self.__position_table['i'])}")
-        # print(f"MAX J: {max(self.__position_table['j'])} MIN J: {min(self.__position_table['j'])}")
-        self.finalize_table()
-        # print(f'FINALIZED TABLE SHAPE: {self.__position_table.shape}')
-        # print(f'MISMATCH MASK SHAPE: {mismatch_mask.shape}')
-        if mismatch_mask is not None:
-            mismatch_ft = FrequencyTable(alphabet_size=self.__position_table.shape[1], mapping=self.mapping,
-                                         reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
-                                         pos_size=self.position_size)
-            mismatch_ft.set_depth(depth=self.__depth)
-            mismatch_ft.finalize_table()
-            mismatch_ft.__position_table = csc_matrix(self.__position_table.multiply(mismatch_mask))
-            self.__position_table = csc_matrix(self.__position_table.multiply(np.ones(mismatch_mask.shape) - mismatch_mask))
-            # print(f'NEW MATCH TABLE SHAPE: {self.__position_table.shape}')
-            # print(f'NEW MISMATCH TABLE SHAPE: {mismatch_ft.__position_table.shape}')
-        else:
-            mismatch_ft = None
-        return mismatch_ft
+                self._increment_count(pos=i, char=seq[i])
+            # If pair is not specified continue to the next position
+            if self.position_size != 2:
+                continue
+            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
+            # including the diagonal)
+            for j in range(i, self.sequence_length):
+                # Track the pair of amino acids for the positions i,j
+                self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
+        self.__depth += 1
 
     def characterize_alignment(self, num_aln, single_to_pair=None):
         """
@@ -256,34 +224,79 @@ class FrequencyTable(object):
         self.__depth = num_aln.shape[0]
         self.finalize_table()
 
-    def characterize_sequence(self, seq):
+    def characterize_alignment_mm(self, num_aln, comparison, mismatch_mask, single_to_pair=None):
         """
-        Characterize Sequence
+        Characterize Alignment
 
-        Characterize a single sequence from an alignment. This iterates over all positions (single positions in the the
-        alignment if position_size==1 and pairs of positions in the alignment if position_size==2) and updates the
-        character count found at that position in the sequence in __positional_table. Each call to this function updates
-        __depth by 1.
+        Characterize an entire alignment for matches (invariance or covariation) and mismatches (variation). This
+        iterates over all positions (single positions in the the alignment if position_size==1 and pairs of positions in
+        the alignment if position_size==2) and tracks the character count found at that position. When character counts
+        have been identified all observed transitions (comparisons between one sequence and all other sequences) are
+        determined and the count for each unique type of transition is stored in __position_table. The transition counts
+        are split into two FrequenyTable objects, the matches (invariance and covariation counts) are kept in the table
+        from which characterize_alignment_mm was called, while a new FrequencyTable object is created for the mismatch
+        (variance) transitions. Both FrequencyTable objects are finalized (see finalize_table) and the __depth for both
+        FrequencyTable objects is set to the size for the upper triangle of sequence comparisons
+        (i.e. (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2 or 1 if there is only one sequence in the alignment).
 
         Args:
-            seq (Bio.Seq.Seq): The sequence from an alignment to characterize.
+            num_aln (np.array): Array representing an alignment with dimensions sequence_length by alignment size where
+            the values are integers representing nucleic/amino acids and gaps from the desired alignment.
+            single_to_pair (np.array, dtype=np.int32): An array mapping single letter numerical representations
+            (axes 0 and 1) to a numerical representations of pairs of residues (value). If position_size == 1 this
+            argument should be set to None (default).
+            comparison (np.array, dtype=np.int32): An array mapping the alphabet used for the positions_size of this
+            FrequencyTable, mapped to the alphabet that has characters twice as large (if position_size == 1, this is
+            the same as the description for single_to_pair, if position_size == 2 this is the mapping from the alphabet
+            of pairs to the alphabet of quadruples.
+            mismatch_mask (np.array, dtype=np.bool_): An array identifying which positions in the alphabet (the values
+            in the provided alphabet mapping) correspond to mismatches (variance events). This will be used to separate
+            the counts into match and mismatch tables.
+        Return:
+            FrequencyTable: A new FrequencyTable containing counts for all variance transitions observed in the provided
+            alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
+            __position_table.
         """
-        if seq is None:
-            raise ValueError('seq must not be None.')
+        if num_aln is None:
+            raise ValueError('Numeric representation of an alignment must be provided as input.')
+        if comparison is None:
+            raise ValueError('Mapping from single characters to transition/comparison characters is required.')
+        if mismatch_mask is None:
+            raise ValueError('An array indicating which characters are mismatch comparisons/transitions is required.')
+        if self.position_size == 2 and single_to_pair is None:
+            raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
         # Iterate over all positions
-        for i in range(self.sequence_length):
+        for i, pos in enumerate(self.get_positions()):
             # If single is specified, track the amino acid for this sequence and position
             if self.position_size == 1:
-                self._increment_count(pos=i, char=seq[i])
-            # If pair is not specified continue to the next position
-            if self.position_size != 2:
-                continue
-            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
-            # including the diagonal)
-            for j in range(i, self.sequence_length):
-                # Track the pair of amino acids for the positions i,j
-                self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
-        self.__depth += 1
+                curr_pos = num_aln[:, i]
+            elif self.position_size == 2:
+                curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
+            else:
+                raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
+            # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
+            full_pos = []
+            for j in range(num_aln.shape[0] - 1):
+                cur_comp = comparison[curr_pos[j], curr_pos[j + 1:]]
+                full_pos += cur_comp.tolist()
+            unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+            self.__position_table['values'] += unique_counts.tolist()
+            self.__position_table['i'] += [i] * unique_chars.shape[0]
+            self.__position_table['j'] += unique_chars.tolist()
+        # Update the depth to the number of sequences in the characterized alignment
+        self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
+        self.finalize_table()
+        # Split the tables in two, keep matches (invariant or covarying transitions/comparisons in the current table),
+        # create a new table for mismatches (variant transitions/comparisons).
+        mismatch_ft = FrequencyTable(alphabet_size=self.__position_table.shape[1], mapping=self.mapping,
+                                     reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
+                                     pos_size=self.position_size)
+        mismatch_ft.set_depth(depth=self.__depth)
+        mismatch_ft.finalize_table()
+        mismatch_ft.__position_table = csc_matrix(self.__position_table.multiply(mismatch_mask), dtype=np.int32)
+        match_mask = np.ones(mismatch_mask.shape, dtype=np.bool_) ^ mismatch_mask
+        self.__position_table = csc_matrix(self.__position_table.multiply(match_mask), dtype=np.int32)
+        return mismatch_ft
 
     def get_table(self):
         """
@@ -573,38 +586,6 @@ class FrequencyTable(object):
         self.__depth = max_depth
         end = time()
         print('Loading FrequencyTable from file took {} min'.format((end - start) / 60.0))
-
-    # def characterize_aln
-    # 
-    # def characterize_match_mismatch(self, larger_alpha_size, larger_mapping, larger_reverse, small_to_large):
-    #     match_ft = FrequencyTable(alphabet_size=larger_alpha_size, mapping=larger_mapping,
-    #                               reverse_mapping=larger_reverse, seq_len=self.sequence_length,
-    #                               pos_size=self.position_size)
-    #     match_ft.set_depth(((self.__depth**2) - self.__depth) / 2)
-    #     match_ft.finalize_table()
-    #     mismatch_ft = FrequencyTable(alphabet_size=larger_alpha_size, mapping=larger_mapping,
-    #                                  reverse_mapping=larger_reverse, seq_len=self.sequence_length,
-    #                                  pos_size=self.position_size)
-    #     mismatch_ft.set_depth(match_ft.__depth)
-    #     mismatch_ft.finalize_table()
-    #     if isinstance(self.__position_table, dict):
-    #         raise ValueError('characterize_match_mismatch can only be called on a finalized FrequencyTable object!')
-    #     data = self.__position_table.nonzero()
-    #     for p in range(self.__position_table.shape[0]):
-    #         characters = data[1][data[0] == p]
-    #         for i in range(len(characters)):
-    #             i_char = characters[i]
-    #             i_val = self.__position_table[p, i_char]
-    #             match_ft.__position_table[p, small_to_large[i_char, i_char]] = (i_val * (i_val - 1)) / 2
-    #             for j in range(len(characters)):
-    #                 j_char = characters[j]
-    #                 j_val = self.__position_table[p, j_char]
-    #                 mapped_char = small_to_large[i_char, j_char]
-    #                 new_val = i_val * j_val
-    #                 if mapped_char < 0:
-    #                     mismatch_ft.__position_table[p, -1 * mapped_char] = new_val
-    #                 else:
-    #                     match_ft.__position_table[p, mapped_char] = new_val
 
     def __add__(self, other):
         """

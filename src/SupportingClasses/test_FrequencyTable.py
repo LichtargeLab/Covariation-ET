@@ -10,11 +10,12 @@ import pandas as pd
 from unittest import TestCase
 from itertools import combinations
 from scipy.sparse import csc_matrix
-from test_Base import (protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
-                       dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size, protein_map,
-                       protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map, dna_pair_rev, dna_single_to_pair,
-                       pair_protein_alpha, pro_pair_alpha_size, pro_pair_map, pro_pair_rev, pro_single_to_pair,
-                       pro_single_to_pair_map, generate_temp_fn, write_out_temp_fn)
+from test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,  dna_alpha,
+                       dna_alpha_size, dna_map, dna_rev, protein_alpha_size, protein_map, protein_rev,
+                       pro_quad_alpha_size, pro_quad_map, pro_quad_rev, dna_pair_alpha_size, dna_pair_map, dna_pair_rev,
+                       dna_single_to_pair, pro_pair_alpha_size, pro_pair_map, pro_pair_rev, pro_single_to_pair,
+                       pro_pair_mismatch, pro_single_to_pair_map, pro_pair_to_quad, pro_quad_mismatch, protein_num_aln,
+                       write_out_temp_fn)
 from SeqAlignment import SeqAlignment
 from FrequencyTable import FrequencyTable
 from MatchMismatchTable import MatchMismatchTable
@@ -386,24 +387,11 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln)
         t2 = freq_table.get_table()
         expected_table = np.zeros(shape=(18, dna_alpha_size))
-        expected_table[0, 0] = 3
-        expected_table[1, 1] = 3
-        expected_table[2, 3] = 3
-        expected_table[3, [3, 4]] = [1, 2]
-        expected_table[4, [0, 4]] = [1, 2]
-        expected_table[5, [3, 4]] = [1, 2]
-        expected_table[6, [0, 1]] = [2, 1]
-        expected_table[7, [1, 2]] = [1, 2]
-        expected_table[8, 1] = 3
-        expected_table[9, [0, 4]] = [2, 1]
-        expected_table[10, [3, 4]] = [2, 1]
-        expected_table[11, [0, 4]] = [2, 1]
-        expected_table[12, [3, 4]] = [2, 1]
-        expected_table[13, [0, 4]] = [2, 1]
-        expected_table[14, [3, 4]] = [2, 1]
-        expected_table[15, [3, 4]] = [2, 1]
-        expected_table[16, [0, 4]] = [2, 1]
-        expected_table[17, [3, 4]] = [2, 1]
+        idx1 = [0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
+                17, 17]
+        idx2 = [0, 1, 3, 3, 4, 0, 4, 3, 4, 0, 1, 1, 2, 1, 0, 4, 3, 4, 0, 4, 3, 4, 0, 4, 3, 4, 3, 4, 0, 4, 3, 4]
+        values = [3, 3, 3, 1, 2, 1, 2, 1, 2, 2, 1, 1, 2, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -418,12 +406,10 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln)
         t2 = freq_table.get_table()
         expected_table = np.zeros((6, protein_alpha_size))
-        expected_table[0, 11] = 3
-        expected_table[1, [4, 23]] = [1, 2]
-        expected_table[2, [5, 17]] = [1, 2]
-        expected_table[3, [15, 23]] = [2, 1]
-        expected_table[4, [4, 23]] = [2, 1]
-        expected_table[5, [4, 23]] = [2, 1]
+        idx1 = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+        idx2 = [11, 4, 23, 5, 17, 15, 23, 4, 23, 4, 23]
+        values = [3, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -438,177 +424,46 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         t2 = freq_table.get_table()
         expected_table = np.zeros(shape=(freq_table.num_pos, dna_pair_alpha_size))
-        expected_table[0, 0] = 3
-        expected_table[1, 1] = 3
-        expected_table[2, 3] = 3
-        expected_table[3, [3, 4]] = [1, 2]
-        expected_table[4, [0, 4]] = [1, 2]
-        expected_table[5, [3, 4]] = [1, 2]
-        expected_table[6, [0, 1]] = [2, 1]
-        expected_table[7, [1, 2]] = [1, 2]
-        expected_table[8, 1] = 3
-        expected_table[9, [0, 4]] = [2, 1]
-        expected_table[10, [3, 4]] = [2, 1]
-        expected_table[11, [0, 4]] = [2, 1]
-        expected_table[12, [3, 4]] = [2, 1]
-        expected_table[13, [0, 4]] = [2, 1]
-        expected_table[14, [3, 4]] = [2, 1]
-        expected_table[15, [3, 4]] = [2, 1]
-        expected_table[16, [0, 4]] = [2, 1]
-        expected_table[17, [3, 4]] = [2, 1]
-        expected_table[18, 6] = 3
-        expected_table[19, 8] = 3
-        expected_table[20, [8, 9]] = [1, 2]
-        expected_table[21, [5, 9]] = [1, 2]
-        expected_table[22, [8, 9]] = [1, 2]
-        expected_table[23, [5, 6]] = [2, 1]
-        expected_table[24, [6, 7]] = [1, 2]
-        expected_table[25, 6] = 3
-        expected_table[26, [5, 9]] = [2, 1]
-        expected_table[27, [8, 9]] = [2, 1]
-        expected_table[28, [5, 9]] = [2, 1]
-        expected_table[29, [8, 9]] = [2, 1]
-        expected_table[30, [5, 9]] = [2, 1]
-        expected_table[31, [8, 9]] = [2, 1]
-        expected_table[32, [8, 9]] = [2, 1]
-        expected_table[33, [5, 9]] = [2, 1]
-        expected_table[34, [8, 9]] = [2, 1]
-        expected_table[35, 18] = 3
-        expected_table[36, [18, 19]] = [1, 2]
-        expected_table[37, [15, 19]] = [1, 2]
-        expected_table[38, [18, 19]] = [1, 2]
-        expected_table[39, [15, 16]] = [2, 1]
-        expected_table[40, [16, 17]] = [1, 2]
-        expected_table[41, 16] = 3
-        expected_table[42, [15, 19]] = [2, 1]
-        expected_table[43, [18, 19]] = [2, 1]
-        expected_table[44, [15, 19]] = [2, 1]
-        expected_table[45, [18, 19]] = [2, 1]
-        expected_table[46, [15, 19]] = [2, 1]
-        expected_table[47, [18, 19]] = [2, 1]
-        expected_table[48, [18, 19]] = [2, 1]
-        expected_table[49, [15, 19]] = [2, 1]
-        expected_table[50, [18, 19]] = [2, 1]
-        expected_table[51, [18, 24]] = [1, 2]
-        expected_table[52, [15, 24]] = [1, 2]
-        expected_table[53, [18, 24]] = [1, 2]
-        expected_table[54, [15, 20, 21]] = [1, 1, 1]
-        expected_table[55, [17, 21, 22]] = [1, 1, 1]
-        expected_table[56, [16, 21]] = [1, 2]
-        expected_table[57, [19, 20]] = [1, 2]
-        expected_table[58, [19, 23]] = [1, 2]
-        expected_table[59, [19, 20]] = [1, 2]
-        expected_table[60, [19, 23]] = [1, 2]
-        expected_table[61, [19, 20]] = [1, 2]
-        expected_table[62, [19, 23]] = [1, 2]
-        expected_table[63, [19, 23]] = [1, 2]
-        expected_table[64, [19, 20]] = [1, 2]
-        expected_table[65, [19, 23]] = [1, 2]
-        expected_table[66, [0, 24]] = [1, 2]
-        expected_table[67, [3, 24]] = [1, 2]
-        expected_table[68, [0, 20, 21]] = [1, 1, 1]
-        expected_table[69, [2, 21, 22]] = [1, 1, 1]
-        expected_table[70, [1, 21]] = [1, 2]
-        expected_table[71, [4, 20]] = [1, 2]
-        expected_table[72, [4, 23]] = [1, 2]
-        expected_table[73, [4, 20]] = [1, 2]
-        expected_table[74, [4, 23]] = [1, 2]
-        expected_table[75, [4, 20]] = [1, 2]
-        expected_table[76, [4, 23]] = [1, 2]
-        expected_table[77, [4, 23]] = [1, 2]
-        expected_table[78, [4, 20]] = [1, 2]
-        expected_table[79, [4, 23]] = [1, 2]
-        expected_table[80, [18, 24]] = [1, 2]
-        expected_table[81, [15, 20, 21]] = [1, 1, 1]
-        expected_table[82, [17, 21, 22]] = [1, 1, 1]
-        expected_table[83, [16, 21]] = [1, 2]
-        expected_table[84, [19, 20]] = [1, 2]
-        expected_table[85, [19, 23]] = [1, 2]
-        expected_table[86, [19, 20]] = [1, 2]
-        expected_table[87, [19, 23]] = [1, 2]
-        expected_table[88, [19, 20]] = [1, 2]
-        expected_table[89, [19, 23]] = [1, 2]
-        expected_table[90, [19, 23]] = [1, 2]
-        expected_table[91, [19, 20]] = [1, 2]
-        expected_table[92, [19, 23]] = [1, 2]
-        expected_table[93, [0, 6]] = [2, 1]
-        expected_table[94, [2, 6]] = [2, 1]
-        expected_table[95, [1, 6]] = [2, 1]
-        expected_table[96, [0, 4, 5]] = [1, 1, 1]
-        expected_table[97, [3, 4, 8]] = [1, 1, 1]
-        expected_table[98, [0, 4, 5]] = [1, 1, 1]
-        expected_table[99, [3, 4, 8]] = [1, 1, 1]
-        expected_table[100, [0, 4, 5]] = [1, 1, 1]
-        expected_table[101, [3, 4, 8]] = [1, 1, 1]
-        expected_table[102, [3, 4, 8]] = [1, 1, 1]
-        expected_table[103, [0, 4, 5]] = [1, 1, 1]
-        expected_table[104, [3, 4, 8]] = [1, 1, 1]
-        expected_table[105, [6, 12]] = [1, 2]
-        expected_table[106, [6, 11]] = [1, 2]
-        expected_table[107, [5, 10, 14]] = [1, 1, 1]
-        expected_table[108, [8, 13, 14]] = [1, 1, 1]
-        expected_table[109, [5, 10, 14]] = [1, 1, 1]
-        expected_table[110, [8, 13, 14]] = [1, 1, 1]
-        expected_table[111, [5, 10, 14]] = [1, 1, 1]
-        expected_table[112, [8, 13, 14]] = [1, 1, 1]
-        expected_table[113, [8, 13, 14]] = [1, 1, 1]
-        expected_table[114, [5, 10, 14]] = [1, 1, 1]
-        expected_table[115, [8, 13, 14]] = [1, 1, 1]
-        expected_table[116, 6] = 3
-        expected_table[117, [5, 9]] = [2, 1]
-        expected_table[118, [8, 9]] = [2, 1]
-        expected_table[119, [5, 9]] = [2, 1]
-        expected_table[120, [8, 9]] = [2, 1]
-        expected_table[121, [5, 9]] = [2, 1]
-        expected_table[122, [8, 9]] = [2, 1]
-        expected_table[123, [8, 9]] = [2, 1]
-        expected_table[124, [5, 9]] = [2, 1]
-        expected_table[125, [8, 9]] = [2, 1]
-        expected_table[126, [0, 24]] = [2, 1]
-        expected_table[127, [3, 24]] = [2, 1]
-        expected_table[128, [0, 24]] = [2, 1]
-        expected_table[129, [3, 24]] = [2, 1]
-        expected_table[130, [0, 24]] = [2, 1]
-        expected_table[131, [3, 24]] = [2, 1]
-        expected_table[132, [3, 24]] = [2, 1]
-        expected_table[133, [0, 24]] = [2, 1]
-        expected_table[134, [3, 24]] = [2, 1]
-        expected_table[135, [18, 24]] = [2, 1]
-        expected_table[136, [15, 24]] = [2, 1]
-        expected_table[137, [18, 24]] = [2, 1]
-        expected_table[138, [15, 24]] = [2, 1]
-        expected_table[139, [18, 24]] = [2, 1]
-        expected_table[140, [18, 24]] = [2, 1]
-        expected_table[141, [15, 24]] = [2, 1]
-        expected_table[142, [18, 24]] = [2, 1]
-        expected_table[143, [0, 24]] = [2, 1]
-        expected_table[144, [3, 24]] = [2, 1]
-        expected_table[145, [0, 24]] = [2, 1]
-        expected_table[146, [3, 24]] = [2, 1]
-        expected_table[147, [3, 24]] = [2, 1]
-        expected_table[148, [0, 24]] = [2, 1]
-        expected_table[149, [3, 24]] = [2, 1]
-        expected_table[150, [18, 24]] = [2, 1]
-        expected_table[151, [15, 24]] = [2, 1]
-        expected_table[152, [18, 24]] = [2, 1]
-        expected_table[153, [18, 24]] = [2, 1]
-        expected_table[154, [15, 24]] = [2, 1]
-        expected_table[155, [18, 24]] = [2, 1]
-        expected_table[156, [0, 24]] = [2, 1]
-        expected_table[157, [3, 24]] = [2, 1]
-        expected_table[158, [3, 24]] = [2, 1]
-        expected_table[159, [0, 24]] = [2, 1]
-        expected_table[160, [3, 24]] = [2, 1]
-        expected_table[161, [18, 24]] = [2, 1]
-        expected_table[162, [18, 24]] = [2, 1]
-        expected_table[163, [15, 24]] = [2, 1]
-        expected_table[164, [18, 24]] = [2, 1]
-        expected_table[165, [18, 24]] = [2, 1]
-        expected_table[166, [15, 24]] = [2, 1]
-        expected_table[167, [18, 24]] = [2, 1]
-        expected_table[168, [0, 24]] = [2, 1]
-        expected_table[169, [3, 24]] = [2, 1]
-        expected_table[170, [18, 24]] = [2, 1]
+        idx1 = [0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
+                17, 17, 18, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31,
+                31, 32, 32, 33, 33, 34, 34, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 40, 41, 42, 42, 43, 43, 44, 44, 45,
+                45, 46, 46, 47, 47, 48, 48, 49, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54, 54, 55, 55, 55, 56, 56, 57,
+                57, 58, 58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65, 66, 66, 67, 67, 68, 68, 68, 69, 69,
+                69, 70, 70, 71, 71, 72, 72, 73, 73, 74, 74, 75, 75, 76, 76, 77, 77, 78, 78, 79, 79, 80, 80, 81, 81, 81,
+                82, 82, 82, 83, 83, 84, 84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 89, 90, 90, 91, 91, 92, 92, 93, 93, 94,
+                94, 95, 95, 96, 96, 96, 97, 97, 97, 98, 98, 98, 99, 99, 99, 100, 100, 100, 101, 101, 101, 102, 102, 102,
+                103, 103, 103, 104, 104, 104, 105, 105, 106, 106, 107, 107, 107, 108, 108, 108, 109, 109, 109, 110, 110,
+                110, 111, 111, 111, 112, 112, 112, 113, 113, 113, 114, 114, 114, 115, 115, 115, 116, 117, 117, 118, 118,
+                119, 119, 120, 120, 121, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126, 126, 127, 127, 128, 128, 129,
+                129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 134, 135, 135, 136, 136, 137, 137, 138, 138, 139, 139,
+                140, 140, 141, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146, 147, 147, 148, 148, 149, 149, 150,
+                150, 151, 151, 152, 152, 153, 153, 154, 154, 155, 155, 156, 156, 157, 157, 158, 158, 159, 159, 160, 160,
+                161, 161, 162, 162, 163, 163, 164, 164, 165, 165, 166, 166, 167, 167, 168, 168, 169, 169, 170, 170]
+        idx2 = [0, 1, 3, 3, 4, 0, 4, 3, 4, 0, 1, 1, 2, 1, 0, 4, 3, 4, 0, 4, 3, 4, 0, 4, 3, 4, 3, 4, 0, 4, 3, 4, 6, 8, 8,
+                9, 5, 9, 8, 9, 5, 6, 6, 7, 6, 5, 9, 8, 9, 5, 9, 8, 9, 5, 9, 8, 9, 8, 9, 5, 9, 8, 9, 18, 18, 19, 15, 19,
+                18, 19, 15, 16, 16, 17, 16, 15, 19, 18, 19, 15, 19, 18, 19, 15, 19, 18, 19, 18, 19, 15, 19, 18, 19, 18,
+                24, 15, 24, 18, 24, 15, 20, 21, 17, 21, 22, 16, 21, 19, 20, 19, 23, 19, 20, 19, 23, 19, 20, 19, 23, 19,
+                23, 19, 20, 19, 23, 0, 24, 3, 24, 0, 20, 21, 2, 21, 22, 1, 21, 4, 20, 4, 23, 4, 20, 4, 23, 4, 20, 4, 23,
+                4, 23, 4, 20, 4, 23, 18, 24, 15, 20, 21, 17, 21, 22, 16, 21, 19, 20, 19, 23, 19, 20, 19, 23, 19, 20, 19,
+                23, 19, 23, 19, 20, 19, 23, 0, 6, 2, 6, 1, 6, 0, 4, 5, 3, 4, 8, 0, 4, 5, 3, 4, 8, 0, 4, 5, 3, 4, 8, 3,
+                4, 8, 0, 4, 5, 3, 4, 8, 6, 12, 6, 11, 5, 10, 14, 8, 13, 14, 5, 10, 14, 8, 13, 14, 5, 10, 14, 8, 13, 14,
+                8, 13, 14, 5, 10, 14, 8, 13, 14, 6, 5, 9, 8, 9, 5, 9, 8, 9, 5, 9, 8, 9, 8, 9, 5, 9, 8, 9, 0, 24, 3, 24,
+                0, 24, 3, 24, 0, 24, 3, 24, 3, 24, 0, 24, 3, 24, 18, 24, 15, 24, 18, 24, 15, 24, 18, 24, 18, 24, 15, 24,
+                18, 24, 0, 24, 3, 24, 0, 24, 3, 24, 3, 24, 0, 24, 3, 24, 18, 24, 15, 24, 18, 24, 18, 24, 15, 24, 18,
+                24, 0, 24, 3, 24, 3, 24, 0, 24, 3, 24, 18, 24, 18, 24, 15, 24, 18, 24, 18, 24, 15, 24, 18, 24, 0, 24, 3,
+                24, 18, 24]
+        values = [3, 3, 3, 1, 2, 1, 2, 1, 2, 2, 1, 1, 2, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 3, 3,
+                  1, 2, 1, 2, 1, 2, 2, 1, 1, 2, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 3, 1, 2, 1, 2,
+                  1, 2, 2, 1, 1, 2, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 1, 1,
+                  1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                  1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -623,27 +478,14 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         t2 = freq_table.get_table()
         expected_table = np.zeros((freq_table.num_pos, pro_pair_alpha_size))
-        expected_table[0, 275] = 3
-        expected_table[1, [268, 287]] = [1, 2]
-        expected_table[2, [269, 281]] = [1, 2]
-        expected_table[3, [279, 287]] = [2, 1]
-        expected_table[4, [268, 287]] = [2, 1]
-        expected_table[5, [268, 287]] = [2, 1]
-        expected_table[6, [100, 575]] = [1, 2]
-        expected_table[7, [113, 557, 569]] = [1, 1, 1]
-        expected_table[8, [119, 567]] = [1, 2]
-        expected_table[9, [119, 556]] = [1, 2]
-        expected_table[10, [119, 556]] = [1, 2]
-        expected_table[11, [125, 425]] = [1, 2]
-        expected_table[12, [135, 423, 431]] = [1, 1, 1]
-        expected_table[13, [124, 412, 431]] = [1, 1, 1]
-        expected_table[14, [124, 412, 431]] = [1, 1, 1]
-        expected_table[15, [375, 575]] = [2, 1]
-        expected_table[16, [364, 575]] = [2, 1]
-        expected_table[17, [364, 575]] = [2, 1]
-        expected_table[18, [100, 575]] = [2, 1]
-        expected_table[19, [100, 575]] = [2, 1]
-        expected_table[20, [100, 575]] = [2, 1]
+        idx1 = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 14,
+                14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20]
+        idx2 = [275, 268, 287, 269, 281, 279, 287, 268, 287, 268, 287, 100, 575, 113, 557, 569, 119, 567, 119, 556, 119,
+                556, 125, 425, 135, 423, 431, 124, 412, 431, 124, 412, 431, 375, 575, 364, 575, 364, 575,
+                100, 575, 100, 575, 100, 575]
+        values = [3, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                  2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -658,24 +500,10 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=dna_single_to_pair)
         t2 = freq_table.get_table()
         expected_table = np.zeros(shape=(18, dna_alpha_size))
-        expected_table[0, 0] = 3
-        expected_table[1, 1] = 3
-        expected_table[2, 3] = 3
-        expected_table[3, [3, 4]] = [1, 2]
-        expected_table[4, [0, 4]] = [1, 2]
-        expected_table[5, [3, 4]] = [1, 2]
-        expected_table[6, [0, 1]] = [2, 1]
-        expected_table[7, [1, 2]] = [1, 2]
-        expected_table[8, 1] = 3
-        expected_table[9, [0, 4]] = [2, 1]
-        expected_table[10, [3, 4]] = [2, 1]
-        expected_table[11, [0, 4]] = [2, 1]
-        expected_table[12, [3, 4]] = [2, 1]
-        expected_table[13, [0, 4]] = [2, 1]
-        expected_table[14, [3, 4]] = [2, 1]
-        expected_table[15, [3, 4]] = [2, 1]
-        expected_table[16, [0, 4]] = [2, 1]
-        expected_table[17, [3, 4]] = [2, 1]
+        idx1 = [0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17]
+        idx2 = [0, 1, 3, 3, 4, 0, 4, 3, 4, 0, 1, 1, 2, 1, 0, 4, 3, 4, 0, 4, 3, 4, 0, 4, 3, 4, 3, 4, 0, 4, 3, 4]
+        values = [3, 3, 3, 1, 2, 1, 2, 1, 2, 2, 1, 1, 2, 3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -690,12 +518,10 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table.characterize_alignment(num_aln=num_aln, single_to_pair=pro_single_to_pair)
         t2 = freq_table.get_table()
         expected_table = np.zeros((6, protein_alpha_size))
-        expected_table[0, 11] = 3
-        expected_table[1, [4, 23]] = [1, 2]
-        expected_table[2, [5, 17]] = [1, 2]
-        expected_table[3, [15, 23]] = [2, 1]
-        expected_table[4, [4, 23]] = [2, 1]
-        expected_table[5, [4, 23]] = [2, 1]
+        idx1 = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+        idx2 = [11, 4, 23, 5, 17, 15, 23, 4, 23, 4, 23]
+        values = [3, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1]
+        expected_table[idx1, idx2] = values
         self.evaluate_characterize_alignment(freq_table=freq_table, table1=t1, table2=t2, expected_table=expected_table,
                                              expected_depth=3)
         os.remove(aln_fn)
@@ -739,6 +565,124 @@ class TestFrequencyTableCharacterizeAlignment(TestCase):
         freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
         with self.assertRaises(ValueError):
             freq_table.characterize_alignment(num_aln=None)
+
+
+class TestFrequencyTableCharacterizeAlignmentMM(TestCase):
+
+    def evaluate_characterize_alignment_mm(self, freq_table, freq_table2, table1, expected_table1, expected_table2,
+                                           expected_depth):
+        table2 = freq_table.get_table()
+        self.assertNotEqual(table1, table2)
+        self.assertTrue(isinstance(table2, csc_matrix))
+        self.assertFalse((table2 - expected_table1).any())
+        table3 = freq_table2.get_table()
+        self.assertTrue(isinstance(table3, csc_matrix))
+        self.assertFalse((table3 - expected_table2).any())
+        self.assertEqual(freq_table.get_depth(), expected_depth)
+        self.assertEqual(freq_table2.get_depth(), expected_depth)
+
+    def test_characterize_alignment_protein_single_pos(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 1, 2, 3, 4, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 13, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19,
+                19, 20, 20]
+        idx2 = [158675, 165599, 162137, 160983, 154636, 154636, 58175, 331775, 65645, 327159, 69111, 320812, 69100,
+                320812, 69100, 244925, 245225, 248391, 248380, 248380, 216375, 331575, 210028, 331564, 210028, 331564,
+                57700, 331300, 57700, 331300, 57700, 331300]
+        values = [3, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 7, 12, 12, 13, 13, 14, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 65657, 328301, 243783, 248679, 237436, 248668, 237436, 248668]
+        values = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_single_to_pair(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch,
+                                                           single_to_pair=pro_single_to_pair)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_failure_protein_pair_pos_no_single_to_pair(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=None,
+                                                 comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch)
+
+    def test_characterize_alignment_failure_protein_single_pos_no_comparison(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=None,
+                                                 comparison=None, mismatch_mask=pro_pair_mismatch)
+
+    def test_characterize_alignment_failure_protein_pair_pos_no_comparison(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                 comparison=None, mismatch_mask=pro_quad_mismatch)
+
+    def test_characterize_alignment_failure_protein_single_pos_no_mismatch_mask(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=None,
+                                                 comparison=pro_single_to_pair, mismatch_mask=None)
+
+    def test_characterize_alignment_failure_protein_pair_pos_no_mismatch_mask(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                 comparison=pro_pair_to_quad, mismatch_mask=None)
+
+    def test_characterize_alignment_failure_protein_single_pos_no_aln(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=None, single_to_pair=None,
+                                                 comparison=pro_single_to_pair, mismatch_mask=pro_pair_mismatch)
+
+    def test_characterize_alignment_failure_protein_pair_pos_no_aln(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        with self.assertRaises(ValueError):
+            freq_table.characterize_alignment_mm(num_aln=None, single_to_pair=pro_single_to_pair,
+                                                 comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch)
 
 
 class TestFrequencyTableCharacterizeSequence(TestCase):
@@ -1277,13 +1221,9 @@ class TestFrequencyTableCSV(TestCase):
             freq_table.load_csv(file_path=None)
 
     def test_load_csv_failure_match_mismatch_freq_table(self):
-        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
-                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln,
+                                              single_alphabet_size=protein_alpha_size, single_mapping=protein_map,
+                                              single_reverse_mapping=protein_rev,
                                               larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                               larger_reverse_mapping=pro_pair_rev,
                                               single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
@@ -1311,13 +1251,9 @@ class TestFrequencyTableCSV(TestCase):
         os.remove(csv_path)
 
     def test_load_csv_failure_match_mismatch_freq_table_no_depth(self):
-        aln_fn = write_out_temp_fn(suffix='fasta', out_str=protein_aln_str)
-        aln = SeqAlignment(aln_fn, 'seq1', polymer_type='Protein')
-        aln.import_alignment()
-        os.remove(aln_fn)
-        num_aln = aln._alignment_to_num(mapping=protein_map)
-        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=num_aln, single_alphabet_size=protein_alpha_size,
-                                              single_mapping=protein_map, single_reverse_mapping=protein_rev,
+        protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln,
+                                              single_alphabet_size=protein_alpha_size, single_mapping=protein_map,
+                                              single_reverse_mapping=protein_rev,
                                               larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                               larger_reverse_mapping=pro_pair_rev,
                                               single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)

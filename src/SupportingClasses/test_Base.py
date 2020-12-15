@@ -100,31 +100,45 @@ pair_dna_alpha = MultiPositionAlphabet(dna_alpha, size=2)
 dna_pair_alpha_size, _, dna_pair_map, dna_pair_rev = build_mapping(pair_dna_alpha)
 quad_dna_alpha = MultiPositionAlphabet(dna_alpha, size=4)
 dna_quad_alpha_size, _, dna_quad_map, dna_quad_rev = build_mapping(quad_dna_alpha)
-dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1))
-for char in dna_pair_map:
-    dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
+dna_single_to_pair = np.zeros((max(dna_map.values()) + 1, max(dna_map.values()) + 1), dtype=np.int32)
+dna_pair_mismatch = np.zeros(dna_pair_alpha_size, dtype=np.bool_)
 dna_single_to_pair_map = {}
 for char in dna_pair_map:
+    dna_single_to_pair[dna_map[char[0]], dna_map[char[1]]] = dna_pair_map[char]
     dna_single_to_pair_map[(dna_map[char[0]], dna_map[char[1]])] = dna_pair_map[char]
+    if dna_map[char[0]] != dna_map[char[1]]:
+        dna_pair_mismatch[dna_pair_map[char]] = True
 dna_single_to_quad_map = {}
+dna_pair_to_quad = np.zeros((max(dna_pair_map.values()) + 1, max(dna_pair_map.values()) + 1), dtype=np.int32)
+dna_quad_mismatch = np.zeros(dna_quad_alpha_size, dtype=np.bool_)
 for char in dna_quad_map:
     dna_single_to_quad_map[(dna_map[char[0]], dna_map[char[1]], dna_map[char[2]], dna_map[char[3]])] = dna_quad_map[char]
+    dna_pair_to_quad[dna_pair_map[char[:2]], dna_pair_map[char[2:]]] = dna_quad_map[char]
+    if (((dna_map[char[0]] == dna_map[char[2]]) and (dna_map[char[1]] != dna_map[char[3]])) or
+            ((dna_map[char[0]] != dna_map[char[2]]) and (dna_map[char[1]] == dna_map[char[3]]))):
+        dna_quad_mismatch[dna_quad_map[char]] = True
 pair_protein_alpha = MultiPositionAlphabet(protein_alpha, size=2)
 pro_pair_alpha_size, _, pro_pair_map, pro_pair_rev = build_mapping(pair_protein_alpha)
 quad_protein_alpha = MultiPositionAlphabet(protein_alpha, size=4)
 pro_quad_alpha_size, _, pro_quad_map, pro_quad_rev = build_mapping(quad_protein_alpha)
-pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int)
+pro_single_to_pair = np.zeros((max(protein_map.values()) + 1, max(protein_map.values()) + 1), dtype=np.int32)
+pro_pair_mismatch = np.zeros(pro_pair_alpha_size, dtype=np.bool_)
 pro_single_to_pair_map = {}
 for char in pro_pair_map:
     pro_single_to_pair[protein_map[char[0]], protein_map[char[1]]] = pro_pair_map[char]
     pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
-pro_single_to_pair_map = {}
-for char in pro_pair_map:
-    pro_single_to_pair_map[(protein_map[char[0]], protein_map[char[1]])] = pro_pair_map[char]
+    if protein_map[char[0]] != protein_map[char[1]]:
+        pro_pair_mismatch[pro_pair_map[char]] = True
 pro_single_to_quad_map = {}
+pro_pair_to_quad = np.zeros((max(pro_pair_map.values()) + 1, max(pro_pair_map.values()) + 1), dtype=np.int32)
+pro_quad_mismatch = np.zeros(pro_quad_alpha_size, dtype=np.bool_)
 for char in pro_quad_map:
     key = (protein_map[char[0]], protein_map[char[1]], protein_map[char[2]], protein_map[char[3]])
     pro_single_to_quad_map[key] = pro_quad_map[char]
+    pro_pair_to_quad[pro_pair_map[char[:2]], pro_pair_map[char[2:]]] = pro_quad_map[char]
+    if (((protein_map[char[0]] == protein_map[char[2]]) and (protein_map[char[1]] != protein_map[char[3]])) or
+            ((protein_map[char[0]] != protein_map[char[2]]) and (protein_map[char[1]] == protein_map[char[3]]))):
+        pro_quad_mismatch[pro_quad_map[char]] = True
 
 protein_aln_fn = write_out_temp_fn(suffix='fasta',
                                    out_str=f'>seq1\n{str(protein_seq1.seq)}\n>seq2\n{str(protein_seq2.seq)}\n>seq3\n{str(protein_seq3.seq)}')
