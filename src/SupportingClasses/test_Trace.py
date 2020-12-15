@@ -16,11 +16,11 @@ from test_Base import (protein_alpha, protein_alpha_size, _, protein_map, protei
                        protein_seq1, protein_seq2, protein_seq3, protein_msa, protein_aln, protein_num_aln,
                        protein_phylo_tree, protein_rank_dict, pro_single_ft, pro_single_ft_i2, pro_single_ft_s1,
                        pro_single_ft_s2, pro_single_ft_s3, pro_pair_ft, pro_pair_ft_i2, pro_pair_ft_s1, pro_pair_ft_s2,
-                       pro_pair_ft_s3, protein_mm_table, protein_mm_table_large)
+                       pro_pair_ft_s3, protein_mm_table, protein_mm_table_large, pro_single_to_pair, pro_pair_to_quad,
+                       pro_pair_mismatch, pro_quad_mismatch)
 from utils import compute_rank_and_coverage
 from FrequencyTable import FrequencyTable
 from PositionalScorer import PositionalScorer
-from MatchMismatchTable import MatchMismatchTable
 from Trace import (Trace, init_characterization_pool, init_characterization_mm_pool, characterization,
                    characterization_mm, init_trace_groups, trace_groups, init_trace_ranks, trace_ranks,
                    check_freq_table, save_freq_table, load_freq_table,
@@ -795,7 +795,8 @@ class TestTraceCharacterizationPool(TestCase):
 
 class TestTraceCharacterizationMMPool(TestCase):
 
-    def evaluate_characterization_mm_pool(self, l_size, l_map, l_rev, mm_table, pos_size, low_mem, write_aln, write_ft):
+    def evaluate_characterization_mm_pool(self, l_size, l_map, l_rev, s_to_p, comp, mis_mask, pos_size, low_mem,
+                                          write_aln, write_ft):
         if pos_size == 1:
             expected_tables = expected_single_tables
             pos_type = 'single'
@@ -809,8 +810,9 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=l_size, larger_mapping=l_map, larger_reverse=l_rev,
-                                      match_mismatch_table=mm_table, alignment=protein_aln, position_size=pos_size,
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=l_size, larger_mapping=l_map,
+                                      larger_reverse=l_rev, single_to_pair=s_to_p, comparison_mapping=comp,
+                                      mismatch_mask=mis_mask, alignment=protein_aln, position_size=pos_size,
                                       components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
                                       unique_dir=u_dir, low_memory=low_mem, write_out_sub_aln=write_aln,
                                       write_out_freq_table=write_ft)
@@ -876,32 +878,35 @@ class TestTraceCharacterizationMMPool(TestCase):
 
     def test_characterization_mm_pool_single_low_memory(self):
         self.evaluate_characterization_mm_pool(l_size=pro_pair_alpha_size, l_map=pro_pair_map, l_rev=pro_pair_rev,
-                                               mm_table=protein_mm_table, pos_size=1, low_mem=True, write_aln=False,
-                                               write_ft=False)
+                                               s_to_p=None, comp=pro_single_to_pair, mis_mask=pro_pair_mismatch,
+                                               pos_size=1, low_mem=True, write_aln=False, write_ft=False)
 
     def test_characterization_mm_pool_single_not_low_memory(self):
         self.evaluate_characterization_mm_pool(l_size=pro_pair_alpha_size, l_map=pro_pair_map, l_rev=pro_pair_rev,
-                                               mm_table=protein_mm_table, pos_size=1, low_mem=False, write_aln=False,
-                                               write_ft=False)
+                                               s_to_p=None, comp=pro_single_to_pair, mis_mask=pro_pair_mismatch,
+                                               pos_size=1, low_mem=False, write_aln=False, write_ft=False)
 
     def test_characterization_mm_pool_single_write_out(self):
         self.evaluate_characterization_mm_pool(l_size=pro_pair_alpha_size, l_map=pro_pair_map, l_rev=pro_pair_rev,
-                                               mm_table=protein_mm_table, pos_size=1, low_mem=True, write_aln=True,
-                                               write_ft=True)
+                                               s_to_p=None, comp=pro_single_to_pair, mis_mask=pro_pair_mismatch,
+                                               pos_size=1, low_mem=True, write_aln=True, write_ft=True)
 
     def test_characterization_mm_pool_pair_low_memory(self):
         self.evaluate_characterization_mm_pool(l_size=pro_quad_alpha_size, l_map=pro_quad_map, l_rev=pro_quad_rev,
-                                               mm_table=protein_mm_table_large, pos_size=2, low_mem=True,
-                                               write_aln=False, write_ft=False)
+                                               s_to_p=pro_single_to_pair, comp=pro_pair_to_quad,
+                                               mis_mask=pro_quad_mismatch, pos_size=2, low_mem=True, write_aln=False,
+                                               write_ft=False)
 
     def test_characterization_mm_pool_pair_not_low_memory(self):
         self.evaluate_characterization_mm_pool(l_size=pro_quad_alpha_size, l_map=pro_quad_map, l_rev=pro_quad_rev,
-                                               mm_table=protein_mm_table_large, pos_size=2, low_mem=False,
+                                               s_to_p=pro_single_to_pair, comp=pro_pair_to_quad,
+                                               mis_mask=pro_quad_mismatch, pos_size=2, low_mem=False,
                                                write_aln=False, write_ft=False)
 
     def test_characterization_mm_pool_pair_write_out(self):
         self.evaluate_characterization_mm_pool(l_size=pro_quad_alpha_size, l_map=pro_quad_map, l_rev=pro_quad_rev,
-                                               mm_table=protein_mm_table_large, pos_size=2, low_mem=True,
+                                               s_to_p=pro_single_to_pair, comp=pro_pair_to_quad,
+                                               mis_mask=pro_quad_mismatch, pos_size=2, low_mem=True,
                                                write_aln=True, write_ft=True)
 
     def test_characterization_mm_pool_failure_no_node_name(self):
@@ -912,11 +917,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(ValueError):
             characterization_mm(node_name=None, node_type='component')
         rmtree(u_dir)
@@ -929,11 +936,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(KeyError):
             characterization_mm(node_name='Seq4', node_type='component')
         rmtree(u_dir)
@@ -946,11 +955,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(ValueError):
             characterization_mm(node_name='seq1', node_type=None)
         rmtree(u_dir)
@@ -963,13 +974,33 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(ValueError):
             characterization_mm(node_name='seq1', node_type='intermediate')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_single_mapping(self):
+        components = {'Inner1': protein_rank_dict[1][1], 'Inner2': protein_rank_dict[2][1],
+                      'seq1': protein_rank_dict[3][3], 'seq2': protein_rank_dict[3][2], 'seq3': protein_rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(single_mapping=None, larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, single_to_pair=pro_single_to_pair,
+                                      comparison_mapping=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                      alignment=protein_aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        with self.assertRaises(TypeError):
+            characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
 
     def test_characterization_mm_pool_failure_no_larger_size(self):
@@ -980,11 +1011,12 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=None, larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
-                                      match_mismatch_table=protein_mm_table_large, alignment=protein_aln, position_size=2,
-                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
-                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
-                                      write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=None, larger_mapping=pro_quad_map,
+                                      larger_reverse=pro_quad_rev, single_to_pair=pro_single_to_pair,
+                                      comparison_mapping=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                      alignment=protein_aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
         with self.assertRaises(TypeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -997,11 +1029,12 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=None, larger_reverse=pro_quad_rev,
-                                      match_mismatch_table=protein_mm_table_large, alignment=protein_aln, position_size=2,
-                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
-                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
-                                      write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size, larger_mapping=None,
+                                      larger_reverse=pro_quad_rev, single_to_pair=pro_single_to_pair,
+                                      comparison_mapping=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                      alignment=protein_aln, position_size=2, components=components,
+                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
+                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
         with self.assertRaises(AttributeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -1014,8 +1047,10 @@ class TestTraceCharacterizationMMPool(TestCase):
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map, larger_reverse=None,
-                                      match_mismatch_table=protein_mm_table_large, alignment=protein_aln, position_size=2,
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=None,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
                                       components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
                                       unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
                                       write_out_freq_table=True)
@@ -1023,29 +1058,61 @@ class TestTraceCharacterizationMMPool(TestCase):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
 
-    def test_characterization_mm_pool_failure_no_match_mismatch_table(self):
+    def test_characterization_mm_pool_failure_no_single_to_pair(self):
         components = {'Inner1': protein_rank_dict[1][1], 'Inner2': protein_rank_dict[2][1],
                       'seq1': protein_rank_dict[3][3], 'seq2': protein_rank_dict[3][2], 'seq3': protein_rank_dict[3][1]}
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
-        freq_tables['seq2'] = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
-                                                       reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2),
-                               'mismatch': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
-                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
-        freq_tables['seq3'] = {'match': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
-                                                       reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2),
-                               'mismatch': FrequencyTable(alphabet_size=pro_quad_alpha_size, mapping=pro_quad_map,
-                                                          reverse_mapping=pro_quad_rev, seq_len=6, pos_size=2)}
         tables_lock = Lock()
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=None, alignment=protein_aln,
-                                      position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
-        with self.assertRaises(AttributeError):
-            characterization_mm(node_name='Inner2', node_type='component')
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=None, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_comparison_mapping(self):
+        components = {'Inner1': protein_rank_dict[1][1], 'Inner2': protein_rank_dict[2][1],
+                      'seq1': protein_rank_dict[3][3], 'seq2': protein_rank_dict[3][2], 'seq3': protein_rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=None,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='component')
+        rmtree(u_dir)
+
+    def test_characterization_mm_pool_failure_no_mismatch_mask(self):
+        components = {'Inner1': protein_rank_dict[1][1], 'Inner2': protein_rank_dict[2][1],
+                      'seq1': protein_rank_dict[3][3], 'seq2': protein_rank_dict[3][2], 'seq3': protein_rank_dict[3][1]}
+        pool_manager = Manager()
+        freq_tables = pool_manager.dict()
+        tables_lock = Lock()
+        u_dir = os.path.join(os.getcwd(), 'char_test')
+        os.mkdir(u_dir)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=None, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
+        with self.assertRaises(ValueError):
+            characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
 
     def test_characterization_mm_pool_failure_no_alignment(self):
@@ -1056,11 +1123,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=None, position_size=2, components=components, sharable_dict=freq_tables,
-                                      sharable_lock=tables_lock, unique_dir=u_dir, low_memory=True,
-                                      write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=None, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(AttributeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -1074,11 +1143,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
         with self.assertRaises(ValueError):
-            init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                          larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                          alignment=protein_aln, position_size=None, components=components,
-                                          sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
-                                          low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+            init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                          larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                          single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                          mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=None,
+                                          components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                          unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                          write_out_freq_table=True)
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
 
@@ -1091,11 +1162,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
         with self.assertRaises(ValueError):
-            init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                          larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                          alignment=protein_aln, position_size=3, components=components,
-                                          sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
-                                          low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+            init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                          larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                          single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                          mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=3,
+                                          components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                          unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                          write_out_freq_table=True)
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
 
@@ -1105,11 +1178,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=None,
-                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=u_dir,
-                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=None, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(TypeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -1120,11 +1195,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         u_dir = os.path.join(os.getcwd(), 'char_test')
         os.mkdir(u_dir)
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components,
-                                      sharable_dict=None, sharable_lock=tables_lock, unique_dir=u_dir,
-                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=None, sharable_lock=tables_lock,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(TypeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -1136,11 +1213,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         os.mkdir(u_dir)
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components,
-                                      sharable_dict=freq_tables, sharable_lock=None, unique_dir=u_dir,
-                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=None,
+                                      unique_dir=u_dir, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(AttributeError):
             characterization_mm(node_name='seq1', node_type='component')
         rmtree(u_dir)
@@ -1151,11 +1230,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components,
-                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
-                                      low_memory='low', write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=None, low_memory='low', write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(ValueError):
             characterization_mm(node_name='seq1', node_type='component')
 
@@ -1165,11 +1246,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components,
-                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
-                                      low_memory=True, write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=None, low_memory=True, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(ValueError):
             characterization_mm(node_name='seq1', node_type='component')
 
@@ -1179,11 +1262,13 @@ class TestTraceCharacterizationMMPool(TestCase):
         pool_manager = Manager()
         freq_tables = pool_manager.dict()
         tables_lock = Lock()
-        init_characterization_mm_pool(larger_size=pro_quad_alpha_size, larger_mapping=pro_quad_map,
-                                      larger_reverse=pro_quad_rev, match_mismatch_table=protein_mm_table_large,
-                                      alignment=protein_aln, position_size=2, components=components,
-                                      sharable_dict=freq_tables, sharable_lock=tables_lock, unique_dir=None,
-                                      low_memory=False, write_out_sub_aln=True, write_out_freq_table=True)
+        init_characterization_mm_pool(single_mapping=protein_map, larger_size=pro_quad_alpha_size,
+                                      larger_mapping=pro_quad_map, larger_reverse=pro_quad_rev,
+                                      single_to_pair=pro_single_to_pair, comparison_mapping=pro_pair_to_quad,
+                                      mismatch_mask=pro_quad_mismatch, alignment=protein_aln, position_size=2,
+                                      components=components, sharable_dict=freq_tables, sharable_lock=tables_lock,
+                                      unique_dir=None, low_memory=False, write_out_sub_aln=True,
+                                      write_out_freq_table=True)
         with self.assertRaises(TypeError):
             characterization_mm(node_name='seq1', node_type='component')
 
@@ -2118,9 +2203,8 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
         trace = Trace(alignment=protein_aln, phylo_tree=protein_phylo_tree, group_assignments=protein_rank_dict,
                       pos_size=pos_size, match_mismatch=True, output_dir=out_dir, low_memory=low_mem)
         trace.characterize_rank_groups_match_mismatch(unique_dir=u_dir, single_size=protein_alpha_size,
-                                                      single_mapping=protein_map, single_reverse=protein_rev,
-                                                      processes=processes, write_out_sub_aln=write_aln,
-                                                      write_out_freq_table=write_ft)
+                                                      single_mapping=protein_map, processes=processes,
+                                                      write_out_sub_aln=write_aln, write_out_freq_table=write_ft)
         for ind, node_name in enumerate(['seq1', 'seq2', 'seq3']):
             self.assertTrue(node_name in trace.unique_nodes)
             self.assertTrue('match' in trace.unique_nodes[node_name])
@@ -2273,9 +2357,8 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
                       match_mismatch=True, output_dir=expected_dir, low_memory=True)
         with self.assertRaises(ValueError):
             trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_size=protein_alpha_size,
-                                                          single_mapping=protein_map, single_reverse=protein_rev,
-                                                          processes=1, write_out_sub_aln=False,
-                                                          write_out_freq_table=False)
+                                                          single_mapping=protein_map, processes=1,
+                                                          write_out_sub_aln=False, write_out_freq_table=False)
         rmtree(expected_dir)
 
     def test_characterize_rank_groups_match_mismatch_failure_no_single_size(self):
@@ -2284,10 +2367,8 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
         trace = Trace(alignment=protein_aln, phylo_tree=protein_phylo_tree, group_assignments=protein_rank_dict, pos_size=1,
                       match_mismatch=True, output_dir=expected_dir, low_memory=False)
         with self.assertRaises(TypeError):
-            trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_size=None,
-                                                          single_mapping=protein_map, single_reverse=protein_rev,
-                                                          processes=1, write_out_sub_aln=False,
-                                                          write_out_freq_table=False)
+            trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_mapping=protein_map, processes=1,
+                                                          write_out_sub_aln=False, write_out_freq_table=False)
         rmtree(expected_dir)
 
     def test_characterize_rank_groups_match_mismatch_failure_no_single_mapping(self):
@@ -2297,20 +2378,7 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
                       match_mismatch=True, output_dir=expected_dir, low_memory=False)
         with self.assertRaises(TypeError):
             trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_size=protein_alpha_size,
-                                                          single_mapping=None, single_reverse=protein_rev,
-                                                          processes=1, write_out_sub_aln=False,
-                                                          write_out_freq_table=False)
-        rmtree(expected_dir)
-
-    def test_characterize_rank_groups_match_mismatch_failure_no_single_reverse(self):
-        expected_dir = os.path.join(os.getcwd(), 'test_case')
-        os.makedirs(expected_dir)
-        trace = Trace(alignment=protein_aln, phylo_tree=protein_phylo_tree, group_assignments=protein_rank_dict, pos_size=1,
-                      match_mismatch=True, output_dir=expected_dir, low_memory=False)
-        with self.assertRaises(TypeError):
-            trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_size=protein_alpha_size,
-                                                          single_mapping=protein_map, single_reverse=None,
-                                                          processes=1, write_out_sub_aln=False,
+                                                          single_mapping=None, processes=1, write_out_sub_aln=False,
                                                           write_out_freq_table=False)
         rmtree(expected_dir)
 
@@ -2330,9 +2398,8 @@ class TestTraceCharacterizeRankGroupMatchMismatch(TestCase):
                       match_mismatch=True, output_dir=expected_dir, low_memory=True)
         with self.assertRaises(ValueError):
             trace.characterize_rank_groups_match_mismatch(unique_dir=None, single_size=protein_alpha_size,
-                                                          single_mapping=protein_map, single_reverse=protein_rev,
-                                                          processes=1, write_out_sub_aln=True,
-                                                          write_out_freq_table=True)
+                                                          single_mapping=protein_map, processes=1,
+                                                          write_out_sub_aln=True, write_out_freq_table=True)
         rmtree(expected_dir)
 
     # Need to add a test for maximum_iterations
