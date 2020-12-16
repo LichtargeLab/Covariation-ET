@@ -6,6 +6,7 @@ Created on May 23, 2019
 import os
 import pickle
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from time import sleep, time
 from Bio.Alphabet import Gapped
@@ -932,6 +933,13 @@ def characterization_mm(node_name, node_type):
         if write_sub_aln:
             sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
         curr_num_aln = sub_aln._alignment_to_num(mapping=s_map)
+        # Re-order the numeric aln to match the ordering of the sequences in the tree
+        reorder_df = pd.DataFrame({'IDs': sub_aln.seq_order, 'Indexes': np.array(range(sub_aln.size))}).set_index('IDs')
+        curr_num_aln = curr_num_aln[reorder_df.loc[comps[node_name]['terminals'], 'Indexes'].values, :]
+        # Create easy look up for the new indexes
+        index_df = pd.DataFrame({'IDs': comps[node_name]['terminals'],
+                                 'Indexes': np.array(range(sub_aln.size))}).set_index('IDs')
+        index_df = index_df.astype({'Indexes': np.int32})
         if node_type == 'component':
             tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
                                               seq_len=aln.seq_length, pos_size=p_size)}
@@ -946,8 +954,7 @@ def characterization_mm(node_name, node_type):
             tables = {'match': None, 'mismatch': None}
             for d in comps[node_name]['descendants']:
                 descendants.add(d.name)
-                curr_indices = np.array([sub_aln.seq_order.index(t) for t in comps[d.name]['terminals']],
-                                        dtype=np.int32)
+                curr_indices = index_df.loc[comps[d.name]['terminals'], 'Indexes'].values
                 for prev_indices in terminal_indices:
                     if np.min(curr_indices) < np.min(prev_indices):
                         ind1 = curr_indices
