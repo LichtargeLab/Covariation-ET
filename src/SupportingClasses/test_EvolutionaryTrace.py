@@ -12,6 +12,7 @@ from copy import deepcopy
 from shutil import rmtree
 from unittest import TestCase
 from Bio.Alphabet import Gapped
+from Bio.Align import MultipleSeqAlignment
 from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import processes as max_processes
 from test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft, pro_pair_ft,
@@ -2387,7 +2388,11 @@ class TestEvolutionaryTraceVisualizeTrace(TestCase):
 class TestEvolutionaryTraceGetVarPool(TestCase):
 
     def evaluate_get_var_pool(self, freq_table, mm_bool):
-        init_var_pool(aln=protein_aln, frequency_table=freq_table)
+        # init_var_pool(aln=protein_aln, frequency_table=freq_table)
+        reordered_aln = deepcopy(protein_aln)
+        reordered_aln.seq_order = ['seq3', 'seq2', 'seq1']
+        reordered_aln.alignment = MultipleSeqAlignment([protein_aln.alignment[x] for x in range(2, -1, -1)])
+        init_var_pool(aln=reordered_aln, match_mismatch=mm_bool)
         for pos in freq_table.get_positions():
             curr_pos, curr_query, curr_chars, curr_char_count = get_var_pool(pos=(pos, ) if type(pos) == int else pos)
             if type(pos) == int:
