@@ -737,7 +737,7 @@ class TestPositionalScorerAngleComputation(TestCase):
         self.assertFalse((angle_mat - expected_mat).any())
 
     def test_angle_computation_failure_no_ratio_table(self):
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(TypeError):
             angle_computation(ratios=None)
 
 
