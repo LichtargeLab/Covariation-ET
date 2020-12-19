@@ -12,6 +12,7 @@ from copy import deepcopy
 from shutil import rmtree
 from unittest import TestCase
 from Bio.Alphabet import Gapped
+from Bio.Align import MultipleSeqAlignment
 from Bio.Alphabet.IUPAC import IUPACProtein
 from test_Base import processes as max_processes
 from test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft, pro_pair_ft,
@@ -2387,7 +2388,11 @@ class TestEvolutionaryTraceVisualizeTrace(TestCase):
 class TestEvolutionaryTraceGetVarPool(TestCase):
 
     def evaluate_get_var_pool(self, freq_table, mm_bool):
-        init_var_pool(aln=protein_aln, frequency_table=freq_table)
+        # init_var_pool(aln=protein_aln, frequency_table=freq_table)
+        reordered_aln = deepcopy(protein_aln)
+        reordered_aln.seq_order = ['seq3', 'seq2', 'seq1']
+        reordered_aln.alignment = MultipleSeqAlignment([protein_aln.alignment[x] for x in range(2, -1, -1)])
+        init_var_pool(aln=reordered_aln, match_mismatch=mm_bool)
         for pos in freq_table.get_positions():
             curr_pos, curr_query, curr_chars, curr_char_count = get_var_pool(pos=(pos, ) if type(pos) == int else pos)
             if type(pos) == int:
@@ -2397,9 +2402,15 @@ class TestEvolutionaryTraceGetVarPool(TestCase):
                 self.assertEqual(curr_pos, pos)
                 self.assertEqual(curr_query, (protein_aln.query_sequence[pos[0]], protein_aln.query_sequence[pos[1]]))
             characters = set()
-            for s_i in range(protein_aln.size):
+            # Reverse the order of the sequences to match the order of sequences in the phylogenetic tree (and
+            # assignments dictionary).
+            # for s_i in range(protein_aln.size):
+            for s_i in range(protein_aln.size - 1, -1, -1):
                 if mm_bool:
-                    for s_j in range(s_i + 1, protein_aln.size):
+                    # Reverse the order of the sequences to match the order of sequences in the phylogenetic tree (and
+                    # assignments dictionary).
+                    # for s_j in range(s_i + 1, protein_aln.size):
+                    for s_j in range(s_i - 1, -1, -1):
                         if type(pos) == int:
                             curr_char = protein_aln.alignment[s_i, pos] + protein_aln.alignment[s_j, pos]
                         else:
