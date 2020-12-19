@@ -41,22 +41,26 @@ for s1 in range(3):
             single_stat, single_char = protein_mm_table.get_status_and_character(pos=pos1, seq_ind1=s1, seq_ind2=s2)
             if single_stat == 'match':
                 expected_single_tables['Inner1']['match']._increment_count(pos=pos1, char=single_char)
-                if s1 > 0 and s2 > 0:
+                # if s1 > 0 and s2 > 0:
+                if s1 < 1 and s2 < 2:
                     expected_single_tables['Inner2']['match']._increment_count(pos=pos1, char=single_char)
             else:
                 expected_single_tables['Inner1']['mismatch']._increment_count(pos=pos1, char=single_char)
-                if s1 > 0 and s2 > 0:
+                # if s1 > 0 and s2 > 0:
+                if s1 < 1 and s2 < 2:
                     expected_single_tables['Inner2']['mismatch']._increment_count(pos=pos1, char=single_char)
             for pos2 in range(pos1, 6):
                 pair_stat, pair_char = protein_mm_table_large.get_status_and_character(pos=(pos1, pos2), seq_ind1=s1,
                                                                                        seq_ind2=s2)
                 if pair_stat == 'match':
                     expected_pair_tables['Inner1']['match']._increment_count(pos=(pos1, pos2), char=pair_char)
-                    if s1 > 0 and s2 > 0:
+                    # if s1 > 0 and s2 > 0:
+                    if s1 < 1 and s2 < 2:
                         expected_pair_tables['Inner2']['match']._increment_count(pos=(pos1, pos2), char=pair_char)
                 else:
                     expected_pair_tables['Inner1']['mismatch']._increment_count(pos=(pos1, pos2), char=pair_char)
-                    if s1 > 0 and s2 > 0:
+                    # if s1 > 0 and s2 > 0:
+                    if s1 < 1 and s2 < 2:
                         expected_pair_tables['Inner2']['mismatch']._increment_count(pos=(pos1, pos2), char=pair_char)
 for node in expected_single_tables:
     if node == 'Inner1':
@@ -855,6 +859,7 @@ class TestTraceCharacterizationMMPool(TestCase):
                 self.assertIsInstance(freq_tables[node_name]['match'], FrequencyTable)
             loaded2a = load_freq_table(freq_tables[node_name]['match'], low_mem)
             self.assertEqual(loaded2a.get_depth(), expected_tables[node_name]['match'].get_depth())
+
             self.assertFalse((loaded2a.get_count_matrix() -
                               expected_tables[node_name]['match'].get_count_matrix()).any())
             self.assertTrue('mismatch' in freq_tables[node_name])

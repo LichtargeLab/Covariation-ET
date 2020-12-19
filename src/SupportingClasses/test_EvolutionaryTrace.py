@@ -2397,9 +2397,15 @@ class TestEvolutionaryTraceGetVarPool(TestCase):
                 self.assertEqual(curr_pos, pos)
                 self.assertEqual(curr_query, (protein_aln.query_sequence[pos[0]], protein_aln.query_sequence[pos[1]]))
             characters = set()
-            for s_i in range(protein_aln.size):
+            # Reverse the order of the sequences to match the order of sequences in the phylogenetic tree (and
+            # assignments dictionary).
+            # for s_i in range(protein_aln.size):
+            for s_i in range(protein_aln.size - 1, -1, -1):
                 if mm_bool:
-                    for s_j in range(s_i + 1, protein_aln.size):
+                    # Reverse the order of the sequences to match the order of sequences in the phylogenetic tree (and
+                    # assignments dictionary).
+                    # for s_j in range(s_i + 1, protein_aln.size):
+                    for s_j in range(s_i - 1, -1, -1):
                         if type(pos) == int:
                             curr_char = protein_aln.alignment[s_i, pos] + protein_aln.alignment[s_j, pos]
                         else:

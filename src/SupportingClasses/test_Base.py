@@ -177,14 +177,14 @@ pro_pair_ft_s2.characterize_alignment(num_aln=np.array([protein_num_aln[1, :]]),
 pro_pair_ft_s3 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 2)
 pro_pair_ft_s3.characterize_alignment(num_aln=np.array([protein_num_aln[2, :]]), single_to_pair=pro_single_to_pair)
 
-protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln, single_alphabet_size=protein_alpha_size,
+protein_mm_table = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln[[2, 1, 0], :], single_alphabet_size=protein_alpha_size,
                                       single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                       larger_alphabet_size=pro_pair_alpha_size, larger_mapping=pro_pair_map,
                                       larger_reverse_mapping=pro_pair_rev,
                                       single_to_larger_mapping=pro_single_to_pair_map, pos_size=1)
 protein_mm_table.identify_matches_mismatches()
 
-protein_mm_table_large = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln, single_alphabet_size=protein_alpha_size,
+protein_mm_table_large = MatchMismatchTable(seq_len=6, num_aln=protein_num_aln[[2, 1, 0], :], single_alphabet_size=protein_alpha_size,
                                             single_mapping=protein_map, single_reverse_mapping=protein_rev,
                                             larger_alphabet_size=pro_quad_alpha_size,
                                             larger_mapping=pro_quad_map, larger_reverse_mapping=pro_quad_rev,
