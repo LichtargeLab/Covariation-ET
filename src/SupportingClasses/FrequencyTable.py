@@ -280,29 +280,30 @@ class FrequencyTable(object):
             if np.min(indexes2) < np.min(indexes1):
                 raise ValueError('indexes1 must come before indexes2.')
         # Iterate over all positions
-        for i, pos in enumerate(self.get_positions()):
-            # If single is specified, track the amino acid for this sequence and position
-            if self.position_size == 1:
-                curr_pos = num_aln[:, i]
-            elif self.position_size == 2:
-                curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
-            else:
-                raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
-            # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
-            full_pos = []
-            if indexes1 is None:
-                indexes1 = range(num_aln.shape[0] - 1)
-            for j in indexes1:
-                if indexes2 is None:
-                    comp_pos = curr_pos[j + 1:]
+        if num_aln.shape[0] != 1:
+            for i, pos in enumerate(self.get_positions()):
+                # If single is specified, track the amino acid for this sequence and position
+                if self.position_size == 1:
+                    curr_pos = num_aln[:, i]
+                elif self.position_size == 2:
+                    curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
                 else:
-                    comp_pos = curr_pos[indexes2]
-                curr_comp = comparison[curr_pos[j], comp_pos]
-                full_pos += curr_comp.tolist()
-            unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
-            self.__position_table['values'] += unique_counts.tolist()
-            self.__position_table['i'] += [i] * unique_chars.shape[0]
-            self.__position_table['j'] += unique_chars.tolist()
+                    raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
+                # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
+                full_pos = []
+                if indexes1 is None:
+                    indexes1 = range(num_aln.shape[0] - 1)
+                for j in indexes1:
+                    if indexes2 is None:
+                        comp_pos = curr_pos[j + 1:]
+                    else:
+                        comp_pos = curr_pos[indexes2]
+                    curr_comp = comparison[curr_pos[j], comp_pos]
+                    full_pos += curr_comp.tolist()
+                unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+                self.__position_table['values'] += unique_counts.tolist()
+                self.__position_table['i'] += [i] * unique_chars.shape[0]
+                self.__position_table['j'] += unique_chars.tolist()
         # Update the depth to the number of sequences in the characterized alignment
         # The depth needs to be the number of possible matches mismatches when comparing all elements of a column or
         # pair of columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
