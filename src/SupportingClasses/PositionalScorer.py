@@ -289,9 +289,10 @@ def group_plain_entropy_score(freq_table, dimensions):
     """
     counts = freq_table.get_table()
     depth = float(freq_table.get_depth())
-    freq = counts / depth
-    freq_log = csc_matrix((np.log(freq.data), freq.indices, freq.indptr), shape=freq.shape)
-    inter_prod = freq.multiply(freq_log)
+    freq = counts.data / depth
+    freq_log = np.log(freq)
+    inter_prod = csc_matrix((freq * freq_log, counts.indices, counts.indptr), shape=counts.shape)
+    del counts
     inter_sum = np.array(inter_prod.sum(axis=1)).reshape(-1)
     entropies = -1.0 * inter_sum
     if len(dimensions) != freq_table.position_size:
