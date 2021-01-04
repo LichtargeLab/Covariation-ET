@@ -7,6 +7,7 @@ import os
 import unittest
 import numpy as np
 import pandas as pd
+from copy import deepcopy
 from unittest import TestCase
 from itertools import combinations
 from scipy.sparse import csc_matrix
@@ -155,110 +156,110 @@ class TestFrequencyTableIncrementCount(TestCase):
 
     def test__increment_count_single_pos_default(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=0, char='A')
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[0], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_one(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=0, char='A', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[0], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_two(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=0, char='A', amount=2)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[2],
                                       expected_positions=[0], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_pair_pos_default(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=(0, 1), char='AA')
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[1], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_one(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[1], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_two(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=(0, 1), char='AA', amount=2)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[2],
                                       expected_positions=[1], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_single_pos_multiple_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=0, char='A', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[0], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
         freq_table._increment_count(pos=0, char='A', amount=1)
-        t3 = freq_table.get_table()
+        t3 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
                                       expected_positions=[0, 0], expected_chars=[0, 0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_single_pos_multiple_different_increments(self):
         freq_table = FrequencyTable(dna_alpha_size, dna_map, dna_rev, 18, 1)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=0, char='A', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[0], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
         freq_table._increment_count(pos=5, char='C', amount=1)
-        t3 = freq_table.get_table()
+        t3 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
                                       expected_positions=[0, 5], expected_chars=[0, 2], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_alpha_size))
 
     def test__increment_count_pair_pos_multiple_increments(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[1], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
-        t3 = freq_table.get_table()
+        t3 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
                                       expected_positions=[1, 1], expected_chars=[0, 0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
 
     def test__increment_count_pair_pos_multiple_different_increments(self):
         freq_table = FrequencyTable(dna_pair_alpha_size, dna_pair_map, dna_pair_rev, 18, 2)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         freq_table._increment_count(pos=(0, 1), char='AA', amount=1)
-        t2 = freq_table.get_table()
+        t2 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t1, second_table=t2, expected_values=[1],
                                       expected_positions=[1], expected_chars=[0], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
         freq_table._increment_count(pos=(0, 4), char='AC', amount=1)
-        t3 = freq_table.get_table()
+        t3 = deepcopy(freq_table.get_table())
         self.evaluate_increment_count(freq_table=freq_table, first_table=t2, second_table=t3, expected_values=[1, 1],
                                       expected_positions=[1, 4], expected_chars=[0, 2], expected_depth=0,
                                       expected_shape=(freq_table.num_pos, dna_pair_alpha_size))
@@ -946,10 +947,10 @@ class TestFrequencyTableCharacterizeSequence(TestCase):
     def evaluate_characterize_sequence(self, seqs, seq_aln, seq_type, alpha_size, alpha_map, alpha_rev, seq_len,
                                        pos_size, single_map, expected_depth=1, single_to_pair=None):
         freq_table = FrequencyTable(alpha_size, alpha_map, alpha_rev, seq_len, pos_size)
-        t1 = freq_table.get_table()
+        t1 = deepcopy(freq_table.get_table())
         for seq in seqs:
             freq_table.characterize_sequence(seq=seq)
-            t2 = freq_table.get_table()
+            t2 = deepcopy(freq_table.get_table())
             self.assertNotEqual(t1, t2)
             self.assertTrue(isinstance(t2, dict))
             t1 = t2
