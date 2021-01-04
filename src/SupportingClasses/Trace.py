@@ -241,29 +241,15 @@ class Trace(object):
             characterization_pbar.update(1)
             characterization_pbar.refresh()
 
-        pool_manager = Manager()
-        frequency_tables = pool_manager.dict()
-        tables_lock = Lock()
-        pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-                    initargs=(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
-                              comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited, frequency_tables,
-                              tables_lock, unique_dir, self.low_memory, write_out_sub_aln, write_out_freq_table,
-                              maximum_iterations))
+        frequency_tables = {}
+        init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
+                                      comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited,
+                                      frequency_tables, unique_dir, self.low_memory, write_out_sub_aln,
+                                      write_out_freq_table, maximum_iterations, processes)
         for char_node in to_characterize:
-            pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
-        pool.close()
-        pool.join()
-        #
-        # init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
-        #                               comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited,
-        #                               frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-        #                               write_out_freq_table, maximum_iterations)
-        # for char_node in to_characterize:
-        #     res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
-        #     update_characterization(res)
-        #
+            res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
+            update_characterization(res)
         characterization_pbar.close()
-        frequency_tables = dict(frequency_tables)
         if len(frequency_tables) != len(to_characterize):
             raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
@@ -844,8 +830,8 @@ def characterization(node_name, node_type):
 
 def init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
                                   comparison_mapping, mismatch_mask, alignment, position_size, components,
-                                  sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
-                                  write_out_freq_table, maximum_iterations=10000):
+                                  sharable_dict, unique_dir, low_memory, write_out_sub_aln,
+                                  write_out_freq_table, maximum_iterations=10000, processes=1):
     """
     Init Characterization Match Mismatch Pool
 
@@ -874,16 +860,16 @@ def init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, l
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
-        sharable_lock (multiprocessing.Lock): A lock to be used for synchronization of the characterization process.
         unique_dir (str/path): The directory where sub-alignment and frequency table files can be written.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
         resources.
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
         maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
+        processes (int): The number of processes to use when characterizing a given alignment.
     """
     global s_map, l_size, l_map, l_rev, s_to_p, comp_map, mis_mask, aln, p_size, t_type, comps, freq_tables, freq_lock,\
-        freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time, max_iters
+        u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time, max_iters, max_processes
     s_map = single_mapping
     l_size = larger_size
     l_map = larger_mapping
@@ -901,7 +887,6 @@ def init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, l
         raise ValueError('position_size must be 1 or 2 for charcterization_mm!')
     comps = components
     freq_tables = sharable_dict
-    freq_lock = sharable_lock
     u_dir = unique_dir
     low_mem = low_memory
     write_sub_aln = write_out_sub_aln
@@ -912,6 +897,7 @@ def init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, l
     # single node.
     sleep_time = 0.1
     max_iters = maximum_iterations
+    max_processes = processes
 
 
 def characterization_mm(node_name, node_type):
@@ -966,7 +952,8 @@ def characterization_mm(node_name, node_type):
             tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
                                               seq_len=aln.seq_length, pos_size=p_size)}
             tables['mismatch'] = tables['match'].characterize_alignment_mm(num_aln=curr_num_aln, single_to_pair=s_to_p,
-                                                                           comparison=comp_map, mismatch_mask=mis_mask)
+                                                                           comparison=comp_map, mismatch_mask=mis_mask,
+                                                                           processes=max_processes)
         elif node_type == 'inner':
             # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
             # descendants, then retrieve its descendants' characterizations and merge all to get the parent
@@ -988,7 +975,8 @@ def characterization_mm(node_name, node_type):
                                                 seq_len=aln.seq_length, pos_size=p_size)
                     curr_mismatch = curr_match.characterize_alignment_mm(num_aln=curr_num_aln, single_to_pair=s_to_p,
                                                                          comparison=comp_map, mismatch_mask=mis_mask,
-                                                                         indexes1=ind1, indexes2=ind2)
+                                                                         indexes1=ind1, indexes2=ind2,
+                                                                         processes=max_processes)
                     if tables['match'] is None:
                         tables['match'] = curr_match
                         tables['mismatch'] = curr_mismatch
@@ -1000,7 +988,6 @@ def characterization_mm(node_name, node_type):
             tries = {}
             while len(descendants) > 0:
                 descendant = descendants.pop()
-                # print(f'\tLoading: {descendant}')
                 # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
                 # the dictionary (i.e. another process is still characterizing that descendant), until all are
                 # successfully retrieved.
@@ -1031,9 +1018,7 @@ def characterization_mm(node_name, node_type):
                 tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, t_type, m)))
             tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
                                         table_type=t_type + '_' + m, out_dir=u_dir)
-    freq_lock.acquire()
     freq_tables[node_name] = tables
-    freq_lock.release()
     return node_name
 
 
