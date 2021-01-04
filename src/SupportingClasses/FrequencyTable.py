@@ -334,12 +334,11 @@ class FrequencyTable(object):
 
         Returns:
             dict/scipy.sparse.csc_matrix: A dictionary containing the values needed to populate a
-            scipy.sparse.csc_matrix. If the table has already been finazed, a sparse matrix where one axis represents
+            scipy.sparse.csc_matrix. If the table has already been finalized, a sparse matrix where one axis represents
             positions in the MSA and the other axis represents the characters from the alphabet of interest mapping.
             Each cell stores the count of that character at that position.
         """
-        table = deepcopy(self.__position_table)
-        return table
+        return self.__position_table
 
     def get_depth(self):
         """
