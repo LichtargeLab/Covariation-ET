@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from copy import deepcopy
+from multiprocessing import Pool
 from scipy.sparse import csc_matrix
 
 
@@ -259,30 +260,27 @@ class FrequencyTable(object):
             indexes2 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
             being characterized can be provided. indexes2 should have the the indexes for the sequences of interest for
             one side of the comparison rectangle in sorted order. It should have a higher minimum than indexes2.
+            processes (int): The number of processes to use when performing this characterization.
         Return:
             FrequencyTable: A new FrequencyTable containing counts for all variance transitions observed in the provided
             alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
             __position_table.
         """
-        from multiprocessing import Pool
-
         def processing_post(res):
-            # try:
+            """
+            Processing Post
+
+            This is an inner function used to update the position_table using returns from the processing pool.
+
+            Args:
+                res (tuple): A tuple consisting of the index of the processed position in the position_table, a numpy
+                array containing the numerical representations for unique characters which were observed at that
+                position, and a second numpy array containing the counts of each character at that position.
+            """
             self.__position_table['values'] += res[2].tolist()
-            # except:
-            #     print(f'RES2 type: {type(res[2])}')
-            #     print(f'RES2 shape: {res[2].shape}')
-            #     print(f'RES2: {res[2]}')
-            # try:
             self.__position_table['i'] += [res[0]] * res[1].shape[0]
-            # except:
-            #     print(f'I: {res[0]}')
-            # try:
             self.__position_table['j'] += res[1].tolist()
-            # except:
-            #     print(f'RES1 type: {type(res[1])}')
-            #     print(f'RES1 shape: {res[1].shape}')
-            #     print(f'RES1: {res[1]}')
+
         if num_aln is None:
             raise ValueError('Numeric representation of an alignment must be provided as input.')
         if comparison is None:
@@ -300,35 +298,12 @@ class FrequencyTable(object):
                 raise ValueError('indexes1 must come before indexes2.')
         # Iterate over all positions
         if num_aln.shape[0] != 1:
-            # pool = Pool(processes=processes, initializer=processing_init,
-            #             initargs=(num_aln, self.position_size, single_to_pair, comparison, indexes1, indexes2))
-            processing_init(num_aln, self.position_size, single_to_pair, comparison, indexes1, indexes2)
+            pool = Pool(processes=processes, initializer=processing_characterize_mm_init,
+                        initargs=(num_aln, self.position_size, single_to_pair, comparison, indexes1, indexes2))
             for i, pos in enumerate(self.get_positions()):
-                # pool.apply_async(func=processing_helper, args=(i, pos), callback=processing_post)
-                res = processing_helper(i, pos)
-                processing_post(res)
-                # # If single is specified, track the amino acid for this sequence and position
-                # if self.position_size == 1:
-                #     curr_pos = num_aln[:, i]
-                # elif self.position_size == 2:
-                #     curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
-                # else:
-                #     raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
-                # # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
-                # full_pos = []
-                # if indexes1 is None:
-                #     indexes1 = range(num_aln.shape[0] - 1)
-                # for j in indexes1:
-                #     if indexes2 is None:
-                #         comp_pos = curr_pos[j + 1:]
-                #     else:
-                #         comp_pos = curr_pos[indexes2]
-                #     curr_comp = comparison[curr_pos[j], comp_pos]
-                #     full_pos += curr_comp.tolist()
-                # unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
-                # self.__position_table['values'] += unique_counts.tolist()
-                # self.__position_table['i'] += [i] * unique_chars.shape[0]
-                # self.__position_table['j'] += unique_chars.tolist()
+                pool.apply_async(func=processing_characterize_mm_helper, args=(i, pos), callback=processing_post)
+            pool.close()
+            pool.join()
         # Update the depth to the number of sequences in the characterized alignment
         # The depth needs to be the number of possible matches mismatches when comparing all elements of a column or
         # pair of columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
@@ -677,7 +652,32 @@ class FrequencyTable(object):
         return new_table
 
 
-def processing_init(num_aln, position_size, single_to_pair, small_to_large, indexes1, indexes2):
+def processing_characterize_mm_init(num_aln, position_size, single_to_pair, small_to_large, indexes1, indexes2):
+    """
+    Processing Characterize Match Mismatch Initializer
+
+    This function provides global versions of the variables required for match mismatch characterization to a pool of
+    workers so they can complete characterization of each position.
+
+    Args:
+        num_aln (np.array): Array representing an alignment with dimensions sequence_length by alignment size where
+        the values are integers representing nucleic/amino acids and gaps from the desired alignment.
+        position_size (int): How big a "position" is, i.e. if the frequency table measures single positions this should
+        be 1, if it measures pairs of positions this should be 2, etc.
+        single_to_pair (np.array, dtype=np.int32): An array mapping single letter numerical representations
+        (axes 0 and 1) to a numerical representations of pairs of residues (value). If position_size == 1 this
+        argument should be set to None (default).
+        small_to_large (np.array, dtype=np.int32): An array mapping the alphabet used for the positions_size of this
+        FrequencyTable, mapped to the alphabet that has characters twice as large (if position_size == 1, this is
+        the same as the description for single_to_pair, if position_size == 2 this is the mapping from the alphabet
+        of pairs to the alphabet of quadruples.
+        indexes1 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+        being characterized can be provided. indexes1 should have the the indexes for the sequences of interest for
+        one side of the comparison rectangle in sorted order. It should have a lower minimum than indexes2.
+        indexes2 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+        being characterized can be provided. indexes2 should have the the indexes for the sequences of interest for
+        one side of the comparison rectangle in sorted order. It should have a higher minimum than indexes2.
+    """
     global numerical_aln, pos_width, s_to_p, s_to_l, ind1, ind2
     numerical_aln = num_aln
     pos_width = position_size
@@ -687,8 +687,21 @@ def processing_init(num_aln, position_size, single_to_pair, small_to_large, inde
     ind2 = indexes2
 
 
-def processing_helper(i, pos):
-    print(f'I: {i} POS: {pos}')
+def processing_characterize_mm_helper(i, pos):
+    """
+    Processing Characterize Match Mismatch Helper
+
+    This function identifies the column(s) of the numerical alignment to characterize, and the transitions between rows
+    for a given position, and then returns the index of the position, the unique characters observed, and their counts.
+
+    Args:
+        i (int): The index of the current position in the FrequencyTable position_table.
+        pos (int/tuple): The position or pair of positions to characterize.
+    Returns:
+        int: The index of the current position in the FrequencyTable position_table.
+        np.array: A numpy array with the numerical representations of unique characters observed at this position.
+        np.array: A numpy array with the counts for each character observed at this position.
+    """
     # If single is specified, track the amino acid for this sequence and position
     if pos_width == 1:
         curr_pos = numerical_aln[:, i]
@@ -710,12 +723,4 @@ def processing_helper(i, pos):
         curr_comp = s_to_l[curr_pos[j], comp_pos]
         full_pos += curr_comp.tolist()
     unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
-    print('Inside function:')
-    print(i)
-    print(type(unique_chars))
-    print(unique_chars.shape)
-    print(unique_chars)
-    print(type(unique_counts))
-    print(unique_counts.shape)
-    print(unique_counts)
     return i, unique_chars, unique_counts

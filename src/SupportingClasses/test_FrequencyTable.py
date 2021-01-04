@@ -877,6 +877,309 @@ class TestFrequencyTableCharacterizeAlignmentMM(TestCase):
                                                 expected_table1=expected_table, expected_table2=expected_table2,
                                                 expected_depth=3)
 
+    def test_characterize_alignment_protein_single_pos_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                           processes=2)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_partial1_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                           indexes1=np.array([0], dtype=np.int32),
+                                                           indexes2=np.array([1, 2], dtype=np.int32), processes=2)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 2]
+        idx2 = [275, 425]
+        values = [2, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 1, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_composite1_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln[[0], :],
+                                                           comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                           processes=2)
+        freq_table3 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        freq_table4 = freq_table3.characterize_alignment_mm(num_aln=protein_num_aln[[1, 2], :],
+                                                            comparison=pro_single_to_pair,
+                                                            mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                            processes=2)
+        freq_table5 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        freq_table6 = freq_table5.characterize_alignment_mm(num_aln=protein_num_aln,
+                                                            comparison=pro_single_to_pair,
+                                                            mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                            indexes1=np.array([0], dtype=np.int32),
+                                                            indexes2=np.array([1, 2], dtype=np.int32), processes=2)
+        freq_table_match = freq_table + freq_table3 + freq_table5
+        freq_table_match.set_depth(depth=3)
+        freq_table_mismatch = freq_table2 + freq_table4 + freq_table6
+        freq_table_mismatch.set_depth(depth=3)
+
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table_match, freq_table2=freq_table_mismatch, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_partial2_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                           indexes1=np.array([0, 1], dtype=np.int32),
+                                                           indexes2=np.array([2], dtype=np.int32), processes=2)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 3, 4, 5]
+        idx2 = [275, 575, 375, 100, 100]
+        values = [2, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [1, 2, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_composite2_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln[[0, 1], :],
+                                                           comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                           processes=2)
+        freq_table3 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        freq_table4 = freq_table3.characterize_alignment_mm(num_aln=protein_num_aln[[2], :],
+                                                            comparison=pro_single_to_pair,
+                                                            mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                            processes=2)
+        freq_table5 = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        freq_table6 = freq_table5.characterize_alignment_mm(num_aln=protein_num_aln,
+                                                            comparison=pro_single_to_pair,
+                                                            mismatch_mask=pro_pair_mismatch, single_to_pair=None,
+                                                            indexes1=np.array([0, 1], dtype=np.int32),
+                                                            indexes2=np.array([2], dtype=np.int32), processes=2)
+        freq_table_match = freq_table + freq_table3 + freq_table5
+        freq_table_match.set_depth(depth=3)
+        freq_table_mismatch = freq_table2 + freq_table4 + freq_table6
+        freq_table_mismatch.set_depth(depth=3)
+
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table_match, freq_table2=freq_table_mismatch, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos_multiprocessed(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                                           processes=2)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 1, 2, 3, 4, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 13, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19,
+                19, 20, 20]
+        idx2 = [158675, 165599, 162137, 160983, 154636, 154636, 58175, 331775, 65645, 327159, 69111, 320812, 69100,
+                320812, 69100, 244925, 245225, 248391, 248380, 248380, 216375, 331575, 210028, 331564, 210028, 331564,
+                57700, 331300, 57700, 331300, 57700, 331300]
+        values = [3, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 7, 12, 12, 13, 13, 14, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 65657, 328301, 243783, 248679, 237436, 248668, 237436, 248668]
+        values = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos_partial1_multiprocessed(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                                           indexes1=np.array([0], dtype=np.int32),
+                                                           indexes2=np.array([1, 2], dtype=np.int32), processes=2)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 2, 6, 7, 8, 9, 10, 11, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        idx2 = [158675, 162137, 58175, 65645, 69111, 69100, 69100, 244925, 245225, 248391, 248380, 248380, 331575,
+                331564, 331564, 331300, 331300, 331300]
+        values = [2, 1, 2, 1, 2, 2, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 12, 13, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 65657, 248679, 248668, 248668]
+        values = [2, 1, 2, 2, 2, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos_composite1_multiprocessed(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln[[0], :],
+                                                           single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                                           processes=2)
+        freq_table3 = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        freq_table4 = freq_table3.characterize_alignment_mm(num_aln=protein_num_aln[[1, 2], :],
+                                                            single_to_pair=pro_single_to_pair,
+                                                            comparison=pro_pair_to_quad,
+                                                            mismatch_mask=pro_quad_mismatch, processes=2)
+        freq_table5 = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        freq_table6 = freq_table5.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                            comparison=pro_pair_to_quad,
+                                                            mismatch_mask=pro_quad_mismatch,
+                                                            indexes1=np.array([0], dtype=np.int32),
+                                                            indexes2=np.array([1, 2], dtype=np.int32), processes=2)
+        match_freq_table = freq_table + freq_table3 + freq_table5
+        match_freq_table.set_depth(depth=3)
+        mismatch_freq_table = freq_table2 + freq_table4 + freq_table6
+        mismatch_freq_table.set_depth(depth=3)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 1, 2, 3, 4, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 13, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19,
+                19, 20, 20]
+        idx2 = [158675, 165599, 162137, 160983, 154636, 154636, 58175, 331775, 65645, 327159, 69111, 320812, 69100,
+                320812, 69100, 244925, 245225, 248391, 248380, 248380, 216375, 331575, 210028, 331564, 210028, 331564,
+                57700, 331300, 57700, 331300, 57700, 331300]
+        values = [3, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 7, 12, 12, 13, 13, 14, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 65657, 328301, 243783, 248679, 237436, 248668, 237436, 248668]
+        values = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=match_freq_table, freq_table2=mismatch_freq_table, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos_partial2_multiprocessed(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                                           indexes1=np.array([0, 1], dtype=np.int32),
+                                                           indexes2=np.array([2], dtype=np.int32), processes=2)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 1, 3, 4, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20,
+                20]
+        idx2 = [158675, 165599, 160983, 154636, 154636, 58175, 331775, 65645, 327159, 69111, 320812, 69100, 320812,
+                69100, 244925, 248391, 248380, 248380, 216375, 331575, 210028, 331564, 210028, 331564, 57700, 331300,
+                57700, 331300, 57700, 331300]
+        values = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 12, 13, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 328301, 243783, 237436, 237436]
+        values = [1, 2, 1, 1, 1, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_pair_pos_composite2_multiprocessed(self):
+        freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln[[0, 1], :],
+                                                           single_to_pair=pro_single_to_pair,
+                                                           comparison=pro_pair_to_quad, mismatch_mask=pro_quad_mismatch,
+                                                           processes=2)
+        freq_table3 = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        freq_table4 = freq_table3.characterize_alignment_mm(num_aln=protein_num_aln[[2], :],
+                                                            single_to_pair=pro_single_to_pair,
+                                                            comparison=pro_pair_to_quad,
+                                                            mismatch_mask=pro_quad_mismatch, processes=2)
+        freq_table5 = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
+        freq_table6 = freq_table5.characterize_alignment_mm(num_aln=protein_num_aln, single_to_pair=pro_single_to_pair,
+                                                            comparison=pro_pair_to_quad,
+                                                            mismatch_mask=pro_quad_mismatch,
+                                                            indexes1=np.array([0, 1], dtype=np.int32),
+                                                            indexes2=np.array([2], dtype=np.int32), processes=2)
+        match_freq_table = freq_table + freq_table3 + freq_table5
+        match_freq_table.set_depth(depth=3)
+        mismatch_freq_table = freq_table2 + freq_table4 + freq_table6
+        mismatch_freq_table.set_depth(depth=3)
+        expected_table = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [0, 1, 2, 3, 4, 5, 6, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 13, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19,
+                19, 20, 20]
+        idx2 = [158675, 165599, 162137, 160983, 154636, 154636, 58175, 331775, 65645, 327159, 69111, 320812, 69100,
+                320812, 69100, 244925, 245225, 248391, 248380, 248380, 216375, 331575, 210028, 331564, 210028, 331564,
+                57700, 331300, 57700, 331300, 57700, 331300]
+        values = [3, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((freq_table.num_pos, pro_quad_alpha_size))
+        idx1 = [1, 2, 3, 4, 5, 7, 7, 12, 12, 13, 13, 14, 14]
+        idx2 = [154655, 162125, 165591, 165580, 165580, 65657, 328301, 243783, 248679, 237436, 248668, 237436, 248668]
+        values = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=match_freq_table, freq_table2=mismatch_freq_table, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
+    def test_characterize_alignment_protein_single_pos_single_to_pair_multiprocessed(self):
+        freq_table = FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1)
+        t1 = freq_table.get_table()
+        freq_table2 = freq_table.characterize_alignment_mm(num_aln=protein_num_aln, comparison=pro_single_to_pair,
+                                                           mismatch_mask=pro_pair_mismatch,
+                                                           single_to_pair=pro_single_to_pair, processes=2)
+        expected_table = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [0, 1, 2, 3, 4, 5]
+        idx2 = [275, 575, 425, 375, 100, 100]
+        values = [3, 1, 1, 1, 1, 1]
+        expected_table[idx1, idx2] = values
+        expected_table2 = np.zeros((6, pro_pair_alpha_size), dtype=np.int32)
+        idx1 = [1, 2, 3, 4, 5]
+        idx2 = [119, 413, 567, 556, 556]
+        values = [2, 2, 2, 2, 2]
+        expected_table2[idx1, idx2] = values
+        self.evaluate_characterize_alignment_mm(freq_table=freq_table, freq_table2=freq_table2, table1=t1,
+                                                expected_table1=expected_table, expected_table2=expected_table2,
+                                                expected_depth=3)
+
     def test_characterize_alignment_failure_protein_pair_pos_no_single_to_pair(self):
         freq_table = FrequencyTable(pro_quad_alpha_size, pro_quad_map, pro_quad_rev, 6, 2)
         with self.assertRaises(ValueError):
