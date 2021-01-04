@@ -225,7 +225,7 @@ class FrequencyTable(object):
         self.finalize_table()
 
     def characterize_alignment_mm(self, num_aln, comparison, mismatch_mask, single_to_pair=None, indexes1=None,
-                                  indexes2=None):
+                                  indexes2=None, processes=1):
         """
         Characterize Alignment
 
@@ -264,6 +264,25 @@ class FrequencyTable(object):
             alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
             __position_table.
         """
+        from multiprocessing import Pool
+
+        def processing_post(res):
+            # try:
+            self.__position_table['values'] += res[2].tolist()
+            # except:
+            #     print(f'RES2 type: {type(res[2])}')
+            #     print(f'RES2 shape: {res[2].shape}')
+            #     print(f'RES2: {res[2]}')
+            # try:
+            self.__position_table['i'] += [res[0]] * res[1].shape[0]
+            # except:
+            #     print(f'I: {res[0]}')
+            # try:
+            self.__position_table['j'] += res[1].tolist()
+            # except:
+            #     print(f'RES1 type: {type(res[1])}')
+            #     print(f'RES1 shape: {res[1].shape}')
+            #     print(f'RES1: {res[1]}')
         if num_aln is None:
             raise ValueError('Numeric representation of an alignment must be provided as input.')
         if comparison is None:
@@ -281,29 +300,35 @@ class FrequencyTable(object):
                 raise ValueError('indexes1 must come before indexes2.')
         # Iterate over all positions
         if num_aln.shape[0] != 1:
+            # pool = Pool(processes=processes, initializer=processing_init,
+            #             initargs=(num_aln, self.position_size, single_to_pair, comparison, indexes1, indexes2))
+            processing_init(num_aln, self.position_size, single_to_pair, comparison, indexes1, indexes2)
             for i, pos in enumerate(self.get_positions()):
-                # If single is specified, track the amino acid for this sequence and position
-                if self.position_size == 1:
-                    curr_pos = num_aln[:, i]
-                elif self.position_size == 2:
-                    curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
-                else:
-                    raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
-                # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
-                full_pos = []
-                if indexes1 is None:
-                    indexes1 = range(num_aln.shape[0] - 1)
-                for j in indexes1:
-                    if indexes2 is None:
-                        comp_pos = curr_pos[j + 1:]
-                    else:
-                        comp_pos = curr_pos[indexes2]
-                    curr_comp = comparison[curr_pos[j], comp_pos]
-                    full_pos += curr_comp.tolist()
-                unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
-                self.__position_table['values'] += unique_counts.tolist()
-                self.__position_table['i'] += [i] * unique_chars.shape[0]
-                self.__position_table['j'] += unique_chars.tolist()
+                # pool.apply_async(func=processing_helper, args=(i, pos), callback=processing_post)
+                res = processing_helper(i, pos)
+                processing_post(res)
+                # # If single is specified, track the amino acid for this sequence and position
+                # if self.position_size == 1:
+                #     curr_pos = num_aln[:, i]
+                # elif self.position_size == 2:
+                #     curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
+                # else:
+                #     raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
+                # # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
+                # full_pos = []
+                # if indexes1 is None:
+                #     indexes1 = range(num_aln.shape[0] - 1)
+                # for j in indexes1:
+                #     if indexes2 is None:
+                #         comp_pos = curr_pos[j + 1:]
+                #     else:
+                #         comp_pos = curr_pos[indexes2]
+                #     curr_comp = comparison[curr_pos[j], comp_pos]
+                #     full_pos += curr_comp.tolist()
+                # unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+                # self.__position_table['values'] += unique_counts.tolist()
+                # self.__position_table['i'] += [i] * unique_chars.shape[0]
+                # self.__position_table['j'] += unique_chars.tolist()
         # Update the depth to the number of sequences in the characterized alignment
         # The depth needs to be the number of possible matches mismatches when comparing all elements of a column or
         # pair of columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
@@ -651,3 +676,47 @@ class FrequencyTable(object):
         new_table.__position_table = self.__position_table + other.__position_table
         new_table.__depth = self.__depth + other.__depth
         return new_table
+
+
+def processing_init(num_aln, position_size, single_to_pair, small_to_large, indexes1, indexes2):
+    global numerical_aln, pos_width, s_to_p, s_to_l, ind1, ind2
+    numerical_aln = num_aln
+    pos_width = position_size
+    s_to_p = single_to_pair
+    s_to_l = small_to_large
+    ind1 = indexes1
+    ind2 = indexes2
+
+
+def processing_helper(i, pos):
+    print(f'I: {i} POS: {pos}')
+    # If single is specified, track the amino acid for this sequence and position
+    if pos_width == 1:
+        curr_pos = numerical_aln[:, i]
+    elif pos_width == 2:
+        curr_pos = s_to_p[numerical_aln[:, pos[0]], numerical_aln[:, pos[1]]]
+    else:
+        raise ValueError(f'characterize_alignment_mm is not compatible with position_size {pos_width}')
+    # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
+    full_pos = []
+    if ind1 is None:
+        curr_ind1 = range(numerical_aln.shape[0] - 1)
+    else:
+        curr_ind1 = ind1
+    for j in curr_ind1:
+        if ind2 is None:
+            comp_pos = curr_pos[j + 1:]
+        else:
+            comp_pos = curr_pos[ind2]
+        curr_comp = s_to_l[curr_pos[j], comp_pos]
+        full_pos += curr_comp.tolist()
+    unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+    print('Inside function:')
+    print(i)
+    print(type(unique_chars))
+    print(unique_chars.shape)
+    print(unique_chars)
+    print(type(unique_counts))
+    print(unique_counts.shape)
+    print(unique_counts)
+    return i, unique_chars, unique_counts
