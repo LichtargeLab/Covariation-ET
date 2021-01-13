@@ -247,9 +247,9 @@ class EvolutionaryTrace(Predictor):
 
             write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=reordered_aln,
                                 # frequency_table=root_freq_table, ranks=self.rankings, scores=self.scores,
-                                pos_size=self.trace.pos_size, match_mismatch=self.trace.match_mismatch,
-                                ranks=self.rankings, scores=self.scores,
-                                coverages=self.coverages, precision=3, processors=self.processors)
+                                # pos_size=self.trace.pos_size, match_mismatch=self.trace.match_mismatch,
+                                pos_size=self.trace.pos_size, match_mismatch=False, ranks=self.rankings,
+                                scores=self.scores, coverages=self.coverages, precision=3, processors=self.processors)
 
     def calculate_scores(self):
         """
