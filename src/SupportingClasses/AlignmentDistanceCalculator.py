@@ -10,8 +10,8 @@ from multiprocessing import Pool
 from itertools import combinations
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
-from utils import build_mapping, convert_seq_to_numeric
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
+from SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein
 
 
 class AlignmentDistanceCalculator(DistanceCalculator):

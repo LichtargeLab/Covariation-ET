@@ -19,10 +19,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap
-from FrequencyTable import FrequencyTable
-from utils import build_mapping, convert_seq_to_numeric
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
 
 
 class SeqAlignment(object):

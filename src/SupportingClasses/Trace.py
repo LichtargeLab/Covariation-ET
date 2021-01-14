@@ -11,11 +11,11 @@ from tqdm import tqdm
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from multiprocessing import Manager, Pool, Lock
-from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
-from PhylogeneticTree import PhylogeneticTree
-from EvolutionaryTraceAlphabet import MultiPositionAlphabet
-from utils import gap_characters, build_mapping, compute_rank_and_coverage
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.EvolutionaryTraceAlphabet import MultiPositionAlphabet
+from SupportingClasses.utils import gap_characters, build_mapping, compute_rank_and_coverage
 
 
 class Trace(object):

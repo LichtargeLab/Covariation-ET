@@ -4,7 +4,7 @@ Created on February 5, 2020
 @author: Daniel Konecki
 """
 import os
-from SeqAlignment import SeqAlignment
+from SupportingClasses.SeqAlignment import SeqAlignment
 
 
 class Predictor(object):
