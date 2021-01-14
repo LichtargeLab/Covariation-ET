@@ -631,7 +631,12 @@ def parse_args():
     parser.add_argument('--scoring_metric', metavar='S', type=str, default='identity', nargs='?',
                         choices=['identity', 'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                                  'average_product_corrected_mutual_information',
-                                 'filtered_average_product_corrected_mutual_information'],
+                                 'filtered_average_product_corrected_mutual_information', 'match_count',
+                                 'mismatch_count', 'match_mismatch_count_ratio', 'match_mismatch_count_angle',
+                                 'match_entropy', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+                                 'match_mismatch_entropy_angle', 'match_diversity', 'mismatch_diversity',
+                                 'match_mismatch_diversity_ratio', 'match_mismatch_diversity_angle',
+                                 'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'],
                         help="Scoring metric to use when performing trace algorithm, method availability depends on "
                              "the specified position_type:\n\tsingle:\n\t\tidentity\n\t\tplain_entropy\n\tpair:\n\t\t"
                              "identity\n\t\tplain_entropy\n\t\tmutual_information\n\t\tnormalized_mutual_information"
