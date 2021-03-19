@@ -152,8 +152,7 @@ class AlignmentDistanceCalculator(DistanceCalculator):
                 as an array of distances to other sequences.
             """
             seq_i, identity_distances = res
-            for j in range(seq_i + 1, msa_size):
-                dm[names[seq_i], names[j]] = identity_distances[j]
+            dm.matrix[seq_i] = identity_distances.tolist() + [0]
             dist_pbar.update(1)
             dist_pbar.refresh()
 
@@ -372,7 +371,7 @@ def identity(i):
         int: The position for which identity distances were computed.
         np.array: The distances to all sequences in the alignment.
     """
-    check = numerical_alignment - numerical_alignment[i]
+    check = numerical_alignment[:i, :] - numerical_alignment[i]
     identity_counts = np.sum(check == 0, axis=1)
     fraction_identity = identity_counts / float(numerical_alignment.shape[1])
     distances = 1 - fraction_identity
