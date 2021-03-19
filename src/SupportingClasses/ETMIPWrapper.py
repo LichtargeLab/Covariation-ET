@@ -13,9 +13,9 @@ from subprocess import Popen, PIPE
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
-from Predictor import Predictor
-from PhylogeneticTree import PhylogeneticTree
-from AlignmentDistanceCalculator import convert_array_to_distance_matrix
+from SupportingClasses.Predictor import Predictor
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
