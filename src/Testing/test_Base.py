@@ -4,24 +4,39 @@ Created onJune 19, 2019
 @author: daniel
 """
 import os
+import sys
 import numpy as np
 from copy import deepcopy
 from datetime import datetime
+from unittest import TestCase
+from multiprocessing import cpu_count
 from Bio.Seq import Seq
 from Bio.Alphabet import Gapped
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceMatrix
-from EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from MatchMismatchTable import MatchMismatchTable
-from PhylogeneticTree import PhylogeneticTree
-from FrequencyTable import FrequencyTable
-from SeqAlignment import SeqAlignment
-from utils import build_mapping
-from unittest import TestCase
-from multiprocessing import cpu_count
-from DataSetGenerator import DataSetGenerator
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACDNA, FullIUPACProtein, MultiPositionAlphabet
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.MatchMismatchTable import MatchMismatchTable
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.DataSetGenerator import DataSetGenerator
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.utils import build_mapping
 
 
 def generate_temp_fn(suffix):

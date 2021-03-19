@@ -3,17 +3,35 @@ Created on May 16, 2019
 
 @author: Daniel Konecki
 """
+import os
+import sys
 import unittest
 from unittest import TestCase
 import numpy as np
 from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceMatrix
-from test_Base import protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa
-from utils import build_mapping, convert_seq_to_numeric
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA
-from AlignmentDistanceCalculator import (AlignmentDistanceCalculator, convert_array_to_distance_matrix, init_pairwise,
-                                         pairwise, init_identity, identity, init_characterize_sequence,
-                                         characterize_sequence, init_similarity, similarity)
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3,
+                               dna_msa)
+from SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA
+from SupportingClasses.AlignmentDistanceCalculator import (AlignmentDistanceCalculator,
+                                                           convert_array_to_distance_matrix,
+                                                           init_pairwise, pairwise, init_identity, identity,
+                                                           init_characterize_sequence, characterize_sequence,
+                                                           init_similarity, similarity)
 
 protein_alpha = FullIUPACProtein()
 protein_alpha_size, protein_gap_chars, protein_mapping, protein_reverse = build_mapping(
@@ -357,23 +375,25 @@ class TestAlignmentDistanceCalculatorIdentityDistance(TestCase):
         adc = AlignmentDistanceCalculator()
         numerical_alignment = np.vstack([convert_seq_to_numeric(seq, mapping=adc.mapping) for seq in protein_msa])
         init_identity(numerical_alignment)
-        ind, scores = identity(i=0)
-        self.assertEqual(ind, 0)
-        self.assertEqual(scores.shape, (len(protein_msa), ))
         for i in range(len(protein_msa)):
-            score = adc._pairwise(protein_msa[0], protein_msa[i])
-            self.assertEqual(scores[i], score)
+            ind, scores = identity(i=i)
+            self.assertEqual(ind, i)
+            self.assertEqual(scores.shape, (i,))
+            for j in range(i):
+                score = adc._pairwise(protein_msa[i], protein_msa[j])
+                self.assertEqual(scores[j], score)
 
     def test_identity_dna(self):
         adc = AlignmentDistanceCalculator(protein=False)
         numerical_alignment = np.vstack([convert_seq_to_numeric(seq, mapping=adc.mapping) for seq in dna_msa])
         init_identity(numerical_alignment)
-        ind, scores = identity(i=0)
-        self.assertEqual(ind, 0)
-        self.assertEqual(scores.shape, (len(dna_msa), ))
         for i in range(len(dna_msa)):
-            score = adc._pairwise(dna_msa[0], dna_msa[i])
-            self.assertEqual(scores[i], score)
+            ind, scores = identity(i=i)
+            self.assertEqual(ind, i)
+            self.assertEqual(scores.shape, (i,))
+            for j in range(i):
+                score = adc._pairwise(dna_msa[i], dna_msa[j])
+                self.assertEqual(scores[j], score)
 
     def evaluate_get_identity_distance(self, is_protein, msa, processes):
         adc = AlignmentDistanceCalculator(protein=is_protein)
