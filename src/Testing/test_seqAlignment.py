@@ -4,6 +4,7 @@ Created on Nov 9, 2018
 @author: daniel
 """
 import os
+import sys
 import unittest
 import numpy as np
 import pandas as pd
@@ -13,13 +14,27 @@ from Bio.Alphabet import Gapped
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_matrix
 from unittest import TestCase
-from test_Base import (generate_temp_fn, write_out_temp_fn, protein_short_seq, protein_seq1, protein_seq2, protein_seq3,
-                       protein_seq4, dna_seq1, dna_seq2, dna_seq3)
-from utils import build_mapping
-from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.utils import build_mapping
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+from Testing.test_Base import (generate_temp_fn, write_out_temp_fn, protein_short_seq, protein_seq1, protein_seq2,
+                               protein_seq3, protein_seq4, dna_seq1, dna_seq2, dna_seq3)
 
 
 # single_protein_seq = '>test\nMET\n'
