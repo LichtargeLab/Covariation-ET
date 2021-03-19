@@ -8,7 +8,7 @@ import re
 import argparse
 import numpy as np
 import pandas as pd
-from time import time
+from time import time, sleep
 from re import compile
 from urllib.error import HTTPError
 from numpy import floor, triu, nonzero
@@ -28,10 +28,11 @@ from Bio.Application import ApplicationError
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
-from PDBReference import PDBReference
-from SeqAlignment import SeqAlignment
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein
+from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -186,12 +187,11 @@ class DataSetGenerator(object):
         init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction,
                                           min_identity, max_identity, msf, fasta, blast_fn, self.filtered_blast_path,
                                           self.alignment_path, self.filtered_alignment_path, self.final_alignment_path,
-                                          verbose)
+                                          verbose, processes)
         res = []
         for p_id in unique_ids:
             curr_res = filtering_and_alignment((p_id, self.protein_data[p_id]['Sequence']))
             res.append(curr_res)
-
 
         summary = {'Protein_ID': [], 'BLAST_Hits': [], 'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Time': []}
         for data in res:
@@ -523,7 +523,8 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
     pileup_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
     sequences = []
     if os.path.isfile(pileup_fn):
-        hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+)\sFraction_length=([0-9]+[.][0-9]+).*$')
+        hsp_data_pattern = compile(
+            r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+)\sFraction_length=([0-9]+[.][0-9]+).*$')
         with open(pileup_fn, 'r') as pileup_handle:
             fasta_iter = parse(handle=pileup_handle, format='fasta')
             for seq_record in fasta_iter:
@@ -573,7 +574,9 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                                 if min_identity <= identity and identity <= max_identity:
                                     if (aln_identity is None) or (identity > aln_identity):
                                         if all([aa in alphabet.letters for aa in set(hsp.sbjct)]):
-                                            if not any([c in alignment.hit_def.lower() for c in set(['artificial', 'fragment', 'low quality', 'partial', 'synthetic'])]):
+                                            if not any([c in alignment.hit_def.lower() for c in set(
+                                                    ['artificial', 'fragment', 'low quality', 'partial',
+                                                     'synthetic'])]):
                                                 try:
                                                     lineage = ';'.join(parse_lineage(alignment.hit_id)).lower()
                                                 except AttributeError:
@@ -583,9 +586,10 @@ def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value
                                                     new_description = description_pattern.format(
                                                         alignment.hit_def, hsp.identities, hsp.align_length,
                                                         subject_fraction)
-                                                    aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
-                                                                               id=alignment.hit_id, name=alignment.title,
-                                                                               description=new_description)
+                                                    aln_seq_record = SeqRecord(
+                                                        Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
+                                                        id=alignment.hit_id, name=alignment.title,
+                                                        description=new_description)
                                                     aln_identity = identity
                                         #         else:
                                         #             print(f'Removing {alignment.hit_id} Lineage: {lineage}')
@@ -664,7 +668,7 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True,
     return msf_fn, fa_fn
 
 
-def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
+def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98, processes=1):
     """
     Identity Filter
 
@@ -702,11 +706,13 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
         alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
         alignment.import_alignment()
         try:
-            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
+            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment, processes=processes)),
+                                   k=1)
         except KeyError as e:
             print('Removing bad sequences: {}'.format(protein_id))
             alignment = alignment.remove_bad_sequences()
-            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
+            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment, processes=processes)),
+                                   k=1)
         to_keep = set()
         to_remove = set()
         query_seq_pos = alignment.seq_order.index(protein_id)
@@ -742,7 +748,7 @@ def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
 
 def init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
                                       max_identity, msf, fasta, blast_fn, filtered_blast_path, aln_path,
-                                      filtered_aln_path, final_aln_path, verbose):
+                                      filtered_aln_path, final_aln_path, verbose, processes=1):
     """
     Init PDB Alignment Pool
 
@@ -795,6 +801,8 @@ def init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, databa
     final_aln_dir = final_aln_path
     global verbose_out
     verbose_out = verbose
+    global filtering_processes
+    filtering_processes = processes
 
 
 def filtering_and_alignment(in_tup):
@@ -832,7 +840,8 @@ def filtering_and_alignment(in_tup):
                                     msf=make_msf, fasta=make_fasta, verbose=verbose_out)
     try:
         final_filter_count, final_filter_fn = identity_filter(
-            protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
+            protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id,
+            processes=filtering_processes)
     except ValueError as e:
         print('HIT A VALUE ERROR IN FILTERING')
         final_filter_count = 0
@@ -864,7 +873,26 @@ def parse_genbank_lineage(full_id):
     else:
         acc = match_groups.group(2)
     Entrez.email = os.environ.get('EMAIL')
-    handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+    # handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+    #
+    handle = None
+    attempts = 0
+    success = False
+    while (not success) and (attempts < 10):
+        try:
+            handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+            success = True
+            print('Success')
+        except AttributeError as e:
+            attempts += 1
+            sleep(1)
+            print('FAILED')
+            # print(full_id)
+            # print(acc)
+            # raise e
+    if handle is None:
+        raise ValueError(f'{full_id} with acc: {acc} could not be retrieved!')
+    #
     gb_set = XMLET.parse(handle).getroot()
     gb_seq = gb_set[0]
     gb_taxa = gb_seq.find('GBSeq_taxonomy')
@@ -915,15 +943,25 @@ def determine_identity_bin(identity_count, length, interval, abs_max_identity, a
     Returns:
         float: The identity bin in which the sequence belongs.
     """
-    similarity = (identity_count / float(length))
+    similarity = (identity_count / float(length)) * 100
     similarity_int = floor(similarity)
-    similarity_bin = similarity_int - (similarity_int % interval)
+    similarity_bin = similarity_int - (similarity_int % (interval * 100))
+    similarity_bin /= 100
     final_bin = None
     if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
         if similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
             final_bin = abs_min_identity
         else:
             final_bin = similarity_bin
+    # if final_bin is None and 375 < identity_count < 400:
+    #     print('FOUND IT')
+    #     print(f'id count: {identity_count}')
+    #     print(f'length: {length}')
+    #     print(f'similarity_int: {similarity_int}')
+    #     print(f'similarity_bin: {similarity_bin}')
+    #     print('identity_bins: ' + ','.join([str(x) for x in sorted(identity_bins)]))
+    #     print(f'final_bin: {final_bin}')
+    #     exit()
     return final_bin
 
 
@@ -993,7 +1031,7 @@ def filter_uniref_fasta(in_path, out_path):
 
 
 def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_identity=0.98, abs_min_identity=0.40,
-                           interval=5):
+                           interval=0.05):
     """
     Characterize Alignment
 
@@ -1027,7 +1065,8 @@ def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_id
     seq_fractions = {'Low': 0, 'Passing': 0, 'High': 0}
     max_fraction = 0.0
     min_fraction = 1.0
-    identity_bins = list(range(abs_min_identity, abs_max_identity, interval))
+    identity_bins = [float(x / 100) for x in
+                     range(int(100 * abs_min_identity), int(100 * abs_max_identity), int(100 * interval))]
     print(identity_bins)
     sequences = {x: [] for x in identity_bins}
     out_of_range = {}
