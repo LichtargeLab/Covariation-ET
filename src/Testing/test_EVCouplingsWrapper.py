@@ -4,6 +4,7 @@ Created on February 5, 2020
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 from unittest import TestCase
 import numpy as np
@@ -17,10 +18,24 @@ try:
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-from EVCouplingsWrapper import EVCouplingsWrapper
-from utils import compute_rank_and_coverage
-from test_Base import protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3, write_out_temp_fn
-from test_Base import processes as max_processes
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.EVCouplingsWrapper import EVCouplingsWrapper
+from SupportingClasses.utils import compute_rank_and_coverage
+from Testing.test_Base import protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3, write_out_temp_fn
+from Testing.test_Base import processes as max_processes
 
 
 multiplier = 3
