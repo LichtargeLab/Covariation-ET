@@ -4,18 +4,34 @@ Created on Mar 4, 2020
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 import numpy as np
 from unittest import TestCase
-from test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size, protein_map,
-                       protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map, dna_pair_rev, quad_dna_alpha,
-                       dna_quad_alpha_size, dna_quad_map, dna_quad_rev, pair_protein_alpha, pro_pair_alpha_size,
-                       pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size, pro_quad_map, pro_quad_rev,
-                       dna_single_to_pair_map, dna_single_to_quad_map, pro_single_to_pair_map, pro_single_to_quad_map,
-                       protein_seq1, protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
-                       generate_temp_fn, write_out_temp_fn)
-from SeqAlignment import SeqAlignment
-from MatchMismatchTable import MatchMismatchTable
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.MatchMismatchTable import MatchMismatchTable
+from Testing.test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size,
+                               protein_map, protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map,
+                               dna_pair_rev, quad_dna_alpha, dna_quad_alpha_size, dna_quad_map, dna_quad_rev,
+                               pair_protein_alpha, pro_pair_alpha_size, pro_pair_map, pro_pair_rev, quad_protein_alpha,
+                               pro_quad_alpha_size, pro_quad_map, pro_quad_rev, dna_single_to_pair_map,
+                               dna_single_to_quad_map, pro_single_to_pair_map, pro_single_to_quad_map, protein_seq1,
+                               protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
+                               generate_temp_fn, write_out_temp_fn)
 
 
 class TestMatchMismatchTableInit(TestCase):
