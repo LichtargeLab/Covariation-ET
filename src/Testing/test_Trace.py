@@ -4,27 +4,43 @@ Created on July 11, 2019
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 from unittest import TestCase
 import numpy as np
 from copy import deepcopy
 from shutil import rmtree
 from multiprocessing import Lock, Manager, Queue
-from test_Base import (protein_alpha, protein_alpha_size, _, protein_map, protein_rev, pair_protein_alpha,
-                       pro_pair_alpha_size, pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size,
-                       pro_quad_map, pro_quad_rev, pro_single_to_pair, pro_single_to_pair_map, pro_single_to_quad_map,
-                       protein_seq1, protein_seq2, protein_seq3, protein_msa, protein_aln, protein_num_aln,
-                       protein_phylo_tree, protein_rank_dict, pro_single_ft, pro_single_ft_i2, pro_single_ft_s1,
-                       pro_single_ft_s2, pro_single_ft_s3, pro_pair_ft, pro_pair_ft_i2, pro_pair_ft_s1, pro_pair_ft_s2,
-                       pro_pair_ft_s3, protein_mm_table, protein_mm_table_large, pro_single_to_pair, pro_pair_to_quad,
-                       pro_pair_mismatch, pro_quad_mismatch)
-from utils import compute_rank_and_coverage
-from FrequencyTable import FrequencyTable
-from PositionalScorer import PositionalScorer
-from Trace import (Trace, init_characterization_pool, init_characterization_mm_pool, characterization,
-                   characterization_mm, init_trace_groups, trace_groups, init_trace_ranks, trace_ranks,
-                   check_freq_table, save_freq_table, load_freq_table,
-                   check_numpy_array, save_numpy_array, load_numpy_array)
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.utils import compute_rank_and_coverage
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.PositionalScorer import PositionalScorer
+from SupportingClasses.Trace import (Trace, init_characterization_pool, init_characterization_mm_pool, characterization,
+                                     characterization_mm, init_trace_groups, trace_groups, init_trace_ranks,
+                                     trace_ranks, check_freq_table, save_freq_table, load_freq_table, check_numpy_array,
+                                     save_numpy_array, load_numpy_array)
+from Testing.test_Base import (protein_alpha, protein_alpha_size, _, protein_map, protein_rev, pair_protein_alpha,
+                               pro_pair_alpha_size, pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size,
+                               pro_quad_map, pro_quad_rev, pro_single_to_pair, pro_single_to_pair_map,
+                               pro_single_to_quad_map, protein_seq1, protein_seq2, protein_seq3, protein_msa,
+                               protein_aln, protein_num_aln, protein_phylo_tree, protein_rank_dict, pro_single_ft,
+                               pro_single_ft_i2, pro_single_ft_s1, pro_single_ft_s2, pro_single_ft_s3, pro_pair_ft,
+                               pro_pair_ft_i2, pro_pair_ft_s1, pro_pair_ft_s2, pro_pair_ft_s3, protein_mm_table,
+                               protein_mm_table_large, pro_single_to_pair, pro_pair_to_quad, pro_pair_mismatch,
+                               pro_quad_mismatch)
 
 
 expected_single_tables = {'Inner1': {'match': FrequencyTable(pro_pair_alpha_size, pro_pair_map, pro_pair_rev, 6, 1),
