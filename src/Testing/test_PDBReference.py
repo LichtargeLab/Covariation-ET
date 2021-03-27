@@ -1,10 +1,25 @@
 import os
+import sys
 import unittest
 from datetime import datetime
 from unittest import TestCase
 from Bio.ExPASy import get_sprot_raw
-from test_Base import generate_temp_fn, write_out_temp_fn
-from PDBReference import PDBReference
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.PDBReference import PDBReference
+from Testing.test_Base import generate_temp_fn, write_out_temp_fn
 
 chain_a_pdb_partial = 'ATOM      9  N   GLU A   2     153.913  21.571  52.586  1.00 65.12           N  \n'\
                       'ATOM     10  CA  GLU A   2     153.617  20.553  53.599  1.00 64.46           C  \n'\

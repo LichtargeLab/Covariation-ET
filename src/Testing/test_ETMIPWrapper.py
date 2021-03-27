@@ -4,26 +4,34 @@ Created on February 5, 2020
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 from unittest import TestCase
 import numpy as np
 import pandas as pd
 from time import time
 from shutil import rmtree
+
+#
 from dotenv import find_dotenv, load_dotenv
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-from ETMIPWrapper import ETMIPWrapper
-from utils import compute_rank_and_coverage
-from PhylogeneticTree import PhylogeneticTree
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator, convert_array_to_distance_matrix
-from Trace import load_numpy_array
-from test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3, write_out_temp_fn,
-                       compare_nodes_key, compare_nodes)
-from test_Base import processes as max_processes
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.ETMIPWrapper import ETMIPWrapper
+from SupportingClasses.utils import compute_rank_and_coverage
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator, convert_array_to_distance_matrix
+from SupportingClasses.Trace import load_numpy_array
+from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,
+                               write_out_temp_fn, compare_nodes_key, compare_nodes)
 
 
 pro_str = f'>{protein_seq1.id}\n{protein_seq1.seq}\n>{protein_seq2.id}\n{protein_seq2.seq}\n>{protein_seq3.id}\n{protein_seq3.seq}'

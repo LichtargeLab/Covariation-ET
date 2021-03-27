@@ -17,8 +17,8 @@ try:
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-from Predictor import Predictor
-from utils import compute_rank_and_coverage
+from SupportingClasses.Predictor import Predictor
+from SupportingClasses.utils import compute_rank_and_coverage
 
 
 class EVCouplingsWrapper(Predictor):

@@ -1,10 +1,25 @@
 import os
+import sys
 import unittest
 from shutil import rmtree
 from unittest import TestCase
-from test_Base import protein_seq1, protein_seq2, protein_seq3, protein_msa, min_dm
-from test_Base import id_dm as dm
-from PhylogeneticTree import PhylogeneticTree, get_path_length
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree, get_path_length
+from Testing.test_Base import protein_seq1, protein_seq2, protein_seq3, protein_msa, min_dm
+from Testing.test_Base import id_dm as dm
 
 
 class TestPhylogeneticTreeInit(TestCase):

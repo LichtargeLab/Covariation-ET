@@ -4,6 +4,7 @@ Created on July 10, 2019
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 import numpy as np
 import pandas as pd
@@ -11,15 +12,29 @@ from copy import deepcopy
 from unittest import TestCase
 from itertools import combinations
 from scipy.sparse import csc_matrix
-from test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,  dna_alpha,
-                       dna_alpha_size, dna_map, dna_rev, protein_alpha_size, protein_map, protein_rev,
-                       pro_quad_alpha_size, pro_quad_map, pro_quad_rev, dna_pair_alpha_size, dna_pair_map, dna_pair_rev,
-                       dna_single_to_pair, pro_pair_alpha_size, pro_pair_map, pro_pair_rev, pro_single_to_pair,
-                       pro_pair_mismatch, pro_single_to_pair_map, pro_pair_to_quad, pro_quad_mismatch, protein_num_aln,
-                       write_out_temp_fn)
-from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
-from MatchMismatchTable import MatchMismatchTable
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.MatchMismatchTable import MatchMismatchTable
+from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,  dna_alpha,
+                               dna_alpha_size, dna_map, dna_rev, protein_alpha_size, protein_map, protein_rev,
+                               pro_quad_alpha_size, pro_quad_map, pro_quad_rev, dna_pair_alpha_size, dna_pair_map,
+                               dna_pair_rev, dna_single_to_pair, pro_pair_alpha_size, pro_pair_map, pro_pair_rev,
+                               pro_single_to_pair, pro_pair_mismatch, pro_single_to_pair_map, pro_pair_to_quad,
+                               pro_quad_mismatch, protein_num_aln, write_out_temp_fn)
 
 dna_aln_str = f'>seq1\n{str(dna_seq1.seq)}\n>seq2\n{str(dna_seq2.seq)}\n>seq3\n{str(dna_seq3.seq)}'
 dna_one_seq_aln_str = f'>seq1\n{str(dna_seq1.seq)}'

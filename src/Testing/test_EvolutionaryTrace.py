@@ -14,17 +14,31 @@ from unittest import TestCase
 from Bio.Alphabet import Gapped
 from Bio.Align import MultipleSeqAlignment
 from Bio.Alphabet.IUPAC import IUPACProtein
-from test_Base import processes as max_processes
-from test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft, pro_pair_ft,
-                       protein_mm_freq_tables, protein_mm_table, pro_pair_alpha_size, pro_pair_map, pro_pair_rev)
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from Trace import Trace, load_freq_table, load_numpy_array
-from PhylogeneticTree import PhylogeneticTree
-from PositionalScorer import PositionalScorer
-from FrequencyTable import FrequencyTable
-from SeqAlignment import SeqAlignment
-sys.path.append(os.path.abspath('..'))
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.Trace import Trace, load_freq_table, load_numpy_array
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.PositionalScorer import PositionalScorer
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.SeqAlignment import SeqAlignment
 from EvolutionaryTrace import EvolutionaryTrace, init_var_pool, get_var_pool
+from Testing.test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft,
+                               pro_pair_ft, protein_mm_freq_tables, protein_mm_table, pro_pair_alpha_size, pro_pair_map,
+                               pro_pair_rev)
+from Testing.test_Base import processes as max_processes
 
 
 def check_nodes(test_case, node1, node2):
@@ -1077,8 +1091,18 @@ class TestEvolutionaryTracePerformTraceAndWriteOutETScores(TestCase):
                 expected_query_j = et.non_gapped_aln.query_sequence[pos_j]
                 self.assertEqual(expected_query_j, et_df.loc[ind, 'Query_j'])
                 expected_characters = root_freq_table.get_chars(pos=(pos_i, pos_j))
-                self.assertEqual(len(expected_characters), et_df.loc[ind, 'Variability_Count'],
-                                 (len(expected_characters), et_df.loc[ind, 'Variability_Count'],
+                if et.trace.match_mismatch:
+                    expected_characters = list(sum([(x[:2], x[2:]) for x in expected_characters], ()))
+                print('Expected Characters')
+                print(expected_characters)
+                print('Observed Characters')
+                print(et_df.loc[ind, 'Variability_Characters'].split(','))
+                print('Expected Variability')
+                print(len(expected_characters))
+                print('Observed Variability')
+                print(et_df.loc[ind, 'Variability_Count'])
+                self.assertEqual(len(set(expected_characters)), et_df.loc[ind, 'Variability_Count'],
+                                 (len(set(expected_characters)), et_df.loc[ind, 'Variability_Count'],
                                   set(expected_characters), set(et_df.loc[ind, 'Variability_Characters'].split(','))))
                 self.assertEqual(set(expected_characters),
                                  set(et_df.loc[ind, 'Variability_Characters'].split(',')))

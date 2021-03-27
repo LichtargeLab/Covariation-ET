@@ -4,35 +4,51 @@ Created on July 12, 2019
 @author: Daniel Konecki
 """
 import os
+import sys
 import unittest
 import numpy as np
 from copy import deepcopy
 from unittest import TestCase
-from test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size, protein_map,
-                       protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map, dna_pair_rev, pair_protein_alpha,
-                       pro_pair_alpha_size, pro_pair_map, pro_pair_rev, quad_protein_alpha, pro_quad_alpha_size,
-                       pro_quad_map, pro_quad_rev, protein_seq1, protein_seq2, protein_seq3, protein_msa,
-                       dna_seq1, dna_seq2, dna_seq3, dna_msa, dna_single_to_pair, pro_single_to_pair,
-                       pro_single_to_quad_map, write_out_temp_fn, pro_single_ft, pro_pair_ft, protein_mm_table_large,
-                       protein_mm_freq_tables)
-from SeqAlignment import SeqAlignment
-from FrequencyTable import FrequencyTable
-from MatchMismatchTable import MatchMismatchTable
-from PositionalScorer import (integer_valued_metrics, real_valued_metrics, ambiguous_metrics, single_only_metrics,
-                              pair_only_metrics, min_metrics, max_metrics, PositionalScorer, rank_integer_value_score,
-                              rank_real_value_score, mutual_information_computation, average_product_correction,
-                              filtered_average_product_correction, ratio_computation, angle_computation,
-                              diversity_computation,
-                              group_identity_score, group_plain_entropy_score,
-                              group_mutual_information_score, group_normalized_mutual_information_score,
-                              count_computation, group_match_count_score, group_mismatch_count_score,
-                              group_match_mismatch_count_ratio, group_match_mismatch_count_angle,
-                              group_match_entropy_score, group_mismatch_entropy_score,
-                              group_match_mismatch_entropy_ratio, group_match_mismatch_entropy_angle,
-                              group_match_diversity_score, group_mismatch_diversity_score,
-                              group_match_mismatch_diversity_ratio, group_match_mismatch_diversity_angle,
-                              group_match_diversity_mismatch_entropy_ratio,
-                              group_match_diversity_mismatch_entropy_angle)
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.PositionalScorer import (integer_valued_metrics, real_valued_metrics, ambiguous_metrics,
+                                                single_only_metrics, pair_only_metrics, min_metrics, max_metrics,
+                                                PositionalScorer, rank_integer_value_score, rank_real_value_score,
+                                                mutual_information_computation, average_product_correction,
+                                                filtered_average_product_correction, ratio_computation,
+                                                angle_computation, diversity_computation, group_identity_score,
+                                                group_plain_entropy_score, group_mutual_information_score,
+                                                group_normalized_mutual_information_score, count_computation,
+                                                group_match_count_score, group_mismatch_count_score,
+                                                group_match_mismatch_count_ratio, group_match_mismatch_count_angle,
+                                                group_match_entropy_score, group_mismatch_entropy_score,
+                                                group_match_mismatch_entropy_ratio, group_match_mismatch_entropy_angle,
+                                                group_match_diversity_score, group_mismatch_diversity_score,
+                                                group_match_mismatch_diversity_ratio,
+                                                group_match_mismatch_diversity_angle,
+                                                group_match_diversity_mismatch_entropy_ratio,
+                                                group_match_diversity_mismatch_entropy_angle)
+from Testing.test_Base import (dna_alpha, dna_alpha_size, dna_map, dna_rev, protein_alpha, protein_alpha_size,
+                               protein_map, protein_rev, pair_dna_alpha, dna_pair_alpha_size, dna_pair_map,
+                               dna_pair_rev, pair_protein_alpha, pro_pair_alpha_size, pro_pair_map, pro_pair_rev,
+                               quad_protein_alpha, pro_quad_alpha_size, pro_quad_map, pro_quad_rev, protein_seq1,
+                               protein_seq2, protein_seq3, protein_msa, dna_seq1, dna_seq2, dna_seq3, dna_msa,
+                               dna_single_to_pair, pro_single_to_pair, pro_single_to_quad_map, write_out_temp_fn,
+                               pro_single_ft, pro_pair_ft, protein_mm_table_large, protein_mm_freq_tables)
 
 
 class TestPositionalScorerPackageVariables(TestCase):

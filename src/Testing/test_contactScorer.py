@@ -16,17 +16,31 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import auc, roc_curve, precision_score, recall_score, f1_score, precision_recall_curve
-from test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
-from SeqAlignment import SeqAlignment
-from PDBReference import PDBReference
-from utils import compute_rank_and_coverage
-from EvolutionaryTraceAlphabet import FullIUPACProtein
-from ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores, init_compute_w_and_w2_ave_sub,
-                           compute_w_and_w2_ave_sub, init_clustering_z_score, clustering_z_score)
-from test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3, write_out_temp_fn,
-                       protein_aln)
-sys.path.append(os.path.abspath('..'))
-from EvolutionaryTrace import EvolutionaryTrace
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required classes can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.utils import compute_rank_and_coverage
+from SupportingClasses.EvolutionaryTrace import EvolutionaryTrace
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+from SupportingClasses.ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores,
+                                             init_compute_w_and_w2_ave_sub, compute_w_and_w2_ave_sub,
+                                             init_clustering_z_score, clustering_z_score)
+from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,
+                               write_out_temp_fn, protein_aln)
+from Testing.test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
 
 
 pro_str = f'>{protein_seq1.id}\n{protein_seq1.seq}\n>{protein_seq2.id}\n{protein_seq2.seq}\n>{protein_seq3.id}\n{protein_seq3.seq}'

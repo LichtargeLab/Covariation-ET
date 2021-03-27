@@ -3,12 +3,28 @@ Created on June 17, 2019
 
 @author: daniel
 """
+import os
+import sys
 import unittest
 import numpy as np
 from unittest import TestCase
 from Bio.Alphabet import Gapped, ThreeLetterProtein
 from Bio.Alphabet.IUPAC import IUPACProtein
-from utils import build_mapping, convert_seq_to_numeric, compute_rank_and_coverage
+
+#
+from dotenv import find_dotenv, load_dotenv
+try:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True)
+except IOError:
+    dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
+load_dotenv(dotenv_path)
+source_code_path = os.path.join(os.environ.get('PROJECT_PATH'), 'src')
+# Add the project path to the python path so the required clases can be imported
+if source_code_path not in sys.path:
+    sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
+#
+
+from SupportingClasses.utils import build_mapping, convert_seq_to_numeric, compute_rank_and_coverage
 
 
 class TestBuildMapping(TestCase):
