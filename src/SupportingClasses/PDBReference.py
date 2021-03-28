@@ -196,7 +196,7 @@ class PDBReference(object):
             except IOError:
                 continue
             try:
-                record = read(handle, format='fasta').seq
+                record = str(read(handle, format='fasta').seq)
             except ValueError:
                 continue
             if record:
