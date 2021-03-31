@@ -445,22 +445,46 @@ class TestRetrieveGenBankSeq(TestCase):
         self.assertEqual(res[0], expected_id)
         self.assertEqual(str(res[1]), expected_seq)
 
-    def test_retrieve_acc_empty(self):
-        res = PDBReference._retrieve_genbank_seq([])
+    def test_retrieve_acc_none(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id=None, seq_start=None, seq_end=None)
         self.assertIsNone(res[0])
         self.assertIsNone(res[1])
 
     def test_retrieve_acc_id_type1(self):
-        res = PDBReference._retrieve_genbank_seq([chain_a_gb_id1])
-        self.evaluate_retrieve_genbank(res=res, expected_id=chain_a_gb_id1, expected_seq=chain_a_gb_seq)
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id=None, seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
 
     def test_retrieve_acc_id_type2(self):
-        res = PDBReference._retrieve_genbank_seq([chain_a_gb_id2])
-        self.evaluate_retrieve_genbank(res=res, expected_id=chain_a_gb_id2, expected_seq=chain_a_gb_seq)
+        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id='NP_559417', seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_id='NP_559417',
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
 
-    def test_retrieve_acc_failure_none(self):
-        with self.assertRaises(TypeError):
-            PDBReference._retrieve_genbank_seq(None)
+    def test_retrieve_acc_id_both_types(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
+
+    def test_retrieve_acc_id_no_seq_boundaries(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=None, seq_end=None)
+        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
 
 
 class TestParseExternalSequenceAccessions(TestCase):

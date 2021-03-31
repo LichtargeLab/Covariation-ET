@@ -207,13 +207,22 @@ class PDBReference(object):
         record = None
         accession = None
         Entrez.email = os.environ.get('EMAIL')
+        if seq_start is None:
+            seq_start = 0
+        else:
+            seq_start = seq_start - 1
         for accession in accessions:
             try:
                 handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
             except IOError:
                 continue
+            except AttributeError:
+                continue
             try:
-                record = str(read(handle, format='fasta').seq)[seq_start - 1: seq_end]
+                record = str(read(handle, format='fasta').seq)
+                if seq_end is None:
+                    seq_end = len(record)
+                record = record[seq_start: seq_end]
             except ValueError:
                 continue
             if record:
