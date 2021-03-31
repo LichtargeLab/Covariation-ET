@@ -6,7 +6,7 @@ Created on Aug 17, 2017
 import os
 import re
 import pickle
-from time import time
+from time import time, sleep
 from urllib.error import HTTPError
 from Bio import Entrez
 from Bio.SeqIO import parse, read
@@ -140,7 +140,7 @@ class PDBReference(object):
         return final_seq
 
     @staticmethod
-    def _retrieve_uniprot_seq(db_acc, db_id, seq_start, seq_end):
+    def _retrieve_uniprot_seq(db_acc, db_id, seq_start, seq_end, max_tries=10):
         """
         Retrieve Uniprot Sequence
 
@@ -154,6 +154,8 @@ class PDBReference(object):
             returned will be seq_start - 1 or 0 if None is provided).
             seq_end (int): The last position in the sequence which is represented by the PDB file (the last index
             returned will be seq_end - 1 or the full length of the sequence if None is provided).
+            max_tries (int): The number of times attempts should be made to retrieve a sequence, due to inconsistent
+            behavior from the target server.
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
@@ -162,32 +164,41 @@ class PDBReference(object):
             seq_start = 0
         else:
             seq_start = seq_start - 1
-        accessions = [db_acc, db_id]
+        accessions = []
+        if db_acc:
+            accessions.append(db_acc)
+        if db_id:
+            accessions.append(db_id)
         record = None
         accession = None
         for accession in accessions:
-            try:
-                handle = get_sprot_raw(accession)
-            except HTTPError:
-                print('HTTPError on: {}'.format(accession))
-                continue
-            try:
-                record = PDBReference._parse_uniprot_handle(handle=handle)
-                if seq_end is None:
-                    seq_end = len(record)
-                record = record[seq_start: seq_end]
-            except AttributeError:
-                print('No data returned for accession: {} with handle: {}'.format(accession, handle))
-                continue
-            if record:
-                break
+            tries = 0
+            while (tries < max_tries) and (record is None):
+                if tries > 1:
+                    sleep(1)
+                tries += 1
+                try:
+                    handle = get_sprot_raw(accession)
+                except HTTPError:
+                    print('HTTPError on: {}'.format(accession))
+                    continue
+                try:
+                    record = PDBReference._parse_uniprot_handle(handle=handle)
+                    if seq_end is None:
+                        seq_end = len(record)
+                    record = record[seq_start: seq_end]
+                except AttributeError:
+                    print('No data returned for accession: {} with handle: {}'.format(accession, handle))
+                    continue
+                if record:
+                    break
         # If no sequence could be successfully parsed, reset the accession id.
         if record is None:
             accession = None
         return accession, record
 
     @staticmethod
-    def _retrieve_genbank_seq(db_acc, db_id, seq_start, seq_end):
+    def _retrieve_genbank_seq(db_acc, db_id, seq_start, seq_end, max_tries=10):
         """
         Retrieve GenBank Sequence
 
@@ -199,11 +210,17 @@ class PDBReference(object):
             db_id (str): The identifier for a GenBank sequence.
             seq_start (int): The first position in the sequence which is represented by the PDB file.
             seq_end (int): The last position in the sequence which is represented by the PDB file.
+            max_tries (int): The number of times attempts should be made to retrieve a sequence, due to inconsistent
+            behavior from the target server.
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
         """
-        accessions = [db_acc, db_id]
+        accessions = []
+        if db_acc:
+            accessions.append(db_acc)
+        if db_id:
+            accessions.append(db_id)
         record = None
         accession = None
         Entrez.email = os.environ.get('EMAIL')
@@ -212,21 +229,23 @@ class PDBReference(object):
         else:
             seq_start = seq_start - 1
         for accession in accessions:
-            try:
-                handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
-            except IOError:
-                continue
-            except AttributeError:
-                continue
-            try:
-                record = str(read(handle, format='fasta').seq)
-                if seq_end is None:
-                    seq_end = len(record)
-                record = record[seq_start: seq_end]
-            except ValueError:
-                continue
-            if record:
-                break
+            tries = 0
+            while (tries < max_tries) and (record is None):
+                try:
+                    handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
+                except IOError:
+                    continue
+                except AttributeError:
+                    continue
+                try:
+                    record = str(read(handle, format='fasta').seq)
+                    if seq_end is None:
+                        seq_end = len(record)
+                    record = record[seq_start: seq_end]
+                except ValueError:
+                    continue
+                if record:
+                    break
         if record is None:
             accession = None
         return accession, record
@@ -284,7 +303,27 @@ class PDBReference(object):
                 continue
             external_seqs[source] = {}
             for chain in external_accessions[source]:
-                external_seqs[source][chain] = retrieval_methods[source](accessions=external_accessions[source][chain])
+                if len(external_accessions[source][chain]) > 1:
+                    prev_acc = None
+                    prev_id = None
+                    prev_start = None
+                    prev_end = None
+                    for entry in sorted(external_accessions[source][chain]):
+                        if prev_acc is None:
+                            prev_acc = entry[0]
+                            prev_id = entry[1]
+                            prev_start = entry[2]
+                            prev_end = entry[3]
+                        elif (prev_acc == entry[0]) and (prev_id == entry[1]):
+                            if prev_start > entry[2]:
+                                prev_start = entry[2]
+                            if prev_end < entry[3]:
+                                prev_end = entry[3]
+                        else:
+                            raise ValueError(f'Multiple references for the same chain from different accessions: '
+                                             f'{prev_acc} and {entry[0]}')
+                    external_accessions[source][chain] = [(prev_acc, prev_id, prev_start, prev_end)]
+                external_seqs[source][chain] = retrieval_methods[source](*external_accessions[source][chain][0])
         return external_seqs
 
     def get_sequence(self, chain, source='PDB'):

@@ -120,12 +120,12 @@ chain_g_unp_seqres = 'SEQRES   1 G   74  MET ASP PRO GLU GLY PRO ASP ASN ASP GLU
                      'SEQRES   5 G   74  THR ARG SER ASN SER GLY THR ALA THR ALA GLN HIS LEU          \n'\
                      'SEQRES   6 G   74  LEU GLN PRO GLY GLU ALA THR GLU CYS                          \n'
 chain_a_gb_id1 = '11497664'
-chain_a_gb_id2 = 'WP_010877557'
+chain_a_gb_id2 = 'NP_068884'
 chain_a_gb_seq = 'MKICVFHDYFGAIGGGEKVALTISKLFNADVITTDVDAVPEEFRNKVISLGETIKLPPLKQIDASLKFYFSDFPDYDFYILSGNWVMFASKRHIPNLLYC'\
                  'YTPPRAFYDLYGDYLKKRNILTKPAFILWVKFHRKWAERMLKHIDKVVCISQNIKSRCKNFWGIDAEVIYPPVETSKFKFKCYGDFWLSVNRIYPEKRIE'\
                  'LQLEVFKKLQDEKLYIVGWFSKGDHAERYARKIMKIAPDNVKFLGSVSEEELIDLYSRCKGLLCTAKDEDFGLTPIEAMASGKPVIAVNEGGFKETVINE'\
                  'KTGYLVNADVNEIIDAMKKVSKNPDKFKKDCFRRAKEFDISIFKNKIKDAIRIVKKNFKNNTC'
-chain_a_gb_dbref = 'DBREF  2F9F A    1   167  GB     11497664 WP_010877557      172    338             \n'
+chain_a_gb_dbref = 'DBREF  2F9F A    1   167  GB     11497664 NP_068884      172    338             \n'
 chain_a_gb_seqres = 'SEQRES   1 A  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
                     'SEQRES   2 A  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
                     'SEQRES   3 A  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
@@ -140,7 +140,7 @@ chain_a_gb_seqres = 'SEQRES   1 A  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS 
                     'SEQRES  12 A  177  LEU VAL ASN ALA ASP VAL ASN GLU ILE ILE ASP ALA MSE          \n'\
                     'SEQRES  13 A  177  LYS LYS VAL SER LYS ASN PRO ASP LYS PHE LYS LYS ASP          \n'\
                     'SEQRES  14 A  177  CYS PHE ARG ARG ALA LYS GLU PHE       \n'
-chain_b_gb_dbref = 'DBREF  2F9F B    1   167  GB     11497664 WP_010877557      172    338             \n'
+chain_b_gb_dbref = 'DBREF  2F9F B    1   167  GB     11497664 NP_068884      172    338             \n'
 chain_b_gb_seqres = 'SEQRES   1 B  177  MSE GLY HIS HIS HIS HIS HIS HIS SER HIS PRO VAL GLU          \n'\
                     'SEQRES   2 B  177  THR SER LYS PHE LYS PHE LYS CYS TYR GLY ASP PHE TRP          \n'\
                     'SEQRES   3 B  177  LEU SER VAL ASN ARG ILE TYR PRO GLU LYS ARG ILE GLU          \n'\
@@ -282,313 +282,6 @@ class TestImportPDB(TestCase):
         os.remove(fn)
 
 
-class GetPDBSequence(TestCase):
-
-    def evaluate_get_sequence(self, seq, expected_ids, expected_seq):
-        self.assertTrue(seq[0] in expected_ids)
-        self.assertEqual(seq[1], expected_seq)
-
-    def test_get_seq_pdb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdb = PDBReference(pdb_file=fn)
-        pdb.import_pdb(structure_id='1TES')
-        seq = pdb.get_sequence(chain='A', source='PDB')
-        self.evaluate_get_sequence(seq=seq, expected_ids=['1TES'], expected_seq='MET')
-        os.remove(fn)
-
-    def test_get_seq_unp(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='UNP')
-        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_unp_id1], expected_seq=chain_a_unp_seq)
-        os.remove(fn)
-
-    def test_get_seq_unp_multiple(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
-                                                      chain_g_unp_seqres))
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='G', source='UNP')
-        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_g_unp_id1, chain_g_unp_id2],
-                                   expected_seq=chain_g_unp_seq)
-        seq2 = pdb.get_sequence(chain='A', source='UNP')
-        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_unp_id1, chain_a_unp_id2],
-                                   expected_seq=chain_a_unp_seq)
-        os.remove(fn)
-
-    def test_get_seq_gb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='GB')
-        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
-        os.remove(fn)
-
-    def test_get_seq_gb_multiple(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
-                                                      chain_b_gb_seqres))
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='B', source='GB')
-        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
-        seq2 = pdb.get_sequence(chain='A', source='GB')
-        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_gb_id1, chain_a_gb_id2], expected_seq=chain_a_gb_seq)
-        os.remove(fn)
-
-    def test_get_seq_failure_bad_source(self):
-        fn = write_out_temp_fn(suffix='pdb')
-        pdb = PDBReference(pdb_file=fn)
-        with self.assertRaises(ValueError):
-            pdb.get_sequence(chain='A', source='NCBI')
-        os.remove(fn)
-
-    def test_get_seq_pdb_failure_import(self):
-        fn = write_out_temp_fn(suffix='pdb')
-        pdb = PDBReference(pdb_file=fn)
-        with self.assertRaises(AttributeError):
-            pdb.get_sequence(chain='A', source='PDB')
-        os.remove(fn)
-
-    def test_get_seq_pdb_failure_chain(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdb = PDBReference(pdb_file=fn)
-        pdb.import_pdb(structure_id='1TES')
-        with self.assertRaises(KeyError):
-            pdb.get_sequence(chain='B', source='PDB')
-        os.remove(fn)
-
-    def test_get_seq_unp_failure_no_entries(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='UNP')
-        self.assertIsNone(seq[0])
-        self.assertIsNone(seq[1])
-        os.remove(fn)
-
-    def test_get_seq_unp_failure_bad_chain(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='B', source='UNP')
-        self.assertIsNone(seq[0])
-        self.assertIsNone(seq[1])
-        os.remove(fn)
-
-    def test_get_seq_gb_failure_no_entries(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='A', source='GB')
-        self.assertIsNone(seq[0])
-        self.assertIsNone(seq[1])
-        os.remove(fn)
-
-    def test_get_seq_gb_failure_bad_chain(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        seq = pdb.get_sequence(chain='B', source='GB')
-        self.assertIsNone(seq[0])
-        self.assertIsNone(seq[1])
-        os.remove(fn)
-
-
-class TestParseUniprotHandle(TestCase):
-
-    def test_parse_handle_fail_none(self):
-        with self.assertRaises(AttributeError):
-            PDBReference._parse_uniprot_handle(None)
-
-    def test_parse_handle(self):
-        handle = get_sprot_raw(chain_a_unp_id1)
-        seq = PDBReference._parse_uniprot_handle(handle)
-        self.assertEqual(str(seq), chain_a_unp_seq)
-
-
-class TestRetrieveUniprotSeq(TestCase):
-
-    def evaluate_retrieve_uniprot_seq(self, res, expected_id, expected_seq):
-        self.assertEqual(res[0], expected_id)
-        self.assertEqual(str(res[1]), expected_seq)
-
-    def test_retrieve_acc_none(self):
-        res = PDBReference._retrieve_uniprot_seq(None, None, None, None)
-        self.assertIsNone(res[0])
-        self.assertIsNone(res[1])
-
-    def test_retrieve_acc_id_type1(self):
-        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=165, seq_end=209)
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
-                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
-
-    def test_retrieve_acc_id_type2(self):
-        res = PDBReference._retrieve_uniprot_seq(db_acc=None, db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='YAP1_HUMAN',
-                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
-
-    def test_retrieve_acc_id_both_types(self):
-        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
-                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
-
-    def test_retrieve_acc_id_no_seq_boundaries(self):
-        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=None, seq_end=None)
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
-                                           expected_seq='MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSE'
-                                                        'TDLEALFNAVMNPKTANVPQTVPMRLRKLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVR'
-                                                        'AHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWEMAKTSSGQ'
-                                                        'RYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYY'
-                                                        'INHKNKTTSWLDPRLDPRFAMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQ'
-                                                        'LQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLEQDGGTQNPVSSPGMSQ'
-                                                        'ELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTL'
-                                                        'PSQQNRFPDYLEAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLD'
-                                                        'KESFLTWL')
-
-
-class TestRetrieveGenBankSeq(TestCase):
-
-    def evaluate_retrieve_genbank(self, res, expected_id, expected_seq):
-        self.assertEqual(res[0], expected_id)
-        self.assertEqual(str(res[1]), expected_seq)
-
-    def test_retrieve_acc_none(self):
-        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id=None, seq_start=None, seq_end=None)
-        self.assertIsNone(res[0])
-        self.assertIsNone(res[1])
-
-    def test_retrieve_acc_id_type1(self):
-        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id=None, seq_start=1, seq_end=302)
-        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
-                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
-                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
-                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
-                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
-                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
-
-    def test_retrieve_acc_id_type2(self):
-        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id='NP_559417', seq_start=1, seq_end=302)
-        self.evaluate_retrieve_genbank(res=res, expected_id='NP_559417',
-                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
-                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
-                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
-                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
-                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
-
-    def test_retrieve_acc_id_both_types(self):
-        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=1, seq_end=302)
-        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
-                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
-                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
-                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
-                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
-                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
-
-    def test_retrieve_acc_id_no_seq_boundaries(self):
-        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=None, seq_end=None)
-        self.evaluate_retrieve_genbank(res=res, expected_id='18312750',
-                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
-                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
-                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
-                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
-                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
-
-
-class TestParseExternalSequenceAccessions(TestCase):
-
-    def test_parse_external_seq_acc_no_entries(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {})
-        os.remove(fn)
-
-    def test_parse_external_seq_acc_single_unp(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2]}})
-        os.remove(fn)
-
-    def test_parse_external_seq_acc_multiple_unp(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
-                                                      chain_g_unp_seqres))
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
-                                       'G': [chain_g_unp_id1, chain_g_unp_id2]}})
-        os.remove(fn)
-
-    def test_parse_external_seq_acc_single_gb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2]}})
-        os.remove(fn)
-
-    def test_parse_external_seq_acc_multiple_gb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
-                                                      chain_b_gb_seqres))
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2],
-                                      'B': [chain_a_gb_id1, chain_a_gb_id2]}})
-        os.remove(fn)
-
-    def test_parse_external_seq_acc_multiple_sources(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
-                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
-                                                      chain_a_gb_seqres + chain_b_gb_seqres))
-        acc = PDBReference._parse_external_sequence_accessions(fn)
-        self.assertEqual(acc, {'UNP': {'A': [chain_a_unp_id1, chain_a_unp_id2],
-                                       'G': [chain_g_unp_id1, chain_g_unp_id2]},
-                               'GB': {'A': [chain_a_gb_id1, chain_a_gb_id2],
-                                      'B': [chain_a_gb_id1, chain_a_gb_id2]}})
-        os.remove(fn)
-
-
-class TestParseExternalSequences(TestCase):
-
-    def test_parse_external_seqs_no_entries(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {})
-        os.remove(fn)
-
-    def test_parse_external_seqs_single_unp(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq)}})
-        os.remove(fn)
-
-    def test_parse_external_seqs_multiple_unp(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
-                                                      chain_g_unp_seqres))
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),
-                                                 'G': (chain_g_unp_id1, chain_g_unp_seq)}})
-        os.remove(fn)
-
-    def test_parse_external_seqs_single_gb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq)}})
-        os.remove(fn)
-
-    def test_parse_external_seqs_multiple_gb(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
-                                                      chain_b_gb_seqres))
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
-                                                'B': (chain_a_gb_id1, chain_a_gb_seq)}})
-        os.remove(fn)
-
-    def test_parse_external_seqs_multiple_sources(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
-                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
-                                                      chain_a_gb_seqres + chain_b_gb_seqres))
-        pdb = PDBReference(pdb_file=fn)
-        external_seqs = pdb._parse_external_sequences()
-        self.assertEqual(external_seqs, {'UNP': {'A': (chain_a_unp_id1, chain_a_unp_seq),
-                                                 'G': (chain_g_unp_id1, chain_g_unp_seq)},
-                                         'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
-                                                'B': (chain_a_gb_id1, chain_a_gb_seq)}})
-        os.remove(fn)
-
-
 class TestDBREFParse(TestCase):
 
     def test_dbref_parse_pdb(self):
@@ -657,6 +350,369 @@ class TestDBREFParse(TestCase):
     def test_dbref_parse_fail_empty(self):
         with self.assertRaises(ValueError):
             dbref_parse(dbref_line='')
+
+
+class TestParseExternalSequenceAccessions(TestCase):
+
+    def test_parse_external_seq_acc_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_single_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [('P00703', 'LYSC_MELGA', 19, 147)]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [('P00703', 'LYSC_MELGA', 19, 147)],
+                                       'G': [('Q70Q12', 'Q70Q12_SQUAC', 21, 94)]}})
+        os.remove(fn)
+
+
+    def test_parse_external_seq_acc_single_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'GB': {'A': [('11497664', 'NP_068884', 172, 338)]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'GB': {'A': [('11497664', 'NP_068884', 172, 338)],
+                                      'B': [('11497664', 'NP_068884', 172, 338)]}})
+        os.remove(fn)
+
+    def test_parse_external_seq_acc_multiple_sources(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
+                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
+                                                      chain_a_gb_seqres + chain_b_gb_seqres))
+        acc = PDBReference._parse_external_sequence_accessions(fn)
+        self.assertEqual(acc, {'UNP': {'A': [('P00703', 'LYSC_MELGA', 19, 147)],
+                                       'G': [('Q70Q12', 'Q70Q12_SQUAC', 21, 94)]},
+                               'GB': {'A': [('11497664', 'NP_068884', 172, 338)],
+                                      'B': [('11497664', 'NP_068884', 172, 338)]}})
+        os.remove(fn)
+
+
+class TestParseUniprotHandle(TestCase):
+
+    def test_parse_handle_fail_none(self):
+        with self.assertRaises(AttributeError):
+            PDBReference._parse_uniprot_handle(None)
+
+    def test_parse_handle(self):
+        handle = get_sprot_raw(chain_a_unp_id1)
+        seq = PDBReference._parse_uniprot_handle(handle)
+        self.assertEqual(str(seq), chain_a_unp_seq)
+
+
+class TestRetrieveUniprotSeq(TestCase):
+
+    def evaluate_retrieve_uniprot_seq(self, res, expected_ids, expected_seq):
+        self.assertIn(res[0], expected_ids)
+        self.assertEqual(str(res[1]), expected_seq)
+
+    def test_retrieve_acc_none(self):
+        res = PDBReference._retrieve_uniprot_seq(None, None, None, None)
+        self.assertIsNone(res[0])
+        self.assertIsNone(res[1])
+
+    def test_retrieve_acc_id_type1(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_ids=['P46937'],
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
+
+    def test_retrieve_acc_id_type2(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc=None, db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_ids=['YAP1_HUMAN'],
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
+
+    def test_retrieve_acc_id_both_types(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_ids=['P46937', 'YAP1_HUMAN'],
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
+
+    def test_retrieve_acc_id_no_seq_boundaries(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=None, seq_end=None)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_ids=['P46937'],
+                                           expected_seq='MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSE'
+                                                        'TDLEALFNAVMNPKTANVPQTVPMRLRKLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVR'
+                                                        'AHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWEMAKTSSGQ'
+                                                        'RYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYY'
+                                                        'INHKNKTTSWLDPRLDPRFAMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQ'
+                                                        'LQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLEQDGGTQNPVSSPGMSQ'
+                                                        'ELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTL'
+                                                        'PSQQNRFPDYLEAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLD'
+                                                        'KESFLTWL')
+
+
+class TestRetrieveGenBankSeq(TestCase):
+
+    def evaluate_retrieve_genbank(self, res, expected_ids, expected_seq):
+        self.assertIn(res[0], expected_ids)
+        self.assertEqual(str(res[1]), expected_seq)
+
+    def test_retrieve_acc_none(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id=None, seq_start=None, seq_end=None)
+        self.assertIsNone(res[0])
+        self.assertIsNone(res[1])
+
+    def test_retrieve_acc_id_type1(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id=None, seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_ids=['18312750'],
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
+
+    def test_retrieve_acc_id_type2(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc=None, db_id='NP_559417', seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_ids=['NP_559417'],
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
+
+    def test_retrieve_acc_id_both_types(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=1, seq_end=302)
+        self.evaluate_retrieve_genbank(res=res, expected_ids=['18312750', 'NP_559417'],
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
+
+    def test_retrieve_acc_id_no_seq_boundaries(self):
+        res = PDBReference._retrieve_genbank_seq(db_acc='18312750', db_id='NP_559417', seq_start=None, seq_end=None)
+        self.evaluate_retrieve_genbank(res=res, expected_ids=['18312750', 'NP_559417'],
+                                       expected_seq='MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEV'
+                                                    'EVIAVKDYFLKARDGLLIAVSYSGNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKAS'
+                                                    'APRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAESMRGVAYRVK'
+                                                    'NEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPK'
+                                                    'GVLSFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ')
+
+
+class TestParseExternalSequences(TestCase):
+
+    def test_parse_external_seqs_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertEqual(external_seqs, {})
+        os.remove(fn)
+
+    def test_parse_external_seqs_single_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertIn('UNP', external_seqs)
+        self.assertIn('A', external_seqs['UNP'])
+        self.assertIn(external_seqs['UNP']['A'][0], [chain_a_unp_id1, chain_a_unp_id2])
+        self.assertEqual(external_seqs['UNP']['A'][1], chain_a_unp_seq[18:147])
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertIn('UNP', external_seqs)
+        self.assertIn('A', external_seqs['UNP'])
+        self.assertIn(external_seqs['UNP']['A'][0], [chain_a_unp_id1, chain_a_unp_id2])
+        self.assertEqual(external_seqs['UNP']['A'][1], chain_a_unp_seq[18:147])
+        self.assertIn('G', external_seqs['UNP'])
+        self.assertIn(external_seqs['UNP']['G'][0], [chain_g_unp_id1, chain_g_unp_id2])
+        self.assertEqual(external_seqs['UNP']['G'][1], chain_g_unp_seq[20:94])
+        os.remove(fn)
+
+    def test_parse_external_seqs_single_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertIn('GB', external_seqs)
+        self.assertIn('A', external_seqs['GB'])
+        self.assertIn(external_seqs['GB']['A'][0], [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(external_seqs['GB']['A'][1], chain_a_gb_seq[171:338])
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertIn('GB', external_seqs)
+        self.assertIn('A', external_seqs['GB'])
+        self.assertIn(external_seqs['GB']['A'][0], [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(external_seqs['GB']['A'][1], chain_a_gb_seq[171:338])
+        self.assertIn('B', external_seqs['GB'])
+        self.assertIn(external_seqs['GB']['B'][0], [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(external_seqs['GB']['B'][1], chain_a_gb_seq[171:338])
+        os.remove(fn)
+
+    def test_parse_external_seqs_multiple_sources(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_gb_dbref +
+                                                      chain_b_gb_dbref + chain_a_unp_seqres + chain_g_unp_seqres +
+                                                      chain_a_gb_seqres + chain_b_gb_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        external_seqs = pdb._parse_external_sequences()
+        self.assertIn('UNP', external_seqs)
+        self.assertIn('A', external_seqs['UNP'])
+        self.assertIn(external_seqs['UNP']['A'][0], [chain_a_unp_id1, chain_a_unp_id2])
+        self.assertEqual(external_seqs['UNP']['A'][1], chain_a_unp_seq[18:147])
+        self.assertIn('G', external_seqs['UNP'])
+        self.assertIn(external_seqs['UNP']['G'][0], [chain_g_unp_id1, chain_g_unp_id2])
+        self.assertEqual(external_seqs['UNP']['G'][1], chain_g_unp_seq[20:94])
+        self.assertIn('GB', external_seqs)
+        self.assertIn('A', external_seqs['GB'])
+        self.assertIn(external_seqs['GB']['A'][0], [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(external_seqs['GB']['A'][1], chain_a_gb_seq[171:338])
+        self.assertIn('B', external_seqs['GB'])
+        self.assertIn(external_seqs['GB']['B'][0], [chain_a_gb_id1, chain_a_gb_id2])
+        self.assertEqual(external_seqs['GB']['B'][1], chain_a_gb_seq[171:338])
+        os.remove(fn)
+
+
+class GetPDBSequence(TestCase):
+
+    def evaluate_get_sequence(self, seq, expected_ids, expected_seq):
+        self.assertTrue(seq[0] in expected_ids)
+        self.assertEqual(seq[1], expected_seq)
+
+    def test_get_seq_pdb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        seq = pdb.get_sequence(chain='A', source='PDB')
+        self.evaluate_get_sequence(seq=seq, expected_ids=['1TES'], expected_seq='MET')
+        os.remove(fn)
+
+    def test_get_seq_unp(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_unp_id1, chain_a_unp_id2],
+                                   expected_seq=chain_a_unp_seq[18:147])
+        os.remove(fn)
+
+    def test_get_seq_unp_multiple(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='G', source='UNP')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_g_unp_id1, chain_g_unp_id2],
+                                   expected_seq=chain_g_unp_seq[20:94])
+        seq2 = pdb.get_sequence(chain='A', source='UNP')
+        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_unp_id1, chain_a_unp_id2],
+                                   expected_seq=chain_a_unp_seq[18:147])
+        os.remove(fn)
+
+    def test_get_seq_gb(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='GB')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2],
+                                   expected_seq=chain_a_gb_seq[171:338])
+        os.remove(fn)
+
+    def test_get_seq_gb_multiple(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_gb_dbref + chain_b_gb_dbref + chain_a_gb_seqres +
+                                                      chain_b_gb_seqres))
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='GB')
+        self.evaluate_get_sequence(seq=seq, expected_ids=[chain_a_gb_id1, chain_a_gb_id2],
+                                   expected_seq=chain_a_gb_seq[171:338])
+        seq2 = pdb.get_sequence(chain='A', source='GB')
+        self.evaluate_get_sequence(seq=seq2, expected_ids=[chain_a_gb_id1, chain_a_gb_id2],
+                                   expected_seq=chain_a_gb_seq[171:338])
+        os.remove(fn)
+
+    def test_get_seq_unp_multiple_entries_per_chain_success(self):
+        chain_a_dbref_first = 'DBREF  2RH1 A    1   230  UNP    P07550   ADRB2_HUMAN      1    230             \n'
+        chain_a_dbref_second = 'DBREF  2RH1 A  263   365  UNP    P07550   ADRB2_HUMAN    263    365    \n'
+        chain_a_seq = 'MGQPGNGSAFLLAPNGSHAPDHDVTQERDEVWVVGMGIVMSLIVLAIVFGNVLVITAIAKFERLQTVTNYFITSLACADLVMGLAVVPFGAAHIL'\
+                      'MKMWTFGNFWCEFWTSIDVLCVTASIETLCVIAVDRYFAITSPFKYQSLLTKNKARVIILMVWIVSGLTSFLPIQMHWYRATHQEAINCYANETC'\
+                      'CDFFTNQAYAIASSIVSFYVPLVIMVFVYSRVFQEAKRQLQKIDKSEGRFHVQNLSQVEQDGRTGHGLRRSSKFCLKEHKALKTLGIIMGTFTLC'\
+                      'WLPFFIVNIVHVIQDNLIRKEVYILLNWIGYVNSGFNPLIYCRSPDFRIAFQELLCLRRSSLKAYGNGYSSNGNTGEQSGYHVEQEKENKLLCED'\
+                      'LPGTEDFVGHQGTVPSDNIDSQGRNCSTNDSLL'
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_dbref_first + chain_a_dbref_second + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.evaluate_get_sequence(seq=seq, expected_ids=['P07550', 'ADRB2_HUMAN'],
+                                   expected_seq=chain_a_seq[0:365])
+        os.remove(fn)
+
+    def test_get_seq_unp_multiple_entries_per_chain_failure(self):
+        chain_a_dbref_first = 'DBREF  2RH1 A    1   230  UNP    P07550   ADRB2_HUMAN      1    230             \n'
+        chain_a_dbref_second = 'DBREF  2RH1 A 1002  1161  UNP    P00720   LYS_BPT4         2    161             \n'
+        fn = write_out_temp_fn(suffix='pdb',
+                               out_str=chain_a_dbref_first + chain_a_dbref_second + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdb.get_sequence(chain='A', source='UNP')
+        os.remove(fn)
+
+    def test_get_seq_failure_bad_source(self):
+        fn = write_out_temp_fn(suffix='pdb')
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdb.get_sequence(chain='A', source='NCBI')
+        os.remove(fn)
+
+    def test_get_seq_pdb_failure_import(self):
+        fn = write_out_temp_fn(suffix='pdb')
+        pdb = PDBReference(pdb_file=fn)
+        with self.assertRaises(AttributeError):
+            pdb.get_sequence(chain='A', source='PDB')
+        os.remove(fn)
+
+    def test_get_seq_pdb_failure_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        pdb.import_pdb(structure_id='1TES')
+        with self.assertRaises(KeyError):
+            pdb.get_sequence(chain='B', source='PDB')
+        os.remove(fn)
+
+    def test_get_seq_unp_failure_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='UNP')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
+
+    def test_get_seq_unp_failure_bad_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='UNP')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
+
+    def test_get_seq_gb_failure_no_entries(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='A', source='GB')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
+
+    def test_get_seq_gb_failure_bad_chain(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres)
+        pdb = PDBReference(pdb_file=fn)
+        seq = pdb.get_sequence(chain='B', source='GB')
+        self.assertIsNone(seq[0])
+        self.assertIsNone(seq[1])
+        os.remove(fn)
 
 
 if __name__ == '__main__':
