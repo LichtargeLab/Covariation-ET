@@ -18,7 +18,7 @@ if source_code_path not in sys.path:
     sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
 #
 
-from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.PDBReference import PDBReference, dbref_parse
 from Testing.test_Base import generate_temp_fn, write_out_temp_fn
 
 chain_a_pdb_partial = 'ATOM      9  N   GLU A   2     153.913  21.571  52.586  1.00 65.12           N  \n'\
@@ -547,6 +547,76 @@ class TestParseExternalSequences(TestCase):
                                          'GB': {'A': (chain_a_gb_id1, chain_a_gb_seq),
                                                 'B': (chain_a_gb_id1, chain_a_gb_seq)}})
         os.remove(fn)
+
+
+class TestDBREFParse(TestCase):
+
+    def test_dbref_parse_pdb(self):
+        res = dbref_parse(dbref_line='DBREF  1USC A    1   178  PDB    1USC     1USC             1    178\n')
+        self.assertEqual(res['rec_name'], 'DBREF')
+        self.assertEqual(res['id_code'], '1USC')
+        self.assertEqual(res['chain_id'], 'A')
+        self.assertEqual(res['seq_begin'], 1)
+        self.assertEqual(res['ins_begin'], '')
+        self.assertEqual(res['seq_end'], 178)
+        self.assertEqual(res['ins_end'], '')
+        self.assertEqual(res['db'], 'PDB')
+        self.assertEqual(res['db_acc'], '1USC')
+        self.assertEqual(res['db_id'], '1USC')
+        self.assertEqual(res['db_seq_begin'], 1)
+        self.assertEqual(res['db_ins_begin'], '')
+        self.assertEqual(res['db_seq_end'], 178)
+        self.assertEqual(res['db_ins_end'], '')
+
+    def test_dbref_parse_gb(self):
+        res = dbref_parse(dbref_line='DBREF  1X9H A    1   302  GB     18312750 NP_559417        1    302\n')
+        self.assertEqual(res['rec_name'], 'DBREF')
+        self.assertEqual(res['id_code'], '1X9H')
+        self.assertEqual(res['chain_id'], 'A')
+        self.assertEqual(res['seq_begin'], 1)
+        self.assertEqual(res['ins_begin'], '')
+        self.assertEqual(res['seq_end'], 302)
+        self.assertEqual(res['ins_end'], '')
+        self.assertEqual(res['db'], 'GB')
+        self.assertEqual(res['db_acc'], '18312750')
+        self.assertEqual(res['db_id'], 'NP_559417')
+        self.assertEqual(res['db_seq_begin'], 1)
+        self.assertEqual(res['db_ins_begin'], '')
+        self.assertEqual(res['db_seq_end'], 302)
+        self.assertEqual(res['db_ins_end'], '')
+
+    def test_dbref_parse_unp(self):
+        res = dbref_parse(dbref_line='DBREF  4REX A  165   209  UNP    P46937   YAP1_HUMAN     165    209\n')
+        self.assertEqual(res['rec_name'], 'DBREF')
+        self.assertEqual(res['id_code'], '4REX')
+        self.assertEqual(res['chain_id'], 'A')
+        self.assertEqual(res['seq_begin'], 165)
+        self.assertEqual(res['ins_begin'], '')
+        self.assertEqual(res['seq_end'], 209)
+        self.assertEqual(res['ins_end'], '')
+        self.assertEqual(res['db'], 'UNP')
+        self.assertEqual(res['db_acc'], 'P46937')
+        self.assertEqual(res['db_id'], 'YAP1_HUMAN')
+        self.assertEqual(res['db_seq_begin'], 165)
+        self.assertEqual(res['db_ins_begin'], '')
+        self.assertEqual(res['db_seq_end'], 209)
+        self.assertEqual(res['db_ins_end'], '')
+
+    def test_dbref_parse_fail_dbref1(self):
+        with self.assertRaises(ValueError):
+            dbref_parse(dbref_line='DBREF1 2J83 A   61   322  XXXXXX               YYYYYYYYYYYYYYYYYYYY\n')
+
+    def test_dbref_parse_fail_dbref2(self):
+        with self.assertRaises(ValueError):
+            dbref_parse(dbref_line='DBREF2 2J83 A     ZZZZZZZZZZZZZZZZZZZZZZ     nnnnnnnnnn  mmmmmmmmmm\n')
+
+    def test_dbref_parse_fail_empty_right_len(self):
+        with self.assertRaises(ValueError):
+            dbref_parse(dbref_line='                                                                   \n')
+
+    def test_dbref_parse_fail_empty(self):
+        with self.assertRaises(ValueError):
+            dbref_parse(dbref_line='')
 
 
 if __name__ == '__main__':

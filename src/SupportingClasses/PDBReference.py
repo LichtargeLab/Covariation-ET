@@ -220,23 +220,22 @@ class PDBReference(object):
             chain identifiers as the keys and a list of identifiers as the values.
         """
         external_accessions = {}
-        for record in parse(pdb_fn, 'pdb-seqres'):
-            for ref in record.dbxrefs:
-                xref_db, xref_acc = ref.split(':')
-                if xref_db == 'UNP':
-                    if 'UNP' not in external_accessions:
-                        external_accessions['UNP'] = {}
-                    if record.annotations['chain'] not in external_accessions['UNP']:
-                        external_accessions['UNP'][record.annotations['chain']] = []
-                    external_accessions['UNP'][record.annotations['chain']].append(xref_acc)
-                elif xref_db == 'GB':
-                    if 'GB' not in external_accessions:
-                        external_accessions['GB'] = {}
-                    if record.annotations['chain'] not in external_accessions['GB']:
-                        external_accessions['GB'][record.annotations['chain']] = []
-                    external_accessions['GB'][record.annotations['chain']].append(xref_acc)
-                else:
-                    continue
+        dbrefs = []
+        with open(pdb_fn, 'r') as pdb_handle:
+            for line in pdb_handle:
+                if line.startswith('DBREF'):
+                    curr_dbref = dbref_parse(dbref_line=line)
+                    if curr_dbref['db'] == 'PDB':
+                        continue
+                    elif curr_dbref['db'] not in external_accessions:
+                        external_accessions[curr_dbref['db']] = {}
+                    else:
+                        pass
+                    if curr_dbref['chain_id'] not in external_accessions[curr_dbref['db']]:
+                        external_accessions[curr_dbref['db']][curr_dbref['chain_id']] = []
+                    external_accessions[curr_dbref['db']][curr_dbref['chain_id']].append(
+                        (curr_dbref['db_acc'], curr_dbref['db_id'], curr_dbref['db_seq_begin'],
+                         curr_dbref['db_seq_end']))
         return external_accessions
 
     def _parse_external_sequences(self):
@@ -255,6 +254,8 @@ class PDBReference(object):
         external_accessions = self._parse_external_sequence_accessions(pdb_fn=self.file_name)
         external_seqs = {}
         for source in external_accessions:
+            if source not in retrieval_methods:
+                continue
             external_seqs[source] = {}
             for chain in external_accessions[source]:
                 external_seqs[source][chain] = retrieval_methods[source](accessions=external_accessions[source][chain])
@@ -293,3 +294,38 @@ class PDBReference(object):
         else:
             raise ValueError('Expected sources are PDB, UNP, or GB.')
         return identifier, sequence
+
+
+def dbref_parse(dbref_line):
+    """
+    DBREF Parse
+
+    This function parses values out of a DBREF entry line in a PDB file if it follows the conventions for DBREF standard
+    format version 3.3 as described at https://www.wwpdb.org/documentation/file-format-content/format33/sect3.html
+
+    Args:
+        dbref_line (str): Line starting with "DBREF" which follows the standard format described in above.
+    Return:
+        dict: A dictionary returning each of the elements described in the DBREF standard format description with the
+        following key names: rec_name, id_code, chain_id, seq_begin, ins_begin, seq_end, ins_end, db, db_acc, db_id,
+        db_seq_begin, db_ins_begin, db_seq_end, db_ins_end. The values for keys seq_begin, seq_end, db_seq_begin, and
+        deb_seq_end are returned as ints all others are returned as strs.
+    """
+    try:
+        dbref_entry = {'rec_name': dbref_line[0:6].lstrip().rstrip(), 'id_code': dbref_line[7:11].lstrip().rstrip(),
+                       'chain_id': dbref_line[12], 'seq_begin': int(dbref_line[14:18].lstrip().rstrip()),
+                       'ins_begin': dbref_line[18].lstrip().rstrip(),
+                       'seq_end': int(dbref_line[20:24].lstrip().rstrip()),
+                       'ins_end': dbref_line[24].lstrip().rstrip(), 'db': dbref_line[26:32].lstrip().rstrip(),
+                       'db_acc': dbref_line[33:41].lstrip().rstrip(), 'db_id': dbref_line[42:54].lstrip().rstrip(),
+                       'db_seq_begin': int(dbref_line[55:60].lstrip().rstrip()),
+                       'db_ins_begin': dbref_line[60].lstrip().rstrip(),
+                       'db_seq_end': int(dbref_line[62:67].lstrip().rstrip()),
+                       'db_ins_end': dbref_line[67].lstrip().rstrip()}
+    except ValueError:
+        raise ValueError('Provided DBREF line does not follow the expected format!'
+                         'Only the standard format is currently supported.')
+    except IndexError:
+        raise ValueError('Provided DBREF line does not follow the expected format!'
+                         'Only the standard format is currently supported.')
+    return dbref_entry
