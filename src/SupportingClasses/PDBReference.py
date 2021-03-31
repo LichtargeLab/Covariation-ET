@@ -140,7 +140,7 @@ class PDBReference(object):
         return final_seq
 
     @staticmethod
-    def _retrieve_uniprot_seq(accessions):
+    def _retrieve_uniprot_seq(db_acc, db_id, seq_start, seq_end):
         """
         Retrieve Uniprot Sequence
 
@@ -148,11 +148,21 @@ class PDBReference(object):
         it can successfully parse from the corresponding records.
 
         Argument:
-            accessions (list): A list of Swiss/Uniprot accession ids.
+            db_acc (str): The accession name for a Swiss/Uniprot sequence.
+            db_id (str): The identifier for a Swiss/Uniprot sequence.
+            seq_start (int): The first position in the sequence which is represented by the PDB file (the first index
+            returned will be seq_start - 1 or 0 if None is provided).
+            seq_end (int): The last position in the sequence which is represented by the PDB file (the last index
+            returned will be seq_end - 1 or the full length of the sequence if None is provided).
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
         """
+        if seq_start is None:
+            seq_start = 0
+        else:
+            seq_start = seq_start - 1
+        accessions = [db_acc, db_id]
         record = None
         accession = None
         for accession in accessions:
@@ -163,6 +173,9 @@ class PDBReference(object):
                 continue
             try:
                 record = PDBReference._parse_uniprot_handle(handle=handle)
+                if seq_end is None:
+                    seq_end = len(record)
+                record = record[seq_start: seq_end]
             except AttributeError:
                 print('No data returned for accession: {} with handle: {}'.format(accession, handle))
                 continue
@@ -174,7 +187,7 @@ class PDBReference(object):
         return accession, record
 
     @staticmethod
-    def _retrieve_genbank_seq(accessions):
+    def _retrieve_genbank_seq(db_acc, db_id, seq_start, seq_end):
         """
         Retrieve GenBank Sequence
 
@@ -182,11 +195,15 @@ class PDBReference(object):
         it can successfully parse from the corresponding records.
 
         Argument:
-            accessions (list): A list of GenBank accession ids.
+            db_acc (str): The accession name for a GenBank sequence.
+            db_id (str): The identifier for a GenBank sequence.
+            seq_start (int): The first position in the sequence which is represented by the PDB file.
+            seq_end (int): The last position in the sequence which is represented by the PDB file.
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
         """
+        accessions = [db_acc, db_id]
         record = None
         accession = None
         Entrez.email = os.environ.get('EMAIL')
@@ -196,7 +213,7 @@ class PDBReference(object):
             except IOError:
                 continue
             try:
-                record = str(read(handle, format='fasta').seq)
+                record = str(read(handle, format='fasta').seq)[seq_start - 1: seq_end]
             except ValueError:
                 continue
             if record:

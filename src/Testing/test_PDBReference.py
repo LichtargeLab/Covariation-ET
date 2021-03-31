@@ -405,22 +405,38 @@ class TestRetrieveUniprotSeq(TestCase):
         self.assertEqual(res[0], expected_id)
         self.assertEqual(str(res[1]), expected_seq)
 
-    def test_retrieve_acc_empty(self):
-        res = PDBReference._retrieve_uniprot_seq([])
+    def test_retrieve_acc_none(self):
+        res = PDBReference._retrieve_uniprot_seq(None, None, None, None)
         self.assertIsNone(res[0])
         self.assertIsNone(res[1])
 
     def test_retrieve_acc_id_type1(self):
-        res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id1])
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id=chain_a_unp_id1, expected_seq=chain_a_unp_seq)
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
 
     def test_retrieve_acc_id_type2(self):
-        res = PDBReference._retrieve_uniprot_seq([chain_a_unp_id2])
-        self.evaluate_retrieve_uniprot_seq(res=res, expected_id=chain_a_unp_id2, expected_seq=chain_a_unp_seq)
+        res = PDBReference._retrieve_uniprot_seq(db_acc=None, db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='YAP1_HUMAN',
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
 
-    def test_retrieve_acc_failure_none(self):
-        with self.assertRaises(TypeError):
-            PDBReference._retrieve_uniprot_seq(None)
+    def test_retrieve_acc_id_both_types(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id='YAP1_HUMAN', seq_start=165, seq_end=209)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
+                                           expected_seq='FEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQ')
+
+    def test_retrieve_acc_id_no_seq_boundaries(self):
+        res = PDBReference._retrieve_uniprot_seq(db_acc='P46937', db_id=None, seq_start=None, seq_end=None)
+        self.evaluate_retrieve_uniprot_seq(res=res, expected_id='P46937',
+                                           expected_seq='MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSE'
+                                                        'TDLEALFNAVMNPKTANVPQTVPMRLRKLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVR'
+                                                        'AHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWEMAKTSSGQ'
+                                                        'RYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYY'
+                                                        'INHKNKTTSWLDPRLDPRFAMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQ'
+                                                        'LQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLEQDGGTQNPVSSPGMSQ'
+                                                        'ELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTL'
+                                                        'PSQQNRFPDYLEAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLD'
+                                                        'KESFLTWL')
 
 
 class TestRetrieveGenBankSeq(TestCase):
