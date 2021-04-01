@@ -141,11 +141,6 @@ class DataSetGenerator(object):
             Args:
                 pdb_seq_data (str): The name of the node which has just finished being characterized.
             """
-            # curr_seq = str(pdb_seq_data[1]['Sequence'].seq) if pdb_seq_data[1]['Sequence'] else None
-            # if curr_seq and (curr_seq not in sequences):
-            #     sequences[curr_seq] = []
-            #     unique_ids.add(pdb_seq_data[0])
-            #     seqs_to_write.append(pdb_seq_data[1]['Sequence'])
             if pdb_seq_data[1]['Sequence']:
                 if pdb_seq_data[1]['Sequence'].seq not in sequences:
                     sequences[pdb_seq_data[1]['Sequence'].seq] = []
