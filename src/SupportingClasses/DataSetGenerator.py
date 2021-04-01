@@ -8,12 +8,13 @@ import re
 import argparse
 import numpy as np
 import pandas as pd
-from time import time, sleep
+from tqdm import tqdm
 from re import compile
+from time import time, sleep
 from urllib.error import HTTPError
+import xml.etree.ElementTree as XMLET
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
-import xml.etree.ElementTree as XMLET
 from Bio.Alphabet import Gapped
 from Bio.Alphabet.IUPAC import IUPACProtein
 from Bio import Entrez
@@ -92,13 +93,86 @@ class DataSetGenerator(object):
         self.alignment_path = os.path.join(self.input_path, 'Alignments')
         if not os.path.isdir(self.alignment_path):
             os.makedirs(self.alignment_path)
-        self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignment')
+        self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignments')
         if not os.path.isdir(self.filtered_alignment_path):
             os.makedirs(self.filtered_alignment_path)
         self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignments')
         if not os.path.isdir(self.final_alignment_path):
             os.makedirs(self.final_alignment_path)
         self.protein_data = None
+
+    def identify_protein_sequences(self, data_set_name, protein_list_fn, sources=['PDB'], processes=1, verbose=False):
+        """
+        Identify Protein Sequences
+
+        This function takes a file with a list of PDB ids and extracts the sequences using the indicated source(s).
+
+        Args:
+            data_set_name (str): The name being used for the data set being constructed.
+            protein_list_fn (str): The name of the file where the list of PDB ids  can be
+            found. Each id is expected to be on its own line and should be formatted as a five letter code (first four
+            characters are the PDB ID and the last character is the chain id).
+            sources (list): A list of sources in order of preference, sequences will be parsed from sources in that
+            order until one is retrieved successfully. Current options are: 'UNP' for Swiss/Uniprot, 'GB' for GenBank,
+            and 'PDB' to use the sequence of the PDB being used the the specified chain.
+            processes (int): The number of processes to use when performing the BLAST search.
+            verbose (bool): Whether to write out information during processing.
+        Returns:
+        """
+        if not os.path.isfile(protein_list_fn):
+            raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
+        if verbose:
+            print('Importing protein list')
+        protein_data = import_protein_list(protein_list_fn=protein_list_fn)
+        # Download the PDBs and parse out the query sequences.
+        if verbose:
+            print('Downloading structures and parsing in query sequences')
+            download_pbar = tqdm(total=len(self.protein_data), unit='characterizations')
+        seqs_to_write = []
+        sequences = {}
+        unique_ids = set()
+
+        def update_pdb_download(pdb_seq_data):
+            """
+            Update PDB Download
+
+            This function serves to update the progress bar for PDB downloading and sequence extraction.
+
+            Args:
+                pdb_seq_data (str): The name of the node which has just finished being characterized.
+            """
+            # curr_seq = str(pdb_seq_data[1]['Sequence'].seq) if pdb_seq_data[1]['Sequence'] else None
+            # if curr_seq and (curr_seq not in sequences):
+            #     sequences[curr_seq] = []
+            #     unique_ids.add(pdb_seq_data[0])
+            #     seqs_to_write.append(pdb_seq_data[1]['Sequence'])
+            if pdb_seq_data[1]['Sequence']:
+                if pdb_seq_data[1]['Sequence'].seq not in sequences:
+                    sequences[pdb_seq_data[1]['Sequence'].seq] = []
+                    unique_ids.add(pdb_seq_data[0])
+                    seqs_to_write.append(pdb_seq_data[1]['Sequence'])
+                sequences[pdb_seq_data[1]['Sequence'].seq].append(pdb_seq_data[0])
+            protein_data[pdb_seq_data[0]].update(pdb_seq_data[1])
+            if verbose:
+                download_pbar.update(1)
+                download_pbar.refresh()
+
+        pdb_download_pool = Pool(processes, initializer=init_pdb_processing_pool,
+                                 initargs=(self.pdb_path, self.sequence_path, Lock(), sources, verbose))
+        for p_id in protein_data:
+            pdb_download_pool.apply_async(func=pdb_processing, callback=update_pdb_download,
+                                          args=(p_id, protein_data[p_id]['PDB'], protein_data[p_id]['Chain']))
+        pdb_download_pool.close()
+        pdb_download_pool.join()
+        self.protein_data = protein_data
+        if verbose:
+            print('Unique Sequences Found: {}!'.format(len(sequences)))
+        # Write out a fasta file containing all the query sequences for BLASTing
+        all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
+        if not os.path.isfile(all_seqs_fn):
+            with open(all_seqs_fn, 'w') as all_seqs_handle:
+                write(seqs_to_write, all_seqs_handle, 'fasta')
+        return all_seqs_fn, unique_ids, sequences
 
     def build_pdb_alignment_dataset(self, protein_list_fn, processes=1, max_target_seqs=2500, e_value_threshold=0.05,
                                     database='customuniref90.fasta', remote=False, min_fraction=0.7, min_identity=0.40,
@@ -132,35 +206,39 @@ class DataSetGenerator(object):
         """
         data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
         protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
-        if not os.path.isfile(protein_list_fn):
-            raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
-        print('Importing protein list')
-        self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
-        # Download the PDBs and parse out the query sequences.
-        print('Downloading structures and parsing in query sequences')
-        pool1 = Pool(processes, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
-                                                                                Lock(), sources, verbose))
-        res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
-        pool1.close()
-        pool1.join()
-        res1 = res1.get()
-        seqs_to_write = []
-        sequences = {}
-        unique_ids = set()
-        for data1 in res1:
-            curr_seq = str(data1[1]['Sequence'].seq)
-            if curr_seq and (curr_seq not in sequences):
-                sequences[curr_seq] = []
-                unique_ids.add(data1[0])
-                seqs_to_write.append(data1[1]['Sequence'])
-            sequences[curr_seq].append(data1[0])
-            self.protein_data[data1[0]].update(data1[1])
-        print('Unique Sequences Found: {}!'.format(len(sequences)))
-        # Write out a fasta file containing all the query sequences for BLASTing
-        all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
-        if not os.path.isfile(all_seqs_fn):
-            with open(all_seqs_fn, 'w') as all_seqs_handle:
-                write(seqs_to_write, all_seqs_handle, 'fasta')
+
+        self.identify_protein_sequences(data_set_name=data_set_name, protein_list_fn=protein_list_fn, sources=sources,
+                                        processes=processes, verbose=verbose)
+
+        # if not os.path.isfile(protein_list_fn):
+        #     raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
+        # print('Importing protein list')
+        # self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
+        # # Download the PDBs and parse out the query sequences.
+        # print('Downloading structures and parsing in query sequences')
+        # pool1 = Pool(processes, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
+        #                                                                         Lock(), sources, verbose))
+        # res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
+        # pool1.close()
+        # pool1.join()
+        # res1 = res1.get()
+        # seqs_to_write = []
+        # sequences = {}
+        # unique_ids = set()
+        # for data1 in res1:
+        #     curr_seq = str(data1[1]['Sequence'].seq)
+        #     if curr_seq and (curr_seq not in sequences):
+        #         sequences[curr_seq] = []
+        #         unique_ids.add(data1[0])
+        #         seqs_to_write.append(data1[1]['Sequence'])
+        #     sequences[curr_seq].append(data1[0])
+        #     self.protein_data[data1[0]].update(data1[1])
+        # print('Unique Sequences Found: {}!'.format(len(sequences)))
+        # # Write out a fasta file containing all the query sequences for BLASTing
+        # all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
+        # if not os.path.isfile(all_seqs_fn):
+        #     with open(all_seqs_fn, 'w') as all_seqs_handle:
+        #         write(seqs_to_write, all_seqs_handle, 'fasta')
         # BLAST all query sequences at once
         print('BLASTing query sequences')
         blast_fn, hits = blast_query_sequence(protein_id=data_set_name + '_All_Seqs', blast_path=self.blast_path,
@@ -230,54 +308,59 @@ def import_protein_list(protein_list_fn, verbose=False):
         data set is constructed.
     """
     if verbose:
-        print('Importing protein list from: {}'.format(protein_list_fn))
+        print(f'Importing protein list from: {protein_list_fn}')
     protein_list_fn = os.path.join(protein_list_fn)
     protein_list = {}
     pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3})([A-Z])$')
     with open(protein_list_fn, mode='r') as protein_list_handle:
         for line in protein_list_handle:
             pdb_id_match = pdb_id_pattern.match(line.strip())
-            protein_list[pdb_id_match.group(1)] = {'Chain': pdb_id_match.group(2)}
+            try:
+                protein_list[pdb_id_match.group(0)] = {'PDB': pdb_id_match.group(1), 'Chain': pdb_id_match.group(2)}
+            except AttributeError:
+                raise ValueError(f"Encountered bad formatting in protein list: '{line}'")
     if verbose:
-        print('Imported {} protein IDs'.format(len(protein_list)))
+        print(f'Imported {len(protein_list)} protein IDs')
     return protein_list
 
 
-def download_pdb(pdb_path, protein_id, verbose=False):
+def download_pdb(pdb_path, pdb_id, verbose=False):
     """
     Download PDB
 
-    This function downloads the PDB structure file for the given PDB id provided. The file is stored in a file within a
+    This function downloads the PDB structure file for the given PDB id provided. The file is stored at a path within a
     sub directory of the provided pdb_path named <pdb_path>/{middle two characters of the PDB id}/pdb{pdb id}.ent. If
     the PDB structure is not available then an attempt is made to download it as an 'obsolete' PDB structure. If this is
     also unsuccessful, None is returned.
 
     Args:
         pdb_path (str): The location at which PDB structures should be saved.
-        protein_id (str): Four letter code for a PDB id to be downloaded.
+        pdb_id (str): Four letter code for a PDB id to be downloaded.
         verbose (bool): Whether to write out information during processing.
     Returns:
         str: The path to the PDB file downloaded.
     """
     if verbose:
-        print('Downloading structure data for: {}'.format(protein_id))
+        print(f'Downloading structure data for: {pdb_id}')
+    if pdb_id is None:
+        raise ValueError('None is not a valid value for pdb_id!')
     if not os.path.isdir(pdb_path):
         if verbose:
-            print('Making dir: {}'.format(pdb_path))
+            print(f'Making dir: {pdb_path}')
         os.makedirs(pdb_path)
     pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path, verbose=verbose)
-    pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
+    pdb_file = pdb_list.retrieve_pdb_file(pdb_code=pdb_id, file_format='pdb')
     if not os.path.isfile(pdb_file):
-        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb', obsolete=True)
+        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=pdb_id, file_format='pdb', obsolete=True)
         if not os.path.isfile(pdb_file):
             pdb_file = None
-            print('Structure does not exist in obsolete: {}'.format(protein_id))
+            print(f'Structure does not exist in obsolete: {pdb_id}')
     if verbose:
-        print('Completed {} structure download'.format(protein_id))
+        print(f'Completed {pdb_id} structure download')
     return pdb_file
 
 
-def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, verbose=False):
+def parse_query_sequence(protein_id, pdb_id, chain_id, sequence_path, pdb_fn, sources, verbose=False):
     """
     Parse Query Sequence
 
@@ -291,7 +374,8 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
     chain was used or not.
 
     Args:
-        protein_id (str): Four letter code for a PDB id whose sequence should be parsed.
+        protein_id (str): Full protein ID code (five letter) code for which the sequence should be parsed.
+        pdb_id (str): Four letter code for a PDB id whose sequence should be parsed.
         chain_id (str/char): A single letter code for the chain to be extracted.
         sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
         pdb_fn (str): The full path to the PDB from which the sequence should be extracted.
@@ -308,19 +392,19 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
         Swiss/Uniprot or GenBank).
     """
     if verbose:
-        print('Parsing query sequence for: {}'.format(protein_id))
+        print(f'Parsing query sequence for: {protein_id}')
     if not os.path.isdir(sequence_path):
         if verbose:
-            print('Making dir: {}'.format(sequence_path))
+            print(f'Making dir: {sequence_path}')
         os.makedirs(sequence_path)
-    protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
-    accession = None
+    protein_fasta_fn = os.path.join(sequence_path, f'{protein_id}.fasta')
     if os.path.isfile(protein_fasta_fn):
         if verbose:
-            print('Loading query sequence from file: {}'.format(protein_fasta_fn))
+            print(f'Loading query sequence from file: {protein_fasta_fn}')
         with open(protein_fasta_fn, 'r') as protein_fasta_handle:
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
             sequence = next(seq_iter)
+            seq_len = len(sequence)
             sequence.alphabet = FullIUPACProtein()
             match = re.match(r'.*Target Query: Chain: ([A-Z])(: From ((UniProt)|(GenBank)) Accession: (.*))?$',
                              sequence.description)
@@ -331,29 +415,39 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
                 accession = None
     else:
         curr_pdb = PDBReference(pdb_file=pdb_fn)
-        curr_pdb.import_pdb(structure_id=protein_id)
+        curr_pdb.import_pdb(structure_id=pdb_id)
         accession = None
         seq = None
         chain = None
         source = None
-        remaining_chains = curr_pdb.chains.remove(chain_id)
-        for chain in [chain_id] + (list(sorted(curr_pdb.chains.remove(chain_id))) if remaining_chains else []):
+        remaining_chains = list(sorted(set(curr_pdb.chains) - {chain_id}))
+        for chain in [chain_id] + remaining_chains:
             for source in sources:
-                accession, seq = curr_pdb.get_sequence(chain=chain_id, source=source)
-                if seq:
+                try:
+                    accession, seq = curr_pdb.get_sequence(chain=chain_id, source=source)
+                except ValueError:
+                    accession = 'INSPECT MANUALLY'
+                if seq or (accession == 'INSPECT MANUALLY'):
                     break
-            if seq:
+            if seq or (accession == 'INSPECT MANUALLY'):
                 break
-        desc = ('Target Query: Chain: {}'.format(chain) +
-                (': From UniProt Accession: {}'.format(accession) if source == 'UNP' else '') +
-                (': From GenBank Accession: {}'.format(accession) if source == 'GB' else ''))
-        sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
-        seq_records = [sequence]
-        with open(protein_fasta_fn, 'w') as protein_fasta_handle:
-            write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
+        if seq:
+            desc = (f'Target Query: Chain: {chain}' +
+                    (f': From UniProt Accession: {accession}' if source == 'UNP' else '') +
+                    (f': From GenBank Accession: {accession}' if source == 'GB' else ''))
+            sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
+            seq_len = len(sequence)
+            seq_records = [sequence]
+            with open(protein_fasta_fn, 'w') as protein_fasta_handle:
+                write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
+        else:
+            sequence = None
+            protein_fasta_fn = None
+            seq_len = 0
+            chain = chain_id
     if verbose:
-        print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn, chain, accession
+        print(f'Parsed query sequence for: {protein_id}')
+    return sequence, seq_len, protein_fasta_fn, chain, accession
 
 
 def init_pdb_processing_pool(pdb_path, sequence_path, lock, sources, verbose):
@@ -384,38 +478,38 @@ def init_pdb_processing_pool(pdb_path, sequence_path, lock, sources, verbose):
     verbose_out = verbose
 
 
-def pdb_processing(in_tuple):
+def pdb_processing(protein_id, pdb_id, chain_id):
     """
     PDB Processing
 
     This function serves to download a single PDB id's structure and parse out its query sequence.
 
     Args:
-        in_tuple (tuple): A tuple containing the protein_id and chain_id for the desired protein structure to download
-        and sequence to parse.
+        protein_id (str): The full unique protein ID for the protein being processed.
+        pdb_id (str): The four letter code for the protein being processed.
+        chain_id (str): The single letter code for the chain to be parsed from the provided PDB.
     Returns:
         str: The protein_id passed in, needed for indexing upon return
         dict: A dictionary containing data to be added to the protein_data field of the DataSetGenerator including the
         following keys and values:
-            PDB (str): The full path to the PDB structure downloaded for this protein.
+            PDB_FN (str): The full path to the PDB structure downloaded for this protein.
             Chain (str): The chain for which the sequence was parsed, should be the same as that in the protein list
             file, but may change if that chain is not available. In that case the first (alphabetical) chain is used.
             Sequence (Bio.SeqRecord.SeqRecord): A SeqRecord containing the protein_id and the parsed out sequence.
             Length (int): The length of the parsed sequence.
             Seq_Fasta (str): The full path to the fasta file containing just the query sequence for this protein.
     """
-    protein_id = in_tuple[0]
-    chain_id = in_tuple[1]
     fs_lock.acquire()
-    pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id, verbose=verbose_out)
+    pdb_fn = download_pdb(pdb_path=pdb_dir, pdb_id=pdb_id,  verbose=verbose_out)
     fs_lock.release()
     if pdb_fn is None:
         seq, length, seq_fn, chain_id, ext_id = None, None, None, None, None
     else:
-        seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
-                                                                     sequence_path=sequence_dir, pdb_fn=pdb_fn,
-                                                                     sources=allowed_src, verbose=verbose_out)
-    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
+        seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, pdb_id=pdb_id,
+                                                                     chain_id=chain_id, sequence_path=sequence_dir,
+                                                                     pdb_fn=pdb_fn, sources=allowed_src,
+                                                                     verbose=verbose_out)
+    data = {'PDB_FN': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
             'Accession': ext_id}
     return protein_id, data
 

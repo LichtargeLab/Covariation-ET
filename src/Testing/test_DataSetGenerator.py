@@ -33,6 +33,678 @@ from SupportingClasses.DataSetGenerator import (DataSetGenerator, import_protein
                                                 blast_query_sequence, filter_blast_sequences, align_sequences,
                                                 identity_filter, init_filtering_and_alignment_pool,
                                                 filtering_and_alignment)
+from Testing.test_PDBReference import (chain_a_pdb, chain_a_gb_dbref, chain_b_gb_dbref, chain_a_gb_seqres,
+                                       chain_b_gb_seqres, chain_a_gb_id1, chain_a_gb_id2, chain_a_gb_seq,
+                                       chain_a_unp_dbref, chain_g_unp_dbref, chain_a_unp_seqres, chain_g_unp_seqres,
+                                       chain_a_unp_seq, chain_g_unp_seq, chain_g_unp_seq, chain_a_unp_id1,
+                                       chain_a_unp_id2, chain_g_unp_id1, chain_g_unp_id2)
+from Testing.test_Base import write_out_temp_fn
+
+
+class TestImportProteinList(TestCase):
+
+    def test_empty_list(self):
+        test_fn = 'test_list'
+        with open(test_fn, 'w'):
+            pass
+        protein_list = import_protein_list(protein_list_fn=test_fn)
+        self.assertIsInstance(protein_list, dict)
+        self.assertEqual(protein_list, {})
+        os.remove(test_fn)
+
+    def test_single_element(self):
+        test_fn = 'test_list'
+        with open(test_fn, 'w') as handle:
+            handle.write('4rexA')
+        protein_list = import_protein_list(protein_list_fn=test_fn)
+        self.assertIsInstance(protein_list, dict)
+        self.assertEqual(protein_list, {'4rexA': {'PDB': '4rex', 'Chain': 'A'}})
+        os.remove(test_fn)
+
+    def test_multiple_elements(self):
+        test_fn = 'test_list'
+        with open(test_fn, 'w') as handle:
+            handle.write('4rexA\n6cm4A')
+        protein_list = import_protein_list(protein_list_fn=test_fn)
+        self.assertIsInstance(protein_list, dict)
+        self.assertEqual(protein_list, {'4rexA': {'PDB': '4rex', 'Chain': 'A'},
+                                        '6cm4A': {'PDB': '6cm4', 'Chain': 'A'}})
+        os.remove(test_fn)
+
+    def test_bad_element(self):
+        test_fn = 'test_list'
+        with open(test_fn, 'w') as handle:
+            handle.write('A4rex')
+        with self.assertRaises(ValueError):
+            import_protein_list(protein_list_fn=test_fn)
+        os.remove(test_fn)
+
+    def test_multiple_elements_one_bad_element(self):
+        test_fn = 'test_list'
+        with open(test_fn, 'w') as handle:
+            handle.write('4rexA\nA6cm4')
+        with self.assertRaises(ValueError):
+            import_protein_list(protein_list_fn=test_fn)
+        os.remove(test_fn)
+
+
+class TestDownloadPDB(TestCase):
+
+    def setUp(self):
+        os.mkdir('PDB')
+
+    def tearDown(self):
+        rmtree('PDB')
+
+    def test_download_pdb(self):
+        expected_pdb_fn = os.path.join('PDB', 're', 'pdb4rex.ent')
+        pdb_fn = download_pdb(pdb_path='PDB', pdb_id='4rex')
+        self.assertEqual(pdb_fn, expected_pdb_fn)
+        self.assertTrue(os.path.isfile(pdb_fn))
+
+    def test_download_pdb_obsolete(self):
+        expected_pdb_fn = os.path.join('PDB', 'obsolete', 'hr', 'pdb4hrz.ent')
+        pdb_fn = download_pdb(pdb_path='PDB', pdb_id='4hrz')
+        self.assertEqual(pdb_fn, expected_pdb_fn)
+        self.assertTrue(os.path.isfile(pdb_fn))
+
+    def test_download_pdb_bad_id(self):
+        pdb_fn = download_pdb(pdb_path='PDB', pdb_id='xer4')
+        self.assertIsNone(pdb_fn)
+
+    def test_download_pdb_None(self):
+        with self.assertRaises(ValueError):
+            download_pdb(pdb_path='PDB', pdb_id=None)
+
+
+class TestParseQuerySequence(TestCase):
+
+    def setUp(self):
+        os.mkdir('Seqs')
+
+    def tearDown(self):
+        rmtree('Seqs')
+
+    def test_parse_query_sequence_PDB(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['PDB'])
+        self.assertEqual(seq.seq, 'MET')
+        self.assertEqual(seq_len, 3)
+        self.assertEqual(seq_fn, 'Seqs/1tesA.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertEqual(acc, '1tes')
+        os.remove(fn)
+
+    def test_parse_query_sequence_UNP(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_unp_dbref + chain_a_unp_seqres + chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['UNP'])
+        self.assertEqual(seq.seq, chain_a_unp_seq[18:147])
+        self.assertEqual(seq_len, len(chain_a_unp_seq[18:147]))
+        self.assertEqual(seq_fn, 'Seqs/1tesA.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertIn(acc, [chain_a_unp_id1, chain_a_unp_id2])
+        os.remove(fn)
+
+    def test_parse_query_sequence_UNP_multiple(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=(chain_a_unp_dbref + chain_g_unp_dbref + chain_a_unp_seqres +
+                                                      chain_g_unp_seqres + chain_a_pdb))
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['UNP'])
+        self.assertEqual(seq.seq, chain_a_unp_seq[18:147])
+        self.assertEqual(seq_len, len(chain_a_unp_seq[18:147]))
+        self.assertEqual(seq_fn, 'Seqs/1tesA.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertIn(acc, [chain_a_unp_id1, chain_a_unp_id2])
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesG', pdb_id='1tes', chain_id='G',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['UNP'])
+        self.assertEqual(seq.seq, chain_g_unp_seq[20:94])
+        self.assertEqual(seq_len, len(chain_g_unp_seq[20:94]))
+        self.assertEqual(seq_fn, 'Seqs/1tesG.fasta')
+        self.assertEqual(chain, 'G')
+        self.assertIn(acc, [chain_g_unp_id1, chain_g_unp_id2])
+        os.remove(fn)
+
+    def test_parse_query_sequence_GB(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_gb_dbref + chain_a_gb_seqres + chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['GB'])
+        self.assertEqual(seq.seq, chain_a_gb_seq[171:338])
+        self.assertEqual(seq_len, len(chain_a_gb_seq[171:338]))
+        self.assertEqual(seq_fn, 'Seqs/1tesA.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertIn(acc, [chain_a_gb_id1, chain_a_gb_id2])
+        os.remove(fn)
+
+    def test_parse_query_sequence_secondary_source(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn,
+                                                                sources=['UNP', 'GB', 'PDB'])
+        self.assertEqual(seq.seq, 'MET')
+        self.assertEqual(seq_len, 3)
+        self.assertEqual(seq_fn, 'Seqs/1tesA.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertEqual(acc, '1tes')
+        os.remove(fn)
+
+    def test_parse_query_sequence_multiple_references_success(self):
+        chain_a_dbref_first = 'DBREF  2RH1 A    1   230  UNP    P07550   ADRB2_HUMAN      1    230             \n'
+        chain_a_dbref_second = 'DBREF  2RH1 A  263   365  UNP    P07550   ADRB2_HUMAN    263    365    \n'
+        chain_a_seq = 'MGQPGNGSAFLLAPNGSHAPDHDVTQERDEVWVVGMGIVMSLIVLAIVFGNVLVITAIAKFERLQTVTNYFITSLACADLVMGLAVVPFGAAHIL' \
+                      'MKMWTFGNFWCEFWTSIDVLCVTASIETLCVIAVDRYFAITSPFKYQSLLTKNKARVIILMVWIVSGLTSFLPIQMHWYRATHQEAINCYANETC' \
+                      'CDFFTNQAYAIASSIVSFYVPLVIMVFVYSRVFQEAKRQLQKIDKSEGRFHVQNLSQVEQDGRTGHGLRRSSKFCLKEHKALKTLGIIMGTFTLC' \
+                      'WLPFFIVNIVHVIQDNLIRKEVYILLNWIGYVNSGFNPLIYCRSPDFRIAFQELLCLRRSSLKAYGNGYSSNGNTGEQSGYHVEQEKENKLLCED' \
+                      'LPGTEDFVGHQGTVPSDNIDSQGRNCSTNDSLL'
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_dbref_first + chain_a_dbref_second + chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='2rh1A', pdb_id='2rh1', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['UNP'])
+        self.assertEqual(seq.seq, chain_a_seq[0:365])
+        self.assertEqual(seq_len, len(chain_a_seq[0:365]))
+        self.assertEqual(seq_fn, 'Seqs/2rh1A.fasta')
+        self.assertEqual(chain, 'A')
+        self.assertIn(acc, ['P07550', 'ADRB2_HUMAN'])
+        os.remove(fn)
+
+    def test_parse_query_sequence_multiple_references_failure(self):
+        chain_a_dbref_first = 'DBREF  2RH1 A    1   230  UNP    P07550   ADRB2_HUMAN      1    230             \n'
+        chain_a_dbref_second = 'DBREF  2RH1 A 1002  1161  UNP    P00720   LYS_BPT4         2    161             \n'
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_dbref_first + chain_a_dbref_second + chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='2rh1A', pdb_id='2rh1', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn, sources=['UNP'])
+        self.assertIsNone(seq)
+        self.assertEqual(seq_len, 0)
+        self.assertIsNone(seq_fn)
+        self.assertEqual(chain, 'A')
+        self.assertEqual(acc, 'INSPECT MANUALLY')
+        os.remove(fn)
+
+    def test_parse_query_sequence_fail_no_UNP(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn,
+                                                                sources=['UNP'])
+        self.assertIsNone(seq)
+        self.assertEqual(seq_len, 0)
+        self.assertIsNone(seq_fn)
+        self.assertEqual(chain, 'A')
+        self.assertEqual(acc, None)
+        os.remove(fn)
+
+    def test_parse_query_sequence_fail_no_GB(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        seq, seq_len, seq_fn, chain, acc = parse_query_sequence(protein_id='1tesA', pdb_id='1tes', chain_id='A',
+                                                                sequence_path='Seqs/', pdb_fn=fn,
+                                                                sources=['GB'])
+        self.assertIsNone(seq)
+        self.assertEqual(seq_len, 0)
+        self.assertIsNone(seq_fn)
+        self.assertEqual(chain, 'A')
+        self.assertEqual(acc, None)
+        os.remove(fn)
+
+
+class TestPDBProcessing(TestCase):
+
+    def setUp(self):
+        os.mkdir('PDB')
+        os.mkdir('Seqs')
+
+    def tearDown(self):
+        rmtree('PDB')
+        rmtree('Seqs')
+
+    def test_pdb_processing_pdb(self):
+        expected_pdb_fn = os.path.join('PDB', 're', 'pdb4rex.ent')
+        expected_seq = 'GAMGFEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLS'
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['PDB'], verbose=False)
+        p_id, data = pdb_processing('4rexA', '4rex', 'A')
+        self.assertEqual(p_id, '4rexA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertEqual(str(data['Sequence'].seq), expected_seq)
+        self.assertEqual(data['Length'], len(expected_seq))
+        self.assertEqual(data['Seq_Fasta'], 'Seqs/4rexA.fasta')
+        self.assertEqual(data['Accession'], '4rex')
+
+    def test_pdb_processing_unp(self):
+        expected_pdb_fn = os.path.join('PDB', 're', 'pdb4rex.ent')
+        expected_seq = 'MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSETDLEALFNAVMNPKTANVPQTVPMRLRKLPDS'\
+                       'FFKPPEPKSHSRQASTDAGTAGALTPQHVRAHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWEMAKTSSGQRY'\
+                       'FLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYYINHKNKTTSWLDPRLDPRFAMNQRISQSAPVKQP'\
+                       'PPLAPQSPQGGVMGGSNSNQQQQMRLQQLQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLEQDGGTQNPVSSPGMSQELRT'\
+                       'MTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTLPSQQNRFPDYLEAIPGTNVDLGTLEGDGMNIEGEEL'\
+                       'MPSLQEALSSDILNDMESVLAATKLDKESFLTWL'
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['UNP'], verbose=False)
+        p_id, data = pdb_processing('4rexA', '4rex', 'A')
+        self.assertEqual(p_id, '4rexA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertEqual(str(data['Sequence'].seq), expected_seq[164:209])
+        self.assertEqual(data['Length'], len(expected_seq[164:209]))
+        self.assertEqual(data['Seq_Fasta'], 'Seqs/4rexA.fasta')
+        self.assertIn(data['Accession'], ['P46937', 'YAP1_HUMAN'])
+
+    def test_pdb_processing_gb(self):
+        expected_pdb_fn = os.path.join('PDB', 'x9', 'pdb1x9h.ent')
+        expected_seq = 'MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYSGNTIE'\
+                       'TLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAE'\
+                       'SMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVLSFLRDVGIASVKLAE'\
+                       'IRGVNPLATPRIDALKRRLQ'
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['GB'], verbose=False)
+        p_id, data = pdb_processing('1x9hA', '1x9h', 'A')
+        self.assertEqual(p_id, '1x9hA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertEqual(str(data['Sequence'].seq), expected_seq[0:302])
+        self.assertEqual(data['Length'], len(expected_seq[0:302]))
+        self.assertEqual(data['Seq_Fasta'], 'Seqs/1x9hA.fasta')
+        self.assertIn(data['Accession'], ['NP_559417', '18312750'])
+
+    def test_pdb_processing_secondary_unp(self):
+        expected_pdb_fn = os.path.join('PDB', 'x9', 'pdb1x9h.ent')
+        expected_seq = 'SQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYSGNTIET'\
+                       'LYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQKRPTIIAAES'\
+                       'MRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVLSFLRDVGIASVKLAEI'\
+                       'RGVNPLATPRIDALKRRLQ'
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['UNP', 'PDB'],
+                                 verbose=False)
+        p_id, data = pdb_processing('1x9hA', '1x9h', 'A')
+        self.assertEqual(p_id, '1x9hA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertEqual(str(data['Sequence'].seq), expected_seq)
+        self.assertEqual(data['Length'], len(expected_seq))
+        self.assertEqual(data['Seq_Fasta'], 'Seqs/1x9hA.fasta')
+        self.assertEqual(data['Accession'], '1x9h')
+
+    def test_pdb_processing_secondary_gb(self):
+        expected_pdb_fn = os.path.join('PDB', 're', 'pdb4rex.ent')
+        expected_seq = 'GAMGFEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLS'
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['GB', 'PDB'],
+                                 verbose=False)
+        p_id, data = pdb_processing('4rexA', '4rex', 'A')
+        self.assertEqual(p_id, '4rexA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertEqual(str(data['Sequence'].seq), expected_seq)
+        self.assertEqual(data['Length'], len(expected_seq))
+        self.assertEqual(data['Seq_Fasta'], 'Seqs/4rexA.fasta')
+        self.assertEqual(data['Accession'], '4rex')
+
+    def test_pdb_processing_no_unp(self):
+        expected_pdb_fn = os.path.join('PDB', 'x9', 'pdb1x9h.ent')
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['UNP'], verbose=False)
+        p_id, data = pdb_processing('1x9hA', '1x9h', 'A')
+        self.assertEqual(p_id, '1x9hA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertIsNone(data['Sequence'])
+        self.assertEqual(data['Length'], 0)
+        self.assertIsNone(data['Seq_Fasta'])
+        self.assertIsNone(data['Accession'])
+
+    def test_pdb_processing_no_gb(self):
+        expected_pdb_fn = os.path.join('PDB', 're', 'pdb4rex.ent')
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['GB'], verbose=False)
+        p_id, data = pdb_processing('4rexA', '4rex', 'A')
+        self.assertEqual(p_id, '4rexA')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertIsNone(data['Sequence'])
+        self.assertEqual(data['Length'], 0)
+        self.assertIsNone(data['Seq_Fasta'])
+        self.assertIsNone(data['Accession'])
+
+    def test_pdb_processing_complicated_dbref_failure(self):
+        expected_pdb_fn = os.path.join('PDB', 'rh', 'pdb2rh1.ent')
+        init_pdb_processing_pool(pdb_path='PDB/', sequence_path='Seqs/', lock=Lock(), sources=['UNP'], verbose=False)
+        p_id, data = pdb_processing('2rh1A', '2rh1', 'A')
+        self.assertEqual(p_id, '2rh1A')
+        self.assertEqual(data['PDB_FN'], expected_pdb_fn)
+        self.assertEqual(data['Chain'], 'A')
+        self.assertIsNone(data['Sequence'])
+        self.assertEqual(data['Length'], 0)
+        self.assertIsNone(data['Seq_Fasta'])
+        self.assertIn(data['Accession'], 'INSPECT MANUALLY')
+
+
+class TestDataSetGeneratorIdentifyProteinSequences(TestCase):
+    def setUp(self):
+        os.mkdir('ProteinLists')
+        with open('./ProteinLists/test.txt', 'w') as handle:
+            handle.write('1uscB\n4rexA\n1x9hB\n2rh1A')
+
+    def tearDown(self):
+        rmtree('ProteinLists')
+        rmtree('PDB')
+        rmtree('Sequences')
+        rmtree('BLAST')
+        rmtree('Filtered_BLAST')
+        rmtree('Alignments')
+        rmtree('Filtered_Alignments')
+        rmtree('Final_Alignments')
+
+    def test_datasetgenerator_identify_protein_sequences_pdb_only_single_process(self):
+        expected_seq_1usc = 'MRSYRAQGPLPGFYHYYPGVPAVVGVRVEERVNFCPAVWNTGLSADPPLFGVSISPKRFTHGLLLKARRFSASFHPFGQKDLVHWLGSH'\
+                            'SGREVDKGQAPHFLGHTGVPILEGAYAAYELELLEVHTFGDHDLFVGRVVAVWEEEGLLDEKGRPKPGLALLYYGKGLYGRPAEETFAP'
+        expected_seq_4rex = 'GAMGFEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLS'
+        expected_seq_1x9h = 'SQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYSG'\
+                            'NTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQ'\
+                            'KRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVLS'\
+                            'FLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        expected_seq_2rh1 = 'DEVWVVGMGIVMSLIVLAIVFGNVLVITAIAKFERLQTVTNYFITSLACADLVMGLAVVPFGAAHILMKMWTFGNFWCEFWTSIDVLCV'\
+                            'TASIETLCVIAVDRYFAITSPFKYQSLLTKNKARVIILMVWIVSGLTSFLPIQMHWYRATHQEAINCYAEETCCDFFTNQAYAIASSIV'\
+                            'SFYVPLVIMVFVYSRVFQEAKRQL'\
+                            'KFCLKEHKALKTLGIIMGTFTLCWLPFFIVNIVHVIQDNLIRKEVYILLNWIGYVNSGFNPLIYCRSPDFRIAFQELLCL'\
+                            'NIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLLTKSPSLNAAKSELDKAIGRNTNGVITKDEAEKLFNQDVDAAVRGILRNAKLKPVYDS'\
+                            'LDAVRRAALINMVFQMGETGVAGFTNSLRMLQQKRWDEAAVNLAKSRWYNQTPNRAKRVITTFRTGTWDAY'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['PDB'],
+                                                          processes=1)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1uscB', '4rexA', '1x9hB', '2rh1A'})), 4)
+        self.assertEqual(seqs, {expected_seq_1usc: ['1uscB'], expected_seq_4rex: ['4rexA'],
+                                expected_seq_1x9h: ['1x9hB'], expected_seq_2rh1: ['2rh1A']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': expected_seq_1usc, 'Length': len(expected_seq_1usc),
+                                   'Seq_Fasta': './Sequences/1uscB.fasta', 'Accession': '1usc'},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex, 'Length': len(expected_seq_4rex),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': '4rex'},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h, 'Length': len(expected_seq_1x9h),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': '1x9h'},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': expected_seq_2rh1, 'Length': len(expected_seq_2rh1),
+                                   'Seq_Fasta': './Sequences/2rh1A.fasta', 'Accession': '2rh1'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if key == 'Sequence':
+                    self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                else:
+                    self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_pdb_only_multiple_processes(self):
+        expected_seq_1usc = 'MRSYRAQGPLPGFYHYYPGVPAVVGVRVEERVNFCPAVWNTGLSADPPLFGVSISPKRFTHGLLLKARRFSASFHPFGQKDLVHWLGSH'\
+                            'SGREVDKGQAPHFLGHTGVPILEGAYAAYELELLEVHTFGDHDLFVGRVVAVWEEEGLLDEKGRPKPGLALLYYGKGLYGRPAEETFAP'
+        expected_seq_4rex = 'GAMGFEIPDDVPLPAGWEMAKTSSGQRYFLNHIDQTTTWQDPRKAMLS'
+        expected_seq_1x9h = 'SQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYSG'\
+                            'NTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEFQ'\
+                            'KRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVLS'\
+                            'FLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        expected_seq_2rh1 = 'DEVWVVGMGIVMSLIVLAIVFGNVLVITAIAKFERLQTVTNYFITSLACADLVMGLAVVPFGAAHILMKMWTFGNFWCEFWTSIDVLCV'\
+                            'TASIETLCVIAVDRYFAITSPFKYQSLLTKNKARVIILMVWIVSGLTSFLPIQMHWYRATHQEAINCYAEETCCDFFTNQAYAIASSIV'\
+                            'SFYVPLVIMVFVYSRVFQEAKRQL'\
+                            'KFCLKEHKALKTLGIIMGTFTLCWLPFFIVNIVHVIQDNLIRKEVYILLNWIGYVNSGFNPLIYCRSPDFRIAFQELLCL'\
+                            'NIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLLTKSPSLNAAKSELDKAIGRNTNGVITKDEAEKLFNQDVDAAVRGILRNAKLKPVYDS'\
+                            'LDAVRRAALINMVFQMGETGVAGFTNSLRMLQQKRWDEAAVNLAKSRWYNQTPNRAKRVITTFRTGTWDAY'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['PDB'],
+                                                          processes=2)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1uscB', '4rexA', '1x9hB', '2rh1A'})), 4)
+        self.assertEqual(seqs, {expected_seq_1usc: ['1uscB'], expected_seq_4rex: ['4rexA'],
+                                expected_seq_1x9h: ['1x9hB'], expected_seq_2rh1: ['2rh1A']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': expected_seq_1usc, 'Length': len(expected_seq_1usc),
+                                   'Seq_Fasta': './Sequences/1uscB.fasta', 'Accession': '1usc'},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex, 'Length': len(expected_seq_4rex),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': '4rex'},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h, 'Length': len(expected_seq_1x9h),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': '1x9h'},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': expected_seq_2rh1, 'Length': len(expected_seq_2rh1),
+                                   'Seq_Fasta': './Sequences/2rh1A.fasta', 'Accession': '2rh1'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if key == 'Sequence':
+                    self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                else:
+                    self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_unp_only_single_process(self):
+        expected_seq_4rex = 'MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSETDLEALFNAVMNPKTANVPQTVPMRLR'\
+                            'KLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVRAHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWE'\
+                            'MAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYYINHKNKTTSWLDPRLDPRF'\
+                            'AMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQLQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLE'\
+                            'QDGGTQNPVSSPGMSQELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTLPSQQNRFPDYL'\
+                            'EAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLDKESFLTWL'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['UNP'],
+                                                          processes=1)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'4rexA'})), 1)
+        self.assertEqual(seqs, {expected_seq_4rex[164:209]: ['4rexA']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex[164:209], 'Length': len(expected_seq_4rex[164:209]),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': ['P46937', 'YAP1_HUMAN']},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_unp_only_multiple_processes(self):
+        expected_seq_4rex = 'MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSETDLEALFNAVMNPKTANVPQTVPMRLR' \
+                            'KLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVRAHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWE' \
+                            'MAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYYINHKNKTTSWLDPRLDPRF' \
+                            'AMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQLQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLE' \
+                            'QDGGTQNPVSSPGMSQELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTLPSQQNRFPDYL' \
+                            'EAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLDKESFLTWL'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['UNP'],
+                                                          processes=2)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'4rexA'})), 1)
+        self.assertEqual(seqs, {expected_seq_4rex[164:209]: ['4rexA']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex[164:209], 'Length': len(expected_seq_4rex[164:209]),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': ['P46937', 'YAP1_HUMAN']},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_gb_only_single_process(self):
+        expected_seq_1x9h = 'MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYS'\
+                            'GNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEF'\
+                            'QKRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVL'\
+                            'SFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['GB'],
+                                                          processes=1)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1x9hB'})), 1)
+        self.assertEqual(seqs, {expected_seq_1x9h[0:302]: ['1x9hB']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h[0:302], 'Length': len(expected_seq_1x9h[0:302]),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': ['18312750', 'NP_559417']},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_gb_only_multiple_processes(self):
+        expected_seq_1x9h = 'MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYS' \
+                            'GNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEF' \
+                            'QKRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVL' \
+                            'SFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt', sources=['GB'],
+                                                          processes=2)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1x9hB'})), 1)
+        self.assertEqual(seqs, {expected_seq_1x9h[0:302]: ['1x9hB']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': None},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h[0:302], 'Length': len(expected_seq_1x9h[0:302]),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': ['18312750', 'NP_559417']},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_multiple_sources_only_single_process(self):
+        expected_seq_1usc = 'MRSYRAQGPLPGFYHYYPGVPAVVGVRVEERVNFCPAVWNTGLSADPPLFGVSISPKRFTHGLLLKARRFSASFHPFGQKDLVHWLGSH' \
+                            'SGREVDKGQAPHFLGHTGVPILEGAYAAYELELLEVHTFGDHDLFVGRVVAVWEEEGLLDEKGRPKPGLALLYYGKGLYGRPAEETFAP'
+        expected_seq_4rex = 'MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSETDLEALFNAVMNPKTANVPQTVPMRLR' \
+                            'KLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVRAHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWE' \
+                            'MAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYYINHKNKTTSWLDPRLDPRF' \
+                            'AMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQLQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLE' \
+                            'QDGGTQNPVSSPGMSQELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTLPSQQNRFPDYL' \
+                            'EAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLDKESFLTWL'
+        expected_seq_1x9h = 'MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYS' \
+                            'GNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEF' \
+                            'QKRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVL' \
+                            'SFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt',
+                                                          sources=['UNP', 'GB', 'PDB'], processes=1)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1uscB', '4rexA', '1x9hB'})), 3)
+        self.assertEqual(seqs, {expected_seq_1usc: ['1uscB'], expected_seq_4rex[164:209]: ['4rexA'],
+                                expected_seq_1x9h[0:302]: ['1x9hB']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': expected_seq_1usc, 'Length': len(expected_seq_1usc),
+                                   'Seq_Fasta': './Sequences/1uscB.fasta', 'Accession': '1usc'},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex[164:209], 'Length': len(expected_seq_4rex[164:209]),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': ['P46937', 'YAP1_HUMAN']},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h[0:302], 'Length': len(expected_seq_1x9h[0:302]),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': ['18312750', 'NP_559417']},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+
+    def test_datasetgenerator_identify_protein_sequences_multiple_sources_only_multiple_processes(self):
+        expected_seq_1usc = 'MRSYRAQGPLPGFYHYYPGVPAVVGVRVEERVNFCPAVWNTGLSADPPLFGVSISPKRFTHGLLLKARRFSASFHPFGQKDLVHWLGSH' \
+                            'SGREVDKGQAPHFLGHTGVPILEGAYAAYELELLEVHTFGDHDLFVGRVVAVWEEEGLLDEKGRPKPGLALLYYGKGLYGRPAEETFAP'
+        expected_seq_4rex = 'MDPGQQPPPQPAPQGQGQPPSQPPQGQGPPSGPGQPAPAATQAAPQAPPAGHQIVHVRGDSETDLEALFNAVMNPKTANVPQTVPMRLR' \
+                            'KLPDSFFKPPEPKSHSRQASTDAGTAGALTPQHVRAHSSPASLQLGAVSPGTLTPTGVVSGPAATPTAQHLRQSSFEIPDDVPLPAGWE' \
+                            'MAKTSSGQRYFLNHIDQTTTWQDPRKAMLSQMNVTAPTSPPVQQNMMNSASGPLPDGWEQAMTQDGEIYYINHKNKTTSWLDPRLDPRF' \
+                            'AMNQRISQSAPVKQPPPLAPQSPQGGVMGGSNSNQQQQMRLQQLQMEKERLRLKQQELLRQAMRNINPSTANSPKCQELALRSQLPTLE' \
+                            'QDGGTQNPVSSPGMSQELRTMTTNSSDPFLNSGTYHSRDESTDSGLSMSSYSVPRTPDDFLNSVDEMDTGDTINQSTLPSQQNRFPDYL' \
+                            'EAIPGTNVDLGTLEGDGMNIEGEELMPSLQEALSSDILNDMESVLAATKLDKESFLTWL'
+        expected_seq_1x9h = 'MSQLLQDYLNWENYILRRVDFPTSYVVEGEVVRIEAMPRLYISGMGGSGVVADLIRDFSLTWNWEVEVIAVKDYFLKARDGLLIAVSYS' \
+                            'GNTIETLYTVEYAKRRRIPAVAITTGGRLAQMGVPTVIVPKASAPRAALPQLLTAALHVVAKVYGIDVKIPEGLEPPNEALIHKLVEEF' \
+                            'QKRPTIIAAESMRGVAYRVKNEFNENAKIEPSVEILPEAHHNWIEGSERAVVALTSPHIPKEHQERVKATVEIVGGSIYAVEMHPKGVL' \
+                            'SFLRDVGIASVKLAEIRGVNPLATPRIDALKRRLQ'
+        dsg = DataSetGenerator(input_path='./')
+        fn, unique, seqs = dsg.identify_protein_sequences(data_set_name='test',
+                                                          protein_list_fn='./ProteinLists/test.txt',
+                                                          sources=['UNP', 'GB', 'PDB'], processes=2)
+        self.assertEqual(fn, './Sequences/test.fasta')
+        self.assertEqual(len(set(unique).intersection({'1uscB', '4rexA', '1x9hB'})), 3)
+        self.assertEqual(seqs, {expected_seq_1usc: ['1uscB'], expected_seq_4rex[164:209]: ['4rexA'],
+                                expected_seq_1x9h[0:302]: ['1x9hB']})
+        self.assertEqual(len(set(dsg.protein_data.keys()) | {'1uscB', '4rexA', '1x9hB', '2rh1A'}), 4)
+        expected_dict = {'1uscB': {'PDB': '1usc', 'Chain': 'B', 'PDB_FN': './PDB/us/pdb1usc.ent',
+                                   'Sequence': expected_seq_1usc, 'Length': len(expected_seq_1usc),
+                                   'Seq_Fasta': './Sequences/1uscB.fasta', 'Accession': '1usc'},
+                         '4rexA': {'PDB': '4rex', 'Chain': 'A', 'PDB_FN': './PDB/re/pdb4rex.ent',
+                                   'Sequence': expected_seq_4rex[164:209], 'Length': len(expected_seq_4rex[164:209]),
+                                   'Seq_Fasta': './Sequences/4rexA.fasta', 'Accession': ['P46937', 'YAP1_HUMAN']},
+                         '1x9hB': {'PDB': '1x9h', 'Chain': 'B', 'PDB_FN': './PDB/x9/pdb1x9h.ent',
+                                   'Sequence': expected_seq_1x9h[0:302], 'Length': len(expected_seq_1x9h[0:302]),
+                                   'Seq_Fasta': './Sequences/1x9hB.fasta', 'Accession': ['18312750', 'NP_559417']},
+                         '2rh1A': {'PDB': '2rh1', 'Chain': 'A', 'PDB_FN': './PDB/rh/pdb2rh1.ent',
+                                   'Sequence': None, 'Length': 0, 'Seq_Fasta': None, 'Accession': 'INSPECT MANUALLY'}}
+        for p_id in dsg.protein_data:
+            for key in dsg.protein_data[p_id]:
+                if dsg.protein_data[p_id][key] is None:
+                    self.assertIsNone(expected_dict[p_id][key])
+                else:
+                    if key == 'Sequence':
+                        self.assertEqual(str(dsg.protein_data[p_id][key].seq), expected_dict[p_id][key])
+                    else:
+                        if key == 'Accession':
+                            self.assertIn(dsg.protein_data[p_id][key], expected_dict[p_id][key])
+                        else:
+                            self.assertEqual(dsg.protein_data[p_id][key], expected_dict[p_id][key])
 
 
 class TestDataSetGenerator(TestCase):
