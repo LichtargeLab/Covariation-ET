@@ -231,6 +231,9 @@ class PDBReference(object):
         for accession in accessions:
             tries = 0
             while (tries < max_tries) and (record is None):
+                if tries > 1:
+                    sleep(1)
+                tries += 1
                 try:
                     handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
                 except IOError:
