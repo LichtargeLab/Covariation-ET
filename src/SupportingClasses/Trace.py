@@ -92,7 +92,6 @@ class Trace(object):
 
     def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
                                           single_to_pair=None, processes=1, write_out_sub_aln=True,
-                                          # write_out_freq_table=True, maximum_iterations=10000):
                                           write_out_freq_table=True, maximum_iterations=100000, single_map=None):
         """
         Characterize Rank Group
@@ -152,7 +151,6 @@ class Trace(object):
         pool = Pool(processes=processes, initializer=init_characterization_pool,
                     initargs=(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, self.aln, self.pos_size,
                               visited, frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-                              # write_out_freq_table, processes, maximum_iterations))
                               write_out_freq_table, processes, maximum_iterations, single_map))
         for char_node in to_characterize:
             pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
@@ -253,15 +251,6 @@ class Trace(object):
             pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
         pool.close()
         pool.join()
-        #
-        # init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
-        #                               comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited,
-        #                               frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-        #                               write_out_freq_table, maximum_iterations)
-        # for char_node in to_characterize:
-        #     res = characterization_mm(node_name=char_node[0], node_type=char_node[1])
-        #     update_characterization(res)
-        #
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
         if len(frequency_tables) != len(to_characterize):
@@ -313,7 +302,6 @@ class Trace(object):
                                                    single_to_pair=curr_single_to_pair, processes=processes,
                                                    write_out_sub_aln=write_out_sub_aln,
                                                    write_out_freq_table=write_out_freq_table,
-                                                   # maximum_iterations=maximum_iterations)
                                                    maximum_iterations=maximum_iterations, single_map=single_mapping)
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
@@ -379,12 +367,6 @@ class Trace(object):
             pool1.apply_async(trace_groups, (node_name,), callback=update_group)
         pool1.close()
         pool1.join()
-        #
-        # init_trace_groups(scorer, self.match_mismatch, self.unique_nodes, self.low_memory, unique_dir)
-        # for node_name in self.unique_nodes:
-        #     res = trace_groups(node_name=node_name)
-        #     update_group(res)
-        #
         group_pbar.close()
         # For each rank collect all group scores and compute a final rank score
         self.rank_scores = {}
@@ -412,12 +394,6 @@ class Trace(object):
             pool2.apply_async(trace_ranks, (rank,), callback=update_rank)
         pool2.close()
         pool2.join()
-        #
-        # init_trace_ranks(scorer, self.assignments, self.unique_nodes, self.low_memory, unique_dir)
-        # for rank in sorted(self.assignments.keys(), reverse=True):
-        #     res = trace_ranks(rank=rank)
-        #     update_rank(res)
-        #
         rank_pbar.close()
         if len(self.rank_scores) < len(self.assignments):
             raise ValueError('Trace incomplete, check initialization and/or input variables.')
@@ -643,7 +619,6 @@ def load_numpy_array(mat, low_memory):
 
 def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, alignment, pos_size,
                                components, sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
-                               # write_out_freq_table, processes, maximum_iterations=10000):
                                write_out_freq_table, processes, maximum_iterations=10000, single_map=None):
     """
     Init Characterization Pool
@@ -776,17 +751,6 @@ def characterization(node_name, node_type):
                 freq_table = pair_table
             else:
                 raise ValueError('Unknown table type encountered in characterization!')
-            # Characterize the alignment using FrequencyTable()
-            # sub_num_aln = sub_aln._alignment_to_num(mapping=s_map)
-            # if single:
-            #     freq_table = FrequencyTable(alphabet_size=s_size, mapping=s_map, reverse_mapping=s_rev,
-            #                                 seq_len=sub_aln.seq_length, pos_size=1)
-            # elif pair:
-            #     freq_table = FrequencyTable(alphabet_size=p_size, mapping=p_map, reverse_mapping=p_rev,
-            #                                 seq_len=sub_aln.seq_length, pos_size=2)
-            # else:
-            #     raise ValueError('Unknown table type encountered in characterization!')
-            # freq_table.characterize_alignment(num_aln=sub_num_aln, single_to_pair=s_to_p)
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
@@ -939,7 +903,6 @@ def characterization_mm(node_name, node_type):
         node_name (str): The node name is returned to keep track of which node has been most recently processed (in the
         multiprocessing context).
     """
-    # print(f'Characterizing {node_name}')
     # Check whether the alignment characterization has already been saved to file.
     match_check, match_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type=t_type + '_match',
                                              out_dir=u_dir)
@@ -1000,7 +963,6 @@ def characterization_mm(node_name, node_type):
             tries = {}
             while len(descendants) > 0:
                 descendant = descendants.pop()
-                # print(f'\tLoading: {descendant}')
                 # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
                 # the dictionary (i.e. another process is still characterizing that descendant), until all are
                 # successfully retrieved.
@@ -1142,7 +1104,6 @@ def trace_ranks(rank):
         int: The rank which has been scored (this will be used to update the rank_scores dictionary).
         dict: A dictionary containing the single and pair position rank score for the specified rank.
     """
-    # print(f'rank: {rank}')
     pos_type = 'single' if pos_scorer.position_size == 1 else 'pair'
     # Check whether the group score has already been saved to file.
     arr_check, arr_fn = check_numpy_array(low_memory=low_mem, node_name=str(rank), pos_type=pos_type,
@@ -1156,7 +1117,6 @@ def trace_ranks(rank):
         # For each group in the rank update the cumulative sum for the rank
         for g in assignments[rank]:
             node_name = assignments[rank][g]['node'].name
-            # print(f'node_name: {node_name}')
             group_score = load_numpy_array(mat=unique_nodes[node_name]['group_scores'], low_memory=low_mem)
             group_scores += group_score
         # Compute the rank score over the cumulative sum of group scores.
