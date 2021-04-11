@@ -127,7 +127,7 @@ class DataSetGenerator(object):
         # Download the PDBs and parse out the query sequences.
         if verbose:
             print('Downloading structures and parsing in query sequences')
-            download_pbar = tqdm(total=len(self.protein_data), unit='Protein IDs')
+            download_pbar = tqdm(total=len(protein_data), unit='Protein IDs')
         seqs_to_write = []
         sequences = {}
         unique_ids = set()
