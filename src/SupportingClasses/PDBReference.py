@@ -268,7 +268,6 @@ class PDBReference(object):
             chain identifiers as the keys and a list of identifiers as the values.
         """
         external_accessions = {}
-        dbrefs = []
         with open(pdb_fn, 'r') as pdb_handle:
             for line in pdb_handle:
                 if line.startswith('DBREF'):
