@@ -114,6 +114,8 @@ class Trace(object):
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
             maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
+            single_map (dict): A dictionary mapping the letters of a single letter alphabet to numerical positions, used
+            when position size is >1 and the alpha_mapping is used for a larger alphabet map.
         """
         visited = {}
         components = False
@@ -648,6 +650,8 @@ def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
         processes (int): The number of processes being used by the initialized pool.
         maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
+        single_map (dict): A dictionary mapping the letters of a single letter alphabet to numerical positions, used
+        when position size is >1 and the alpha_mapping is used for a larger alphabet map.
     """
     global s_to_p, aln, comps, freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table,\
         cpu_count, sleep_time, table_type, single, pair, s_size, s_map, s_rev, p_size, p_map, p_rev, max_iters
