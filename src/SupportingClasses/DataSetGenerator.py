@@ -11,18 +11,15 @@ import pandas as pd
 from tqdm import tqdm
 from re import compile
 from time import time, sleep
-from urllib.error import HTTPError
 import xml.etree.ElementTree as XMLET
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
-import xml.etree.ElementTree as XMLET
 from Bio.Alphabet import Gapped
 from Bio.Alphabet.IUPAC import IUPACProtein
 from Bio import Entrez
 from Bio.Seq import Seq
 from Bio.Blast import NCBIXML
-from Bio.SwissProt import read as spread
-from Bio.SeqIO import write, parse, read
+from Bio.SeqIO import write, parse
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB.PDBList import PDBList
 from Bio.ExPASy import get_sprot_raw
@@ -422,8 +419,6 @@ class DataSetGenerator(object):
                                               sequence_fn=all_seqs_fn, evalue=e_value_threshold,
                                               processes=processes, max_target_seqs=max_target_seqs,
                                               database=database, remote=remote)
-        print(sequences)
-        print(hits)
         for p_id in hits:
             for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
                 self.protein_data[related_p_id].update(hits[p_id])
@@ -771,7 +766,6 @@ def load_filtered_sequences(protein_id, pileup_fn, min_fraction, min_identity, m
             if seq_record.description.startswith(protein_id):  # Add the target sequence without checking.
                 sequences.append(seq_record)
                 continue
-            print(seq_record.description)
             hsp_data_match = hsp_data_pattern.match(seq_record.description)
             subject_fraction = float(hsp_data_match.group(3))
             if subject_fraction < min_fraction:
@@ -1001,6 +995,17 @@ def identity_filter(protein_id, alignment, distance_matrix, identity_filtered_fn
 
 
 def parse_genbank_lineage(full_id):
+    """
+    Parse GenBank Lineage
+
+    This method retrieves the information for a specific GenBank entry (if possible) and extracts the taxonomy
+    information from that entry.
+
+    Args:
+        full_id (str): A GenBank identifier for which to look up the taxonomy on the NCBI servers.
+    Return:
+        list: An ordered listing of the provided identifier's taxonomy going from most coarse to most specific.
+    """
     acc_pattern = re.compile(r'^(dbj|emb|gb|pdb|ref|sp)\|(.*)\|([A-Z])?$')
     match_groups = acc_pattern.match(full_id)
     if match_groups.group(1) == 'pdb':
@@ -1008,8 +1013,6 @@ def parse_genbank_lineage(full_id):
     else:
         acc = match_groups.group(2)
     Entrez.email = os.environ.get('EMAIL')
-    # handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
-    #
     handle = None
     attempts = 0
     success = False
@@ -1027,7 +1030,6 @@ def parse_genbank_lineage(full_id):
             # raise e
     if handle is None:
         raise ValueError(f'{full_id} with acc: {acc} could not be retrieved!')
-    #
     gb_set = XMLET.parse(handle).getroot()
     gb_seq = gb_set[0]
     gb_taxa = gb_seq.find('GBSeq_taxonomy')
@@ -1036,6 +1038,17 @@ def parse_genbank_lineage(full_id):
 
 
 def parse_uniref_lineage(full_id):
+    """
+    Parse UniRef Lineage
+
+    This method retrieves the information for a specific UniRef entry (if possible) and extracts the taxonomy
+    information from that entry.
+
+    Args:
+        full_id (str): A UniRef identifier for which to look up the taxonomy on the UniRef/UniProt servers.
+    Return:
+        list: An ordered listing of the provided identifier's taxonomy going from most coarse to most specific.
+    """
     acc_pattern = re.compile(r'^UniRef\d+_([0-9A-Z]+)$')
     acc = acc_pattern.match(full_id).group(1)
     handle = get_sprot_raw(acc)
@@ -1050,6 +1063,17 @@ def parse_uniref_lineage(full_id):
 
 
 def parse_lineage(full_id):
+    """
+    Parse ULineage
+
+    This method retrieves the information for a specific identifier (if possible), trying first the UniRef/UniProt
+    database and then the GenBank/NCBI database. The taxonomy information is extracted for that entry.
+
+    Args:
+        full_id (str): A UniRef or GenBank sequence identifier for which to look up the taxonomy.
+    Return:
+        list: An ordered listing of the provided identifier's taxonomy going from most coarse to most specific.
+    """
     try:
         full_lineage = parse_uniref_lineage(full_id)
     except Exception as e:
@@ -1083,7 +1107,7 @@ def determine_identity_bin(identity_count, length, interval, abs_max_identity, a
     similarity_bin = similarity_int - (similarity_int % (interval * 100))
     similarity_bin /= 100
     final_bin = None
-    if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
+    if abs_max_identity >= similarity_bin >= abs_min_identity:
         if similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
             final_bin = abs_min_identity
         else:
