@@ -260,7 +260,6 @@ class FrequencyTable(object):
             indexes2 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
             being characterized can be provided. indexes2 should have the the indexes for the sequences of interest for
             one side of the comparison rectangle in sorted order. It should have a higher minimum than indexes2.
-            processes (int): The number of processes to use when performing this characterization.
         Return:
             FrequencyTable: A new FrequencyTable containing counts for all variance transitions observed in the provided
             alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
