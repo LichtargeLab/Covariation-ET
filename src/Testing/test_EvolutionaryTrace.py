@@ -2239,6 +2239,7 @@ class TestEvolutionaryTraceVisualizeTrace(TestCase):
                 self.assertTrue(os.path.isfile(expected_rank_fn), expected_rank_fn)
             else:
                 self.assertFalse(os.path.isfile(expected_rank_fn), expected_rank_fn)
+        rmtree(out_dir)
 
     def test_visualize_trace_full_ranks_3_pos(self):
         test_dir = os.path.join(os.getcwd(), 'test_case')
