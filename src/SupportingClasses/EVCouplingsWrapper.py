@@ -76,7 +76,6 @@ class EVCouplingsWrapper(Predictor):
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             protocol (str): Which method ('standard' or 'mean_field') to apply when performing the EVCouplings
             computation.
-            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
         """
@@ -153,8 +152,6 @@ class EVCouplingsWrapper(Predictor):
         config["stages"] = ['align', 'couplings']
         # Align - only using the
         config["align"]["protocol"] = 'existing'
-        # aln_fn = os.path.join(out_dir, '{}_aln.fasta'.format(self.alignment.query_id))
-        # self.alignment.write_out_alignment(aln_fn)
         config["align"]["input_alignment"] = self.non_gapped_aln_fn
         config["align"]["first_index"] = 1
         config["align"]["compute_num_effective_seqs"] = False
