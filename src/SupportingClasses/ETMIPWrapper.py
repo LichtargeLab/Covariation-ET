@@ -15,6 +15,7 @@ from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.Trace import save_numpy_array, check_numpy_array
 from SupportingClasses.AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
@@ -299,8 +300,6 @@ class ETMIPWrapper(Predictor):
             print('File not found, searching for serialized files.')
             # raise ValueError('Provided directory does not contain expected intermediate file!')
         loaded = True
-        #
-        from src.SupportingClasses.Trace import save_numpy_array, check_numpy_array
         intermediate_mi_arrays = {}
         intermediate_amii_arrays = {}
         intermediate_amij_arrays = {}
