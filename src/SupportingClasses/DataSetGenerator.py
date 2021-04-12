@@ -8,9 +8,11 @@ import re
 import argparse
 import numpy as np
 import pandas as pd
-from time import time
+from tqdm import tqdm
 from re import compile
+from time import time, sleep
 from urllib.error import HTTPError
+import xml.etree.ElementTree as XMLET
 from numpy import floor, triu, nonzero
 from multiprocessing import cpu_count, Pool, Lock
 import xml.etree.ElementTree as XMLET
@@ -28,10 +30,11 @@ from Bio.Application import ApplicationError
 from Bio.Align.Applications import ClustalwCommandline
 from Bio.Blast.Applications import NcbiblastpCommandline
 from dotenv import find_dotenv, load_dotenv
-from PDBReference import PDBReference
-from SeqAlignment import SeqAlignment
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein
+from SupportingClasses.PDBReference import PDBReference
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -91,13 +94,290 @@ class DataSetGenerator(object):
         self.alignment_path = os.path.join(self.input_path, 'Alignments')
         if not os.path.isdir(self.alignment_path):
             os.makedirs(self.alignment_path)
-        self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignment')
+        self.filtered_alignment_path = os.path.join(self.input_path, 'Filtered_Alignments')
         if not os.path.isdir(self.filtered_alignment_path):
             os.makedirs(self.filtered_alignment_path)
         self.final_alignment_path = os.path.join(self.input_path, 'Final_Alignments')
         if not os.path.isdir(self.final_alignment_path):
             os.makedirs(self.final_alignment_path)
         self.protein_data = None
+
+    def identify_protein_sequences(self, data_set_name, protein_list_fn, sources=['PDB'], processes=1, verbose=False):
+        """
+        Identify Protein Sequences
+
+        This function takes a file with a list of PDB ids and extracts the sequences using the indicated source(s).
+
+        Args:
+            data_set_name (str): The name being used for the data set being constructed.
+            protein_list_fn (str): The name of the file where the list of PDB ids  can be
+            found. Each id is expected to be on its own line and should be formatted as a five letter code (first four
+            characters are the PDB ID and the last character is the chain id).
+            sources (list): A list of sources in order of preference, sequences will be parsed from sources in that
+            order until one is retrieved successfully. Current options are: 'UNP' for Swiss/Uniprot, 'GB' for GenBank,
+            and 'PDB' to use the sequence of the PDB being used the the specified chain.
+            processes (int): The number of processes to use when performing the BLAST search.
+            verbose (bool): Whether to write out information during processing.
+        Returns:
+        """
+        if not os.path.isfile(protein_list_fn):
+            raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
+        if verbose:
+            print('Importing protein list')
+        protein_data = import_protein_list(protein_list_fn=protein_list_fn)
+        # Download the PDBs and parse out the query sequences.
+        if verbose:
+            print('Downloading structures and parsing in query sequences')
+            download_pbar = tqdm(total=len(protein_data), unit='Protein IDs')
+        seqs_to_write = []
+        sequences = {}
+        unique_ids = set()
+
+        def update_pdb_download(pdb_seq_data):
+            """
+            Update PDB Download
+
+            This function serves to update the progress bar for PDB downloading and sequence extraction.
+
+            Args:
+                pdb_seq_data (str): The name of the node which has just finished being characterized.
+            """
+            if pdb_seq_data[1]['Sequence']:
+                if pdb_seq_data[1]['Sequence'].seq not in sequences:
+                    sequences[pdb_seq_data[1]['Sequence'].seq] = []
+                    unique_ids.add(pdb_seq_data[0])
+                    seqs_to_write.append(pdb_seq_data[1]['Sequence'])
+                sequences[pdb_seq_data[1]['Sequence'].seq].append(pdb_seq_data[0])
+            protein_data[pdb_seq_data[0]].update(pdb_seq_data[1])
+            if verbose:
+                download_pbar.update(1)
+                download_pbar.refresh()
+
+        pdb_download_pool = Pool(processes, initializer=init_pdb_processing_pool,
+                                 initargs=(self.pdb_path, self.sequence_path, Lock(), sources, verbose))
+        for p_id in protein_data:
+            pdb_download_pool.apply_async(func=pdb_processing, callback=update_pdb_download,
+                                          args=(p_id, protein_data[p_id]['PDB'], protein_data[p_id]['Chain']))
+        pdb_download_pool.close()
+        pdb_download_pool.join()
+        self.protein_data = protein_data
+        if verbose:
+            print('Unique Sequences Found: {}!'.format(len(sequences)))
+        # Write out a fasta file containing all the query sequences for BLASTing
+        all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
+        if not os.path.isfile(all_seqs_fn):
+            with open(all_seqs_fn, 'w') as all_seqs_handle:
+                write(seqs_to_write, all_seqs_handle, 'fasta')
+        return all_seqs_fn, unique_ids, sequences
+
+    def filter_blast_results(self, unique_ids, e_value_threshold, min_fraction, min_identity, max_identity, blast_fn,
+                             processes=1, verbose=False):
+        """
+        Filter BLAST results
+
+        This function filters BLAST hits for each unique protein of interest in the current data set. Sequences are
+        filtered to remove any which have an E value, minimum sequence fraction/coverage, and minimum or maximum
+        identity to the query which falls outside the specified bounds. In addition sequences are filtered to only keep
+        sequences which consist of the 20 character amino acid alphabet (plus gaps), to remove any sequences which
+        include the words: 'artificial', 'fragment', 'low quality', 'partial', or 'synthetic' in their description, and
+        any sequences whose taxonomy includes the terms: 'synthetic' or 'artificial'.
+
+        Args:
+            unique_ids (set): The protein identifiers in protein_data which represent unique sequences and which can
+            be found in the provided blast_fn.
+            e_value_threshold (float): The maximum value of e value to consider when filtering returned sequences from
+            BLAST.
+            min_fraction (float): The minimum percentage (expressed as a decimal) of a query sequence that a BLAST hit
+            must cover to be part of the analysis.
+            min_identity (float): The minimum percent identity (expressed as a decimal) that a sequence must have to be
+            considered as part of the analysis.
+            max_identity (float): The maximum percent identity (expressed as a decimal) that a sequence may have to
+            still be considered as part of the analysis.
+            blast_fn (str): The path to the BLAST result for the current data set.
+            processes (int): The number of processes to use when filtering BLAST hits.
+            verbose (bool): Whether to write out information during processing.
+        """
+        for p_id in unique_ids:
+            if verbose:
+                print(f'Filter Blast Sequences: {p_id}')
+            if not os.path.isdir(self.filtered_blast_path):
+                os.makedirs(self.filtered_blast_path)
+            pileup_fn = os.path.join(self.filtered_blast_path, f'{p_id}.fasta')
+            if os.path.isfile(pileup_fn):
+                filtered_blast_count = load_filtered_sequences(protein_id=p_id, pileup_fn=pileup_fn,
+                                                               min_fraction=min_fraction, min_identity=min_identity,
+                                                               max_identity=max_identity)
+            else:
+                sequences = []
+                blast_handle = open(blast_fn, 'r')
+                blast_iter = NCBIXML.parse(blast_handle)
+                for blast_record in blast_iter:
+                    if not blast_record.query.startswith(p_id):
+                        continue
+                    if verbose:
+                        print(f'Filtering BLAST sequences for: {p_id}')
+                        filter_blast_pbar = tqdm(total=len(blast_record.alignments), unit='BLAST sequences')
+
+                    def update_filter_blast(filter_blast_seq):
+                        """
+                        Update Filter Blast
+
+                        This function updates the sequence list with returns from the processing pool and updates the
+                        progress bar if verbose output is specified.
+
+                        Args:
+                            filter_blast_seq (SeqRecord/None): A sequence for a given BLAST hit which has passed the
+                            filter or None if no sequences in for that hit pass.
+                        """
+                        if filter_blast_seq:
+                            sequences.append(filter_blast_seq)
+                        if verbose:
+                            filter_blast_pbar.update(1)
+                            filter_blast_pbar.refresh()
+
+                    blast_filter_pool = Pool(processes, initializer=init_filter_sequences,
+                                             initargs=(self.protein_data[p_id]['Sequence'], e_value_threshold,
+                                                       min_fraction, min_identity, max_identity, Gapped(IUPACProtein),
+                                                       verbose))
+                    for alignment in blast_record.alignments:
+                        blast_filter_pool.apply_async(func=filter_sequence, callback=update_filter_blast,
+                                                      args=(alignment,))
+                    blast_filter_pool.close()
+                    blast_filter_pool.join()
+                blast_handle.close()
+                sequences = [self.protein_data[p_id]['Sequence']] + sequences
+                with open(pileup_fn, 'w') as pileup_handle:
+                    write(sequences=sequences, handle=pileup_handle, format='fasta')
+                filtered_blast_count = len(sequences)
+            self.protein_data[p_id]['Filtered_BLAST'] = pileup_fn
+            self.protein_data[p_id]['Filter_Count'] = filtered_blast_count
+
+    def align_blast_hits(self, unique_ids, msf=True, fasta=True, processes=1, verbose=False):
+        """
+        Align BLAST Hits
+
+        This function aligns all sequences which were returned by BLAST and passed the specified sequence filters.
+
+        Args:
+        unique_ids (set): The protein identifiers in protein_data which represent unique sequences and which can
+        be found in the provided blast_fn.
+        msf (bool): Whether to write out alignment files in msf format.
+        fasta (bool):Whether to write out alignment files in fasta format.
+        processes (int): The number of processes to use when aligning sequences for proteins of interest.
+        verbose (bool): Whether to write out information during processing.
+        """
+        if verbose:
+            print(f'Aligning BLAST sequences')
+            align_blast_pbar = tqdm(total=len(unique_ids), unit='Proteins')
+        completed_alignments = {}
+
+        def update_align_blast(aln_res):
+            """
+            Update Align BLAST
+
+            This function updates the record of which proteins have been processed and what files were produced and
+            updates the progress bar if verbose output has been specified.
+
+            Args:
+                aln_res (tuple): Element one must be a string corresponding to the protein ID which has been completed,
+                elements two and three must be either a string with the path of either the MSF or Fasta (respectively)
+                file outputs, or None if that file was not produced.
+            """
+            completed_alignments[aln_res[0]] = {'MSF_Aln': aln_res[1], 'FA_Aln': aln_res[2]}
+            if verbose:
+                align_blast_pbar.update(1)
+                align_blast_pbar.refresh()
+
+        aln_filter_pool = Pool(processes, initializer=init_align_sequences,
+                               initargs=(self.alignment_path, msf, fasta, verbose))
+        for p_id in unique_ids:
+            aln_filter_pool.apply_async(func=align_sequences, callback=update_align_blast,
+                                        args=(p_id, self.protein_data[p_id]['Filtered_BLAST']))
+        aln_filter_pool.close()
+        aln_filter_pool.join()
+        for p_id in completed_alignments:
+            self.protein_data[p_id].update(completed_alignments[p_id])
+
+    def identity_filter_alignment(self, unique_ids, max_identity, processes, verbose):
+        """
+
+        Args:
+            unique_ids (set): The protein identifiers in protein_data which represent unique sequences and which can
+            be found in the provided blast_fn.
+            max_identity (float): The maximum percent identity (expressed as a decimal) that a sequence may have to
+            still be considered as part of the analysis.
+            processes (int): The number of processes to use when filtering BLAST hits.
+            verbose (bool): Whether to write out information during processing.
+        """
+        for p_id in unique_ids:
+            if verbose:
+                print(f'Identity Filter Alignment Sequences: {p_id}')
+            if not os.path.isdir(self.filtered_blast_path):
+                os.makedirs(self.filtered_blast_path)
+            pileup_fn = os.path.join(self.filtered_alignment_path, f'{p_id}.fasta')
+            if os.path.isfile(pileup_fn):
+                count = 0
+                with open(pileup_fn, 'rU') as handle:
+                    for _ in parse(handle, 'fasta'):
+                        count += 1
+            else:
+                calculator = AlignmentDistanceCalculator()
+                alignment = SeqAlignment(file_name=self.protein_data[p_id]['FA_Aln'], query_id=p_id)
+                alignment.import_alignment()
+                alignment = alignment.remove_bad_sequences()
+                distance_matrix = triu(
+                    1.0 - np.array(calculator.get_distance(alignment.alignment, processes=processes)),
+                    k=1)
+                count = identity_filter(protein_id=p_id, alignment=alignment, distance_matrix=distance_matrix,
+                                        identity_filtered_fn=pileup_fn, max_identity=max_identity)
+            self.protein_data[p_id]['Final_Count'] = count
+            self.protein_data[p_id]['Filtered_Alignment'] = pileup_fn
+
+    def align_identity_filtered(self, unique_ids, msf=True, fasta=True, processes=1, verbose=False):
+        """
+        Align Identity Filtered
+
+        This function aligns all sequences which passed the identity filtering of.
+
+        Args:
+        unique_ids (set): The protein identifiers in protein_data which represent unique sequences and which can
+        be found in the provided blast_fn.
+        msf (bool): Whether to write out alignment files in msf format.
+        fasta (bool):Whether to write out alignment files in fasta format.
+        processes (int): The number of processes to use when aligning sequences for proteins of interest.
+        verbose (bool): Whether to write out information during processing.
+        """
+        if verbose:
+            print(f'Aligning identity filtered sequences')
+            align_identity_pbar = tqdm(total=len(unique_ids), unit='Proteins')
+        completed_alignments = {}
+
+        def update_align_identity(aln_res):
+            """
+            Update Align Identity
+
+            This function updates the record of which proteins have been processed and what files were produced and
+            updates the progress bar if verbose output has been specified.
+
+            Args:
+                aln_res (tuple): Element one must be a string corresponding to the protein ID which has been completed,
+                elements two and three must be either a string with the path of either the MSF or Fasta (respectively)
+                file outputs, or None if that file was not produced.
+            """
+            completed_alignments[aln_res[0]] = {'Final_MSF_Aln': aln_res[1], 'Final_FA_Aln': aln_res[2]}
+            if verbose:
+                align_identity_pbar.update(1)
+                align_identity_pbar.refresh()
+
+        aln_identity_pool = Pool(processes, initializer=init_align_sequences,
+                                 initargs=(self.final_alignment_path, msf, fasta, verbose))
+        for p_id in unique_ids:
+            aln_identity_pool.apply_async(func=align_sequences, callback=update_align_identity,
+                                          args=(p_id, self.protein_data[p_id]['Filtered_Alignment']))
+        aln_identity_pool.close()
+        aln_identity_pool.join()
+        for p_id in completed_alignments:
+            self.protein_data[p_id].update(completed_alignments[p_id])
 
     def build_pdb_alignment_dataset(self, protein_list_fn, processes=1, max_target_seqs=2500, e_value_threshold=0.05,
                                     database='customuniref90.fasta', remote=False, min_fraction=0.7, min_identity=0.40,
@@ -129,86 +409,51 @@ class DataSetGenerator(object):
             pandas.DataFrame: Summary of sequence counts at the BLAST, filtered BLAST, and filtered alignment stages as
             well as the time it took to generate data for a specific sequence.
         """
+        start = time()
         data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
         protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
-        if not os.path.isfile(protein_list_fn):
-            raise ValueError('Protein list file not cannot be found at specified location:\n{}'.format(protein_list_fn))
-        print('Importing protein list')
-        self.protein_data = import_protein_list(protein_list_fn=os.path.join(self.protein_list_path, protein_list_fn))
-        # Download the PDBs and parse out the query sequences.
-        print('Downloading structures and parsing in query sequences')
-        pool1 = Pool(processes, initializer=init_pdb_processing_pool, initargs=(self.pdb_path, self.sequence_path,
-                                                                                Lock(), sources, verbose))
-        res1 = pool1.map_async(pdb_processing, [(p_id, self.protein_data[p_id]['Chain']) for p_id in self.protein_data])
-        pool1.close()
-        pool1.join()
-        res1 = res1.get()
-        seqs_to_write = []
-        sequences = {}
-        unique_ids = set()
-        for data1 in res1:
-            curr_seq = str(data1[1]['Sequence'].seq)
-            if curr_seq and (curr_seq not in sequences):
-                sequences[curr_seq] = []
-                unique_ids.add(data1[0])
-                seqs_to_write.append(data1[1]['Sequence'])
-            sequences[curr_seq].append(data1[0])
-            self.protein_data[data1[0]].update(data1[1])
-        print('Unique Sequences Found: {}!'.format(len(sequences)))
-        # Write out a fasta file containing all the query sequences for BLASTing
-        all_seqs_fn = os.path.join(self.sequence_path, data_set_name + '.fasta')
-        if not os.path.isfile(all_seqs_fn):
-            with open(all_seqs_fn, 'w') as all_seqs_handle:
-                write(seqs_to_write, all_seqs_handle, 'fasta')
+
+        all_seqs_fn, unique_ids, sequences = self.identify_protein_sequences(
+            data_set_name=data_set_name, protein_list_fn=protein_list_fn, sources=sources, processes=processes,
+            verbose=verbose)
         # BLAST all query sequences at once
         print('BLASTing query sequences')
         blast_fn, hits = blast_query_sequence(protein_id=data_set_name + '_All_Seqs', blast_path=self.blast_path,
                                               sequence_fn=all_seqs_fn, evalue=e_value_threshold,
                                               processes=processes, max_target_seqs=max_target_seqs,
                                               database=database, remote=remote)
+        print(sequences)
+        print(hits)
         for p_id in hits:
             for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
                 self.protein_data[related_p_id].update(hits[p_id])
                 self.protein_data[related_p_id]['BLAST'] = blast_fn
-        # Filter the BLAST hits for each query, align, filter again, and make final alignments.
-        print('Filtering BLAST hits, aligning, filtering by identity, and re-aligning')
-        # pool2 = Pool(processes, initializer=init_filtering_and_alignment_pool,
-        # # pool2 = Pool(1, initializer=init_filtering_and_alignment_pool,
-        #              initargs=(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-        #                        max_identity, msf, fasta, blast_fn, self.filtered_blast_path, self.alignment_path,
-        #                        self.filtered_alignment_path, self.final_alignment_path, verbose))
-        # res = pool2.map_async(filtering_and_alignment, [(p_id, self.protein_data[p_id]['Sequence'])
-        #                                                 for p_id in unique_ids])
-        # pool2.close()
-        # pool2.join()
-        # res = res.get()
+        # Filter the BLAST hits for each query
+        print('Filtering BLAST hits')
+        self.filter_blast_results(unique_ids, e_value_threshold, min_fraction, min_identity, max_identity, blast_fn,
+                                  processes, verbose)
+        # Aligning BLAST hits for each query
+        print('Aligning BLAST hits')
+        self.align_blast_hits(unique_ids, msf, fasta, processes, verbose)
+        # Performing identity filter on aligned sequences
+        print('Performing Identity filter')
+        self.identity_filter_alignment(unique_ids, max_identity, processes, verbose)
+        # Aligning identity filter sequences
+        print('Aligning Identity filtered sequences')
+        self.align_identity_filtered(unique_ids, msf, fasta, processes, verbose)
 
-        init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction,
-                                          min_identity, max_identity, msf, fasta, blast_fn, self.filtered_blast_path,
-                                          self.alignment_path, self.filtered_alignment_path, self.final_alignment_path,
-                                          verbose)
-        res = []
+        summary = {'Protein_ID': [], 'Sequence_Length': [], 'BLAST_Hits': [], 'Filtered_BLAST': [],
+                   'Filtered_Alignment': []}
         for p_id in unique_ids:
-            curr_res = filtering_and_alignment((p_id, self.protein_data[p_id]['Sequence']))
-            res.append(curr_res)
-
-
-        summary = {'Protein_ID': [], 'BLAST_Hits': [], 'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Time': []}
-        for data in res:
-            # Add all the data generated (data[1]) to the protein data dict under the correct protein id (data[0])
-            for related_p_id in sequences[str(self.protein_data[data[0]]['Sequence'].seq)]:
-                self.protein_data[related_p_id].update(data[1])
+            for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
                 summary['Protein_ID'].append(related_p_id)
-                summary['BLAST_Hits'].append(hits[data[0]]['BLAST_Hits'])
-                summary['Filtered_BLAST'].append(data[1]['Filter_Count'])
-                summary['Filtered_Alignment'].append(data[1]['Final_Count'])
-                summary['Time'].append(data[2])
-                if verbose:
-                    print('It took {} min to generate data for {}'.format(data[2], data[0]))
-                    print('\t{} Sequence Returned By Blast\n\t{} Sequences After Initial Filtering\n\t{} Sequences '
-                          'After Identity Filtering'.format(hits[data[0]]['BLAST_Hits'], data[1]['Filter_Count'],
-                                                            data[1]['Final_Count']))
+                summary['Sequence_Length'].append(len(str(self.protein_data[p_id]['Sequence'])))
+                summary['BLAST_Hits'].append(self.protein_data[p_id]['BLAST_Hits'])
+                summary['Filtered_BLAST'].append(self.protein_data[p_id]['Filter_Count'])
+                summary['Filtered_Alignment'].append(self.protein_data[p_id]['Final_Count'])
         df = pd.DataFrame(summary)
+        end = time()
+        print(f'It took {(end - start) / 60.} min to generate data set')
         return df
 
 
@@ -230,54 +475,59 @@ def import_protein_list(protein_list_fn, verbose=False):
         data set is constructed.
     """
     if verbose:
-        print('Importing protein list from: {}'.format(protein_list_fn))
+        print(f'Importing protein list from: {protein_list_fn}')
     protein_list_fn = os.path.join(protein_list_fn)
     protein_list = {}
     pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3})([A-Z])$')
     with open(protein_list_fn, mode='r') as protein_list_handle:
         for line in protein_list_handle:
             pdb_id_match = pdb_id_pattern.match(line.strip())
-            protein_list[pdb_id_match.group(1)] = {'Chain': pdb_id_match.group(2)}
+            try:
+                protein_list[pdb_id_match.group(0)] = {'PDB': pdb_id_match.group(1), 'Chain': pdb_id_match.group(2)}
+            except AttributeError:
+                raise ValueError(f"Encountered bad formatting in protein list: '{line}'")
     if verbose:
-        print('Imported {} protein IDs'.format(len(protein_list)))
+        print(f'Imported {len(protein_list)} protein IDs')
     return protein_list
 
 
-def download_pdb(pdb_path, protein_id, verbose=False):
+def download_pdb(pdb_path, pdb_id, verbose=False):
     """
     Download PDB
 
-    This function downloads the PDB structure file for the given PDB id provided. The file is stored in a file within a
+    This function downloads the PDB structure file for the given PDB id provided. The file is stored at a path within a
     sub directory of the provided pdb_path named <pdb_path>/{middle two characters of the PDB id}/pdb{pdb id}.ent. If
     the PDB structure is not available then an attempt is made to download it as an 'obsolete' PDB structure. If this is
     also unsuccessful, None is returned.
 
     Args:
         pdb_path (str): The location at which PDB structures should be saved.
-        protein_id (str): Four letter code for a PDB id to be downloaded.
+        pdb_id (str): Four letter code for a PDB id to be downloaded.
         verbose (bool): Whether to write out information during processing.
     Returns:
         str: The path to the PDB file downloaded.
     """
     if verbose:
-        print('Downloading structure data for: {}'.format(protein_id))
+        print(f'Downloading structure data for: {pdb_id}')
+    if pdb_id is None:
+        raise ValueError('None is not a valid value for pdb_id!')
     if not os.path.isdir(pdb_path):
         if verbose:
-            print('Making dir: {}'.format(pdb_path))
+            print(f'Making dir: {pdb_path}')
         os.makedirs(pdb_path)
     pdb_list = PDBList(server='ftp://ftp.wwpdb.org', pdb=pdb_path, verbose=verbose)
-    pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb')
+    pdb_file = pdb_list.retrieve_pdb_file(pdb_code=pdb_id, file_format='pdb')
     if not os.path.isfile(pdb_file):
-        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=protein_id, file_format='pdb', obsolete=True)
+        pdb_file = pdb_list.retrieve_pdb_file(pdb_code=pdb_id, file_format='pdb', obsolete=True)
         if not os.path.isfile(pdb_file):
             pdb_file = None
-            print('Structure does not exist in obsolete: {}'.format(protein_id))
+            print(f'Structure does not exist in obsolete: {pdb_id}')
     if verbose:
-        print('Completed {} structure download'.format(protein_id))
+        print(f'Completed {pdb_id} structure download')
     return pdb_file
 
 
-def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, verbose=False):
+def parse_query_sequence(protein_id, pdb_id, chain_id, sequence_path, pdb_fn, sources, verbose=False):
     """
     Parse Query Sequence
 
@@ -291,7 +541,8 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
     chain was used or not.
 
     Args:
-        protein_id (str): Four letter code for a PDB id whose sequence should be parsed.
+        protein_id (str): Full protein ID code (five letter) code for which the sequence should be parsed.
+        pdb_id (str): Four letter code for a PDB id whose sequence should be parsed.
         chain_id (str/char): A single letter code for the chain to be extracted.
         sequence_path (str): The path to a directory where the sequence data can be written in fasta format.
         pdb_fn (str): The full path to the PDB from which the sequence should be extracted.
@@ -308,19 +559,19 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
         Swiss/Uniprot or GenBank).
     """
     if verbose:
-        print('Parsing query sequence for: {}'.format(protein_id))
+        print(f'Parsing query sequence for: {protein_id}')
     if not os.path.isdir(sequence_path):
         if verbose:
-            print('Making dir: {}'.format(sequence_path))
+            print(f'Making dir: {sequence_path}')
         os.makedirs(sequence_path)
-    protein_fasta_fn = os.path.join(sequence_path, '{}.fasta'.format(protein_id))
-    accession = None
+    protein_fasta_fn = os.path.join(sequence_path, f'{protein_id}.fasta')
     if os.path.isfile(protein_fasta_fn):
         if verbose:
-            print('Loading query sequence from file: {}'.format(protein_fasta_fn))
+            print(f'Loading query sequence from file: {protein_fasta_fn}')
         with open(protein_fasta_fn, 'r') as protein_fasta_handle:
             seq_iter = parse(handle=protein_fasta_handle, format='fasta')
             sequence = next(seq_iter)
+            seq_len = len(sequence)
             sequence.alphabet = FullIUPACProtein()
             match = re.match(r'.*Target Query: Chain: ([A-Z])(: From ((UniProt)|(GenBank)) Accession: (.*))?$',
                              sequence.description)
@@ -331,29 +582,39 @@ def parse_query_sequence(protein_id, chain_id, sequence_path, pdb_fn, sources, v
                 accession = None
     else:
         curr_pdb = PDBReference(pdb_file=pdb_fn)
-        curr_pdb.import_pdb(structure_id=protein_id)
+        curr_pdb.import_pdb(structure_id=pdb_id)
         accession = None
         seq = None
         chain = None
         source = None
-        remaining_chains = curr_pdb.chains.remove(chain_id)
-        for chain in [chain_id] + (list(sorted(curr_pdb.chains.remove(chain_id))) if remaining_chains else []):
+        remaining_chains = list(sorted(set(curr_pdb.chains) - {chain_id}))
+        for chain in [chain_id] + remaining_chains:
             for source in sources:
-                accession, seq = curr_pdb.get_sequence(chain=chain_id, source=source)
-                if seq:
+                try:
+                    accession, seq = curr_pdb.get_sequence(chain=chain_id, source=source)
+                except ValueError:
+                    accession = 'INSPECT MANUALLY'
+                if seq or (accession == 'INSPECT MANUALLY'):
                     break
-            if seq:
+            if seq or (accession == 'INSPECT MANUALLY'):
                 break
-        desc = ('Target Query: Chain: {}'.format(chain) +
-                (': From UniProt Accession: {}'.format(accession) if source == 'UNP' else '') +
-                (': From GenBank Accession: {}'.format(accession) if source == 'GB' else ''))
-        sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
-        seq_records = [sequence]
-        with open(protein_fasta_fn, 'w') as protein_fasta_handle:
-            write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
+        if seq:
+            desc = (f'Target Query: Chain: {chain}' +
+                    (f': From UniProt Accession: {accession}' if source == 'UNP' else '') +
+                    (f': From GenBank Accession: {accession}' if source == 'GB' else ''))
+            sequence = SeqRecord(Seq(seq, alphabet=FullIUPACProtein()), id=protein_id, description=desc)
+            seq_len = len(sequence)
+            seq_records = [sequence]
+            with open(protein_fasta_fn, 'w') as protein_fasta_handle:
+                write(sequences=seq_records, handle=protein_fasta_handle, format='fasta')
+        else:
+            sequence = None
+            protein_fasta_fn = None
+            seq_len = 0
+            chain = chain_id
     if verbose:
-        print('Parsed query sequence for: {}'.format(protein_id))
-    return sequence, len(sequence), protein_fasta_fn, chain, accession
+        print(f'Parsed query sequence for: {protein_id}')
+    return sequence, seq_len, protein_fasta_fn, chain, accession
 
 
 def init_pdb_processing_pool(pdb_path, sequence_path, lock, sources, verbose):
@@ -372,50 +633,46 @@ def init_pdb_processing_pool(pdb_path, sequence_path, lock, sources, verbose):
         to use the sequence of the PDB being used the the specified chain.
         verbose (bool): Whether or not to write out verbose output.
     """
-    global pdb_dir
+    global pdb_dir, sequence_dir, fs_lock, allowed_src, verbose_out
     pdb_dir = pdb_path
-    global sequence_dir
     sequence_dir = sequence_path
-    global fs_lock
     fs_lock = lock
-    global allowed_src
     allowed_src = sources
-    global verbose_out
     verbose_out = verbose
 
 
-def pdb_processing(in_tuple):
+def pdb_processing(protein_id, pdb_id, chain_id):
     """
     PDB Processing
 
     This function serves to download a single PDB id's structure and parse out its query sequence.
 
     Args:
-        in_tuple (tuple): A tuple containing the protein_id and chain_id for the desired protein structure to download
-        and sequence to parse.
+        protein_id (str): The full unique protein ID for the protein being processed.
+        pdb_id (str): The four letter code for the protein being processed.
+        chain_id (str): The single letter code for the chain to be parsed from the provided PDB.
     Returns:
         str: The protein_id passed in, needed for indexing upon return
         dict: A dictionary containing data to be added to the protein_data field of the DataSetGenerator including the
         following keys and values:
-            PDB (str): The full path to the PDB structure downloaded for this protein.
+            PDB_FN (str): The full path to the PDB structure downloaded for this protein.
             Chain (str): The chain for which the sequence was parsed, should be the same as that in the protein list
             file, but may change if that chain is not available. In that case the first (alphabetical) chain is used.
             Sequence (Bio.SeqRecord.SeqRecord): A SeqRecord containing the protein_id and the parsed out sequence.
             Length (int): The length of the parsed sequence.
             Seq_Fasta (str): The full path to the fasta file containing just the query sequence for this protein.
     """
-    protein_id = in_tuple[0]
-    chain_id = in_tuple[1]
     fs_lock.acquire()
-    pdb_fn = download_pdb(pdb_path=pdb_dir, protein_id=protein_id, verbose=verbose_out)
+    pdb_fn = download_pdb(pdb_path=pdb_dir, pdb_id=pdb_id,  verbose=verbose_out)
     fs_lock.release()
     if pdb_fn is None:
         seq, length, seq_fn, chain_id, ext_id = None, None, None, None, None
     else:
-        seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, chain_id=chain_id,
-                                                                     sequence_path=sequence_dir, pdb_fn=pdb_fn,
-                                                                     sources=allowed_src, verbose=verbose_out)
-    data = {'PDB': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
+        seq, length, seq_fn, chain_id, ext_id = parse_query_sequence(protein_id=protein_id, pdb_id=pdb_id,
+                                                                     chain_id=chain_id, sequence_path=sequence_dir,
+                                                                     pdb_fn=pdb_fn, sources=allowed_src,
+                                                                     verbose=verbose_out)
+    data = {'PDB_FN': pdb_fn, 'Chain': chain_id, 'Sequence': seq, 'Length': length, 'Seq_Fasta': seq_fn,
             'Accession': ext_id}
     return protein_id, data
 
@@ -477,132 +734,164 @@ def blast_query_sequence(protein_id, blast_path, sequence_fn, evalue=0.05, proce
             print('BLAST previously completed for: {}'.format(protein_id))
     hit_counts = {}
     with open(blast_fn, 'r') as blast_handle:
-        pdb_id_pattern = compile(r'^([0-9][a-z0-9]{3}).*$')
         blast_iter = NCBIXML.parse(blast_handle)
         for blast_record in blast_iter:
-            pdb_id_match = pdb_id_pattern.match(blast_record.query)
-            hit_counts[pdb_id_match.group(1)] = {'BLAST_Hits': len(blast_record.alignments)}
+            query_id = blast_record.query.split()[0]
+            hit_counts[query_id] = {'BLAST_Hits': len(blast_record.alignments)}
     if verbose:
         print('BLAST for {} completed in {} mins'.format(protein_id, (end - start) / 60.0))
     return blast_fn, hit_counts
 
 
-def filter_blast_sequences(protein_id, filter_path, blast_fn, query_seq, e_value_threshold=0.05, min_fraction=0.7,
-                           # min_identity=0.40, max_identity=0.98, alphabet=FullIUPACProtein(), verbose=False):
-                           min_identity=0.40, max_identity=0.98, alphabet=Gapped(IUPACProtein()), verbose=False):
+def load_filtered_sequences(protein_id, pileup_fn, min_fraction, min_identity, max_identity):
     """
-    Filter BLAST Sequences
+    Load Filtered Sequences
 
-    This method reads in the sequences found in a BLAST search for a given protein id. The BLAST results are also
-    filtered such that the e-value must be less than or equal to the specified cutoff (this should be done in the
-    blast_query_sequence method already but it is checked here for completeness and in case a BLAST query is performed
-    outside of this pipeline but used to generate a data set).It also filters sequences ensuring that they are all
-    within the min_fraction length, i.e. if you divide a hit's sequence length by the query sequence length and vice
-    versa, the smaller value must be greater than min_fraction. Finally, the method filters based on sequence identity.
-    It tests the identity of a sequence and if it is within the range covered by min_identity and max_identity it
-    passes.
+    If the BLAST hits for a given protein have already been filtered this method checks that all sequences being loaded
+    (possibly from a previous run) pass the current sequence filters and counts the sequences.
 
     Args:
-        protein_id (str): Four letter code for the PDB id whose BLAST search results should be filtered.
-        filter_path (str): Directory where filtered sequences can be written in fasta format.
-        blast_fn (str): The full path to the BLAST xml which should be filtered.
-        query_seq (Bio.SeqRecord.SeqRecord): The query sequence, needed for filtering and final output.
-        e_value_threshold (float): The maximum e-value for a passing hit.
-        min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
-        min_identity (float): The absolute minimum identity for a passing hit.
-        max_identity (float): The absolute maximum identity for a passing hit.
-        alphabet (Bio.Alphabet.Alphavet): The alphabet to use when filtering BLAST sequences.
-        verbose (bool): Whether to write out information during processing.
-    Returns:
-        int: The number of sequences passing the filters.
-        str: The file path to the list of sequences writen out after filtering.
+        protein_id (str): The protein whose file is being processed.
+        pileup_fn (str): A fasta file containing unaligned sequences which have been parsed from a set of BLAST hits,
+        and which should pass the specified filters.
+        min_fraction (float): The minimum percentage (expressed as a decimal) of a query sequence that a BLAST hit
+        must cover to be part of the analysis.
+        min_identity (float): The minimum percent identity (expressed as a decimal) that a sequence must have to be
+        considered as part of the analysis.
+        max_identity (float): The maximum percent identity (expressed as a decimal) that a sequence may have to
+        still be considered as part of the analysis.
+    Return:
+        int: The number of sequences in the file, if all sequences pass the provided filters.
     """
-    print(f'Filter Blast Sequences: {protein_id}')
-    if not os.path.isdir(filter_path):
-        os.makedirs(filter_path)
-    pileup_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
+    hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+)\sFraction_length=([0-9]+[.][0-9]+)\sHSP_taxonomy=([a-zA-Z;]*).*$')
     sequences = []
-    if os.path.isfile(pileup_fn):
-        hsp_data_pattern = compile(r'^.*\sHSP_identity=(\d+)\sHSP_alignment_length=(\d+)\sFraction_length=([0-9]+[.][0-9]+).*$')
-        with open(pileup_fn, 'r') as pileup_handle:
-            fasta_iter = parse(handle=pileup_handle, format='fasta')
-            for seq_record in fasta_iter:
-                if seq_record.description.startswith(protein_id):  # Add the target sequence without checking.
-                    sequences.append(seq_record)
-                    continue
-                hsp_data_match = hsp_data_pattern.match(seq_record.description)
-                subject_fraction = float(hsp_data_match.group(3))
-                if subject_fraction < min_fraction:
-                    raise ValueError('Sequences in the filtered fasta do not meet the length fraction requirement.\n'
-                                     '{}: Fraction={}'.format(seq_record.id, subject_fraction))
-                seq_id = int(hsp_data_match.group(1))
-                seq_len = int(hsp_data_match.group(2))
-                identity = seq_id / float(seq_len)
-                if identity < min_identity or identity > max_identity:
-                    raise ValueError('Sequences in the filtered fasta do not met the identity requirement.\n'
-                                     '{}: Identity={}'.format(seq_record.id, identity))
-                seq_record.alphabet = FullIUPACProtein()
+    with open(pileup_fn, 'r') as pileup_handle:
+        fasta_iter = parse(handle=pileup_handle, format='fasta')
+        for seq_record in fasta_iter:
+            if seq_record.description.startswith(protein_id):  # Add the target sequence without checking.
                 sequences.append(seq_record)
-    else:
-        description_pattern = '{} HSP_identity={} HSP_alignment_length={} Fraction_length={}'
-        with open(blast_fn, 'r') as blast_handle:
-            blast_iter = NCBIXML.parse(blast_handle)
-            for blast_record in blast_iter:
-                if not blast_record.query.startswith(protein_id):
-                    continue
-                for alignment in blast_record.alignments:
-                    aln_seq_record = None
-                    aln_identity = None
-                    for hsp in alignment.hsps:
-                        if hsp.expect <= e_value_threshold:  # Should already be controlled by BLAST e-value
-                            subject_length = len(hsp.sbjct.replace('-', ''))
-                            query_length = len(query_seq.seq)
-                            try:
-                                subject_fraction = min(subject_length / float(query_length),
-                                                       query_length / float(subject_length))
-                            except ZeroDivisionError:
-                                # print('DIVIDE BY ZERO ENCOUNTERED')
-                                # print(f'Query Length: {query_length}')
-                                # print(f'Subject Length: {subject_length}')
-                                # print(hsp.sbjct)
-                                # raise ZeroDivisionError()
-                                continue
-                            if min_fraction <= subject_fraction:
-                                identity = hsp.identities / float(hsp.align_length)
-                                if min_identity <= identity and identity <= max_identity:
-                                    if (aln_identity is None) or (identity > aln_identity):
-                                        if all([aa in alphabet.letters for aa in set(hsp.sbjct)]):
-                                            if not any([c in alignment.hit_def.lower() for c in set(['artificial', 'fragment', 'low quality', 'partial', 'synthetic'])]):
-                                                try:
-                                                    lineage = ';'.join(parse_lineage(alignment.hit_id)).lower()
-                                                except AttributeError:
-                                                    print(f'No Lineage: {alignment.hit_id}')
-                                                    lineage = ''
-                                                if not any([c in lineage for c in set(['synthetic', 'artificial'])]):
-                                                    new_description = description_pattern.format(
-                                                        alignment.hit_def, hsp.identities, hsp.align_length,
-                                                        subject_fraction)
-                                                    aln_seq_record = SeqRecord(Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
-                                                                               id=alignment.hit_id, name=alignment.title,
-                                                                               description=new_description)
-                                                    aln_identity = identity
-                                        #         else:
-                                        #             print(f'Removing {alignment.hit_id} Lineage: {lineage}')
-                                        #     else:
-                                        #         print(f'Removing {alignment.hit_id} Description: {alignment.hit_def.lower()}')
-                                        # else:
-                                        #     print(f'Removing {alignment.hit_id} Seq: {hsp.sbjct}')
-                    if aln_seq_record:
-                        sequences.append(aln_seq_record)
-        # Add query sequence so that this file can be fed directly to the alignment method.
-        sequences = [query_seq] + sequences
-        with open(pileup_fn, 'w') as pileup_handle:
-            write(sequences=sequences, handle=pileup_handle, format='fasta')
-    count = len(sequences)
-    return count, pileup_fn
+                continue
+            print(seq_record.description)
+            hsp_data_match = hsp_data_pattern.match(seq_record.description)
+            subject_fraction = float(hsp_data_match.group(3))
+            if subject_fraction < min_fraction:
+                raise ValueError('Sequences in the filtered fasta do not meet the length fraction requirement.\n'
+                                 '{}: Fraction={}'.format(seq_record.id, subject_fraction))
+            seq_id = int(hsp_data_match.group(1))
+            seq_len = int(hsp_data_match.group(2))
+            identity = seq_id / float(seq_len)
+            if identity < min_identity or identity > max_identity:
+                raise ValueError('Sequences in the filtered fasta do not met the identity requirement.\n'
+                                 '{}: Identity={}'.format(seq_record.id, identity))
+            seq_record.alphabet = FullIUPACProtein()
+            sequences.append(seq_record)
+    return len(sequences)
 
 
-def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True, verbose=False):
+def init_filter_sequences(query_seq, e_value_threshold, min_fraction, min_identity, max_identity,
+                          alphabet=Gapped(IUPACProtein), verbose=False):
+    """
+    Init Filter Sequences
+
+    This function initializes a pool of processes which can be used to filter sequences from a given BLAST search.
+
+    Args:
+        query_seq: The sequence for the protein being queried.
+        e_value_threshold (float): The maximum value of e value to consider when filtering returned sequences from
+        BLAST.
+        min_fraction (float): The minimum percentage (expressed as a decimal) of a query sequence that a BLAST hit
+        must cover to be part of the analysis.
+        min_identity (float): The minimum percent identity (expressed as a decimal) that a sequence must have to be
+        considered as part of the analysis.
+        max_identity (float): The maximum percent identity (expressed as a decimal) that a sequence may have to
+        still be considered as part of the analysis.
+        alphabet (Bio.Alphabet): An alphabet object specifying the allowed characters for filtered sequences.
+        verbose (bool): Whether to write out information during processing.
+    """
+    global bf_query_seq, bf_e_thresh, bf_min_frac, bf_min_id, bf_max_id, bf_alpha, bf_verbose
+    bf_query_seq = query_seq
+    bf_e_thresh = e_value_threshold
+    bf_min_frac = min_fraction
+    bf_min_id = min_identity
+    bf_max_id = max_identity
+    bf_alpha = alphabet
+    bf_verbose = verbose
+
+
+def filter_sequence(blast_alignment):
+    """
+    Filter Sequence
+
+    This function parses the HSPs for a given BLAST hit, returning a sequence if any pass the specified sequence filters
+    (values provided by init_filter_sequences). If more than one HSP for a given hit passes, the one with the highest
+    identity is returned.
+
+    Args:
+        blast_alignment (Bio.BLAST.Record.alignment): One alignment in a given BLAST record, the HSPs for which should
+        be checked to see if they pass all filters.
+    Return:
+        SeqRecord: A sequence which passes the specified filters, None if no HSP passes.
+    """
+    aln_seq_record = None
+    aln_identity = None
+    for hsp in blast_alignment.hsps:
+        if hsp.expect <= bf_e_thresh:  # Should already be controlled by BLAST e-value
+            subject_length = len(hsp.sbjct.replace('-', ''))
+            query_length = len(bf_query_seq.seq)
+            try:
+                subject_fraction = min(subject_length / float(query_length), query_length / float(subject_length))
+            except ZeroDivisionError:
+                continue
+            if bf_min_frac > subject_fraction:
+                continue
+            identity = hsp.identities / float(hsp.align_length)
+            if bf_min_id > identity or identity > bf_max_id:
+                continue
+            if aln_identity and identity <= aln_identity:
+                continue
+            if 0 in [aa in bf_alpha.letters for aa in set(hsp.sbjct)]:
+                continue
+            if any([c in blast_alignment.hit_def.lower() for c in
+                    {'artificial', 'fragment', 'low quality', 'partial', 'synthetic'}]):
+                continue
+            try:
+                lineage = ';'.join(parse_lineage(blast_alignment.hit_id)).lower()
+            except AttributeError:
+                if bf_verbose:
+                    print(f'No Lineage: {blast_alignment.hit_id}')
+                lineage = ''
+            if any([c in lineage for c in {'synthetic', 'artificial'}]):
+                continue
+            new_description = f'{blast_alignment.hit_def} HSP_identity={hsp.identities} HSP_alignment_length='\
+                              f'{hsp.align_length} Fraction_length={subject_fraction} HSP_taxonomy={lineage}'
+            aln_seq_record = SeqRecord(
+                Seq(hsp.sbjct, alphabet=FullIUPACProtein()),
+                id=blast_alignment.hit_id, name=blast_alignment.title,
+                description=new_description)
+            aln_identity = identity
+    return aln_seq_record
+
+
+def init_align_sequences(alignment_path, msf=True, fasta=True, verbose=False):
+    """
+    Init Align Sequences
+
+    This function initializes a multi processing pool for aligning sequences.
+
+    Args:
+        alignment_path (str): The path to the directory where alignment files should be written.
+        msf (bool): Whether to write out alignment files in msf format.
+        fasta (bool):Whether to write out alignment files in fasta format.
+        verbose (bool): Whether to write out information during processing.
+    """
+    global pool_aln_path, pool_msf, pool_fasta, pool_verbose
+    pool_aln_path = alignment_path
+    pool_msf = msf
+    pool_fasta = fasta
+    pool_verbose = verbose
+
+
+def align_sequences(protein_id, pileup_fn):
     """
     Align Sequences
 
@@ -611,248 +900,104 @@ def align_sequences(protein_id, alignment_path, pileup_fn, msf=True, fasta=True,
     produce the msf alignment file, however either of these options can be turned off.
 
     Args:
-        protein_id (str): Four letter code for the PDB id for which an alignment should be performed.
-        alignment_path (str): The directory to which the alignments can be written.
+        protein_id (str): The unique protein identifier for which an alignment should be performed.
         pileup_fn (str): The full path to the file with the sequences which should be aligned.
-        msf (bool): Whether or not to create an msf version of the ClustalW alignment.
-        fasta (bool): Whether or not to create a fasta version of the ClustalW alignment.
-        verbose (bool): Whether to write out information during processing.
     Returns:
+        str: The protein ID for the alignment which has been completed.
         str: The path to the fasta alignment produced by this method (None if fa=False).
         str: The path to the msf alignment produced by this method (None if msf=False).
     """
     print(f'Align sequences: {protein_id}')
     clustalw_path = os.environ.get('CLUSTALW_PATH')
-    if not os.path.isdir(alignment_path):
-        os.makedirs(alignment_path)
+    if not os.path.isdir(pool_aln_path):
+        os.makedirs(pool_aln_path)
+    if protein_id is None:
+        raise ValueError('The protein ID is None, the protein ID is required for file naming and job tracking.')
     if pileup_fn is None:
         raise ValueError('Pileup filename provided is None, pileup file is required to perform an alignment.')
     fa_fn = None
-    if fasta:
-        fa_fn = os.path.join(alignment_path, '{}.fasta'.format(protein_id))
+    if pool_fasta:
+        fa_fn = os.path.join(pool_aln_path, f'{protein_id}.fasta')
         if not os.path.isfile(fa_fn):
             fa_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True, outfile=fa_fn,
                                            output='FASTA')
-            if verbose:
+            if pool_verbose:
                 print(fa_cline)
             try:
                 stdout, stderr = fa_cline()
-                if verbose:
+                if pool_verbose:
                     print(stdout)
                     print(stderr)
             except ApplicationError:
                 fa_fn = None
     msf_fn = None
-    if msf:
-        msf_fn = os.path.join(alignment_path, '{}.msf'.format(protein_id))
+    if pool_msf:
+        msf_fn = os.path.join(pool_aln_path, f'{protein_id}.msf')
         if not os.path.isfile(msf_fn):
-            if fasta:
+            if pool_fasta:
                 msf_cline = ClustalwCommandline(clustalw_path, infile=fa_fn, convert=True, outfile=msf_fn, output='GCG')
             else:
                 msf_cline = ClustalwCommandline(clustalw_path, infile=pileup_fn, align=True, quicktree=True,
                                                 outfile=msf_fn, output='GCG')
-            if verbose:
+            if pool_verbose:
                 print(msf_cline)
             try:
                 stdout, stderr = msf_cline()
-                if verbose:
+                if pool_verbose:
                     print(stdout)
                     print(stderr)
             except ApplicationError:
                 msf_fn = None
-    return msf_fn, fa_fn
+    return protein_id, msf_fn, fa_fn
 
 
-def identity_filter(protein_id, filter_path, alignment_fn, max_identity=0.98):
+def identity_filter(protein_id, alignment, distance_matrix, identity_filtered_fn, max_identity=0.98):
     """
     Identity Filter
 
-    This method imports a previously generated alignment and then filters it so that no sequences have an identity
-    greater than max_identity. If two or more sequences have an identity greater than max_identity the first sequence in
-    that group is kept and all others are discarded (unless one of the sequences is the query sequence, in which case
-    the query sequence is kept and all other sequences in the group are discarded).
+    This method accepts an alignment and distance matrix for a previously generated alignment and then filters the
+    alignment so that no sequences have an identity greater than max_identity. If two or more sequences have an identity
+    greater than max_identity the first sequence in that group is kept and all others are discarded (unless one of the
+    sequences is the query sequence, in which case the query sequence is kept and all other sequences in the group are
+    discarded).
 
     Args:
         protein_id (str): The PDB id for the protein whose alignment is being filtered.
-        filter_path (str): Path to a directory where the filtered alignment can be written.
-        alignment_fn (str): Full path to the alignment file to be filtered.
+        alignment (SeqAlignment): The alignment which has been previously generated.
+        distance_matrix (np.array): The distance matrix for the passed in alignment.
+        identity_filtered_fn (str): The path to which to write the filtered sequences.
         max_identity (float): The maximum sequence identity two sequences can share.
     Returns:
         int: The number of sequences which pass through this filtering process.
-        str: The full path to the file where the filtered sequences were written.
     """
-    print(f'Identity Filter: {protein_id}')
-    if alignment_fn is None:
-        raise ValueError('Attempting to refine alignment before an initial alignment has been generated')
-    if not os.path.isdir(filter_path):
-        os.makedirs(filter_path)
-    identity_filtered_fn = os.path.join(filter_path, '{}.fasta'.format(protein_id))
-    if os.path.isfile(identity_filtered_fn):
-        print('LOADING FILTERED ALIGNMENT')
-        count = 0
-        with open(identity_filtered_fn, 'rU') as handle:
-            for _ in parse(handle, 'fasta'):
-                count += 1
-        # filtered_alignment = SeqAlignment(file_name=identity_filtered_fn, query_id=protein_id)
-        # filtered_alignment.import_alignment()
-    else:
-        print('FILTERING FROM SCRATCH')
-        calculator = AlignmentDistanceCalculator()
-        alignment = SeqAlignment(file_name=alignment_fn, query_id=protein_id)
-        alignment.import_alignment()
-        try:
-            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
-        except KeyError as e:
-            print('Removing bad sequences: {}'.format(protein_id))
-            alignment = alignment.remove_bad_sequences()
-            distance_matrix = triu(1.0 - np.array(calculator.get_distance(alignment.alignment)), k=1)
-        to_keep = set()
-        to_remove = set()
-        query_seq_pos = alignment.seq_order.index(protein_id)
-        to_keep.add(query_seq_pos)
-        for i in range(alignment.size):
-            if (i in to_remove) or (i in to_keep):
-                continue
-            row_ids = distance_matrix[i, :]
-            above_max_id = row_ids > max_identity
-            positions_to_remove = set(nonzero(above_max_id)[0])
-            if not positions_to_remove.isdisjoint(to_keep):
-                to_remove.add(i)
-            else:
-                to_keep.add(i)
-                to_remove.update(positions_to_remove)
-        filtering_count = (len(to_keep) + len(to_remove))
-        if alignment.size != filtering_count:
-            raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
-                alignment.size, filtering_count, len(to_keep), len(to_remove)))
-        filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
-        ### New
-        filtered_sequences = []
-        for record in filtered_alignment.alignment:
-            record.seq = record.seq.ungap(gap='-')
-            filtered_sequences.append(record)
-        with open(identity_filtered_fn, 'w') as out_handle:
-            write(filtered_sequences, out_handle, 'fasta')
-        ###
-        # filtered_alignment.write_out_alignment(file_name=identity_filtered_fn)
-        count = filtered_alignment.size
-    return count, identity_filtered_fn
-
-
-def init_filtering_and_alignment_pool(max_target_seqs, e_value_threshold, database, remote, min_fraction, min_identity,
-                                      max_identity, msf, fasta, blast_fn, filtered_blast_path, aln_path,
-                                      filtered_aln_path, final_aln_path, verbose):
-    """
-    Init PDB Alignment Pool
-
-    This function is used to initialize data for a worker pool downloading PDB structures and generating alignments.
-
-    Args:
-        max_target_seqs (int): The maximum number of hits to look for in the BLAST database.
-        e_value_threshold (float): The maximum e-value for a passing hit.
-        database (str): The name of the database used to search for paralogs, homologs, and orthologs.
-        remote (bool): Whether to perform the call to blastp remotely or not (in this case num_threads is ignored).
-        min_fraction (float): The minimum fraction of the query sequence length for a passing hit.
-        min_identity (float): The absolute minimum identity for a passing hit.
-        max_identity (float): The absolute maximum identity for a passing hit.
-        msf (bool): Whether or not to create an msf version of the MUSCLE alignment.
-        fasta (bool): Whether or not to create an fasta version of the MUSCLE alignment.
-        blast_fn (str): The full path to the BLAST xml containing all proteins' hits.
-        filtered_blast_path (str): Directory where filtered sequences can be written in fasta format.
-        aln_path (str): The directory to which the initial alignments can be written.
-        filtered_aln_path (str): Path to a directory where the filtered alignment can be written.
-        final_aln_path (str): The directory to which the final alignments can be written.
-        verbose (bool): Whether to write out information during processing.
-    """
-    global max_seqs
-    max_seqs = max_target_seqs
-    global e_value
-    e_value = e_value_threshold
-    global db
-    db = database
-    global ncbi
-    ncbi = remote
-    global min_length
-    min_length = min_fraction
-    global min_id
-    min_id = min_identity
-    global max_id
-    max_id = max_identity
-    global make_msf
-    make_msf = msf
-    global make_fasta
-    make_fasta = fasta
-    global blast_file
-    blast_file = blast_fn
-    global filtered_blast_dir
-    filtered_blast_dir = filtered_blast_path
-    global aln_dir
-    aln_dir = aln_path
-    global filtered_aln_dir
-    filtered_aln_dir = filtered_aln_path
-    global final_aln_dir
-    final_aln_dir = final_aln_path
-    global verbose_out
-    verbose_out = verbose
-
-
-def filtering_and_alignment(in_tup):
-    """
-    Filtering And Alignment
-
-    This method filters the BLAST hits found for the specified protein, aligns them, filters the alignment for identity,
-    and generates a final alignment.
-
-    Args:
-        in_tup (tuple): A tuple containing the protein id and its query sequence.
-            protein_id (str): The protein for which to download a PDB structure and generate an alignment.
-            curr_seq (Bio.SeqRecord.SeqRecord): The query sequence for the protein id
-    Returns:
-        str: The protein for which data was generated.
-        dict: The data and paths to the written data for the protein, the following key value pairs are stored:
-            Filter_Count: (int) The number of sequences returned by BLAST passing the filters.
-            Filter_BLAST: (str) The file path to the list of sequences writen out after filtering the BLAST return.
-            MSF_Aln: (str) The path to the initial msf alignment produced by this method (None if msf=False).
-            FA_Aln: (str) The path to the initial fasta alignment produced by this method (None if fa=False).
-            Final_Count: (int) The number of sequences which pass through the identity filtering process.
-            Filtered_Alignment: (str) The full path to the file where the filtered alignment sequences were written.
-            Final_MSF_Aln: (str) The path to the final msf alignment produced by this method (None if msf=False).
-            Final_FA_Aln: (str) The path to the final fasta alignment produced by this method (None if fa=False).
-        float: The time in minutes it took to generate data for this protein.
-    """
-    start = time()
-    protein_id = in_tup[0]
-    curr_seq = in_tup[1]
-    print(f'Protein ID: {protein_id}')
-    curr_filter_count, curr_filter_fn = filter_blast_sequences(
-        protein_id=protein_id, filter_path=filtered_blast_dir, blast_fn=blast_file, query_seq=curr_seq,
-        e_value_threshold=e_value, min_fraction=min_length, min_identity=min_id, max_identity=max_id)
-    msf_fn, fa_fn = align_sequences(protein_id=protein_id, alignment_path=aln_dir, pileup_fn=curr_filter_fn,
-                                    msf=make_msf, fasta=make_fasta, verbose=verbose_out)
-    try:
-        final_filter_count, final_filter_fn = identity_filter(
-            protein_id=protein_id, filter_path=filtered_aln_dir, alignment_fn=fa_fn, max_identity=max_id)
-    except ValueError as e:
-        print('HIT A VALUE ERROR IN FILTERING')
-        final_filter_count = 0
-        final_filter_fn = None
-        print(e)
-    ###
-    print(f'{protein_id}: Final Filter Count: {final_filter_count}')
-    ###
-    try:
-        final_msf_fn, final_fa_fn = align_sequences(protein_id=protein_id, alignment_path=final_aln_dir,
-                                                    pileup_fn=final_filter_fn, msf=make_msf, fasta=make_fasta,
-                                                    verbose=verbose_out)
-    except ValueError:
-        final_msf_fn = None
-        final_fa_fn = None
-    data = {'Filter_Count': curr_filter_count, 'Filtered_BLAST': curr_filter_fn, 'MSF_Aln': msf_fn, 'FA_Aln': fa_fn,
-            'Final_Count': final_filter_count, 'Filtered_Alignment': final_filter_fn, 'Final_MSF_Aln': final_msf_fn,
-            'Final_FA_Aln': final_fa_fn}
-    end = time()
-    total = (end - start) / 60.0
-    return protein_id, data, total
+    to_keep = set()
+    to_remove = set()
+    query_seq_pos = alignment.seq_order.index(protein_id)
+    to_keep.add(query_seq_pos)
+    for i in range(alignment.size):
+        row_ids = distance_matrix[i, :]
+        above_max_id = row_ids > max_identity
+        positions_to_remove = set(nonzero(above_max_id)[0])
+        if i in to_keep or i in to_remove:
+            to_remove.update(positions_to_remove)
+        elif positions_to_remove.isdisjoint(to_keep):
+            to_keep.add(i)
+            to_remove.update(positions_to_remove)
+        else:
+            to_remove.add(i)
+    filtering_count = (len(to_keep) + len(to_remove))
+    if alignment.size != filtering_count:
+        raise ValueError('Identity filtering does not match alignment size {} != {} = {} + {}'.format(
+            alignment.size, filtering_count, len(to_keep), len(to_remove)))
+    filtered_alignment = alignment.generate_sub_alignment([alignment.seq_order[x] for x in to_keep])
+    filtered_sequences = []
+    for record in filtered_alignment.alignment:
+        record.seq = record.seq.ungap(gap='-')
+        filtered_sequences.append(record)
+    with open(identity_filtered_fn, 'w') as out_handle:
+        write(filtered_sequences, out_handle, 'fasta')
+    count = filtered_alignment.size
+    return count
 
 
 def parse_genbank_lineage(full_id):
@@ -863,7 +1008,26 @@ def parse_genbank_lineage(full_id):
     else:
         acc = match_groups.group(2)
     Entrez.email = os.environ.get('EMAIL')
-    handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+    # handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+    #
+    handle = None
+    attempts = 0
+    success = False
+    while (not success) and (attempts < 10):
+        try:
+            handle = Entrez.efetch(db='protein', rettype='gp', retmode='xml', id=acc)
+            success = True
+            print('Success')
+        except AttributeError as e:
+            attempts += 1
+            sleep(1)
+            print('FAILED')
+            # print(full_id)
+            # print(acc)
+            # raise e
+    if handle is None:
+        raise ValueError(f'{full_id} with acc: {acc} could not be retrieved!')
+    #
     gb_set = XMLET.parse(handle).getroot()
     gb_seq = gb_set[0]
     gb_taxa = gb_seq.find('GBSeq_taxonomy')
@@ -914,9 +1078,10 @@ def determine_identity_bin(identity_count, length, interval, abs_max_identity, a
     Returns:
         float: The identity bin in which the sequence belongs.
     """
-    similarity = (identity_count / float(length))
+    similarity = (identity_count / float(length)) * 100
     similarity_int = floor(similarity)
-    similarity_bin = similarity_int - (similarity_int % interval)
+    similarity_bin = similarity_int - (similarity_int % (interval * 100))
+    similarity_bin /= 100
     final_bin = None
     if abs_max_identity >= similarity_bin and similarity_bin >= abs_min_identity:
         if similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
@@ -992,7 +1157,7 @@ def filter_uniref_fasta(in_path, out_path):
 
 
 def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_identity=0.98, abs_min_identity=0.40,
-                           interval=5):
+                           interval=0.05):
     """
     Characterize Alignment
 
@@ -1026,7 +1191,8 @@ def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_id
     seq_fractions = {'Low': 0, 'Passing': 0, 'High': 0}
     max_fraction = 0.0
     min_fraction = 1.0
-    identity_bins = list(range(abs_min_identity, abs_max_identity, interval))
+    identity_bins = [float(x / 100) for x in
+                     range(int(100 * abs_min_identity), int(100 * abs_max_identity), int(100 * interval))]
     print(identity_bins)
     sequences = {x: [] for x in identity_bins}
     out_of_range = {}

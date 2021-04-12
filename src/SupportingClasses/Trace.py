@@ -6,16 +6,16 @@ Created on May 23, 2019
 import os
 import pickle
 import numpy as np
-import networkx as nx
+import pandas as pd
 from tqdm import tqdm
-from copy import deepcopy
 from time import sleep, time
 from Bio.Alphabet import Gapped
 from multiprocessing import Manager, Pool, Lock
-from FrequencyTable import FrequencyTable
-from MatchMismatchTable import MatchMismatchTable
-from EvolutionaryTraceAlphabet import MultiPositionAlphabet
-from utils import gap_characters, build_mapping, compute_rank_and_coverage
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.EvolutionaryTraceAlphabet import MultiPositionAlphabet
+from SupportingClasses.utils import gap_characters, build_mapping, compute_rank_and_coverage
 
 
 class Trace(object):
@@ -31,8 +31,6 @@ class Trace(object):
         characterization of sub-alignments and group scoring during the trace procedure to reduce the required
         computations.
         rank_scores (dict): A dictionary to track the the scores at each rank in the assignments dictionary.
-        position_specific (bool): Whether this trace will perform position specific analyses or not.
-        pair_specific (bool): Whether this trace will perform pair specific analyses or not.
         match_mismatch (bool): Whether to use the match mismatch characterization (looking at all possible transitions
         in a position/pair between sequences of an alignment, True) or the standard protocol (looking at each position
         only once for each sequence in the alignment, False).
@@ -41,8 +39,8 @@ class Trace(object):
         resources.
     """
 
-    def __init__(self, alignment, phylo_tree, group_assignments, position_specific=True, pair_specific=True,
-                 match_mismatch=False, output_dir=None, low_memory=False):
+    def __init__(self, alignment, phylo_tree, group_assignments, pos_size, match_mismatch=False, output_dir=None,
+                 low_memory=False):
         """
         Initializer for Trace object.
 
@@ -50,66 +48,73 @@ class Trace(object):
             alignment (SeqAlignment): The alignment for which to perform a trace analysis.
             phylo_tree (PhylogeneticTree): The tree based on the alignment to use during the trace analysis.
             group_assignments (dict): The group assignments for nodes in the tree.
-            position_specific (bool): Whether or not to perform the trace for specific positions.
-            pair_specific (bool): Whether or not to perform the trace for pairs of positions.
+            pos_size (int): The size of the the positions being analyzed (expecting 1 single position scores or 2 pair
+            position scores).
             match_mismatch (bool): Whether to use the match mismatch characterization (True) or the standard protocol
             (False).
             output_dir (str/path): Where results from a trace should be stored.
             low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
             resources.
         """
+        if not isinstance(alignment, SeqAlignment):
+            raise ValueError('Provided alignment must be a SeqAlignment object!')
         self.aln = alignment
+        # This check is being deprecated because it fails depending on how the PhylogeneticTree class is imported.
+        # if not isinstance(phylo_tree, PhylogeneticTree):
+        if type(phylo_tree).__name__ != 'PhylogeneticTree':
+            print(type(phylo_tree))
+            print(type(phylo_tree).__name__)
+            raise ValueError('Provided tree must be a PhylogeneticTree object!')
         self.phylo_tree = phylo_tree
+        if not isinstance(group_assignments, dict):
+            raise ValueError('Provided assignments must be a dictionary produced by '
+                             'PhylogeneticTree.assign_group_rank()!')
         self.assignments = group_assignments
-        self.unique_nodes = None
-        self.rank_scores = None
-        self.final_scores = None
-        self.final_ranks = None
-        self.final_coverage = None
-        self.pos_specific = position_specific
-        self.pair_specific = pair_specific
+        if (not isinstance(match_mismatch, bool)) or (not isinstance(low_memory, bool)):
+            raise ValueError('Input of type bool is expected for arguments match_mismatch, and low_memory!')
+        if (pos_size < 1) or (pos_size > 2):
+            raise ValueError('Currently the only supported positions sizes are 1 (position specific) and 2 (pairs of '
+                             'positions)!')
+        self.pos_size = pos_size
         self.match_mismatch = match_mismatch
+        self.low_memory = low_memory
         if output_dir is None:
             self.out_dir = os.getcwd()
         else:
             if not os.path.isdir(output_dir):
                 os.makedirs(output_dir)
             self.out_dir = output_dir
-        self.low_memory = low_memory
+        self.unique_nodes = None
+        self.rank_scores = None
+        self.final_scores = None
+        self.final_ranks = None
+        self.final_coverage = None
 
-    def characterize_rank_groups_standard(self, unique_dir, single_size, single_mapping, single_reverse, processes=1,
-                                          write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups_standard(self, unique_dir, alpha_size, alpha_mapping, alpha_reverse,
+                                          single_to_pair=None, processes=1, write_out_sub_aln=True,
+                                          write_out_freq_table=True, maximum_iterations=100000, single_map=None):
         """
         Characterize Rank Group
 
         This function iterates over the rank and group assignments and characterizes all positions for each sub
         alignment. Characterization consists of FrequencyTable objects which are added to the group_assignments
-        dictionary provided at initialization (single position FrequencyTables are added under the key 'single', while
-        FrequencyTables for pairs of positions are added under the key 'pair').
+        dictionary provided at initialization (FrequencyTables are added under the key 'freq_table').
 
         Args:
             unique_dir (str/path): The path to the directory where unique node data can be stored.
-            single_size (int): The size of the single letter alphabet being used.
-            single_mapping (dict): A dictionary from character to integer representation.
-            single_reverse (np.array): An array mapping from an integer (index) representation back to a single letter
-            character.
+            alpha_size (int): The size of the alphabet needed for the alignment and position size being characterized
+            (including the gap character).
+            alpha_mapping (dict): A dictionary mapping the letters of the alphabet to numerical positions.
+            alpha_reverse (np.array): An array mapping numerical positions back to the letter alphabet of the alphabet.
+            single_to_pair (np.array): A two dimensional array mapping single letter numeric positions to paired letter
+            numeric positions. Only needed for pairs of positions.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
         """
-        if self.pair_specific:
-            pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
-            pair_size, _, pair_mapping, pair_reverse = build_mapping(alphabet=pair_alphabet)
-            single_to_pair = np.zeros((max(single_mapping.values()) + 1, max(single_mapping.values()) + 1))
-            for char in pair_mapping:
-                single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
-        else:
-            pair_size = None
-            pair_mapping = None
-            pair_reverse = None
-            single_to_pair = None
         visited = {}
         components = False
         to_characterize = []
@@ -144,136 +149,22 @@ class Trace(object):
         frequency_tables = pool_manager.dict()
         tables_lock = Lock()
         pool = Pool(processes=processes, initializer=init_characterization_pool,
-                    initargs=(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                              single_to_pair, self.aln, self.pos_specific, self.pair_specific, visited,
-                              frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
-                              write_out_freq_table, processes))
+                    initargs=(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, self.aln, self.pos_size,
+                              visited, frequency_tables, tables_lock, unique_dir, self.low_memory, write_out_sub_aln,
+                              write_out_freq_table, processes, maximum_iterations, single_map))
         for char_node in to_characterize:
             pool.apply_async(func=characterization, args=char_node, callback=update_characterization)
         pool.close()
         pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
+        if len(frequency_tables) != len(to_characterize):
+            raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
 
-    # def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
-    #                                             processes=1, write_out_sub_aln=True, write_out_freq_table=True):
-    #     if self.pos_specific and not self.pair_specific:
-    #         pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
-    #         larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=pair_alphabet)
-    #         single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
-    #                             for char in larger_mapping if larger_mapping[char] < larger_size}
-    #         gaps = {'-'} if '-' in pair_alphabet.letters else gap_characters
-    #         dummy_dict = {'{0}'.format(next(iter(single_mapping))): 0}
-    #         pos_type = 'position'
-    #         table_type = 'single'
-    #     elif self.pair_specific and not self.pos_specific:
-    #         quad_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=4)
-    #         larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=quad_alphabet)
-    #         single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
-    #                           for char in larger_mapping if larger_mapping[char] < larger_size}
-    #         gaps = {'-'} if '-' in quad_alphabet.letters else gap_characters
-    #         dummy_dict = {'{0}{0}'.format(next(iter(single_mapping))): 0}
-    #         pos_type = 'pair'
-    #         table_type = 'pair'
-    #     else:
-    #         raise AttributeError('Match/Mismatch characterization requires that either pos_specific or pair_'
-    #                              'specific be selected but not both.')
-    #     # The FrequencyTable checks that the alphabet matches the provided position size by looking whether the
-    #     # first element of the mapping dictionary has the same size as the position since we are looking at
-    #     # something twice the size of the position (either pairs for single positions or quadruples for pairs of
-    #     # positions) this causes an error. Therefore I introduced this hack, to use a dummy dictionary to get
-    #     # through proper initialization, which does expose a vulnerability in the FrequencyTable class (the check
-    #     # could be more stringent) but it allows for this more flexible behavior.
-    #     freq_table = FrequencyTable(alphabet_size=larger_size, mapping=dummy_dict, reverse_mapping=larger_reverse,
-    #                                 seq_len=self.aln.seq_length, pos_size=(1 if self.pos_specific else 2))
-    #     # Completes the hack just described, providing the correct mapping table to replace the dummy table
-    #     # provided.
-    #     freq_table.mapping = larger_mapping
-    #     to_characterize = freq_table.get_positions()
-    #     num_aln = self.aln._alignment_to_num(mapping=single_mapping)
-    #     match_mismatch_table = MatchMismatchTable(seq_len=self.aln.seq_length, num_aln=num_aln,
-    #                                               single_alphabet_size=single_size, single_mapping=single_mapping,
-    #                                               single_reverse_mapping=single_reverse,
-    #                                               larger_alphabet_size=larger_size,
-    #                                               larger_alphabet_mapping=larger_mapping,
-    #                                               larger_alphabet_reverse_mapping=larger_reverse,
-    #                                               single_to_larger_mapping=single_to_larger,
-    #                                               pos_size=(1 if self.pos_specific else 2))
-    #     match_mismatch_table.identify_matches_mismatches()
-    #     node_sequences = {}
-    #     # pool_manager = Manager()
-    #     frequency_tables = {}
-    #     completed_tables = {}
-    #     for r in self.assignments.keys():
-    #         for g in self.assignments[r]:
-    #             node = self.assignments[r][g]['node']
-    #             if node.name not in node_sequences:
-    #                 sub_aln = self.aln.generate_sub_alignment(sequence_ids=self.assignments[r][g]['terminals'])
-    #                 node_sequences[node.name] = sorted([self.aln.seq_order.index(s)
-    #                                                     for s in sub_aln.seq_order])
-    #                 # Check whether the alignment characterization has already been saved to file.
-    #                 match_check, match_fn = check_freq_table(low_memory=self.low_memory, node_name=node.name,
-    #                                                          table_type=table_type + '_match', out_dir=unique_dir)
-    #                 mismatch_check, mismatch_fn = check_freq_table(low_memory=self.low_memory, node_name=node.name,
-    #                                                                table_type=table_type + '_mismatch',
-    #                                                                out_dir=unique_dir)
-    #                 # If the file(s) were found set the return values for this sub-alignment.
-    #                 if self.low_memory and match_check and mismatch_check:
-    #                     completed_tables[node.name] = {'match': match_fn, 'mismatch': mismatch_fn}
-    #                 else:  # Check what kind of node is being processed
-    #                     frequency_tables[node.name] = {'match': deepcopy(freq_table), 'mismatch': deepcopy(freq_table)}
-    #                     possible_matches_mismatches = ((sub_aln.size ** 2) - sub_aln.size) / 2.0
-    #                     frequency_tables[node.name]['match'].set_depth(depth=possible_matches_mismatches)
-    #                     frequency_tables[node.name]['mismatch'].set_depth(depth=possible_matches_mismatches)
-    #                 if write_out_sub_aln:
-    #                     sub_aln.write_out_alignment(file_name=os.path.join(unique_dir, '{}.fa'.format(node.name)))
-    #     characterization_pbar = tqdm(total=len(to_characterize), unit='characterizations')
-    #
-    #     def update_characterization(return_val):
-    #         """
-    #         Update Characterization
-    #
-    #         This function serves to update the progress bar for characterization.
-    #
-    #         Args:
-    #             return_pos (str): The name of the position which has just finished being characterized.
-    #         """
-    #         print(return_val)
-    #         pos, char_dict = return_val
-    #         for node in char_dict:
-    #             for status in char_dict[node]:
-    #                 for char in char_dict[node][status]:
-    #                     frequency_tables[node][status]._increment_count(pos=pos, char=char, amount=char_dict[node][status][char])
-    #         characterization_pbar.update(1)
-    #         characterization_pbar.refresh()
-    #
-    #     # pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-    #     #             initargs=(self.aln.size, node_sequences, match_mismatch_table, processes))
-    #     # init_characterization_mm_pool(self.aln.size, node_sequences, match_mismatch_table, table_locks,
-    #     #                               frequency_tables, processes)
-    #     init_characterization_mm_pool(self.aln.size, node_sequences, match_mismatch_table, processes)
-    #     for pos in to_characterize:
-    #         ret = characterization_mm(pos)
-    #         update_characterization(ret)
-    #         # pool.apply_async(func=characterization_mm, args=(pos, ), callback=update_characterization)
-    #     # pool.close()
-    #     # pool.join()
-    #     characterization_pbar.close()
-    #     for node_name in frequency_tables:
-    #         for m in ['match', 'mismatch']:
-    #             frequency_tables[node_name][m].finalize_table()
-    #             if write_out_freq_table:
-    #                 frequency_tables[node_name][m].to_csv(
-    #                     os.path.join(unique_dir, '{}_{}_{}_freq_table.tsv'.format(pos_type, node_name, m)))
-    #             frequency_tables[node_name][m] = save_freq_table(freq_table=frequency_tables[node_name][m],
-    #                                                              low_memory=self.low_memory, node_name=node_name,
-    #                                                              table_type=table_type + '_' + m, out_dir=unique_dir)
-    #     self.unique_nodes = frequency_tables
-    #     self.unique_nodes.update(completed_tables)
-
-    def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, single_reverse,
-                                                processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups_match_mismatch(self, unique_dir, single_size, single_mapping, processes=1,
+                                                write_out_sub_aln=True, write_out_freq_table=True,
+                                                maximum_iterations=100000):
         """
         Characterize Rank Groups Match Mismatch
 
@@ -286,44 +177,38 @@ class Trace(object):
             unique_dir (str/path): The path to the directory where unique node data can be stored.
             single_size (int): The size of the single letter alphabet being used.
             single_mapping (dict): A dictionary from character to integer representation.
-            single_reverse (np.array): An array mapping from an integer (index) representation back to a single letter
-            character.
             processes (int): The maximum number of sequences to use when performing this characterization.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
             characterizing it.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
         """
-        if self.pos_specific and not self.pair_specific:
-            pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
-            larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=pair_alphabet)
-            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]]): larger_mapping[char]
-                                for char in larger_mapping if larger_mapping[char] < larger_size}
-            pos_size = 1
-            pos_type = 'position'
-            table_type = 'single'
-        elif self.pair_specific and not self.pos_specific:
+        pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
+        pair_size, _, pair_mapping, pair_revers = build_mapping(alphabet=pair_alphabet)
+        single_to_pair = np.zeros((single_size + 1, single_size + 1), dtype=np.int32)
+        mismatch_mask = np.zeros(pair_size, dtype=np.bool_)
+        for char in pair_mapping:
+            single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
+            if single_mapping[char[0]] != single_mapping[char[1]]:
+                mismatch_mask[pair_mapping[char]] = True
+        if self.pos_size == 1:
+            larger_size, larger_mapping, larger_reverse = pair_size, pair_mapping, pair_revers
+            comparison_mapping = single_to_pair
+            single_to_pair = None
+        elif self.pos_size == 2:
             quad_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=4)
             larger_size, _, larger_mapping, larger_reverse = build_mapping(alphabet=quad_alphabet)
-            single_to_larger = {(single_mapping[char[0]], single_mapping[char[1]], single_mapping[char[2]],
-                                 single_mapping[char[3]]): larger_mapping[char]
-                                for char in larger_mapping if larger_mapping[char] < larger_size}
-            pos_size = 2
-            pos_type = 'pair'
-            table_type = 'pair'
+            # single_to_pair set above
+            comparison_mapping = np.zeros((pair_size + 1, pair_size + 1), dtype=np.int32)
+            mismatch_mask = np.zeros(larger_size, dtype=np.bool_)
+            for char in larger_mapping:
+                comparison_mapping[pair_mapping[char[:2]], pair_mapping[char[2:]]] = larger_mapping[char]
+                if ((char[0] != char[2]) and (char[1] == char[3])) or ((char[0] == char[2]) and (char[1] != char[3])):
+                    mismatch_mask[larger_mapping[char]] = True
         else:
             raise AttributeError('Match/Mismatch characterization requires that either pos_specific or pair_'
                                  'specific be selected but not both.')
-        num_aln = self.aln._alignment_to_num(mapping=single_mapping)
-        match_mismatch_table = MatchMismatchTable(seq_len=self.aln.seq_length, num_aln=num_aln,
-                                                  single_alphabet_size=single_size, single_mapping=single_mapping,
-                                                  single_reverse_mapping=single_reverse,
-                                                  larger_alphabet_size=larger_size,
-                                                  larger_alphabet_mapping=larger_mapping,
-                                                  larger_alphabet_reverse_mapping=larger_reverse,
-                                                  single_to_larger_mapping=single_to_larger,
-                                                  pos_size=pos_size)
-        match_mismatch_table.identify_matches_mismatches()
         visited = {}
         components = False
         to_characterize = []
@@ -358,19 +243,22 @@ class Trace(object):
         frequency_tables = pool_manager.dict()
         tables_lock = Lock()
         pool = Pool(processes=processes, initializer=init_characterization_mm_pool,
-                    initargs=(single_size, single_mapping, single_reverse, larger_size, larger_mapping, larger_reverse,
-                              single_to_larger, match_mismatch_table, self.aln, pos_size, pos_type,
-                              table_type, visited, frequency_tables, tables_lock, unique_dir, self.low_memory,
-                              write_out_sub_aln, write_out_freq_table))
+                    initargs=(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
+                              comparison_mapping, mismatch_mask, self.aln, self.pos_size, visited, frequency_tables,
+                              tables_lock, unique_dir, self.low_memory, write_out_sub_aln, write_out_freq_table,
+                              maximum_iterations))
         for char_node in to_characterize:
             pool.apply_async(func=characterization_mm, args=char_node, callback=update_characterization)
         pool.close()
         pool.join()
         characterization_pbar.close()
         frequency_tables = dict(frequency_tables)
+        if len(frequency_tables) != len(to_characterize):
+            raise ValueError('Characterization incomplete, please check inputs provided!')
         self.unique_nodes = frequency_tables
 
-    def characterize_rank_groups(self, processes=1, write_out_sub_aln=True, write_out_freq_table=True):
+    def characterize_rank_groups(self, processes=1, maximum_iterations=100000, write_out_sub_aln=True,
+                                 write_out_freq_table=True):
         """
         Characterize Rank Groups:
 
@@ -379,6 +267,7 @@ class Trace(object):
 
         Arguments:
             processes (int): The maximum number of sequences to use when performing this characterization.
+            maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
             write_out_sub_aln (bool): Whether or not to write out the sub-alignments for each node while characterizing
             it.
             write_out_freq_table (bool): Whether or not to write out the frequency table for each node while
@@ -390,19 +279,30 @@ class Trace(object):
         single_alphabet = Gapped(self.aln.alphabet)
         single_size, _, single_mapping, single_reverse = build_mapping(alphabet=single_alphabet)
         if self.match_mismatch:
-            # self.characterize_rank_groups_match_mismatch(unique_dir=unique_dir, single_size=single_size,
-            #                                              single_mapping=single_mapping, single_reverse=single_reverse,
-            #                                              processes=processes, write_out_sub_aln=write_out_sub_aln,
-            #                                              write_out_freq_table=write_out_freq_table)
             self.characterize_rank_groups_match_mismatch(unique_dir=unique_dir, single_size=single_size,
-                                                         single_mapping=single_mapping, single_reverse=single_reverse,
-                                                         processes=processes, write_out_sub_aln=write_out_sub_aln,
-                                                         write_out_freq_table=write_out_freq_table)
+                                                         single_mapping=single_mapping,  processes=processes,
+                                                         write_out_sub_aln=write_out_sub_aln,
+                                                         write_out_freq_table=write_out_freq_table,
+                                                         maximum_iterations=maximum_iterations)
         else:
-            self.characterize_rank_groups_standard(unique_dir=unique_dir, single_size=single_size,
-                                                   single_mapping=single_mapping, single_reverse=single_reverse,
-                                                   processes=processes, write_out_sub_aln=write_out_sub_aln,
-                                                   write_out_freq_table=write_out_freq_table)
+            if self.pos_size == 2:
+                pair_alphabet = MultiPositionAlphabet(alphabet=Gapped(self.aln.alphabet), size=2)
+                curr_size, _, curr_mapping, curr_reverse = build_mapping(alphabet=pair_alphabet)
+                curr_single_to_pair = pro_single_to_pair = np.zeros((max(single_mapping.values()) + 1,
+                                                                     max(single_mapping.values()) + 1), dtype=np.int)
+                for char in curr_mapping:
+                    pro_single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = curr_mapping[char]
+            else:
+                curr_size = single_size
+                curr_mapping = single_mapping
+                curr_reverse = single_reverse
+                curr_single_to_pair = None
+            self.characterize_rank_groups_standard(unique_dir=unique_dir, alpha_size=curr_size,
+                                                   alpha_mapping=curr_mapping, alpha_reverse=curr_reverse,
+                                                   single_to_pair=curr_single_to_pair, processes=processes,
+                                                   write_out_sub_aln=write_out_sub_aln,
+                                                   write_out_freq_table=write_out_freq_table,
+                                                   maximum_iterations=maximum_iterations, single_map=single_mapping)
 
     def trace(self, scorer, gap_correction=0.6, processes=1):
         """
@@ -439,6 +339,8 @@ class Trace(object):
                 final_scores += rank_scores
             final_scores += 1
         """
+        if scorer.position_size != self.pos_size:
+            raise ValueError('Scorer and Trace position size do not agree!')
         unique_dir = os.path.join(self.out_dir, 'unique_node_data')
         # Generate group scores for each of the unique_nodes from the phylo_tree
         group_pbar = tqdm(total=len(self.unique_nodes), unit='group')
@@ -455,13 +357,12 @@ class Trace(object):
                 dictionary containing the single and pair position scores for that node.
             """
             completed_name, completed_components = return_tuple
-            self.unique_nodes[completed_name].update(completed_components)
+            self.unique_nodes[completed_name]['group_scores'] = completed_components
             group_pbar.update(1)
             group_pbar.refresh()
 
         pool1 = Pool(processes=processes, initializer=init_trace_groups,
-                     initargs=(scorer, self.pos_specific, self.pair_specific, self.match_mismatch, self.unique_nodes,
-                               self.low_memory, unique_dir))
+                     initargs=(scorer, self.match_mismatch, self.unique_nodes, self.low_memory, unique_dir))
         for node_name in self.unique_nodes:
             pool1.apply_async(trace_groups, (node_name,), callback=update_group)
         pool1.close()
@@ -482,29 +383,24 @@ class Trace(object):
                 return_tuple (tuple): A tuple consisting of the rank (int) which has been scored and a dictionary
                 containing the single and pair position scores for that ranks.
             """
-            rank, components = return_tuple
-            self.rank_scores[rank] = components
+            rank, component = return_tuple
+            self.rank_scores[rank] = component
             rank_pbar.update(1)
             rank_pbar.refresh()
 
         pool2 = Pool(processes=processes, initializer=init_trace_ranks,
-                     initargs=(scorer, self.pos_specific, self.pair_specific, self.assignments,
-                               self.unique_nodes, self.low_memory, unique_dir))
+                     initargs=(scorer, self.assignments, self.unique_nodes, self.low_memory, unique_dir))
         for rank in sorted(self.assignments.keys(), reverse=True):
             pool2.apply_async(trace_ranks, (rank,), callback=update_rank)
         pool2.close()
         pool2.join()
         rank_pbar.close()
+        if len(self.rank_scores) < len(self.assignments):
+            raise ValueError('Trace incomplete, check initialization and/or input variables.')
         # Combine rank scores to generate a final score for each position
         final_scores = np.zeros(scorer.dimensions)
         for rank in self.rank_scores:
-            if self.pair_specific:
-                rank_scores = self.rank_scores[rank]['pair_ranks']
-            elif self.pos_specific:
-                rank_scores = self.rank_scores[rank]['single_ranks']
-            else:
-                raise ValueError('pair_specific and pos_specific were not set rank: {} not in rank_dict'.format(rank))
-            rank_scores = load_numpy_array(mat=rank_scores, low_memory=self.low_memory)
+            rank_scores = load_numpy_array(mat=self.rank_scores[rank], low_memory=self.low_memory)
             final_scores += rank_scores
         if scorer.rank_type == 'min':
             if scorer.position_size == 1:
@@ -517,16 +413,31 @@ class Trace(object):
             # The FrequencyTable for the root node is used because it characterizes all sequences and its depth is equal
             # to the alignment size. The resulting gap frequencies are equivalent to gap count / alignment size.
             root_node_name = self.phylo_tree.tree.root.name
-            freq_table = load_freq_table(freq_table=self.unique_nodes[root_node_name][pos_type],
-                                         low_memory=self.low_memory)
-            gap_chars = list(set(Gapped(self.aln.alphabet).letters).intersection(gap_characters))
+            if self.match_mismatch:
+                freq_table = (load_freq_table(freq_table=self.unique_nodes[root_node_name]['match'],
+                                              low_memory=self.low_memory) +
+                              load_freq_table(freq_table=self.unique_nodes[root_node_name]['mismatch'],
+                                              low_memory=self.low_memory))
+            else:
+                freq_table = load_freq_table(freq_table=self.unique_nodes[root_node_name]['freq_table'],
+                                             low_memory=self.low_memory)
+            resized_gap_characters = set([(x * len(freq_table.reverse_mapping[0])) for x in list(gap_characters)])
+            gap_chars = list(set(freq_table.reverse_mapping).intersection(resized_gap_characters))
             if len(gap_chars) > 1:
                 raise ValueError('More than one gap character present in alignment alphabet! {}'.format(gap_chars))
             gap_char = gap_chars[0]
-            max_rank_score = np.max(final_scores)
-            for i in range(freq_table.sequence_length):
+            if scorer.rank_type == 'min':
+                worst_rank_score = np.max(final_scores)
+            else:
+                worst_rank_score = np.min(final_scores[final_scores != 0])
+            for i in freq_table.get_positions():
                 if freq_table.get_frequency(pos=i, char=gap_char) > gap_correction:
-                    final_scores[i] = max_rank_score
+                    if self.pos_size == 1:
+                        final_scores[i] = worst_rank_score
+                    elif self.pos_size == 2 and i[0] != i[1]:
+                        final_scores[i[0], i[1]] = worst_rank_score
+                    else:
+                        pass
         self.final_scores = final_scores
         self.final_ranks, self.final_coverage = compute_rank_and_coverage(
             seq_length=self.aln.seq_length, scores=self.final_scores, pos_size=scorer.position_size,
@@ -553,9 +464,12 @@ def check_freq_table(low_memory, node_name, table_type, out_dir):
     check = False
     fn = None
     if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
-        if os.path.isfile(fn):
-            check = True
+        if (node_name is None) or (table_type is None) or (out_dir is None):
+            raise ValueError('All values: node_name, table_type, and out_dir must be provided when low_memory is True.')
+        else:
+            fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
+            if os.path.isfile(fn):
+                check = True
     return check, fn
 
 
@@ -578,8 +492,8 @@ def save_freq_table(freq_table, low_memory, node_name, table_type, out_dir):
         to a file where the FrequencyTable has been saved.
     """
     if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_freq_table.pkl'.format(node_name, table_type))
-        if not os.path.isfile(fn):
+        check, fn = check_freq_table(low_memory=low_memory, node_name=node_name, table_type=table_type, out_dir=out_dir)
+        if not check:
             with open(fn, 'wb') as handle:
                 pickle.dump(freq_table, handle, pickle.HIGHEST_PROTOCOL)
         freq_table = fn
@@ -603,6 +517,8 @@ def load_freq_table(freq_table, low_memory):
     """
     if low_memory and isinstance(freq_table, FrequencyTable):
         raise ValueError('Low memory setting active but frequency table provided is not a path.')
+    elif (not low_memory) and not isinstance(freq_table, FrequencyTable):
+        raise ValueError('Low memory setting not active, a frequency table is expected as input.')
     elif low_memory:
         if not os.path.isfile(freq_table):
             raise ValueError('File path is not valid: {}'.format(freq_table))
@@ -613,10 +529,97 @@ def load_freq_table(freq_table, low_memory):
     return freq_table
 
 
-def init_characterization_pool(single_size, single_mapping, single_reverse, pair_size, pair_mapping, pair_reverse,
-                               single_to_pair, alignment, pos_specific, pair_specific, components, sharable_dict,
-                               sharable_lock, unique_dir, low_memory, write_out_sub_aln, write_out_freq_table,
-                               processes):
+def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
+    """
+    Check Frequency Table
+
+    This function is used to check wither the desired FrequencyTable has already been produced and stored or not.
+
+    Args:
+        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
+        node_name (str): A string which will be used in identifying the save file.
+        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
+        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
+        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
+        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
+    Returns:
+        bool: Whether or not the desired table has previously been saved (if low_memory is False, False is returned by
+        default).
+        str/None: If low_memory is True the expected path to the file, whether it is present or not.
+    """
+    check = False
+    fn = None
+    if low_memory:
+        if (node_name is None) or (pos_type is None) or (score_type is None) or (metric is None) or (out_dir is None):
+            raise ValueError('All values: node_name, pos_type, score_type, metric, and out_dir must be provided when '
+                             'low_memory is True.')
+        else:
+            fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
+            if os.path.isfile(fn):
+                check = True
+    return check, fn
+
+
+def save_numpy_array(mat, out_dir, node_name, pos_type, score_type, metric, low_memory):
+    """
+    Save Numpy Array
+
+    This function returns either the np.array that was provided to it or the path where that np.array has been stored if
+    the low memory option was set. The FrequencyTable will be saved to a file in the out_dir with
+    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
+
+    Args:
+        mat (np.array): The np.array instance to either serialize or pass through.
+        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
+        node_name (str): A string which will be used in identifying the save file.
+        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
+        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
+        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
+        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
+    Returns:
+        np.array/str: Either the provided np.array (if low_memory is False) or a string providing the path to a file
+        where the np.array has been saved.
+    """
+    if low_memory:
+        check, fn = check_numpy_array(low_memory=low_memory, node_name=node_name, pos_type=pos_type,
+                                      score_type=score_type, metric=metric, out_dir=out_dir)
+        if not check:
+            np.savez(fn, mat=mat)
+        mat = fn
+    return mat
+
+
+def load_numpy_array(mat, low_memory):
+    """
+    Load Numpy Array
+
+    This function returns a np.array. If a np.array was provided to it and low_memory is False the instance
+    returned is the same as the one passed in. If a string was passed in and low_memory is True a np.array is
+    returned after loading it from the file specified by the string.
+
+    Args:
+        mat (np.array/str): A np.array or the path to one which should be loaded from file.
+        low_memory (bool): Whether or not to load the np.array from file.
+    Returns:
+        np.array: Either the np.array passed in or the one loaded from the file specified by a passed in string.
+    """
+    if low_memory and isinstance(mat, np.ndarray):
+        raise ValueError('Low memory setting active but matrix provided is not a path.')
+    elif (not low_memory) and not isinstance(mat, np.ndarray):
+        raise ValueError('Low memory setting not active, a numpy array is expected as input.')
+    elif low_memory:
+        if not os.path.isfile(mat):
+            raise ValueError('File path is not valid: {}'.format(mat))
+        load = np.load(mat)
+        mat = load['mat']
+    else:
+        pass
+    return mat
+
+
+def init_characterization_pool(alpha_size, alpha_mapping, alpha_reverse, single_to_pair, alignment, pos_size,
+                               components, sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
+                               write_out_freq_table, processes, maximum_iterations=10000, single_map=None):
     """
     Init Characterization Pool
 
@@ -624,20 +627,16 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
     alignments for each node in the phylogenetic tree.
 
     Args:
-        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
-        gap character).
-        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
-        pair_size (int): The size of the paired letter alphabet for the alignment being characterized (including the
-        gap character).
-        pair_mapping (dict): A dictionary mapping the paired letter alphabet to numerical positions.
-        pair_reverse (np.array): An array mapping numerical positions back to the paired letter alphabet.
+        alpha_size (int): The size of the alphabet needed for the alignment and position size being characterized
+        (including the gap character).
+        alpha_mapping (dict): A dictionary mapping the letters of the alphabet to numerical positions.
+        alpha_reverse (np.array): An array mapping numerical positions back to the letter alphabet of the alphabet.
         single_to_pair (np.array): A two dimensional array mapping single letter numeric positions to paired letter
-        numeric positions.
+        numeric positions. Only needed for pairs of positions.
         alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
         sub alignments for the terminal nodes in the tree.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
+        pos_size (int): The size of the the positions being analyzed (expecting 1 single position scores or 2 pair
+        position scores).
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
@@ -648,19 +647,34 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
         processes (int): The number of processes being used by the initialized pool.
+        maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
     """
-    global s_size, s_map, s_rev, p_size, p_map, p_rev, s_to_p, aln, single, pair, comps, freq_tables, freq_lock,\
-        freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, cpu_count, sleep_time
-    s_size = single_size
-    s_map = single_mapping
-    s_rev = single_reverse
-    p_size = pair_size
-    p_map = pair_mapping
-    p_rev = pair_reverse
+    global s_to_p, aln, comps, freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table,\
+        cpu_count, sleep_time, table_type, single, pair, s_size, s_map, s_rev, p_size, p_map, p_rev, max_iters
     s_to_p = single_to_pair
     aln = alignment
-    single = pos_specific
-    pair = pair_specific
+    if pos_size == 1:
+        table_type = 'single'
+        single = True
+        pair = False
+        s_size = alpha_size
+        s_map = alpha_mapping
+        s_rev = alpha_reverse
+        p_size = None
+        p_map = None
+        p_rev = None
+    elif pos_size == 2:
+        table_type = 'pair'
+        single = False
+        pair = True
+        s_size = None
+        s_map = single_map
+        s_rev = None
+        p_size = alpha_size
+        p_map = alpha_mapping
+        p_rev = alpha_reverse
+    else:
+        raise ValueError('pos_size must be defined as 1 or 2.')
     comps = components
     freq_tables = sharable_dict
     freq_lock = sharable_lock
@@ -674,6 +688,7 @@ def init_characterization_pool(single_size, single_mapping, single_reverse, pair
     # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
     # single node.
     sleep_time = 0.1
+    max_iters = maximum_iterations
 
 
 def characterization(node_name, node_type):
@@ -706,14 +721,11 @@ def characterization(node_name, node_type):
     # Since sleep_time may be updated this function must declare that it is referencing the global variable sleep_time
     global sleep_time
     # Check whether the alignment characterization has already been saved to file.
-    single_check, single_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='single',
-                                               out_dir=u_dir)
-    pair_check, pair_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type='pair',
-                                           out_dir=u_dir)
-    # If the file(s) were found set the return values for this sub-alignment.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        pos_table = single_fn if single else None
-        pair_table = pair_fn if pair else None
+    ft_check, ft_fn = check_freq_table(low_memory=low_mem, node_name=node_name, table_type=table_type,
+                                       out_dir=u_dir)
+    # If the file was found set the return values for this sub-alignment.
+    if low_mem and ft_check:
+        freq_table = ft_fn
     else:  # Check what kind of node is being processed
         # Generate the sub alignment for the current node.
         sub_aln = aln.generate_sub_alignment(sequence_ids=comps[node_name]['terminals'])
@@ -731,9 +743,14 @@ def characterization(node_name, node_type):
             else:
                 # If the node is larger characterize the whole alignment, one position at a time.
                 pos_table, pair_table = sub_aln.characterize_positions2(
-                    single=single, pair=pair, single_letter_size=s_size, single_letter_mapping=s_map,
-                    single_letter_reverse=s_rev, pair_letter_size=p_size, pair_letter_mapping=p_map,
-                    pair_letter_reverse=p_rev, single_to_pair=s_to_p)
+                    single=single, pair=pair, single_size=s_size, single_mapping=s_map, single_reverse=s_rev,
+                    pair_size=p_size, pair_mapping=p_map, pair_reverse=p_rev, single_to_pair=s_to_p)
+            if table_type == 'single':
+                freq_table = pos_table
+            elif table_type == 'pair':
+                freq_table = pair_table
+            else:
+                raise ValueError('Unknown table type encountered in characterization!')
             end = time()
             # If characterization has not been timed before record the characterization time (used for sleep time during
             # the next loop, where higher rank nodes are characterized).
@@ -746,7 +763,7 @@ def characterization(node_name, node_type):
             # Since the node is non-terminal retrieve its descendants' characterizations and merge them to get the
             # parent characterization.
             descendants = set([d.name for d in comps[node_name]['descendants']])
-            # tries = 0
+            tries = {}
             components = []
             while len(descendants) > 0:
                 descendant = descendants.pop()
@@ -757,49 +774,42 @@ def characterization(node_name, node_type):
                     component = freq_tables[descendant]
                     components.append(component)
                 except KeyError:
+                    if descendant not in tries:
+                        tries[descendant] = 0
+                    elif tries[descendant] == max_iters:
+                        raise TimeoutError('Too many attempts made to access the descendant data!')
+                    else:
+                        tries[descendant] += 1
                     descendants.add(descendant)
                     sleep(sleep_time)
-            pos_table = None
-            pair_table = None
+            freq_table = None
             # Merge the descendants' FrequencyTable(s) to generate the one for this node.
             for i in range(len(components)):
-                if single:
-                    curr_pos_table = load_freq_table(components[i]['single'], low_memory=low_mem)
-                    if pos_table is None:
-                        pos_table = curr_pos_table
-                    else:
-                        pos_table += curr_pos_table
-                if pair:
-                    curr_pair_table = load_freq_table(components[i]['pair'], low_memory=low_mem)
-                    if pair_table is None:
-                        pair_table = curr_pair_table
-                    else:
-                        pair_table += curr_pair_table
+                curr_freq_table = load_freq_table(components[i]['freq_table'], low_memory=low_mem)
+                if freq_table is None:
+                    freq_table = curr_freq_table
+                else:
+                    freq_table += curr_freq_table
         else:
             raise ValueError("node_type must be either 'component' or 'inner'.")
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
-        if single:
-            if write_freq_table:
-                pos_table.to_csv(os.path.join(u_dir, '{}_position_freq_table.tsv'.format(node_name)))
-            pos_table = save_freq_table(freq_table=pos_table, low_memory=low_mem,
-                                        node_name=node_name, table_type='single'.format(node_name), out_dir=u_dir)
-        if pair:
-            if write_freq_table:
-                pair_table.to_csv(os.path.join(u_dir, '{}_pair_freq_table.tsv'.format(node_name)))
-            pair_table = save_freq_table(freq_table=pair_table, low_memory=low_mem,
-                                         node_name=node_name, table_type='pair'.format(node_name), out_dir=u_dir)
+        if write_freq_table:
+
+            freq_table.to_csv(os.path.join(u_dir, f'{node_name}_{table_type}_freq_table.tsv'))
+        freq_table = save_freq_table(freq_table=freq_table, low_memory=low_mem, node_name=node_name,
+                                     table_type=table_type, out_dir=u_dir)
     # Store the current nodes characterization in the shared dictionary.
-    tables = {'single': pos_table, 'pair': pair_table}
+    tables = {'freq_table': freq_table}
     freq_lock.acquire()
     freq_tables[node_name] = tables
     freq_lock.release()
     return node_name
 
 
-def init_characterization_mm_pool(single_size, single_mapping, single_reverse, larger_size, larger_mapping,
-                                  larger_reverse, single_to_larger, match_mismatch_table, alignment,
-                                  position_size, position_type, table_type, components, sharable_dict, sharable_lock,
-                                  unique_dir, low_memory, write_out_sub_aln, write_out_freq_table):
+def init_characterization_mm_pool(single_mapping, larger_size, larger_mapping, larger_reverse, single_to_pair,
+                                  comparison_mapping, mismatch_mask, alignment, position_size, components,
+                                  sharable_dict, sharable_lock, unique_dir, low_memory, write_out_sub_aln,
+                                  write_out_freq_table, maximum_iterations=10000):
     """
     Init Characterization Match Mismatch Pool
 
@@ -807,26 +817,24 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     and mismatches of sub-alignments for each node in the phylogenetic tree.
 
     Args:
-        single_size (int): The size of the single letter alphabet for the alignment being characterized (including the
-        gap character).
-        single_mapping (dict): A dictionary mapping the single letter alphabet to numerical positions.
-        single_reverse (np.array): An array mapping numerical positions back to the single letter alphabet.
+        single_mapping (dict): A dictionary mapping the single letter alphabet for DNA or Protein to numerical values.
         larger_size (int): The size of the pair, quad, or larger letter alphabet for the alignment being characterized
         (including the gap character).
         larger_mapping (dict): A dictionary mapping the pair, quad, or larger letter alphabet to numerical positions.
         larger_reverse (np.array): An array mapping numerical positions back to the larger letter alphabet.
-        single_to_larger (dict): A dictionary mapping single letter numeric positions to pair, quad, or larger letter
-        alphabet numeric positions.
-        match_mismatch_table (MatchMismatchTable): A characterization of all the matches and mismatches of single
-        positions in the full alignment being characterized, which can be used to check the match/mismatch status and
-        character at a given position and pair of sequences.
+        single_to_pair (np.array, dtype=np.int32): An array mapping single letter numerical representations
+        (axes 0 and 1) to a numerical representations of pairs of residues (value). If pos_size == 1 this argument
+        should be set to None (default).
+        comparison_mapping (np.array, dtype=np.int32): An array mapping the alphabet used for the positions_size of this
+        FrequencyTable, mapped to the alphabet that has characters twice as large (if pos_size == 1, this is the same as
+        the description for single_to_pair, if pos_size == 2 this is the mapping from the alphabet of pairs to the
+        alphabet of quadruples.
+        mismatch_mask (np.array, dtype=np.bool_): An array identifying which positions in the alphabet (the values
+        in the provided larger alphabet mapping) correspond to mismatches (variance events). This will be used to
+        separate the counts into match and mismatch tables.
         alignment (SeqAlignment): The alignment for which the trace is being computed, this will be used to generate
         sub alignments for the terminal nodes in the tree.
         position_size (int): The size of the positions being considered (1 for single positions, 2 for pairs, etc.).
-        position_type (str): The type of position being considered ('position' for single positions, and 'pair' for
-        pairs of positions.
-        table_type (str): The type of table being generated and serialized; if specified ('single' for single positions
-        and 'pair' for pairs of positions).
         components (dict): A dictionary mapping a node to its descendants and terminal nodes.
         sharable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
         deposit the characterization of each node and retrieve characterizations of children needed for larger nodes.
@@ -836,21 +844,25 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
         resources.
         write_out_sub_aln (bool): Whether or not to write out the sub-alignment for each node.
         write_out_freq_table (bool): Whether or not to write out the frequency table(s) for each node.
+        maximum_iterations (int): The most attempts that can be made to retrieve a single node descendant.
     """
-    global s_size, s_map, s_rev, l_size, l_map, l_rev, s_to_l, mm_table, aln, p_size, p_type, t_type, comps,\
-        freq_tables, freq_lock, freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time
-    s_size = single_size
+    global s_map, l_size, l_map, l_rev, s_to_p, comp_map, mis_mask, aln, p_size, t_type, comps, freq_tables, freq_lock,\
+        freq_lock, u_dir, low_mem, write_sub_aln, write_freq_table, sleep_time, max_iters
     s_map = single_mapping
-    s_rev = single_reverse
     l_size = larger_size
     l_map = larger_mapping
     l_rev = larger_reverse
-    s_to_l = single_to_larger
-    mm_table = match_mismatch_table
+    s_to_p = single_to_pair
+    comp_map = comparison_mapping
+    mis_mask = mismatch_mask
     aln = alignment
     p_size = position_size
-    p_type = position_type
-    t_type = table_type
+    if p_size == 1:
+        t_type = 'single'
+    elif p_size == 2:
+        t_type = 'pair'
+    else:
+        raise ValueError('position_size must be 1 or 2 for charcterization_mm!')
     comps = components
     freq_tables = sharable_dict
     freq_lock = sharable_lock
@@ -863,6 +875,7 @@ def init_characterization_mm_pool(single_size, single_mapping, single_reverse, l
     # nodes again. This time is updated from its default during processing, based on the time it takes to characterize a
     # single node.
     sleep_time = 0.1
+    max_iters = maximum_iterations
 
 
 def characterization_mm(node_name, node_type):
@@ -904,63 +917,50 @@ def characterization_mm(node_name, node_type):
         # If specified write the alignment to file.
         if write_sub_aln:
             sub_aln.write_out_alignment(file_name=os.path.join(u_dir, '{}.fa'.format(node_name)))
-        tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
-                                          seq_len=aln.seq_length, pos_size=p_size)}
-        # The depth for the alignment will not be set since we do not use any of the characterization  functions here,
-        # it needs to be the number of possible matches mismatches when comparing all elements of a column or pair of
-        # columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
-        # sub-alignments the size of the sub-alignment is 1 and therefor there are no values in the upper triangle
-        # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
-        # matrix and therefore not counted). Setting the depth to 0.0 causes divide by zero issues when calculating
-        # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
-        # the resulting frequencies should be calculated correctly.
-        depth = 1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0)
-        tables['match'].set_depth(depth)
-        tables['mismatch'] = deepcopy(tables['match'])
+        curr_num_aln = sub_aln._alignment_to_num(mapping=s_map)
+        # Re-order the numeric aln to match the ordering of the sequences in the tree
+        reorder_df = pd.DataFrame({'IDs': sub_aln.seq_order, 'Indexes': np.array(range(sub_aln.size))}).set_index('IDs')
+        curr_num_aln = curr_num_aln[reorder_df.loc[comps[node_name]['terminals'], 'Indexes'].values, :]
+        # Create easy look up for the new indexes
+        index_df = pd.DataFrame({'IDs': comps[node_name]['terminals'],
+                                 'Indexes': np.array(range(sub_aln.size))}).set_index('IDs')
+        index_df = index_df.astype({'Indexes': np.int32})
         if node_type == 'component':
-            for pos in tables['match'].get_positions():
-                char_dict = {'match': {}, 'mismatch': {}}
-                curr_indices = [aln.seq_order.index(s_id) for s_id in sub_aln.seq_order]
-                for i in range(sub_aln.size):
-                    s1 = aln.seq_order.index(sub_aln.seq_order[i])
-                    for j in range(i+1, sub_aln.size):
-                        s2 = aln.seq_order.index(sub_aln.seq_order[j])
-                        status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=s1, seq_ind2=s2)
-                        if char not in char_dict[status]:
-                            char_dict[status][char] = 0
-                        char_dict[status][char] += 1
-                for m in char_dict:
-                    for char in char_dict[m]:
-                        tables[m]._increment_count(pos=pos, char=char, amount = char_dict[m][char])
-            for m in tables:
-                tables[m].finalize_table()
+            tables = {'match': FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
+                                              seq_len=aln.seq_length, pos_size=p_size)}
+            tables['mismatch'] = tables['match'].characterize_alignment_mm(num_aln=curr_num_aln, single_to_pair=s_to_p,
+                                                                           comparison=comp_map, mismatch_mask=mis_mask)
         elif node_type == 'inner':
             # Since the node is non-terminal characterize the rectangle of sequence comparisons not covered by the
             # descendants, then retrieve its descendants' characterizations and merge all to get the parent
             # characterization.
             descendants = set()
             terminal_indices = []
+            tables = {'match': None, 'mismatch': None}
             for d in comps[node_name]['descendants']:
                 descendants.add(d.name)
-                curr_indices = [aln.seq_order.index(t) for t in comps[d.name]['terminals']]
-                for pos in tables['match'].get_positions():
-                    char_dict = {'match': {}, 'mismatch': {}}
-                    for prev_indices in terminal_indices:
-                        for r1 in prev_indices:
-                            for r2 in curr_indices:
-                                first, second = (r1, r2) if r1 < r2 else (r2, r1)
-                                status, char = mm_table.get_status_and_character(pos, seq_ind1=first, seq_ind2=second)
-                                if char not in char_dict[status]:
-                                    char_dict[status][char] = 0
-                                char_dict[status][char] += 1
-                    for m in char_dict:
-                        for char in char_dict[m]:
-                            tables[m]._increment_count(pos=pos, char=char, amount=char_dict[m][char])
+                curr_indices = index_df.loc[comps[d.name]['terminals'], 'Indexes'].values
+                for prev_indices in terminal_indices:
+                    if np.min(curr_indices) < np.min(prev_indices):
+                        ind1 = curr_indices
+                        ind2 = prev_indices
+                    else:
+                        ind1 = prev_indices
+                        ind2 = curr_indices
+                    curr_match = FrequencyTable(alphabet_size=l_size, mapping=l_map, reverse_mapping=l_rev,
+                                                seq_len=aln.seq_length, pos_size=p_size)
+                    curr_mismatch = curr_match.characterize_alignment_mm(num_aln=curr_num_aln, single_to_pair=s_to_p,
+                                                                         comparison=comp_map, mismatch_mask=mis_mask,
+                                                                         indexes1=ind1, indexes2=ind2)
+                    if tables['match'] is None:
+                        tables['match'] = curr_match
+                        tables['mismatch'] = curr_mismatch
+                    else:
+                        tables['match'] += curr_match
+                        tables['mismatch'] += curr_mismatch
                 terminal_indices.append(curr_indices)
-            for m in tables:
-                tables[m].finalize_table()
-            # tries = 0
             components = []
+            tries = {}
             while len(descendants) > 0:
                 descendant = descendants.pop()
                 # Attempt to retrieve the current node's descendants' data, sleep and try again if it is not already in
@@ -969,23 +969,28 @@ def characterization_mm(node_name, node_type):
                 try:
                     component = freq_tables[descendant]
                     components.append(component)
+                    # Merge the descendants' FrequencyTable(s) to generate the one for this node.
+                    for m in tables:
+                        curr_pos_table = load_freq_table(component[m], low_memory=low_mem)
+                        tables[m] += curr_pos_table
                 except KeyError:
+                    if descendant not in tries:
+                        tries[descendant] = 0
+                    elif tries[descendant] == max_iters:
+                        raise TimeoutError('Too many attempts made to access the descendant data!')
+                    else:
+                        tries[descendant] += 1
                     descendants.add(descendant)
                     sleep(sleep_time)
-            # Merge the descendants' FrequencyTable(s) to generate the one for this node.
-            for i in range(len(components)):
-                for m in tables:
-                    curr_pos_table = load_freq_table(components[i][m], low_memory=low_mem)
-                    tables[m] += curr_pos_table
             for m in tables:
                 # Since addition of FrequencyTable objects leads to
-                tables[m].set_depth(1.0 if sub_aln.size == 1 else (((sub_aln.size**2) - sub_aln.size) / 2.0))
+                tables[m].set_depth(1.0 if sub_aln.size == 1 else ((sub_aln.size * (sub_aln.size - 1)) / 2.0))
         else:
             raise ValueError("node_type must be either 'component' or 'inner'.")
         # Write out the FrequencyTable(s) if specified and serialize it/them if low memory mode is active.
         for m in tables:
             if write_freq_table:
-                tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, p_type, m)))
+                tables[m].to_csv(os.path.join(u_dir, '{}_{}_{}_freq_table.tsv'.format(node_name, t_type, m)))
             tables[m] = save_freq_table(freq_table=tables[m], low_memory=low_mem, node_name=node_name,
                                         table_type=t_type + '_' + m, out_dir=u_dir)
     freq_lock.acquire()
@@ -994,144 +999,7 @@ def characterization_mm(node_name, node_type):
     return node_name
 
 
-# def init_characterization_mm_pool(depth, node_sequences, match_mismatch_table, processes):
-#     """
-#     Init Characterization Pool
-#
-#     This function initializes a pool of workers with shared resources so that they can quickly characterize the
-#     positions for each node in the phylogenetic tree and each pair of sequences.
-#
-#     Args:
-#         depth (int): The number of sequences in the alignment being characterized.
-#         node_sequences (dict): The indices of each of the sequences from the overall alignment present in each specific
-#         node.
-#         match_mismatch_table (MatchMismatchTable): A table with the match and mismatch status of all pairs of sequences
-#         for all positions in the alignment.
-#         shareable_locks (dict): A dictionary full of multiprocessing.Lock objects to be used for synchronization of the
-#         characterization process over all positions and match/mismatch status.
-#         shareable_dict (multiprocessing.Manager.dict): A thread safe dictionary where the individual processes can
-#         update FrequencyTables for every node depending on match/mismatch status, position, and character.
-#         processes (int): The number of processes being used by the initialized pool.
-#     """
-#     global aln_depth, node_seq_ind, mm_table, freq_lock, freq_tables, cpu_count
-#     aln_depth = depth
-#     node_seq_ind = node_sequences
-#     mm_table = match_mismatch_table
-#     cpu_count = processes
-#
-#
-# def characterization_mm(pos):
-#     """
-#     Characterization Match Mismatch
-#
-#     This function accepts a position and characterizes its matches and mismatches for all possible pairs of sequences
-#     over all nodes in the phylogenetic tree.
-#
-#     Args:
-#         pos (int/tuple): The alignment position to process, this will be used to check what the match/mismatch status
-#         of the alignment as well as the character at every pair of sequence comparisons using the MatchMismatchTable for
-#         the full alignment.
-#     Return:
-#         int/tuple: The position is returned to keep track of which position has been most recently processed (in the
-#         multiprocessing context).
-#     """
-#     print('CHARACTERIZATION MM: {}'.format(pos))
-#     char_dict = {}
-#     for seq1 in range(aln_depth):
-#         for seq2 in range(seq1 + 1, aln_depth):
-#             status, char = mm_table.get_status_and_character(pos=pos, seq_ind1=seq1, seq_ind2=seq2)
-#             for node in node_seq_ind.keys():
-#                 if node not in char_dict:
-#                     char_dict[node] = {'match': {}, 'mismatch': {}}
-#                 if seq1 in node_seq_ind[node] and seq2 in node_seq_ind[node]:
-#                     if char not in char_dict[node][status]:
-#                         char_dict[node][status][char] = 0
-#                     char_dict[node][status][char] += 1
-#     return pos, char_dict
-
-
-def check_numpy_array(low_memory, node_name, pos_type, score_type, metric, out_dir):
-    """
-    Check Frequency Table
-
-    This function is used to check wither the desired FrequencyTable has already been produced and stored or not.
-
-    Args:
-        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
-        node_name (str): A string which will be used in identifying the save file.
-        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
-        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
-        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
-        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
-    Returns:
-        bool: Whether or not the desired table has previously been saved (if low_memory is False, False is returned by
-        default).
-        str/None: If low_memory is True the expected path to the file, whether it is present or not.
-    """
-    check = False
-    fn = None
-    if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
-        if os.path.isfile(fn):
-            check = True
-    return check, fn
-
-
-def save_numpy_array(mat, out_dir, node_name, pos_type, score_type, metric, low_memory):
-    """
-    Save Numpy Array
-
-    This function returns either the np.array that was provided to it or the path where that np.array has been stored if
-    the low memory option was set. The FrequencyTable will be saved to a file in the out_dir with
-    name {}_freq)table.pkl where {} is filled in with the value passed to node_name.
-
-    Args:
-        mat (np.array): The np.array instance to either serialize or pass through.
-        out_dir (str): The path to a directory where the FrequencyTable could have been saved.
-        node_name (str): A string which will be used in identifying the save file.
-        pos_type (str): Whether the array being saved is for 'single' or 'pair' positions.
-        score_type (str): Whether the array being saved contains 'group' or 'rank' scores.
-        metric (str): Which method is being used to compute the scores for the group or rank being serialized.
-        low_memory (bool): Whether or not low_memory mode is active (should serialized even files exist?).
-    Returns:
-        np.array/str: Either the provided np.array (if low_memory is False) or a string providing the path to a file
-        where the np.array has been saved.
-    """
-    if low_memory:
-        fn = os.path.join(out_dir, '{}_{}_{}_{}_score.npz'.format(node_name, pos_type, score_type, metric))
-        if not os.path.isfile(fn):
-            np.savez(fn, mat=mat)
-        mat = fn
-    return mat
-
-
-def load_numpy_array(mat, low_memory):
-    """
-    Load Numpy Array
-
-    This function returns a np.array. If a np.array was provided to it and low_memory is False the instance
-    returned is the same as the one passed in. If a string was passed in and low_memory is True a np.array is
-    returned after loading it from the file specified by the string.
-
-    Args:
-        mat (np.array/str): A np.array or the path to one which should be loaded from file.
-        low_memory (bool): Whether or not to load the np.array from file.
-    Returns:
-        np.array: Either the np.array passed in or the one loaded from the file specified by a passed in string.
-    """
-    if low_memory and isinstance(mat, np.ndarray):
-        raise ValueError('Low memory setting active but matrix provided is not a path.')
-    elif low_memory:
-        if not os.path.isfile(mat):
-            raise ValueError('File path is not valid: {}'.format(mat))
-        load = np.load(mat)
-        mat = load['mat']
-    else:
-        pass
-    return mat
-
-
-def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dict, low_memory, unique_dir):
+def init_trace_groups(scorer, match_mismatch, u_dict, low_memory, unique_dir):
     """
     Init Trace Pool
 
@@ -1140,8 +1008,6 @@ def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dic
 
     Args:
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
         match_mismatch (bool): Whether or not characterization was of the match_mismatch type (comparison of all
         possible transitions for a given position/pair, or considering each position/pair only once for each sequence
         present).
@@ -1150,10 +1016,8 @@ def init_trace_groups(scorer, pos_specific, pair_specific, match_mismatch, u_dic
         resources.
         unique_dir (str/path): The directory where group score vectors/matrices can be written.
     """
-    global pos_scorer, single, pair, mm_analysis, unique_nodes, low_mem, u_dir
+    global pos_scorer, mm_analysis, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    single = pos_specific
-    pair = pair_specific
     mm_analysis = match_mismatch
     unique_nodes = u_dict
     low_mem = low_memory
@@ -1178,53 +1042,29 @@ def trace_groups(node_name):
         dict: The single and pair position group scores which will be added to unique_nodes under the name of the node
         which has been scored.
     """
+    pos_type = 'single' if pos_scorer.position_size == 1 else 'pair'
     # Check whether the group score has already been saved to file.
-    single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='single',
-                                                score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
-    pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type='pair',
-                                            score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
+    arr_check, arr_fn = check_numpy_array(low_memory=low_mem, node_name=node_name, pos_type=pos_type,
+                                          score_type='group', metric=pos_scorer.metric, out_dir=u_dir)
     # If the file(s) were found set the return values for this node.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        single_group_score = single_fn if single else None
-        pair_group_score = pair_fn if pair else None
+    if low_mem and arr_check:
+        group_score = arr_fn
     else:
         # Using the provided scorer and the characterization for the node found in unique nodes, compute the
         # group score
-        if single:
-            if mm_analysis:
-                single_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
-                                                              low_memory=low_mem),
-                                     'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
-                                                                 low_memory=low_mem)}
-            else:
-                single_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['single'], low_memory=low_mem)
-            single_group_score = pos_scorer.score_group(single_freq_table)
-            single_group_score = save_numpy_array(mat=single_group_score, out_dir=u_dir, low_memory=low_mem,
-                                                  node_name=node_name, pos_type='single',
-                                                  metric=pos_scorer.metric, score_type='group')
+        if mm_analysis:
+            freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'], low_memory=low_mem),
+                          'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
+                                                      low_memory=low_mem)}
         else:
-            single_group_score = None
-        if pair:
-            if mm_analysis:
-                pair_freq_table = {'match': load_freq_table(freq_table=unique_nodes[node_name]['match'],
-                                                            low_memory=low_mem),
-                                   'mismatch': load_freq_table(freq_table=unique_nodes[node_name]['mismatch'],
-                                                               low_memory=low_mem)}
-            else:
-                pair_freq_table = load_freq_table(freq_table=unique_nodes[node_name]['pair'], low_memory=low_mem)
-            pair_group_score = pos_scorer.score_group(pair_freq_table)
-            pair_group_score = save_numpy_array(mat=pair_group_score, out_dir=u_dir, low_memory=low_mem,
-                                                node_name=node_name, pos_type='pair',
-                                                metric=pos_scorer.metric, score_type='group')
-        else:
-            pair_group_score = None
-    # Store the group scores so they can be retrieved when the pool completes processing
-    components = {'single_scores': single_group_score, 'pair_scores': pair_group_score}
-    return node_name, components
+            freq_table = load_freq_table(freq_table=unique_nodes[node_name]['freq_table'], low_memory=low_mem)
+        group_score = pos_scorer.score_group(freq_table)
+        group_score = save_numpy_array(mat=group_score, out_dir=u_dir, low_memory=low_mem, node_name=node_name,
+                                       pos_type=pos_type, metric=pos_scorer.metric, score_type='group')
+    return node_name, group_score
 
 
-def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_memory,
-                     unique_dir):
+def init_trace_ranks(scorer, a_dict, u_dict, low_memory, unique_dir):
     """
     Init Trace Ranks
 
@@ -1233,8 +1073,6 @@ def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_me
 
     Args:
         scorer (PositionalScorer): A scorer used to compute the group and rank scores according to a given metric.
-        pos_specific (bool): Whether or not to characterize single positions.
-        pair_specific (bool): Whether or not to characterize pairs of positions.
         a_dict (dict): The rank and group assignments for nodes in the tree.
         u_dict (dict): A dictionary containing the node characterizations and group level scores for those nodes.
         low_memory (bool): Whether or not to serialize matrices used during the trace to avoid exceeding memory
@@ -1242,10 +1080,8 @@ def init_trace_ranks(scorer, pos_specific, pair_specific, a_dict, u_dict, low_me
         unique_dir (str/path): The directory where group score vectors/matrices can be loaded from and where rank
         scores can be written.
     """
-    global pos_scorer, single, pair, assignments, unique_nodes, low_mem, u_dir
+    global pos_scorer, assignments, unique_nodes, low_mem, u_dir
     pos_scorer = scorer
-    single = pos_specific
-    pair = pair_specific
     assignments = a_dict
     unique_nodes = u_dict
     low_mem = low_memory
@@ -1268,51 +1104,23 @@ def trace_ranks(rank):
         int: The rank which has been scored (this will be used to update the rank_scores dictionary).
         dict: A dictionary containing the single and pair position rank score for the specified rank.
     """
+    pos_type = 'single' if pos_scorer.position_size == 1 else 'pair'
     # Check whether the group score has already been saved to file.
-    single_check, single_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='single',
-                                                score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
-    pair_check, pair_fn = check_numpy_array(low_memory=low_mem, node_name=rank, pos_type='pair',
-                                            score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
+    arr_check, arr_fn = check_numpy_array(low_memory=low_mem, node_name=str(rank), pos_type=pos_type,
+                                          score_type='rank', metric=pos_scorer.metric, out_dir=u_dir)
     # If the file(s) were found set the return values for this rank.
-    if low_mem and (single_check >= single) and (pair_check >= pair):
-        single_rank_scores = single_fn if single else None
-        pair_rank_scores = pair_fn if pair else None
+    if low_mem and arr_check:
+        rank_scores = arr_fn
     else:
         # Retrieve all group scores for this rank
-        if single:
-            single_group_scores = np.zeros(pos_scorer.dimensions)
-        else:
-            single_group_scores = None
-        if pair:
-            pair_group_scores = np.zeros(pos_scorer.dimensions)
-        else:
-            pair_group_scores = None
+        group_scores = np.zeros(pos_scorer.dimensions)
         # For each group in the rank update the cumulative sum for the rank
         for g in assignments[rank]:
             node_name = assignments[rank][g]['node'].name
-            if single:
-                single_group_score = unique_nodes[node_name]['single_scores']
-                single_group_score = load_numpy_array(mat=single_group_score, low_memory=low_mem)
-                single_group_scores += single_group_score
-            if pair:
-                pair_group_score = unique_nodes[node_name]['pair_scores']
-                pair_group_score = load_numpy_array(mat=pair_group_score, low_memory=low_mem)
-                pair_group_scores += pair_group_score
+            group_score = load_numpy_array(mat=unique_nodes[node_name]['group_scores'], low_memory=low_mem)
+            group_scores += group_score
         # Compute the rank score over the cumulative sum of group scores.
-        if single:
-            single_rank_scores = pos_scorer.score_rank(single_group_scores, rank)
-            single_rank_scores = save_numpy_array(mat=single_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                  node_name=rank, pos_type='single', score_type='rank',
-                                                  metric=pos_scorer.metric)
-        else:
-            single_rank_scores = None
-        if pair:
-            pair_rank_scores = pos_scorer.score_rank(pair_group_scores, rank)
-            pair_rank_scores = save_numpy_array(mat=pair_rank_scores, out_dir=u_dir, low_memory=low_mem,
-                                                node_name=rank, pos_type='pair', score_type='rank',
-                                                metric=pos_scorer.metric)
-        else:
-            pair_rank_scores = None
-    # Store the rank score so that it can be retrieved once the pool completes
-    components = {'single_ranks': single_rank_scores, 'pair_ranks': pair_rank_scores}
-    return rank, components
+        rank_scores = pos_scorer.score_rank(group_scores, rank)
+        rank_scores = save_numpy_array(mat=rank_scores, out_dir=u_dir, low_memory=low_mem, node_name=str(rank),
+                                       pos_type='single', score_type='rank', metric=pos_scorer.metric)
+    return rank, rank_scores

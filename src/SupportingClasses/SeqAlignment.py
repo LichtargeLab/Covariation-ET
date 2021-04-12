@@ -19,10 +19,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap
-from FrequencyTable import FrequencyTable
-from utils import build_mapping, convert_seq_to_numeric
-from AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+from SupportingClasses.FrequencyTable import FrequencyTable
+from SupportingClasses.utils import build_mapping, convert_seq_to_numeric
+from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
 
 
 class SeqAlignment(object):
@@ -92,7 +92,8 @@ class SeqAlignment(object):
         """
         start = time()
         if (save_file is not None) and (os.path.exists(save_file)):
-            alignment, seq_order, query_sequence = pickle.load(open(save_file, 'r'))
+            with open(save_file, 'rb') as handle:
+                alignment, seq_order, query_sequence = pickle.load(handle)
         else:
             with open(self.file_name, 'r') as file_handle:
                 alignment = AlignIO.read(file_handle, format='fasta', alphabet=self.alphabet)
@@ -290,14 +291,32 @@ class SeqAlignment(object):
         """
         new_alignment = SeqAlignment(self.file_name, self.query_id)
         new_alignment.query_id = deepcopy(self.query_id)
-        new_alignment.query_sequence = SeqRecord(id=self.query_id,
-                                                 seq=Seq(''.join([self.query_sequence[i] for i in positions])))
+        new_alignment.query_sequence = Seq(''.join([self.query_sequence[i] for i in positions]))
         new_alignment.seq_length = len(positions)
         new_alignment.seq_order = deepcopy(self.seq_order)
         new_alignment.alignment = self._subset_columns(indices_to_keep=positions)
         new_alignment.size = deepcopy(self.size)
         new_alignment.marked = deepcopy(self.marked)
         return new_alignment
+
+    def _alignment_to_num(self, mapping):
+        """
+        Alignment to num
+
+        Converts an Bio.Align.MultipleSeqAlignment object into a numerical matrix representation.
+
+        Args:
+            mapping (dict): Dictionary mapping characters which can appear in the alignment to digits for
+            representation.
+        Returns:
+            np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
+            and gaps from the current alignment.
+        """
+        numeric_reps = []
+        for seq_record in self.alignment:
+            numeric_reps.append(convert_seq_to_numeric(seq_record.seq, mapping))
+        alignment_to_num = np.stack(numeric_reps)
+        return alignment_to_num
 
     def compute_effective_alignment_size(self, identity_threshold=0.62, distance_matrix=None, processes=1):
         """
@@ -409,25 +428,6 @@ class SeqAlignment(object):
         consensus_record = SeqRecord(id='Consensus Sequence', seq=Seq(''.join(consensus_seq), alphabet=self.alphabet))
         return consensus_record
 
-    def _alignment_to_num(self, mapping):
-        """
-        Alignment to num
-
-        Converts an Bio.Align.MultipleSeqAlignment object into a numerical matrix representation.
-
-        Args:
-            mapping (dict): Dictionary mapping characters which can appear in the alignment to digits for
-            representation.
-        Returns:
-            np.array: Array with dimensions seq_length by size where the values are integers representing amino acids
-            and gaps from the current alignment.
-        """
-        numeric_reps = []
-        for seq_record in self.alignment:
-            numeric_reps.append(convert_seq_to_numeric(seq_record.seq, mapping))
-        alignment_to_num = np.stack(numeric_reps)
-        return alignment_to_num
-
     def _gap_z_score_check(self, z_score_cutoff, num_aln, gap_num):
         """
         Gap Z Score Check
@@ -443,6 +443,8 @@ class SeqAlignment(object):
             numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
             count whose z-score passes the set cutoff and False otherwise.
         """
+        if (z_score_cutoff is None) or (num_aln is None) or (gap_num is None):
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         gap_check = num_aln == gap_num
         gap_count = np.sum(gap_check, axis=1)
         gap_z_scores = zscore(gap_count)
@@ -471,13 +473,15 @@ class SeqAlignment(object):
             numpy.array: A 1D array with one position for each sequence in the alignment, True if the sequence has a gap
             difference from the consensus whose percentile passes the set cutoff and False otherwise.
         """
+        if (percentile_cutoff is None) or (num_aln is None) or (gap_num is None) or (mapping is None):
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         consensus_seq = self.consensus_sequence()
         numeric_consensus = convert_seq_to_numeric(seq=consensus_seq, mapping=mapping)
         gap_consensus = numeric_consensus == gap_num
         gap_aln = num_aln == gap_num
         gap_disagreement = np.logical_xor(gap_consensus, gap_aln)
-        disgreement_count = np.sum(gap_disagreement, axis=1)
-        disagreement_fraction = disgreement_count / float(self.size)
+        disagreement_count = np.sum(gap_disagreement, axis=1)
+        disagreement_fraction = disagreement_count / float(self.seq_length)
         passing_fractions = disagreement_fraction < percentile_cutoff
         return passing_fractions
 
@@ -502,6 +506,8 @@ class SeqAlignment(object):
             list: A list of the sequence IDs which pass the gap cut off used for this alignment.
             list: A list of sequences which do not pass the gap cut off used for this alignment.
         """
+        if size_cutoff is None:
+            raise ValueError('All parameters must be specified, None is not a valid input.')
         alpha_size, gap_chars, mapping, _ = build_mapping(alphabet=self.alphabet)
         numeric_aln = self._alignment_to_num(mapping)
         gap_number = mapping[list(gap_chars)[0]]
@@ -540,12 +546,14 @@ class SeqAlignment(object):
             pd.Dataframe: The data used to generate the heatmap.
             matplotlib.Axes: The plotting object created when generating the heatmap.
         """
+        if name is None:
+            raise ValueError('Name cannot be None.')
         if save:
             file_name = name.replace(' ', '_') + '.eps'
             if out_dir:
                 file_name = os.path.join(out_dir, file_name)
             if os.path.exists(file_name):
-                return
+                return None, None
         else:
             file_name = None
         start = time()
@@ -571,20 +579,18 @@ class SeqAlignment(object):
             fig.subplots_adjust(bottom=marg_bottom / figheight, top=1. - marg_top / figheight,
                                 left=marg_left / figwidth, right=1. - marg_right / figwidth)
 
-        _, _, mapping, _ = build_mapping(alphabet=self.alphabet)
+        alpha_size, _, mapping, _ = build_mapping(alphabet=self.alphabet)
         df = pd.DataFrame(self._alignment_to_num(mapping=mapping), index=self.seq_order,
                           columns=['{}:{}'.format(x, aa) for x, aa in enumerate(self.query_sequence)])
         cmap = matplotlib.cm.get_cmap('jet', len(mapping))
-        hm = heatmap(data=df, cmap=cmap, center=10.0, vmin=0.0, vmax=20.0, cbar=False, square=True,
-                     annot=np.array([list(seq_rec) for seq_rec in self.alignment]), fmt='', ax=ax)
+        hm = heatmap(data=df, cmap=cmap, center=alpha_size / 2.0, vmin=0.0, vmax=alpha_size, cbar=False,
+                     square=True, fmt='', ax=ax, annot=np.array([list(seq_rec) for seq_rec in self.alignment]))
         hm.set_yticklabels(hm.get_yticklabels(), fontsize=8, rotation=0)
         hm.set_xticklabels(hm.get_xticklabels(), fontsize=8, rotation=0)
         hm.tick_params(left=False, bottom=False)
         hm.set_title(name)
         if save:
-            plt.savefig(file_name, bbox_inches='tight')
-            plt.clf()
-        plt.show()
+            hm.figure.savefig(file_name, bbox_inches='tight')
         end = time()
         print('Plotting alignment took {} min'.format((end - start) / 60.0))
         return df, hm
@@ -617,7 +623,7 @@ class SeqAlignment(object):
         pos_specific = None
         if single:
             if (single_size is None) or (single_mapping is None) or (single_reverse is None):
-                single_size_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
+                single_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
             pos_specific = FrequencyTable(alphabet_size=single_size, mapping=single_mapping,
                                           reverse_mapping=single_reverse, seq_len=self.seq_length, pos_size=1)
         pair_specific = None
@@ -639,11 +645,11 @@ class SeqAlignment(object):
             pair_specific.finalize_table()
         return pos_specific, pair_specific
 
-    def characterize_positions2(self, single=True, pair=True, single_letter_size=None, single_letter_mapping=None,
-                                single_letter_reverse=None, pair_letter_size=None, pair_letter_mapping=None,
-                                pair_letter_reverse=None, single_to_pair=None):
+    def characterize_positions2(self, single=True, pair=True, single_size=None, single_mapping=None,
+                                single_reverse=None, pair_size=None, pair_mapping=None, pair_reverse=None,
+                                single_to_pair=None):
         """
-        Characterize Positions
+        Characterize Positions2
 
         This method is meant to characterize the nucleic/amino acids at all positions in the aligned sequence across all
         sequences in the current alignment. This can be used by other methods to determine with a position is conserved
@@ -656,42 +662,40 @@ class SeqAlignment(object):
             single (bool): Whether to characterize the nucleic/amino acid counts for single positions in the alignment.
             pair (bool): Whether to characterize the a nucleic/amino acid counts for pairs of positions in the
             alignment.
-            single_letter_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
-            single_letter_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
-            single_letter_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
-            pair_letter_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
-            pair_letter_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
-            pair_letter_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
+            single_size (int): Size of the single letter alphabet to use when instantiating a FrequencyTable
+            single_mapping (dict): Dictionary mapping single letter alphabet to numerical positions.
+            single_reverse (np.array): Array mapping numerical positions back to the single letter alphabet.
+            pair_size (int): Size of the pair of letters alphabet to use when instantiating a FrequencyTable.
+            pair_mapping (dict): Dictionary mapping pairs of letters in an alphabet to numerical positions.
+            pair_reverse (np.array): Array mapping numerical positions back to the pairs of letters alphabet.
             single_to_pair (dict): A dictionary mapping tuples of integers to a single int. The tuple of integers should
             consist of the position of the first character in a pair of letters to its numerical position and the
-            position of the second character in a pair of letters to its numerical position (single_letter_mapping).
+            position of the second character in a pair of letters to its numerical position (single_mapping).
             The value that this tuple maps to should be the integer value that a pair of letters maps to
-            (pair_letter_mapping).
+            (pair_mapping).
         Returns:
             FrequencyTable/None: The characterization of single position nucleic/amino acid counts if requested.
             FrequencyTable/None: The characterization of pairs of positions and their nucleic/amino acid counts if
             requested.
         """
-        if (single_letter_mapping is None) or (single_letter_size is None) or (single_letter_reverse is None):
-            single_letter_size, _, single_letter_mapping, single_letter_reverse = build_mapping(
-                alphabet=Gapped(self.alphabet))
-        num_aln = self._alignment_to_num(mapping=single_letter_mapping)
+        if (single_mapping is None) or (single_size is None) or (single_reverse is None):
+            single_size, _, single_mapping, single_reverse = build_mapping(alphabet=Gapped(self.alphabet))
+        num_aln = self._alignment_to_num(mapping=single_mapping)
         pos_specific = None
         if single:
-            pos_specific = FrequencyTable(alphabet_size=single_letter_size, mapping=single_letter_mapping,
-                                          reverse_mapping=single_letter_reverse, seq_len=self.seq_length, pos_size=1)
+            pos_specific = FrequencyTable(alphabet_size=single_size, mapping=single_mapping,
+                                          reverse_mapping=single_reverse, seq_len=self.seq_length, pos_size=1)
             pos_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         pair_specific = None
         if pair:
-            if (pair_letter_mapping is None) or (pair_letter_size is None) or (pair_letter_reverse is None):
-                pair_letter_size, _, pair_letter_mapping, pair_letter_reverse = build_mapping(
+            if (pair_mapping is None) or (pair_size is None) or (pair_reverse is None):
+                pair_size, _, pair_mapping, pair_reverse = build_mapping(
                     alphabet=MultiPositionAlphabet(alphabet=Gapped(self.alphabet), size=2))
-            pair_specific = FrequencyTable(alphabet_size=pair_letter_size, mapping=pair_letter_mapping,
-                                           reverse_mapping=pair_letter_reverse, seq_len=self.seq_length, pos_size=2)
+            pair_specific = FrequencyTable(alphabet_size=pair_size, mapping=pair_mapping,
+                                           reverse_mapping=pair_reverse, seq_len=self.seq_length, pos_size=2)
             if single_to_pair is None:
-                single_to_pair = {}
-                for char in pair_letter_mapping:
-                    key = (single_letter_mapping[char[0]], single_letter_mapping[char[1]])
-                    single_to_pair[key] = pair_letter_mapping[char]
+                single_to_pair = np.zeros((single_size + 1, single_size + 1))
+                for char in pair_mapping:
+                    single_to_pair[single_mapping[char[0]], single_mapping[char[1]]] = pair_mapping[char]
             pair_specific.characterize_alignment(num_aln=num_aln, single_to_pair=single_to_pair)
         return pos_specific, pair_specific

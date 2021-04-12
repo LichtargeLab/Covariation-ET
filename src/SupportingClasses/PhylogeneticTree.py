@@ -241,8 +241,10 @@ class PhylogeneticTree(object):
                 height = height + max(height_of(c) for c in clade.clades)
             return height
 
+        if not isinstance(self.distance_matrix, DistanceMatrix):
+            raise TypeError("Must provide a DistanceMatrix object.")
         clades = [BaseTree.Clade(None, name) for name in self.distance_matrix.names]
-        inner_count = self.size
+        inner_count = len(self.distance_matrix)  # self.size
         dm = np.tril(np.array(self.distance_matrix))
         counts = np.tril(np.ones(dm.shape, dtype=float))
         inner_clade = None
@@ -527,6 +529,8 @@ class PhylogeneticTree(object):
         (i.e. the root node will have the integer 1 while the lowest will have the integer
         len(self.tree.get_terminals) - 1
         """
+        if self.tree is None:
+            raise ValueError('Attempting to rename internal nodes before construction!')
         starting_node_pos = int(self.tree.root.name.strip('Inner'))
         if starting_node_pos == 1:
             return
@@ -557,9 +561,13 @@ class PhylogeneticTree(object):
             descendants of 'node' from the closest assigned rank (.i.e. the nodes children, at the lowest rank this will
             be None).
         """
+        if self.tree is None:
+            raise ValueError('Attempting to rename internal nodes before construction!')
         # Create a set of the ranks for which to create assignments.
         if ranks is None:
             ranks = set(range(1, 1 + self.size))
+        elif 0 in ranks:
+            raise ValueError('Ranks are 1 indexed, no ranks <= 0!')
         else:
             ranks = set(ranks)
             if 1 not in ranks:
@@ -614,8 +622,13 @@ def get_path_length(path):
          float: The length of the path passed in.
     """
     dist = 0
+    prev_node = None
     for node in path:
+        if prev_node is not None:
+            if node not in prev_node.clades:
+                raise ValueError('The provided path is interrupted.')
         dist += node.branch_length
+        prev_node = node
     return dist
 
 
@@ -642,10 +655,16 @@ def get_cluster_spanner(agg_clusterer):
     # version 0.19.0 previously. In that version agg_clusterer.pooling_func was set to np.mean by default. The new
     # behavior is less tractable to this method of conversion. To try to preserve the behavior assuming the actual tree
     # construction is still similar/the same if the deprecation is encountered, the old default function is called.
-    if isinstance(agg_clusterer.pooling_func, str) and (agg_clusterer.pooling_func == 'deprecated'):
+    # In the newest versions of agg_clusterer pooling_func has been completely removed, to handle this case and making
+    # the same assumption has the previous comment, if accessing that variable fails, I will fall back on the previous
+    # default function
+    try:
+        if isinstance(agg_clusterer.pooling_func, str) and (agg_clusterer.pooling_func == 'deprecated'):
+            pooling_func = np.mean
+        else:
+            pooling_func = agg_clusterer.pooling_func
+    except AttributeError:
         pooling_func = np.mean
-    else:
-        pooling_func = agg_clusterer.pooling_func
     if agg_clusterer.linkage == 'ward':
         if agg_clusterer.affinity == 'euclidean':
             spanner = lambda x: np.sum((x - pooling_func(x, axis=0)) ** 2)
@@ -744,7 +763,7 @@ def build_newick_tree(children, n_leaves, x, leaf_labels, spanner):
     inner_labels = list(range(1, n_leaves))
     inner_string, inner_node = go_down_tree(children, n_leaves, x, leaf_labels, len(children)+n_leaves-1, spanner,
                                             inner_labels)
-    prepend_to_root = inner_string + 'Inner{};'.format(inner_labels.pop())
+    prepend_to_root = inner_string + 'Inner{}:0.0;'.format(inner_labels.pop())
     return prepend_to_root
 
 

@@ -122,9 +122,8 @@ class EvolutionaryTrace(Predictor):
             low_memory (bool): Whether or not to serialize files during execution in order to avoid keeping everything
             in memory (this is important for large alignments).
         """
-        super().__init__(query, aln_file, out_dir)
+        super().__init__(query, aln_file, polymer_type, out_dir)
         self.method = 'ET'
-        self.polymer_type = polymer_type
         self.et_distance = et_distance
         self.distance_model = distance_model
         self.distance_matrix = None
@@ -204,10 +203,9 @@ class EvolutionaryTrace(Predictor):
                 self.trace, self.rankings, self.scores, self.coverages = pickle.load(handle)
         else:
             self.trace = Trace(alignment=self.non_gapped_aln, phylo_tree=self.phylo_tree,
-                               group_assignments=self.assignments, position_specific=(self.position_type == 'single'),
-                               pair_specific=(self.position_type == 'pair'),
-                               match_mismatch=(('match' in self.scoring_metric) and
-                                               ('mismatch' in self.scoring_metric)),
+                               group_assignments=self.assignments,
+                               pos_size=(1 if self.position_type == 'single' else 2),
+                               match_mismatch=(('match' in self.scoring_metric) or ('mismatch' in self.scoring_metric)),
                                output_dir=self.out_dir, low_memory=self.low_memory)
             self.trace.characterize_rank_groups(processes=self.processors,
                                                 write_out_sub_aln='sub-alignments' in self.output_files,
@@ -216,24 +214,42 @@ class EvolutionaryTrace(Predictor):
                                                                           gap_correction=self.gap_correction)
             with open(serial_fn, 'wb') as handle:
                 pickle.dump((self.trace, self.rankings, self.scores, self.coverages), handle, pickle.HIGHEST_PROTOCOL)
-        root_node_name = self.assignments[1][1]['node'].name
-        if (('match' in self.scoring_metric) and ('mismatch' in self.scoring_metric)):
-            root_freq_table = (load_freq_table(
-                freq_table=self.trace.unique_nodes[root_node_name]['match'], low_memory=self.low_memory) +
-                               load_freq_table(
-                                   freq_table=self.trace.unique_nodes[root_node_name]['mismatch'],
-                                   low_memory=self.low_memory))
-        else:
-            root_freq_table = load_freq_table(
-                freq_table=self.trace.unique_nodes[root_node_name][self.position_type.lower()],
-                low_memory=self.low_memory)
+        # root_node_name = self.assignments[1][1]['node'].name
         # Generate descriptive file name
         rank_fn = '{}_{}{}_Dist_{}_Tree_{}_{}_Scoring.ranks'.format(
             self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
-        write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=self.non_gapped_aln,
-                            frequency_table=root_freq_table, ranks=self.rankings, scores=self.scores,
-                            coverages=self.coverages, precision=3, processors=self.processors)
+        if os.path.isfile(os.path.join(self.out_dir, rank_fn)):
+            print('Evolutionary Trace analysis with the same parameters already saved to this location.')
+        else:
+            # if ('match' in self.scoring_metric) or ('mismatch' in self.scoring_metric):
+            #     root_freq_table = (load_freq_table(
+            #         freq_table=self.trace.unique_nodes[root_node_name]['match'], low_memory=self.low_memory) +
+            #                        load_freq_table(
+            #                            freq_table=self.trace.unique_nodes[root_node_name]['mismatch'],
+            #                            low_memory=self.low_memory))
+            # else:
+            #     root_freq_table = load_freq_table(
+            #         freq_table=self.trace.unique_nodes[root_node_name]['freq_table'],
+            #         low_memory=self.low_memory)
+            reordered_aln = deepcopy(self.non_gapped_aln)
+            reorder_df = pd.DataFrame({'IDs': self.non_gapped_aln.seq_order,
+                                       'Indexes': list(range(self.non_gapped_aln.size))}).set_index('IDs')
+
+            print(reordered_aln.seq_order == self.trace.assignments[1][1]['terminals'])
+            reordered_aln.seq_order = self.trace.assignments[1][1]['terminals']
+            reordered_seq = []
+            for x in reorder_df.loc[reordered_aln.seq_order, 'Indexes'].values.tolist():
+                reordered_seq.append(reordered_aln.alignment[x])
+            reordered_aln.alignment = MultipleSeqAlignment(reordered_seq)
+            # reordered_aln.alignment = MultipleSeqAlignment([reordered_aln.alignment[x] for x in
+            #                                                 reorder_df.loc[reordered_aln.seq_order, 'Indexes'].values])
+
+            write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=reordered_aln,
+                                # frequency_table=root_freq_table, ranks=self.rankings, scores=self.scores,
+                                # pos_size=self.trace.pos_size, match_mismatch=self.trace.match_mismatch,
+                                pos_size=self.trace.pos_size, match_mismatch=False, ranks=self.rankings,
+                                scores=self.scores, coverages=self.coverages, precision=3, processors=self.processors)
 
     def calculate_scores(self):
         """
@@ -341,7 +357,8 @@ class EvolutionaryTrace(Predictor):
         print('Full visualization took {} sec.'.format(end - start))
 
 
-def init_var_pool(aln, frequency_table):
+# def init_var_pool(aln, frequency_table):
+def init_var_pool(aln, match_mismatch):
     """
     Initialize Variability Pool
 
@@ -351,9 +368,53 @@ def init_var_pool(aln, frequency_table):
         frequency_table (FrequencyTable): The root level FrequencyTable (combined if using match/mismatch analysis) for
         the trace being written to file (will be used to identify the variation at each position).
     """
-    global var_aln, freq_table
+    # global var_aln, freq_table
+    global var_aln, mm_check
     var_aln = aln
-    freq_table = frequency_table
+    # freq_table = frequency_table
+    mm_check = match_mismatch
+
+
+# def get_var_pool(pos):
+#     """
+#     Get Variability Pool
+#
+#     This function retrieves the characters observed at a given position in a query sequence, as well as across all
+#     sequences in a MultipleSequenceAlignment, counts them, and turns them into a string.
+#
+#     Args:
+#         pos (tuple): A tuple of one or two ints specifying the position for which characters should be retrieved.
+#     Returns:
+#         tuple: The position(s) characterized by this return.
+#         tuple: The nucleic/amino acids observed at the specified position(s).
+#         int: The count of unique characters observed at the specified position in the alignment.
+#         str: A string listing characters observed at the specified position, separated by commas.
+#     """
+#     if len(pos) not in [1, 2]:
+#         raise ValueError('Only single positions or pairs of positions accepted at this time.')
+#     pos_i = int(pos[0])
+#     query_i = var_aln.query_sequence[pos_i]
+#     col_i = list(var_aln.alignment[:, pos_i])
+#     if len(pos) == 1:
+#         pos_final = (pos_i, )
+#         query_final = (query_i, )
+#         if len(list(freq_table.mapping.keys())[0]) == len(pos):
+#             col_final = list(set(col_i))
+#         else:
+#             col_final = freq_table.get_chars(pos=pos_i)
+#     else:
+#         pos_j = int(pos[1])
+#         query_j = var_aln.query_sequence[pos_j]
+#         col_j = list(var_aln.alignment[:, pos_j])
+#         pos_final = (pos_i, pos_j)
+#         query_final = (query_i, query_j)
+#         if len(list(freq_table.mapping.keys())[0]) == len(pos):
+#             col_final = list(set(i + j for i, j in zip(col_i, col_j)))
+#         else:
+#             col_final = freq_table.get_chars(pos=pos)
+#     character_str = ','.join(sorted(col_final))
+#     character_count = len(col_final)
+#     return pos_final, query_final, character_str, character_count
 
 
 def get_var_pool(pos):
@@ -379,26 +440,29 @@ def get_var_pool(pos):
     if len(pos) == 1:
         pos_final = (pos_i, )
         query_final = (query_i, )
-        if len(list(freq_table.mapping.keys())[0]) == len(pos):
-            col_final = list(set(col_i))
-        else:
-            col_final = freq_table.get_chars(pos=pos_i)
+        col_final = col_i
     else:
         pos_j = int(pos[1])
         query_j = var_aln.query_sequence[pos_j]
         col_j = list(var_aln.alignment[:, pos_j])
         pos_final = (pos_i, pos_j)
         query_final = (query_i, query_j)
-        if len(list(freq_table.mapping.keys())[0]) == len(pos):
-            col_final = list(set(i + j for i, j in zip(col_i, col_j)))
-        else:
-            col_final = freq_table.get_chars(pos=pos)
+        col_final = [i + j for i, j in zip(col_i, col_j)]
+    if mm_check:
+        mm_col = []
+        for i in range(len(col_final)):
+            curr_col = [col_final[i] + x for x in col_final[i+1:]]
+            mm_col += curr_col
+        col_final = mm_col
+    col_final = set(col_final)
     character_str = ','.join(sorted(col_final))
     character_count = len(col_final)
     return pos_final, query_final, character_str, character_count
 
 
-def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores, coverages, precision=3, processors=1):
+# def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores, coverages, precision=3, processors=1):
+def write_out_et_scores(file_name, out_dir, aln, pos_size, match_mismatch, ranks, scores, coverages, precision=3,
+                        processors=1):
     """
     Write Out Evolutionary Trace Scores
 
@@ -423,13 +487,15 @@ def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores,
         print('Evolutionary Trace analysis with the same parameters already saved to this location.')
         return
     start = time()
-    if frequency_table.position_size not in [1, 2]:
+    # if frequency_table.position_size not in [1, 2]:
+    if pos_size not in [1, 2]:
         raise ValueError("write_out_et_scores is not implemented to work with scoring for position sizes other than 1 "
                          "or 2.")
     scoring_dict = {}
     columns = []
     # Define indices for writing
-    if frequency_table.position_size == 1:
+    # if frequency_table.position_size == 1:
+    if pos_size == 1:
         indices = np.r_[0:aln.seq_length]
         total = len(indices)
     else:
@@ -455,8 +521,10 @@ def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores,
         var_pbar.update(1)
         var_pbar.refresh()
 
-    pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln, frequency_table))
-    if frequency_table.position_size == 1:
+    # pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln, frequency_table))
+    pool = Pool(processes=processors, initializer=init_var_pool, initargs=(aln, match_mismatch))
+    # if frequency_table.position_size == 1:
+    if pos_size == 1:
         for x in indices:
             pool.apply_async(get_var_pool, ((int(x),),), callback=update_variation)
     else:
@@ -469,7 +537,8 @@ def write_out_et_scores(file_name, out_dir, aln, frequency_table, ranks, scores,
     positions, queries, var_strings, var_counts = zip(*var_data)
     # Fill in the data dictionary for writing, starting with Position and Query data which differs for one and two
     # position traces.
-    if frequency_table.position_size == 1:
+    # if frequency_table.position_size == 1:
+    if pos_size == 1:
         scoring_dict['Position'] = list(indices + 1)
         scoring_dict['Query'] = [q[0] for q in queries]
         columns += ['Position', 'Query']
@@ -562,7 +631,12 @@ def parse_args():
     parser.add_argument('--scoring_metric', metavar='S', type=str, default='identity', nargs='?',
                         choices=['identity', 'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                                  'average_product_corrected_mutual_information',
-                                 'filtered_average_product_corrected_mutual_information'],
+                                 'filtered_average_product_corrected_mutual_information', 'match_count',
+                                 'mismatch_count', 'match_mismatch_count_ratio', 'match_mismatch_count_angle',
+                                 'match_entropy', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+                                 'match_mismatch_entropy_angle', 'match_diversity', 'mismatch_diversity',
+                                 'match_mismatch_diversity_ratio', 'match_mismatch_diversity_angle',
+                                 'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'],
                         help="Scoring metric to use when performing trace algorithm, method availability depends on "
                              "the specified position_type:\n\tsingle:\n\t\tidentity\n\t\tplain_entropy\n\tpair:\n\t\t"
                              "identity\n\t\tplain_entropy\n\t\tmutual_information\n\t\tnormalized_mutual_information"

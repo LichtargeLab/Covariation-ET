@@ -13,9 +13,9 @@ from subprocess import Popen, PIPE
 from Bio.Phylo.TreeConstruction import DistanceMatrix
 from Bio.Align.Applications import ClustalwCommandline
 from dotenv import find_dotenv, load_dotenv
-from Predictor import Predictor
-from PhylogeneticTree import PhylogeneticTree
-from AlignmentDistanceCalculator import convert_array_to_distance_matrix
+from SupportingClasses.Predictor import Predictor
+from SupportingClasses.PhylogeneticTree import PhylogeneticTree
+from SupportingClasses.AlignmentDistanceCalculator import convert_array_to_distance_matrix
 try:
     dotenv_path = find_dotenv(raise_error_if_not_found=True)
 except IOError:
@@ -74,7 +74,7 @@ class ETMIPWrapper(Predictor):
         at that rank/level in the tree.
     """
 
-    def __init__(self, query, aln_file, out_dir='.'):
+    def __init__(self, query, aln_file, out_dir='.', polymer_type='Protein'):
         """
         __init__
 
@@ -86,8 +86,9 @@ class ETMIPWrapper(Predictor):
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
+            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
         """
-        super().__init__(query, aln_file, out_dir)
+        super().__init__(query, aln_file, polymer_type, out_dir)
         self.msf_aln_fn = None
         self.distance_matrix = None
         self.tree = None
@@ -295,7 +296,8 @@ class ETMIPWrapper(Predictor):
         """
         file_path1 = os.path.join(self.out_dir, '{}.all_rank_and_group_mip.tsv'.format(prefix))
         if not os.path.isfile(file_path1):
-            raise ValueError('Provided directory does not contain expected intermediate file!')
+            print('File not found, searching for serialized files.')
+            # raise ValueError('Provided directory does not contain expected intermediate file!')
         loaded = True
         #
         from src.SupportingClasses.Trace import save_numpy_array, check_numpy_array
@@ -329,6 +331,8 @@ class ETMIPWrapper(Predictor):
                 final_check = check1 and check2 and check3 and check4 and check5
                 loaded &= final_check
         #
+        if not loaded and not os.path.isfile(file_path1):
+            raise ValueError('Provided directory does not contain expected intermediate file or serialized files!')
         if not loaded:
             intermediate_mip_rank_df = pd.read_csv(file_path1, sep='\t', header=0, index_col=None)
             if self.tree is None:
@@ -357,13 +361,19 @@ class ETMIPWrapper(Predictor):
                     intermediate_mip_arrays[rank][group] = np.zeros((size, size))
             for ind in intermediate_mip_rank_df.index:
                 row = intermediate_mip_rank_df.loc[ind, :]
-                i = row['i'] - 1
-                j = row['j'] - 1
+                i = int(row['i'] - 1)
+                j = int(row['j'] - 1)
                 rank = row['rank']
                 group = row['group']
                 # Import MI values
                 try:
                     group_mi = float(row['group_MI'])
+                    # print(f'GROUP_MI: {group_mi}')
+                    # print(type(intermediate_mi_arrays))
+                    # print(type(intermediate_mi_arrays[rank]))
+                    # print(type(intermediate_mi_arrays[rank][group]))
+                    # print(intermediate_mi_arrays[rank][group].shape)
+                    # print(f'{i} - {j}')
                     intermediate_mi_arrays[rank][group][i, j] = group_mi
                     # if (i in pos_mapping) and (j in pos_mapping):
                     #     intermediate_mi_arrays[rank][group][pos_mapping[i], pos_mapping[j]] = group_mi

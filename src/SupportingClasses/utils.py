@@ -36,17 +36,23 @@ def build_mapping(alphabet, skip_letters=None):
         letters = alphabet.letters
         character_size = alphabet.size
     elif type(alphabet) == list:
-        letters = ''.join(alphabet)
+        letters = alphabet
         character_size = len(alphabet[0])
     elif type(alphabet) == str:
-        letters = alphabet
+        letters = list(alphabet)
         character_size = 1
     else:
-        raise ValueError("'alphabet' expects values of type Bio.Alphabet or list.")
+        raise ValueError("'alphabet' expects values of type Bio.Alphabet, list, or str.")
+    if skip_letters:
+        letters = [letter for letter in letters if letter not in skip_letters]
     alphabet_size = len(letters)
     alpha_map = {char: i for i, char in enumerate(letters)}
     curr_gaps = {g * character_size for g in gap_characters}
     if skip_letters:
+        for sl in skip_letters:
+            if len(sl) != character_size:
+                raise ValueError(f'skip_letters contained a character {sl} which did not match the alphabet character '
+                                 f'size: {character_size}')
         skip_map = {char: alphabet_size + 1 for char in skip_letters}
         alpha_map.update(skip_map)
         curr_gaps = curr_gaps - set(skip_letters)
@@ -97,6 +103,8 @@ def compute_rank_and_coverage(seq_length, scores, pos_size, rank_type):
         weight = 1.0
     else:
         raise ValueError('No support for rank types other than max or min, {} provided'.format(rank_type))
+    if len(scores.shape) != pos_size:
+        raise ValueError('Position size does not match score shape!')
     if pos_size == 1:
         indices = range(seq_length)
         normalization = float(seq_length)

@@ -17,8 +17,8 @@ try:
 except IOError:
     dotenv_path = find_dotenv(raise_error_if_not_found=True, usecwd=True)
 load_dotenv(dotenv_path)
-from Predictor import Predictor
-from utils import compute_rank_and_coverage
+from SupportingClasses.Predictor import Predictor
+from SupportingClasses.utils import compute_rank_and_coverage
 
 
 class EVCouplingsWrapper(Predictor):
@@ -76,11 +76,14 @@ class EVCouplingsWrapper(Predictor):
             aln_file (str): The path to the alignment to analyze, the file is expected to be in fasta format.
             protocol (str): Which method ('standard' or 'mean_field') to apply when performing the EVCouplings
             computation.
+            polymer_type (str): What kind of sequence information is being analyzed (.i.e. Protein or DNA).
             out_dir (str): The path where results of this analysis should be written to. If no path is provided the
             default will be to write results to the current working directory.
         """
-        super().__init__(query, aln_file, out_dir)
+        super().__init__(query, aln_file, 'Protein', out_dir)
         self.method = 'EVCouplings'
+        if protocol != 'standard':
+            raise ValueError("Currently only the 'standard' protocol is supported by this wrapper class.")
         self.protocol = protocol
         self.probability = None
 

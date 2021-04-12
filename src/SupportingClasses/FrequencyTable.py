@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from copy import deepcopy
+from multiprocessing import Pool
 from scipy.sparse import csc_matrix
 
 
@@ -65,7 +66,7 @@ class FrequencyTable(object):
         self.__position_table = {'values': [], 'i': [], 'j': [], 'shape': (self.num_pos, alphabet_size)}
         self.__depth = 0
 
-    def __convert_pos(self, pos):
+    def _convert_pos(self, pos):
         """
         Convert Position
 
@@ -81,6 +82,13 @@ class FrequencyTable(object):
             raise TypeError('Positions for FrequencyTable with position_size==1 must be integers')
         if (self.position_size > 1) and ((not isinstance(pos, tuple)) or (len(pos) != self.position_size)):
             raise TypeError('Positions for FrequencyTable with position_size > 1 must have length == position_size')
+        if (self.position_size == 1 and pos < 0) or (self.position_size > 1 and (np.array(pos) < 0).any()):
+            raise ValueError('Position specified is out of bounds, the value(s) are less than 0.')
+        elif ((self.position_size == 1 and pos >= self.num_pos) or
+              (self.position_size > 1 and (np.array(pos) >= self.sequence_length).any())):
+            raise ValueError('Position specified is out of bounds, the value(s) are greater than the table size.')
+        else:
+            pass
         if self.position_size == 1:
             final = pos
         elif self.position_size == 2:
@@ -100,17 +108,77 @@ class FrequencyTable(object):
 
         Args:
             pos (int/tuple): The position in the alignment to update (will be mapped to __positional_table by
-            __convert_pos.
+            _convert_pos.
             char (str): The character in the alignment's alphabet to update at the specified position.
             amount (int): The number of occurrences of the alphabet character observed at that specified position.
         """
         if isinstance(self.__position_table, csc_matrix):
             raise AttributeError('FrequencyTable has already been finalized and cannot be updated.')
-        position = self.__convert_pos(pos=pos)
+        if amount <= 0:
+            raise ValueError('Amounts passed to increment must be positive values.')
+        position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         self.__position_table['values'].append(amount)
         self.__position_table['i'].append(position)
         self.__position_table['j'].append(char_pos)
+
+    def finalize_table(self):
+        """
+        Finalize Table
+
+        When all sequences from an alignment have been characterized the table is saved from a dictionary of values
+        to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
+        behavior from other functions such as get_count_array() and get_frequency_array().
+        """
+        self.__position_table = csc_matrix((self.__position_table['values'],
+                                            (self.__position_table['i'], self.__position_table['j'])),
+                                           shape=self.__position_table['shape'], dtype=np.int32)
+
+    def set_depth(self, depth):
+        """
+        Set Depth
+
+        This function is intended to update the depth attribute if the existing methods do not suffice (i.e. if
+        characterize_alignment or characterize_sequence are not used.).
+
+        Arguments
+            depth (int): The number of observations for all positions (normalization factor when turning count into
+            frequency).
+        """
+        if depth is None:
+            raise ValueError('Depth cannot be None, please provide a value >= 0.')
+        if depth < 0:
+            raise ValueError('Depth cannot be negative, please provide a value >= 0.')
+        self.__depth = deepcopy(depth)
+
+    def characterize_sequence(self, seq):
+        """
+        Characterize Sequence
+
+        Characterize a single sequence from an alignment. This iterates over all positions (single positions in the the
+        alignment if position_size==1 and pairs of positions in the alignment if position_size==2) and updates the
+        character count found at that position in the sequence in __positional_table. Each call to this function updates
+        __depth by 1.
+
+        Args:
+            seq (Bio.Seq.Seq): The sequence from an alignment to characterize.
+        """
+        if seq is None:
+            raise ValueError('seq must not be None.')
+        # Iterate over all positions
+        for i in range(self.sequence_length):
+            # If single is specified, track the amino acid for this sequence and position
+            if self.position_size == 1:
+                self._increment_count(pos=i, char=seq[i])
+            # If pair is not specified continue to the next position
+            if self.position_size != 2:
+                continue
+            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
+            # including the diagonal)
+            for j in range(i, self.sequence_length):
+                # Track the pair of amino acids for the positions i,j
+                self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
+        self.__depth += 1
 
     def characterize_alignment(self, num_aln, single_to_pair=None):
         """
@@ -127,6 +195,8 @@ class FrequencyTable(object):
             single_to_pair (np.array): An array mapping single letter numerical representations (axes 0 and 1) to a
             numerical representations of pairs of residues (value).
         """
+        if num_aln is None:
+            raise ValueError('Numeric representation of an alignment must be provided as input.')
         if self.position_size == 2 and single_to_pair is None:
             raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
         # Iterate over all positions
@@ -145,7 +215,7 @@ class FrequencyTable(object):
             # including the diagonal)
             for j in range(i, self.sequence_length):
                 # Track the pair of amino acids for the positions i,j
-                position = self.__convert_pos(pos=(i, j))
+                position = self._convert_pos(pos=(i, j))
                 # Add all characters observed at this position to the frequency table (this is inefficient in terms of
                 # space but reduces the time required to identify and count individual characters.
                 self.__position_table['values'] += [1] * num_aln.shape[0]
@@ -155,57 +225,108 @@ class FrequencyTable(object):
         self.__depth = num_aln.shape[0]
         self.finalize_table()
 
-    def characterize_sequence(self, seq):
+    def characterize_alignment_mm(self, num_aln, comparison, mismatch_mask, single_to_pair=None, indexes1=None,
+                                  indexes2=None):
         """
-        Characterize Sequence
+        Characterize Alignment
 
-        Characterize a single sequence from an alignment. This iterates over all positions (single positions in the the
-        alignment if position_size==1 and pairs of positions in the alignment if position_size==2) and updates the
-        character count found at that position in the sequence in __positional_table. Each call to this function updates
-        __depth by 1.
+        Characterize an entire alignment for matches (invariance or covariation) and mismatches (variation). This
+        iterates over all positions (single positions in the the alignment if position_size==1 and pairs of positions in
+        the alignment if position_size==2) and tracks the character count found at that position. When character counts
+        have been identified all observed transitions (comparisons between one sequence and all other sequences) are
+        determined and the count for each unique type of transition is stored in __position_table. The transition counts
+        are split into two FrequencyTable objects, the matches (invariance and covariation counts) are kept in the table
+        from which characterize_alignment_mm was called, while a new FrequencyTable object is created for the mismatch
+        (variance) transitions. Both FrequencyTable objects are finalized (see finalize_table) and the __depth for both
+        FrequencyTable objects is set to the size for the upper triangle of sequence comparisons
+        (i.e. (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2 or 1 if there is only one sequence in the alignment).
 
         Args:
-            seq (Bio.Seq.Seq): The sequence from an alignment to characterize.
+            num_aln (np.array): Array representing an alignment with dimensions sequence_length by alignment size where
+            the values are integers representing nucleic/amino acids and gaps from the desired alignment.
+            single_to_pair (np.array, dtype=np.int32): An array mapping single letter numerical representations
+            (axes 0 and 1) to a numerical representations of pairs of residues (value). If position_size == 1 this
+            argument should be set to None (default).
+            comparison (np.array, dtype=np.int32): An array mapping the alphabet used for the positions_size of this
+            FrequencyTable, mapped to the alphabet that has characters twice as large (if position_size == 1, this is
+            the same as the description for single_to_pair, if position_size == 2 this is the mapping from the alphabet
+            of pairs to the alphabet of quadruples.
+            mismatch_mask (np.array, dtype=np.bool_): An array identifying which positions in the alphabet (the values
+            in the provided alphabet mapping) correspond to mismatches (variance events). This will be used to separate
+            the counts into match and mismatch tables.
+            indexes1 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+            being characterized can be provided. indexes1 should have the the indexes for the sequences of interest for
+            one side of the comparison rectangle in sorted order. It should have a lower minimum than indexes2.
+            indexes2 (np.array, dtype=np.int32): If only a partial comparison is needed the indexes for the rectangle
+            being characterized can be provided. indexes2 should have the the indexes for the sequences of interest for
+            one side of the comparison rectangle in sorted order. It should have a higher minimum than indexes2.
+            processes (int): The number of processes to use when performing this characterization.
+        Return:
+            FrequencyTable: A new FrequencyTable containing counts for all variance transitions observed in the provided
+            alignment. The FrequencyTable matches the current FrequencyTable for all properties except the
+            __position_table.
         """
+        if num_aln is None:
+            raise ValueError('Numeric representation of an alignment must be provided as input.')
+        if comparison is None:
+            raise ValueError('Mapping from single characters to transition/comparison characters is required.')
+        if mismatch_mask is None:
+            raise ValueError('An array indicating which characters are mismatch comparisons/transitions is required.')
+        if self.position_size == 2 and single_to_pair is None:
+            raise ValueError('Mapping from single to pair letter alphabet must be provided if position_size == 2')
+        if (indexes1 is not None) and (indexes2 is None):
+            raise ValueError('If indexes1 is provided indexes2 must also be provided.')
+        if (indexes2 is not None) and (indexes1 is None):
+            raise ValueError('If indexes2 is provided indexes1 must also be provided.')
+        if (indexes1 is not None) and (indexes2 is not None):
+            if np.min(indexes2) < np.min(indexes1):
+                raise ValueError('indexes1 must come before indexes2.')
         # Iterate over all positions
-        for i in range(self.sequence_length):
-            # If single is specified, track the amino acid for this sequence and position
-            if self.position_size == 1:
-                self._increment_count(pos=i, char=seq[i])
-            # If pair is not specified continue to the next position
-            if self.position_size != 2:
-                continue
-            # If pair is specified iterate over all positions up to the current one (filling in upper triangle,
-            # including the diagonal)
-            for j in range(i, self.sequence_length):
-                # Track the pair of amino acids for the positions i,j
-                self._increment_count(pos=(i, j), char='{}{}'.format(seq[i], seq[j]))
-        self.__depth += 1
-
-    def finalize_table(self):
-        """
-        Finalize Table
-
-        When all sequences from an alignment have been characterized the table is saved from a dictionary of values
-        to a scipy.sparse.csc_matrix (since the table will most often be accessed by column). This also ensures proper
-        behavior from other functions such as get_count_array() and get_frequency_array().
-        """
-        self.__position_table = csc_matrix((self.__position_table['values'],
-                                            (self.__position_table['i'], self.__position_table['j'])),
-                                           shape=self.__position_table['shape'])
-
-    def set_depth(self, depth):
-        """
-        Set Depth
-
-        This function is intended to update the depth attribute if the existing methods do not suffice (i.e. if
-        characterize_alignment or characterize_sequence are not used.).
-
-        Arguments
-            depth (int): The number of observations for all positions (normalization factor when turning count into
-            frequency).
-        """
-        self.__depth = deepcopy(depth)
+        if num_aln.shape[0] != 1:
+            for i, pos in enumerate(self.get_positions()):
+                # If single is specified, track the amino acid for this sequence and position
+                if self.position_size == 1:
+                    curr_pos = num_aln[:, i]
+                elif self.position_size == 2:
+                    curr_pos = single_to_pair[num_aln[:, pos[0]], num_aln[:, pos[1]]]
+                else:
+                    raise ValueError(f'characterize_alignment_mm is not compatible with position_size {self.position_size}')
+                # Characterize the transitions/comparisons from one sequence to each other sequence (unique).
+                full_pos = []
+                if indexes1 is None:
+                    indexes1 = range(num_aln.shape[0] - 1)
+                for j in indexes1:
+                    if indexes2 is None:
+                        comp_pos = curr_pos[j + 1:]
+                    else:
+                        comp_pos = curr_pos[indexes2]
+                    curr_comp = comparison[curr_pos[j], comp_pos]
+                    full_pos += curr_comp.tolist()
+                unique_chars, unique_counts = np.unique(full_pos, return_counts=True)
+                self.__position_table['values'] += unique_counts.tolist()
+                self.__position_table['i'] += [i] * unique_chars.shape[0]
+                self.__position_table['j'] += unique_chars.tolist()
+        # Update the depth to the number of sequences in the characterized alignment
+        # The depth needs to be the number of possible matches mismatches when comparing all elements of a column or
+        # pair of columns to one another (i.e. the upper triangle of the column vs. column matrix). For the smallest
+        # sub-alignments the size of the sub-alignment is 1 and therefore there are no values in the upper triangle
+        # (because the matrix of sequence comparisons is only one element large, which is also the diagonal of that
+        # matrix and therefore not counted). Setting the depth to 0 causes divide by zero issues when calculating
+        # frequencies so the depth is being arbitrarily set to 1 here. This is incorrect, but all counts should be 0 so
+        # the resulting frequencies should be calculated correctly.
+        self.__depth = 1 if num_aln.shape[0] == 1 else (num_aln.shape[0] * (num_aln.shape[0] - 1)) / 2
+        self.finalize_table()
+        # Split the tables in two, keep matches (invariant or covarying transitions/comparisons in the current table),
+        # create a new table for mismatches (variant transitions/comparisons).
+        mismatch_ft = FrequencyTable(alphabet_size=self.__position_table.shape[1], mapping=self.mapping,
+                                     reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
+                                     pos_size=self.position_size)
+        mismatch_ft.set_depth(depth=self.__depth)
+        mismatch_ft.finalize_table()
+        mismatch_ft.__position_table = csc_matrix(self.__position_table.multiply(mismatch_mask), dtype=np.int32)
+        match_mask = np.ones(mismatch_mask.shape, dtype=np.bool_) ^ mismatch_mask
+        self.__position_table = csc_matrix(self.__position_table.multiply(match_mask), dtype=np.int32)
+        return mismatch_ft
 
     def get_table(self):
         """
@@ -215,12 +336,11 @@ class FrequencyTable(object):
 
         Returns:
             dict/scipy.sparse.csc_matrix: A dictionary containing the values needed to populate a
-            scipy.sparse.csc_matrix. If the table has already been finazed, a sparse matrix where one axis represents
+            scipy.sparse.csc_matrix. If the table has already been finalized, a sparse matrix where one axis represents
             positions in the MSA and the other axis represents the characters from the alphabet of interest mapping.
             Each cell stores the count of that character at that position.
         """
-        table = deepcopy(self.__position_table)
-        return table
+        return self.__position_table
 
     def get_depth(self):
         """
@@ -266,7 +386,11 @@ class FrequencyTable(object):
         Returns:
             list: All characters present at the specified position in the alignment.
         """
-        position = self.__convert_pos(pos=pos)
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
+        position = self._convert_pos(pos=pos)
         character_positions = self.__position_table[position, :].nonzero()
         characters = self.reverse_mapping[character_positions[1]]
         return list(characters)
@@ -286,7 +410,9 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count.')
-        position = self.__convert_pos(pos=pos)
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
+        position = self._convert_pos(pos=pos)
         char_pos = self.mapping[char]
         count = self.__position_table[position, char_pos]
         return count
@@ -305,7 +431,9 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count_array.')
-        position = self.__convert_pos(pos=pos)
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
+        position = self._convert_pos(pos=pos)
         full_column = self.__position_table[position, :]
         indices = full_column.nonzero()
         arr = full_column.toarray()[indices].reshape(-1)
@@ -325,6 +453,8 @@ class FrequencyTable(object):
         """
         if not isinstance(self.__position_table, csc_matrix):
             raise AttributeError('Finalize table before calling get_count_matrix.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         mat = self.__position_table.toarray()
         return mat
 
@@ -387,6 +517,10 @@ class FrequencyTable(object):
         Args:
             file_path (str): The full path to where the data should be written.
         """
+        if not isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('Finalize table before calling get_count_matrix.')
+        if self.__depth == 0:
+            raise AttributeError(f'No updates have been made to the FrequencyTable, depth: {self.__depth}')
         if not os.path.isfile(file_path):
             columns = ['Position', 'Variability', 'Characters', 'Counts', 'Frequencies']
             out_dict = {c: [] for c in columns}
@@ -404,7 +538,7 @@ class FrequencyTable(object):
             df = pd.DataFrame(out_dict)
             df.to_csv(file_path, sep='\t', columns=columns, header=True, index=False)
 
-    def load_csv(self, file_path):
+    def load_csv(self, file_path, intended_depth=None):
         """
         Load CSV
 
@@ -413,7 +547,15 @@ class FrequencyTable(object):
 
         Args:
             file_path (str): The path to the file written by to_csv from which the FrequencyTable data should be loaded.
+            intended_depth (int): The depth of the table being imported. This can be used for tables where the counts of
+            each position may not be equal (as in the match/mismatch tables which split observations at each position
+            across two tables). Not required for tables where observations for each position have a consistent count.
         """
+        if isinstance(self.__position_table, csc_matrix):
+            raise AttributeError('The table has already been finalized, loading data would overwrite the table.')
+        if self.__depth != 0:
+            raise AttributeError(f'The FrequencyTable has already been updated, depth: {self.__depth}, '
+                                 'loading would overwrite the table.')
         start = time()
         if not os.path.isfile(file_path):
             raise ValueError('The provided path does not exist.')
@@ -422,7 +564,7 @@ class FrequencyTable(object):
         max_depth = None
         with open(file_path, 'r') as file_handle:
             for line in file_handle:
-                elements = line.strip().split('\t')
+                elements = line.rstrip('\n').split('\t')
                 if header is None:
                     header = elements
                     indices = {col: i for i, col in enumerate(header)}
@@ -439,9 +581,9 @@ class FrequencyTable(object):
                     if pos[0] > (self.sequence_length - 1) or pos[1] > (self.sequence_length - 1):
                         raise RuntimeError('Imported file does not match sequence position {} exceeds sequence '
                                            'length'.format(self.sequence_length))
-                    position = self.__convert_pos(pos=pos)
-                chars = elements[indices['Characters']].split(',')
-                counts = [int(x) for x in elements[indices['Counts']].split(',')]
+                    position = self._convert_pos(pos=pos)
+                chars = [] if elements[indices['Characters']] == '' else elements[indices['Characters']].split(',')
+                counts = [] if elements[indices['Counts']] == '' else [int(x) for x in elements[indices['Counts']].split(',')]
                 if len(chars) != len(counts):
                     raise ValueError('Frequency Table written to file incorrectly the length of Characters, Counts, and'
                                      ' Frequencies does not match for position: {}'.format(pos))
@@ -455,12 +597,20 @@ class FrequencyTable(object):
                     self.__position_table['i'].append(position)
                     self.__position_table['j'].append(char_pos)
                     curr_depth = np.sum(counts)
-                    if max_depth is None:
+                    if (max_depth is None) and (intended_depth is None):
                         max_depth = curr_depth
+                    if (max_depth is None) and (intended_depth is not None):
+                        pass
                     else:
                         if curr_depth != max_depth:
                             raise RuntimeError('Depth at position {} does not match the depth from previous positions '
                                                '{} vs {}'.format(pos, max_depth, curr_depth))
+        if (max_depth is None) and (intended_depth is None):
+            max_depth = 1
+        elif (max_depth is None) and (intended_depth is not None):
+            max_depth = intended_depth
+        else:
+            assert max_depth is not None
         self.finalize_table()
         self.__depth = max_depth
         end = time()
@@ -493,6 +643,8 @@ class FrequencyTable(object):
             raise ValueError('FrequencyTables must have the same alphabet character mapping to be joined.')
         if isinstance(self.__position_table, dict) or isinstance(other.__position_table, dict):
             raise AttributeError('Before combining FrequencyTable objects please call finalize_table().')
+        if (self.__depth == 0) or (other.__depth == 0):
+            raise AttributeError('At least one of the FrequencyTables being combined has not been updated.')
         new_table = FrequencyTable(alphabet_size=len(self.reverse_mapping), mapping=self.mapping,
                                    reverse_mapping=self.reverse_mapping, seq_len=self.sequence_length,
                                    pos_size=self.position_size)

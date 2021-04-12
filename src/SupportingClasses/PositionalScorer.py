@@ -10,9 +10,13 @@ integer_valued_metrics = {'identity'}
 
 real_valued_metrics = {'plain_entropy', 'mutual_information', 'normalized_mutual_information',
                        'average_product_corrected_mutual_information',
-                       'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
-                       'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
-                       'match_diversity_mismatch_entropy_angle'}
+                       'filtered_average_product_corrected_mutual_information',
+                       'match_count', 'mismatch_count', 'match_mismatch_count_ratio', 'match_mismatch_count_angle',
+                       'match_entropy', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+                       'match_mismatch_entropy_angle',
+                       'match_diversity', 'mismatch_diversity', 'match_mismatch_diversity_ratio',
+                       'match_mismatch_diversity_angle',
+                       'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
 
 ambiguous_metrics = {'identity', 'plain_entropy'}
 
@@ -20,15 +24,21 @@ single_only_metrics = set()
 
 pair_only_metrics = {'mutual_information', 'normalized_mutual_information',
                      'average_product_corrected_mutual_information',
-                     'filtered_average_product_corrected_mutual_information', 'match_mismatch_entropy_ratio',
-                     'match_mismatch_entropy_angle', 'match_diversity_mismatch_entropy_ratio',
-                     'match_diversity_mismatch_entropy_angle'}
+                     'filtered_average_product_corrected_mutual_information', 'match_count', 'mismatch_count',
+                     'match_mismatch_count_ratio', 'match_mismatch_count_angle', 'match_entropy', 'mismatch_entropy',
+                     'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle', 'match_diversity',
+                     'mismatch_diversity', 'match_mismatch_diversity_ratio', 'match_mismatch_diversity_angle',
+                     'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
 
-min_metrics = {'identity', 'plain_entropy', 'match_mismatch_entropy_ratio', 'match_mismatch_entropy_angle',
-               'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'}
+min_metrics = {'identity', 'plain_entropy', 'mismatch_count', 'match_mismatch_count_ratio',
+               'match_mismatch_count_angle', 'mismatch_entropy', 'match_mismatch_entropy_ratio',
+               'match_mismatch_entropy_angle', 'mismatch_diversity', 'match_mismatch_diversity_ratio',
+               'match_mismatch_diversity_angle', 'match_diversity_mismatch_entropy_ratio',
+               'match_diversity_mismatch_entropy_angle'}
 
 max_metrics = {'mutual_information', 'normalized_mutual_information', 'average_product_corrected_mutual_information',
-               'filtered_average_product_corrected_mutual_information'}
+               'filtered_average_product_corrected_mutual_information', 'match_count', 'match_entropy',
+               'match_diversity'}
 
 
 class PositionalScorer(object):
@@ -90,6 +100,10 @@ class PositionalScorer(object):
         elif (self.position_size == 2) and (metric not in ambiguous_metrics | pair_only_metrics):
             raise ValueError('Provided metric: {} not available for pos_size: {}, please select from:\n{}'.format(
                 metric, self.position_size, ', '.join(list(ambiguous_metrics | pair_only_metrics))))
+        elif self.position_size > 2:
+            raise ValueError(f'Position sizes > 2 not currently supported {self.position_size} provided.')
+        else:
+            pass
         self.metric = metric
         if metric in integer_valued_metrics:
             self.metric_type = 'integer'
@@ -126,8 +140,17 @@ class PositionalScorer(object):
                              'normalized_mutual_information': group_normalized_mutual_information_score,
                              'average_product_corrected_mutual_information': group_mutual_information_score,
                              'filtered_average_product_corrected_mutual_information': group_mutual_information_score,
+                             'match_count': group_match_count_score, 'mismatch_count': group_mismatch_count_score,
+                             'match_mismatch_count_ratio': group_match_mismatch_count_ratio,
+                             'match_mismatch_count_angle': group_match_mismatch_count_angle,
+                             'match_entropy': group_match_entropy_score,
+                             'mismatch_entropy': group_mismatch_entropy_score,
                              'match_mismatch_entropy_ratio': group_match_mismatch_entropy_ratio,
                              'match_mismatch_entropy_angle': group_match_mismatch_entropy_angle,
+                             'match_diversity': group_match_diversity_score,
+                             'mismatch_diversity': group_mismatch_diversity_score,
+                             'match_mismatch_diversity_ratio': group_match_mismatch_diversity_ratio,
+                             'match_mismatch_diversity_angle': group_match_mismatch_diversity_angle,
                              'match_diversity_mismatch_entropy_ratio': group_match_diversity_mismatch_entropy_ratio,
                              'match_diversity_mismatch_entropy_angle': group_match_diversity_mismatch_entropy_angle}
         scores = scoring_functions[self.metric](freq_table, self.dimensions)
@@ -156,6 +179,9 @@ class PositionalScorer(object):
             np.array: A properly dimensioned vector/matrix/array containing the scores for each position in an alignment
             as determined by the specified metric.
         """
+        if score_tensor.shape != self.dimensions:
+            raise ValueError('The scoring matrix provided must mach the dimensions of PositionalScorer: '
+                             + f'{score_tensor.shape} vs {self.dimensions}')
         scoring_functions = {'integer': rank_integer_value_score, 'real': rank_real_value_score}
         scores = scoring_functions[self.metric_type](score_tensor, rank)
         if self.position_size == 2:
@@ -179,6 +205,10 @@ def rank_integer_value_score(score_matrix, rank):
         np.array: A score vector/matrix for all positions in the alignment with binary values to show whether a position
         is conserved in every group at the current rank (0) or if it is variable in at least one group (1).
     """
+    if score_matrix is None:
+        raise ValueError('score_matrix is expected to be a 1 or 2 dimensional np.array!')
+    if rank is None:
+        raise ValueError('For which rank is rank_integer_value_score being called!')
     rank_scores = 1 * (score_matrix != 0)
     return rank_scores
 
@@ -199,6 +229,10 @@ def rank_real_value_score(score_matrix, rank):
         np.array: A score vector/matrix for all positions in the alignment with float values to show whether a position
         is conserved in evert group at the current rank (0.0) or if it is variable in any of the groups (> 0.0).
     """
+    if score_matrix is None:
+        raise ValueError('score_matrix is expected to be a 1 or 2 dimensional np.array!')
+    if rank is None:
+        raise ValueError('For which rank is rank_integer_value_score being called!')
     weight = 1.0 / rank
     rank_scores = weight * score_matrix
     return rank_scores
@@ -225,13 +259,15 @@ def group_identity_score(freq_table, dimensions):
     positional_sums = np.sum(table > 0, axis=1)
     identical = (positional_sums > 1) * 1
     identical = identical.reshape(-1)
-    if len(dimensions) == 1:
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 1:
         final = identical
     elif len(dimensions) == 2:
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = identical
     else:
-        raise ValueError('group_identity_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+        raise ValueError('group_identity_score is not implemented for dimensions describing axis other than 1 or 2.')
     return final
 
 
@@ -253,18 +289,22 @@ def group_plain_entropy_score(freq_table, dimensions):
     """
     counts = freq_table.get_table()
     depth = float(freq_table.get_depth())
-    freq = counts / depth
-    freq_log = csc_matrix((np.log(freq.data), freq.indices, freq.indptr), shape=freq.shape)
-    inter_prod = freq.multiply(freq_log)
+    freq = counts.data / depth
+    freq_log = np.log(freq)
+    inter_prod = csc_matrix((freq * freq_log, counts.indices, counts.indptr), shape=counts.shape)
+    del counts
     inter_sum = np.array(inter_prod.sum(axis=1)).reshape(-1)
     entropies = -1.0 * inter_sum
-    if len(dimensions) == 1:
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 1:
         final = entropies
     elif len(dimensions) == 2:
         final = np.zeros(dimensions)
         final[np.triu_indices(n=dimensions[0])] = entropies
     else:
-        raise ValueError('group_plain_entropy_score2 is not implemented for dimensions describing axis other than 1 or 2.')
+        raise ValueError('group_plain_entropy_score is not implemented for dimensions describing axis other than '
+                         '1 or 2.')
     return final
 
 
@@ -289,6 +329,12 @@ def mutual_information_computation(freq_table, dimensions):
         np.array: The joint entropies for pairs of positions.
         np.array: The mutual information scores for all pairs of positions in the FrequencyTable.
     """
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) != 2:
+        raise ValueError('Mutual information computation must be performed on position of size 2!')
+    else:
+        pass
     joint_entropies_ij = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
     diagonal_indices = (list(range(dimensions[0])), list(range(dimensions[1])))
     entropies_j = np.zeros(dimensions)
@@ -380,8 +426,13 @@ def average_product_correction(mutual_information_matrix):
     Returns:
         np.array: An upper triangle matrix with mutual information with average product correction scores.
     """
+    if mutual_information_matrix is None:
+        raise ValueError('No mutual information matrix provided!')
     if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
         raise ValueError('Mutual information matrix is expected to be square!')
+    if np.tril(mutual_information_matrix).any():
+        raise ValueError('Mutual information matrix is expected to be an upper triangle matrix (not including the '
+                         'diagonal!')
     # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
     dim = mutual_information_matrix.shape[0]
     # Compute the position specific mutual information averages (excludes the position itself)
@@ -392,7 +443,8 @@ def average_product_correction(mutual_information_matrix):
     if matrix_sum == 0.0:
         apc_corrected = np.zeros((dim, dim))
         if np.abs(mutual_information_matrix).any():
-            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
+            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix '
+                             'includes non-zero values.')
     else:
         matrix_average = matrix_sum / np.sum(range(dim))
         # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
@@ -413,61 +465,85 @@ def average_product_correction(mutual_information_matrix):
     return apc_corrected
 
 
-def filtered_average_product_correction(mutual_information_matrix):
+def filtered_average_product_correction(mutual_information_matrix, threshold=0.0001):
     """
     Filtered Average Product Correction
 
-    This function uses a mutual information matrix to calculate average product corrected mutual information. Average
-    product correction includes division by the average mutual information of the unique off diagonal terms in the
-    matrix (e.g. the upper triangle). If this average is 0, a matrix of all zeros will be returned, but first a check
-    will be performed to ensure that the mutual information matrix was also all zeros (this should be the case because
-    mutual information scores should fall in the range between 0 and 1 and thus there should be no negatives which could
-    cause a zero average while other positions are non-zero). If this check fails a ValueError will be raised. If the
-    average is not zero then the rest of the average product correction is computed and applied to the mutual
-    information matrix in order to generate final scores. This function also a check for low mutual information values
-    (<0.001) and coerces all final scores for those positions to 0.0 as opposed to the average product corrected values.
+    This function uses the average_product_correction function to generate a matrix of apc corrected mi values. This
+    function then checks for low mutual information values (<0.0001) and coerces all final scores for those positions to
+    0.0 as opposed to the average product corrected values.
 
     Args:
         mutual_information_matrix (np.array): An upper triangle mutual information score matrix for which to compute the
         mutual information with average product correction.
+        threshold (float): The mutual information value below which to set final scores to 0.0
     Returns:
-        np.array: An upper triangle matrix with mutual information with average product correction scores. If the
-        average over the
+        np.array: An upper triangle matrix with average product corrected mutual information scores. If the mutual
+        information score at a given position is below the threshold the final score is overwritten with 0.0.
     """
-    if mutual_information_matrix.shape[0] != mutual_information_matrix.shape[1]:
-        raise ValueError('Mutual information matrix is expected to be square!')
-    # Determine the size of the matrix (number of non-gap positions in the alignment reference sequence).
-    dim = mutual_information_matrix.shape[0]
-    # Compute the position specific mutual information averages (excludes the position itself)
-    diagonal_values = mutual_information_matrix[list(range(dim)), list(range(dim))]
-    # Compute the average over the entire mutual information matrix (excludes the diagonal)
-    diagonal_sum = np.sum(diagonal_values)
-    matrix_sum = np.sum(mutual_information_matrix) - diagonal_sum
-    if matrix_sum == 0.0:
-        apc_corrected = np.zeros((dim, dim))
-        if np.abs(mutual_information_matrix).any():
-            raise ValueError('APC correction will experience divide by zero error, but mutual information matrix includes non-zero values.')
-    else:
-        matrix_average = matrix_sum / np.sum(range(dim))
-        # Since only the upper triangle of the matrix has been filled in the sums along both the column and the row are
-        # needed to get the cumulative sum for a given position.
-        position_specific_sums = (np.sum(mutual_information_matrix, axis=0) + np.sum(mutual_information_matrix, axis=1)
-                                  - diagonal_values)
-        position_specific_averages = position_specific_sums / float(dim - 1)
-        # Calculate the matrix of products for the position specific average mutual information
-        apc_numerator = np.outer(position_specific_averages, position_specific_averages)
-        apc_factor = apc_numerator / matrix_average
-        # Ensure that the correction factor is applied only to the portion of the matrix which has values (upper
-        # triangle).
-        upper_triangle_mask = np.zeros((dim, dim))
-        upper_triangle_mask[np.triu_indices(dim, k=1)] = 1
-        apc_factor = apc_factor * upper_triangle_mask
-        # Compute the final corrected values.
-        apc_corrected = mutual_information_matrix - apc_factor
-        # Performing filtering that Angela performs
-        positions = mutual_information_matrix <= 0.0001
-        apc_corrected[positions] = 0.0
+    apc_corrected = average_product_correction(mutual_information_matrix=mutual_information_matrix)
+    # Performing filtering that Angela performs
+    positions = mutual_information_matrix <= threshold
+    apc_corrected[positions] = 0.0
     return apc_corrected
+
+
+def count_computation(freq_table, dimensions):
+    """
+    Count Computation
+
+    This function accepts a frequency table and returns the corresponding final count values for all positions, where
+    the count is the sum of the counts of each character observed at that position. This is intended for use in the
+    group_match_count_score and group_mismatch_count_score functions.
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of matches or mismatches for pairs of positions in an
+        alignment, to use when computing the counts.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided frequency table.
+    """
+    if len(dimensions) != freq_table.position_size:
+        raise ValueError('FrequencyTable position size and dimensions do not agree!')
+    elif len(dimensions) == 2:
+        counts = freq_table.get_table()
+        position_sums = counts.sum(axis=1).flatten()
+        final = np.zeros(dimensions)
+        final[np.triu_indices(n=dimensions[0])] = position_sums
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        final[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
+    else:
+        raise ValueError('count_computation metrics are only intended for use with FrequencyTable objects of position '
+                         'size 2!')
+    return final
+
+
+def diversity_computation(freq_table, dimensions):
+    """
+    Diversity Computation
+
+    This function accepts a frequency table and returns the corresponding diversity values for all positions, where:
+        diversity = e^(h) = e^(-1 * Sum(p*log(p)))
+
+    Arguments:
+        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the diversity.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a 1-D array is returned, if two are given a 2-D array is returned.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the diversity values for all positions in the
+        provided frequency table.
+    """
+    if len(dimensions) == 2:
+        entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
+        diversities = np.exp(entropies)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        diversities = np.triu(diversities, k=1)
+    else:
+        raise ValueError('diversity_computation metrics are only intended for use with FrequencyTable objects of '
+                         'position size 2!')
+    return diversities
 
 
 def ratio_computation(match_table, mismatch_table):
@@ -504,31 +580,6 @@ def ratio_computation(match_table, mismatch_table):
     return ratio
 
 
-def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
-    """
-    Group Match Mismatch Entropy Ratio
-
-    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal). A
-    ratio of 0 corresponds to invariance or covariation while a ratio of np.finfo(float).max corresponds to fully
-    variable. The ratio is computed by first calculating the entropy of matches and the entropy of mismatches and
-    passing them to the ratio_computation method.
-
-    Arguments:
-        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
-        objects.
-        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
-        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
-    Returns:
-        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
-        match and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
-        np.finfo(float).max corresponding to full variation.
-    """
-    match_entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
-    mismatch_entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
-    ratio = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
-    return ratio
-
-
 def angle_computation(ratios):
     """
     Angle Computation
@@ -552,6 +603,175 @@ def angle_computation(ratios):
     """
     angles = np.arctan(ratios)
     return angles
+
+
+def group_match_count_score(freq_tables, dimensions):
+    """
+    Group Match Count Score
+
+    This function accepts a frequency table, representing the match cases (invariant or covariant signal) for pairs of
+    positions in an alignment, and returns the corresponding final count values for all positions using the
+    count_computation function.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided match frequency table.
+    """
+    return count_computation(freq_table=freq_tables['match'], dimensions=dimensions)
+
+
+def group_mismatch_count_score(freq_tables, dimensions):
+    """
+    Group Mismatch Count Score
+
+    This function accepts a frequency table, representing the mismatch cases (variation signal) for pairs of positions
+    in an alignment, and returns the corresponding final count values for all positions using the count_computation
+    function.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the total character counts for all positions
+        in the provided mismatch frequency table.
+    """
+    return count_computation(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+
+
+def group_match_mismatch_count_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Count Ratio
+
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal)
+    counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds to
+    fully variable. The ratio is computed by first calculating the counts of matches and the counts of mismatches and
+    passing them to the ratio_computation method.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Returns:
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.tan(np.pi / 2.0) corresponding to full variation.
+    """
+    match_counts = group_match_count_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_counts = group_mismatch_count_score(freq_tables=freq_tables, dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_counts, mismatch_table=mismatch_counts)
+    return ratio
+
+
+def group_match_mismatch_count_angle(freq_tables, dimensions):
+    """
+        Group Match Mismatch Count Angle
+
+        This function computes the angle between match (invariant or covariant signal) and mismatch (variation signal)
+        counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds
+        to fully variable. The angle is computed by first calculating the counts of matches and the counts of mismatches
+        and passing them to the ratio_computation method. The resulting ratios are then passed to the angle_computation
+        function for the final angles.
+
+        Arguments:
+            freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+            objects.
+            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected
+            and will return a 2-D array.
+        Returns:
+            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between
+            the match and mismatch count axes, with a ratio of 0 corresponding to invariance or covariation and
+            np.pi / 2.0 corresponding to full variation.
+        """
+    ratios = group_match_mismatch_count_ratio(freq_tables=freq_tables, dimensions=dimensions)
+    angles = angle_computation(ratios=ratios)
+    return angles
+
+
+def group_match_entropy_score(freq_tables, dimensions):
+    """
+    Group Match Entropy Score
+
+    This function accepts a frequency table, representing the match cases (invariant or covariant signal) for pairs of
+    positions in an alignment, and returns the corresponding entropy values for all positions using the
+    count_computation function.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the entropy of only matching characters for
+        all positions in the provided match frequency table.
+    """
+    if len(dimensions) == 2:
+        entropy = group_plain_entropy_score(freq_table=freq_tables['match'], dimensions=dimensions)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
+    else:
+        raise ValueError('group_match_entropy_score metrics are only intended for use with FrequencyTable objects of '
+                         'position size 2!')
+    return entropy
+
+
+def group_mismatch_entropy_score(freq_tables, dimensions):
+    """
+    Group Mismatch Entropy Score
+
+    This function accepts a frequency table, representing the mismatch cases (variation signal) for pairs of positions
+    in an alignment, and returns the corresponding entropy values for all positions using the count_computation
+    function.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the entropy of only mismatching characters for
+        all positions in the provided mismatch frequency table.
+    """
+    if len(dimensions) == 2:
+        entropy = group_plain_entropy_score(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+        # Having scores for positions paired to themselves is not meaningful in the context of covariation prediction.
+        entropy[list(range(dimensions[0])), list(range(dimensions[0]))] = 0.0
+    else:
+        raise ValueError('group_mismatch_entropy_score metrics are only intended for use with FrequencyTable objects '
+                         'of position size 2!')
+    return entropy
+
+
+def group_match_mismatch_entropy_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Entropy Ratio
+
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal). A
+    ratio of 0 corresponds to invariance or covariation while a ratio of np.finfo(float).max corresponds to fully
+    variable. The ratio is computed by first calculating the entropy of matches and the entropy of mismatches and
+    passing them to the ratio_computation method.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
+        then a vector (1-d array) is returned, if two are given a matrix (2-d array) is returned.
+    Returns:
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match and mismatch entropy axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.finfo(float).max corresponding to full variation.
+    """
+    match_entropy = group_match_entropy_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_entropy = group_mismatch_entropy_score(freq_tables=freq_tables, dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_entropy, mismatch_table=mismatch_entropy)
+    return ratio
 
 
 def group_match_mismatch_entropy_angle(freq_tables, dimensions):
@@ -578,24 +798,94 @@ def group_match_mismatch_entropy_angle(freq_tables, dimensions):
     return angles
 
 
-def diversity_computation(freq_table, dimensions):
+def group_match_diversity_score(freq_tables, dimensions):
     """
-    Diversity Computation
+    Group Match Diversity Score
 
-    This function accepts a frequency table and returns the corresponding diversity values for all positions, where:
-        diversity = e^(h) = e^(-1 * Sum(p*log(p)))
+    This function accepts a frequency table, representing the match cases (invariant or covariant signal) for pairs of
+    positions in an alignment, and returns the corresponding diversity values for all positions using the
+    diversity_computation function.
 
     Arguments:
-        freq_table (FrequencyTable): The characterization of an alignment, to use when computing the diversity.
-        dimensions (tuple): A tuple describing the dimensions of the expected return, if only one dimension is given
-        then a 1-D array is returned, if two are given a 2-D array is returned.
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
     Return:
-        np.array: An array with the shape given by dimensions, containing the diversity values for all positions in the
-        provided frequency table.
+        np.array: An array with the shape given by dimensions, containing the diversity only matching characters for all
+        positions in the provided match frequency table.
     """
-    entropies = group_plain_entropy_score(freq_table=freq_table, dimensions=dimensions)
-    diversities = np.exp(entropies)
-    return diversities
+    return diversity_computation(freq_table=freq_tables['match'], dimensions=dimensions)
+
+
+def group_mismatch_diversity_score(freq_tables, dimensions):
+    """
+    Group Mismatch Diversity Score
+
+    This function accepts a frequency table, representing the mismatch cases (variation signal) for pairs of positions
+    in an alignment, and returns the corresponding diversity values for all positions using the diversity_computation
+    function.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Return:
+        np.array: An array with the shape given by dimensions, containing the diversity for only mismatch characters for
+        all positions in the provided mismatch frequency table.
+    """
+    return diversity_computation(freq_table=freq_tables['mismatch'], dimensions=dimensions)
+
+
+def group_match_mismatch_diversity_ratio(freq_tables, dimensions):
+    """
+    Group Match Mismatch Diversity Ratio
+
+    This function computes the ratio between match (invariant or covariant signal) and mismatch (variation signal)
+    counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds to
+    fully variable. The ratio is computed by first calculating the diversity of matches and the diversity of mismatches
+    and passing them to the ratio_computation method.
+
+    Arguments:
+        freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+        objects.
+        dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected and
+        will return a 2-D array.
+    Returns:
+        np.array: An array of ratios computed by ratio_computation (see documentation), providing the ratio between the
+        match and mismatch diversity axes, with a ratio of 0 corresponding to invariance or covariation and
+        np.tan(np.pi / 2.0) corresponding to full variation.
+    """
+    match_diversity = group_match_diversity_score(freq_tables=freq_tables, dimensions=dimensions)
+    mismatch_diversity = group_mismatch_diversity_score(freq_tables=freq_tables, dimensions=dimensions)
+    ratio = ratio_computation(match_table=match_diversity, mismatch_table=mismatch_diversity)
+    return ratio
+
+
+def group_match_mismatch_diversity_angle(freq_tables, dimensions):
+    """
+        Group Match Mismatch Count Angle
+
+        This function computes the angle between match (invariant or covariant signal) and mismatch (variation signal)
+        counts. A ratio of 0 corresponds to invariance or covariation while a ratio of np.tan(np.pi / 2.0) corresponds
+        to fully variable. The angle is computed by first calculating the counts of matches and the counts of mismatches
+        and passing them to the ratio_computation method. The resulting ratios are then passed to the angle_computation
+        function for the final angles.
+
+        Arguments:
+            freq_tables (dict): A dictionary mapping the keys 'match' and 'mismatch' to corresponding FrequencyTable
+            objects.
+            dimensions (tuple): A tuple describing the dimensions of the expected return, two dimensions are expected
+            and will return a 2-D array.
+        Returns:
+            np.array: An array of angles computed by angle_computation (see documentation), providing the ratio between
+            the match and mismatch diversity axes, with a ratio of 0 corresponding to invariance or covariation and
+            np.pi / 2.0 corresponding to full variation.
+        """
+    ratios = group_match_mismatch_diversity_ratio(freq_tables=freq_tables, dimensions=dimensions)
+    angles = angle_computation(ratios=ratios)
+    return angles
 
 
 def group_match_diversity_mismatch_entropy_ratio(freq_tables, dimensions):

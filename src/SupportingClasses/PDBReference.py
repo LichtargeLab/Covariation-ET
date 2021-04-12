@@ -6,7 +6,7 @@ Created on Aug 17, 2017
 import os
 import re
 import pickle
-from time import time
+from time import time, sleep
 from urllib.error import HTTPError
 from Bio import Entrez
 from Bio.SeqIO import parse, read
@@ -56,8 +56,12 @@ class PDBReference(object):
         Args:
             pdb_file (str): Path to the pdb file being represented by this instance.
         """
-        if pdb_file.startswith('..'):
-            pdb_file = os.path.abspath(os.path.join(os.getcwd(), pdb_file))
+        if pdb_file is None:
+            raise AttributeError('PDB File cannot be None!')
+        else:
+            pdb_file = os.path.abspath(pdb_file)
+            if not os.path.isfile(pdb_file):
+                raise AttributeError(f'PDB File path not valid: {pdb_file}')
         self.file_name = pdb_file
         self.structure = None
         self.chains = None
@@ -80,7 +84,8 @@ class PDBReference(object):
         """
         start = time()
         if (save_file is not None) and os.path.exists(save_file):
-            structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(open(save_file, 'r'))
+            with open(save_file, 'rb') as handle:
+                structure, seq, chains, pdb_residue_list, residue_pos = pickle.load(handle)
         else:
             # parser = PDBParser(PERMISSIVE=0)  # strict
             parser = PDBParser(PERMISSIVE=1)  # corrective
@@ -98,13 +103,15 @@ class PDBReference(object):
                     for residue in chain:
                         if is_aa(residue.get_resname(), standard=True) and not residue.id[0].startswith('H_'):
                             res_name = three_to_one(residue.get_resname())
-                            seq[chain.id] += res_name
                             res_num = residue.get_id()[1]
                             residue_pos[chain.id][res_num] = res_name
-                            pdb_residue_list[chain.id].append(res_num)
+                    for curr_res in sorted(residue_pos[chain.id]):
+                        pdb_residue_list[chain.id].append(curr_res)
+                        seq[chain.id] += residue_pos[chain.id][curr_res]
             if save_file is not None:
-                pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), open(save_file, 'w'),
-                            protocol=pickle.HIGHEST_PROTOCOL)
+                with open(save_file, 'wb') as handle:
+                    pickle.dump((structure, seq, chains, pdb_residue_list, residue_pos), handle,
+                                protocol=pickle.HIGHEST_PROTOCOL)
         self.structure = structure
         self.chains = chains
         self.seq = seq
@@ -113,40 +120,6 @@ class PDBReference(object):
         self.size = {chain: len(seq[chain]) for chain in self.chains}
         end = time()
         print('Importing the PDB file took {} min'.format((end - start) / 60.0))
-
-    @staticmethod
-    def _parse_external_sequence_accessions(pdb_fn):
-        """
-        Parse External Sequence Accessions
-
-        This function parses the PDB file again looking for external sequence accession identifiers. At the moment only
-        Swiss/Uniprot and GenBank accessions are identified.
-
-        Argument:
-            pdb_fn (str/path): The path to the PDB file to parse.
-        Return:
-            dict: A two tiered dictionary where the first level key is the source, and the second level dictionary has
-            chain identifiers as the keys and a list of identifiers as the values.
-        """
-        external_accessions = {}
-        for record in parse(pdb_fn, 'pdb-seqres'):
-            for ref in record.dbxrefs:
-                xref_db, xref_acc = ref.split(':')
-                if xref_db == 'UNP':
-                    if 'UNP' not in external_accessions:
-                        external_accessions['UNP'] = {}
-                    if record.annotations['chain'] not in external_accessions['UNP']:
-                        external_accessions['UNP'][record.annotations['chain']] = []
-                    external_accessions['UNP'][record.annotations['chain']].append(xref_acc)
-                elif xref_db == 'GB':
-                    if 'GB' not in external_accessions:
-                        external_accessions['GB'] = {}
-                    if record.annotations['chain'] not in external_accessions['GB']:
-                        external_accessions['GB'][record.annotations['chain']] = []
-                    external_accessions['GB'][record.annotations['chain']].append(xref_acc)
-                else:
-                    continue
-        return external_accessions
 
     @staticmethod
     def _parse_uniprot_handle(handle):
@@ -167,7 +140,7 @@ class PDBReference(object):
         return final_seq
 
     @staticmethod
-    def _retrieve_uniprot_seq(accessions):
+    def _retrieve_uniprot_seq(db_acc, db_id, seq_start, seq_end, max_tries=10):
         """
         Retrieve Uniprot Sequence
 
@@ -175,33 +148,57 @@ class PDBReference(object):
         it can successfully parse from the corresponding records.
 
         Argument:
-            accessions (list): A list of Swiss/Uniprot accession ids.
+            db_acc (str): The accession name for a Swiss/Uniprot sequence.
+            db_id (str): The identifier for a Swiss/Uniprot sequence.
+            seq_start (int): The first position in the sequence which is represented by the PDB file (the first index
+            returned will be seq_start - 1 or 0 if None is provided).
+            seq_end (int): The last position in the sequence which is represented by the PDB file (the last index
+            returned will be seq_end - 1 or the full length of the sequence if None is provided).
+            max_tries (int): The number of times attempts should be made to retrieve a sequence, due to inconsistent
+            behavior from the target server.
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
         """
+        if seq_start is None:
+            seq_start = 0
+        else:
+            seq_start = seq_start - 1
+        accessions = []
+        if db_acc:
+            accessions.append(db_acc)
+        if db_id:
+            accessions.append(db_id)
         record = None
         accession = None
         for accession in accessions:
-            try:
-                handle = get_sprot_raw(accession)
-            except HTTPError:
-                print('HTTPError on: {}'.format(accession))
-                continue
-            try:
-                record = PDBReference._parse_uniprot_handle(handle=handle)
-            except AttributeError:
-                print('No data returned for accession: {} with handle: {}'.format(accession, handle))
-                continue
-            if record:
-                break
+            tries = 0
+            while (tries < max_tries) and (record is None):
+                if tries > 1:
+                    sleep(1)
+                tries += 1
+                try:
+                    handle = get_sprot_raw(accession)
+                except HTTPError:
+                    print('HTTPError on: {}'.format(accession))
+                    continue
+                try:
+                    record = PDBReference._parse_uniprot_handle(handle=handle)
+                    if seq_end is None:
+                        seq_end = len(record)
+                    record = record[seq_start: seq_end]
+                except AttributeError:
+                    print('No data returned for accession: {} with handle: {}'.format(accession, handle))
+                    continue
+                if record:
+                    break
         # If no sequence could be successfully parsed, reset the accession id.
         if record is None:
             accession = None
         return accession, record
 
     @staticmethod
-    def _retrieve_genbank_seq(accessions):
+    def _retrieve_genbank_seq(db_acc, db_id, seq_start, seq_end, max_tries=10):
         """
         Retrieve GenBank Sequence
 
@@ -209,28 +206,85 @@ class PDBReference(object):
         it can successfully parse from the corresponding records.
 
         Argument:
-            accessions (list): A list of GenBank accession ids.
+            db_acc (str): The accession name for a GenBank sequence.
+            db_id (str): The identifier for a GenBank sequence.
+            seq_start (int): The first position in the sequence which is represented by the PDB file.
+            seq_end (int): The last position in the sequence which is represented by the PDB file.
+            max_tries (int): The number of times attempts should be made to retrieve a sequence, due to inconsistent
+            behavior from the target server.
         Return:
             str: The accession identifier to which the returned sequence belongs.
             str: The sequence of the first accession identifier that is successfully parsed.
         """
+        accessions = []
+        if db_acc:
+            accessions.append(db_acc)
+        if db_id:
+            accessions.append(db_id)
         record = None
         accession = None
         Entrez.email = os.environ.get('EMAIL')
+        if seq_start is None:
+            seq_start = 0
+        else:
+            seq_start = seq_start - 1
         for accession in accessions:
-            try:
-                handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
-            except IOError:
-                continue
-            try:
-                record = read(handle, format='fasta').seq
-            except ValueError:
-                continue
-            if record:
-                break
+            tries = 0
+            while (tries < max_tries) and (record is None):
+                if tries > 1:
+                    sleep(1)
+                tries += 1
+                try:
+                    handle = Entrez.efetch(db='protein', rettype='fasta', retmode='text', id=accession)
+                except IOError:
+                    continue
+                except AttributeError:
+                    continue
+                try:
+                    record = str(read(handle, format='fasta').seq)
+                    if seq_end is None:
+                        seq_end = len(record)
+                    record = record[seq_start: seq_end]
+                except ValueError:
+                    continue
+                if record:
+                    break
         if record is None:
             accession = None
         return accession, record
+
+    @staticmethod
+    def _parse_external_sequence_accessions(pdb_fn):
+        """
+        Parse External Sequence Accessions
+
+        This function parses the PDB file again looking for external sequence accession identifiers. At the moment only
+        Swiss/Uniprot and GenBank accessions are identified.
+
+        Argument:
+            pdb_fn (str/path): The path to the PDB file to parse.
+        Return:
+            dict: A two tiered dictionary where the first level key is the source, and the second level dictionary has
+            chain identifiers as the keys and a list of identifiers as the values.
+        """
+        external_accessions = {}
+        dbrefs = []
+        with open(pdb_fn, 'r') as pdb_handle:
+            for line in pdb_handle:
+                if line.startswith('DBREF'):
+                    curr_dbref = dbref_parse(dbref_line=line)
+                    if curr_dbref['db'] == 'PDB':
+                        continue
+                    elif curr_dbref['db'] not in external_accessions:
+                        external_accessions[curr_dbref['db']] = {}
+                    else:
+                        pass
+                    if curr_dbref['chain_id'] not in external_accessions[curr_dbref['db']]:
+                        external_accessions[curr_dbref['db']][curr_dbref['chain_id']] = []
+                    external_accessions[curr_dbref['db']][curr_dbref['chain_id']].append(
+                        (curr_dbref['db_acc'], curr_dbref['db_id'], curr_dbref['db_seq_begin'],
+                         curr_dbref['db_seq_end']))
+        return external_accessions
 
     def _parse_external_sequences(self):
         """
@@ -248,9 +302,31 @@ class PDBReference(object):
         external_accessions = self._parse_external_sequence_accessions(pdb_fn=self.file_name)
         external_seqs = {}
         for source in external_accessions:
+            if source not in retrieval_methods:
+                continue
             external_seqs[source] = {}
             for chain in external_accessions[source]:
-                external_seqs[source][chain] = retrieval_methods[source](accessions=external_accessions[source][chain])
+                if len(external_accessions[source][chain]) > 1:
+                    prev_acc = None
+                    prev_id = None
+                    prev_start = None
+                    prev_end = None
+                    for entry in sorted(external_accessions[source][chain]):
+                        if prev_acc is None:
+                            prev_acc = entry[0]
+                            prev_id = entry[1]
+                            prev_start = entry[2]
+                            prev_end = entry[3]
+                        elif (prev_acc == entry[0]) and (prev_id == entry[1]):
+                            if prev_start > entry[2]:
+                                prev_start = entry[2]
+                            if prev_end < entry[3]:
+                                prev_end = entry[3]
+                        else:
+                            raise ValueError(f'Multiple references for the same chain from different accessions: '
+                                             f'{prev_acc} and {entry[0]}')
+                    external_accessions[source][chain] = [(prev_acc, prev_id, prev_start, prev_end)]
+                external_seqs[source][chain] = retrieval_methods[source](*external_accessions[source][chain][0])
         return external_seqs
 
     def get_sequence(self, chain, source='PDB'):
@@ -286,3 +362,38 @@ class PDBReference(object):
         else:
             raise ValueError('Expected sources are PDB, UNP, or GB.')
         return identifier, sequence
+
+
+def dbref_parse(dbref_line):
+    """
+    DBREF Parse
+
+    This function parses values out of a DBREF entry line in a PDB file if it follows the conventions for DBREF standard
+    format version 3.3 as described at https://www.wwpdb.org/documentation/file-format-content/format33/sect3.html
+
+    Args:
+        dbref_line (str): Line starting with "DBREF" which follows the standard format described in above.
+    Return:
+        dict: A dictionary returning each of the elements described in the DBREF standard format description with the
+        following key names: rec_name, id_code, chain_id, seq_begin, ins_begin, seq_end, ins_end, db, db_acc, db_id,
+        db_seq_begin, db_ins_begin, db_seq_end, db_ins_end. The values for keys seq_begin, seq_end, db_seq_begin, and
+        deb_seq_end are returned as ints all others are returned as strs.
+    """
+    try:
+        dbref_entry = {'rec_name': dbref_line[0:6].lstrip().rstrip(), 'id_code': dbref_line[7:11].lstrip().rstrip(),
+                       'chain_id': dbref_line[12], 'seq_begin': int(dbref_line[14:18].lstrip().rstrip()),
+                       'ins_begin': dbref_line[18].lstrip().rstrip(),
+                       'seq_end': int(dbref_line[20:24].lstrip().rstrip()),
+                       'ins_end': dbref_line[24].lstrip().rstrip(), 'db': dbref_line[26:32].lstrip().rstrip(),
+                       'db_acc': dbref_line[33:41].lstrip().rstrip(), 'db_id': dbref_line[42:54].lstrip().rstrip(),
+                       'db_seq_begin': int(dbref_line[55:60].lstrip().rstrip()),
+                       'db_ins_begin': dbref_line[60].lstrip().rstrip(),
+                       'db_seq_end': int(dbref_line[62:67].lstrip().rstrip()),
+                       'db_ins_end': dbref_line[67].lstrip().rstrip()}
+    except ValueError:
+        raise ValueError('Provided DBREF line does not follow the expected format!'
+                         'Only the standard format is currently supported.')
+    except IndexError:
+        raise ValueError('Provided DBREF line does not follow the expected format!'
+                         'Only the standard format is currently supported.')
+    return dbref_entry

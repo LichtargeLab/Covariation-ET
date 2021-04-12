@@ -47,8 +47,7 @@ class MatchMismatchTable(object):
     """
 
     def __init__(self, seq_len, num_aln, single_alphabet_size, single_mapping, single_reverse_mapping,
-                 larger_alphabet_size, larger_alphabet_mapping, larger_alphabet_reverse_mapping,
-                 single_to_larger_mapping, pos_size=1):
+                 larger_alphabet_size, larger_mapping, larger_reverse_mapping, single_to_larger_mapping, pos_size=1):
         """
         __init__
 
@@ -67,10 +66,10 @@ class MatchMismatchTable(object):
             nucleic/amino acid mapping from single_mapping.
             larger_alphabet_size (int): The number of characters present in the larger (pair, quad, etc.) character
             alphabet for the alignment.
-            larger_alphabet_mapping (dict): A mapping from character to integer representing the position of each
+            larger_mapping (dict): A mapping from character to integer representing the position of each
             grouping of nucleic/amino acids in the larger alphabet to its position in that alphabet (and also in a
             FrequencyTable).
-            larger_alphabet_reverse_mapping (np.array): An array mapping from integer to character which reverses the
+            larger_reverse_mapping (np.array): An array mapping from integer to character which reverses the
             nucleic/amino acid mapping from larger_mapping.
             single_to_larger_mapping (dict): A dictionary mapping tuples of integers to an integer, where the tuple
             consists of the single alphabet position of each element of grouping of nucleic/amino acids in the larger
@@ -79,6 +78,22 @@ class MatchMismatchTable(object):
             be (1,1) to 1 for ('A', 'A') maps to 'AA').
             pos_size (int): The size of positions being compared (1 for single positions, 2 for pairs of positions).
         """
+        check_char = list(single_mapping.keys())[0]
+        if single_reverse_mapping[single_mapping[check_char]] != check_char:
+            raise ValueError('Mapping and reverse mapping do not agree!')
+        check_char2 = list(larger_mapping.keys())[0]
+        if larger_reverse_mapping[larger_mapping[check_char2]] != check_char2:
+            raise ValueError('Larger mapping and reverse mapping do not agree!')
+        if len(single_mapping) < single_alphabet_size or len(single_reverse_mapping) != single_alphabet_size:
+            raise ValueError('Mapping ({}) and reverse mapping ({}) must match alphabet size ({})!'.format(
+                len(single_mapping), len(single_reverse_mapping), single_alphabet_size))
+        if len(larger_mapping) < larger_alphabet_size or len(larger_reverse_mapping) != larger_alphabet_size:
+            raise ValueError('Larger mapping ({}) and reverse mapping ({}) must match alphabet size ({})!'.format(
+                len(larger_mapping), len(larger_reverse_mapping), larger_alphabet_size))
+        if len(check_char) != 1:
+            raise ValueError('Single alphabet size must be equal to 1!')
+        if (len(check_char2) / (pos_size * 2)) != 1.0:
+            raise ValueError('Larger alphabet size must be equal to twice pos_size!')
         self.seq_len = seq_len
         self.pos_size = pos_size
         self.num_aln = num_aln
@@ -87,8 +102,8 @@ class MatchMismatchTable(object):
         self.single_mapping = single_mapping
         self.single_reverse_mapping = single_reverse_mapping
         self.larger_alphabet_size = larger_alphabet_size
-        self.larger_mapping = larger_alphabet_mapping
-        self.larger_reverse_mapping = larger_alphabet_reverse_mapping
+        self.larger_mapping = larger_mapping
+        self.larger_reverse_mapping = larger_reverse_mapping
         self.single_to_larger_mapping = single_to_larger_mapping
         self.match_mismatch_tables = None
 
@@ -142,13 +157,15 @@ class MatchMismatchTable(object):
             str: The (two, four, or greater length) character observed at a given position between the two specified
             sequences.
         """
+        if self.match_mismatch_tables is None:
+            raise AttributeError('Please call identify_matches_mismatches() before calling this method.')
         if seq_ind1 >= seq_ind2:
-            raise ValueError('Matches and mismatches are defined only for the upper triangle of sequence comparisons, '
-                             'please provide sequence indices such that seq_ind1 < seq_ind2.')
-        if isinstance(pos, int):
+            raise ValueError(f'Matches and mismatches are defined only for the upper triangle of sequence comparisons, '
+                             f'please provide sequence indices such that seq_ind1 < seq_ind2. {seq_ind1}, {seq_ind2}')
+        if isinstance(pos, int) and (self.pos_size == 1):
             char_tup = (self.num_aln[seq_ind1, pos], self.num_aln[seq_ind2, pos])
             status = self.match_mismatch_tables[pos][seq_ind1, seq_ind2] == 1
-        elif isinstance(pos, tuple):
+        elif isinstance(pos, tuple) and (self.pos_size == len(pos)):
             char_tup = ([], [])
             status = 0
             for x in range(len(pos)):
@@ -158,7 +175,7 @@ class MatchMismatchTable(object):
             char_tup = tuple(char_tup[0] + char_tup[1])
             status = np.abs(status) == len(pos)
         else:
-            return ValueError('Received a position with type other than int or tuple.')
+            raise ValueError('Received a position with type other than int or tuple or which does not match pos_size.')
         char = self.larger_reverse_mapping[self.single_to_larger_mapping[char_tup]]
         ret_status = 'match' if status else 'mismatch'
         return ret_status, char
@@ -201,6 +218,8 @@ class MatchMismatchTable(object):
              specified position. The possible values are 1 (for a match), -1 (for a mismatch), and 0 (if a value was
              returned from the diagonal or lower triangle because index1 and index2 were not defined as intended).
         """
+        if self.match_mismatch_tables is None:
+            raise AttributeError('identify_matches_mismatches must be called to initialize this object.')
         s1_chars = self.num_aln[indices1, pos]
         s2_chars = self.num_aln[indices2, pos]
         return s1_chars[np.newaxis].T, s2_chars[np.newaxis].T, self.match_mismatch_tables[pos][indices1, indices2]
@@ -233,6 +252,8 @@ class MatchMismatchTable(object):
              range from -x to x where x is the size of a position (e.g. 2 for pairs), therefore a score of x represents
              all specific positions being matches and a score of -x represents all specific positions being a mismatch.
         """
+        if self.match_mismatch_tables is None:
+            raise AttributeError('identify_matches_mismatches must be called to initialize this object.')
         cumulative_s1_chars = []
         cumulative_s2_chars = []
         cumulative_status = None
