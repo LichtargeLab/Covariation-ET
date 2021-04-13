@@ -382,7 +382,9 @@ class DataSetGenerator(object):
         """
         Build Dataset
 
-        This method builds a complete data set based on the protein id list specified in the constructor.
+        This method builds a complete data set based on the protein id list specified in the constructor. A summary file
+        with statistics about each protein in the data set is written to the input_dir specified for the
+        DataSetGenerator instance, named using the data set name from the protein_list_fn specified here.
 
         Args:
             protein_list_fn (str): The name of the file where the list of PDB ids  can be
@@ -408,45 +410,56 @@ class DataSetGenerator(object):
         """
         start = time()
         data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
-        protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
+        summary_fn = self.input_path + f'{data_set_name}_summary.tsv'
+        if os.path.isfile(summary_fn):
+            df = pd.read_csv(summary_fn, )
+        else:
+            protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
 
-        all_seqs_fn, unique_ids, sequences = self.identify_protein_sequences(
-            data_set_name=data_set_name, protein_list_fn=protein_list_fn, sources=sources, processes=processes,
-            verbose=verbose)
-        # BLAST all query sequences at once
-        print('BLASTing query sequences')
-        blast_fn, hits = blast_query_sequence(protein_id=data_set_name + '_All_Seqs', blast_path=self.blast_path,
-                                              sequence_fn=all_seqs_fn, evalue=e_value_threshold,
-                                              processes=processes, max_target_seqs=max_target_seqs,
-                                              database=database, remote=remote)
-        for p_id in hits:
-            for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
-                self.protein_data[related_p_id].update(hits[p_id])
-                self.protein_data[related_p_id]['BLAST'] = blast_fn
-        # Filter the BLAST hits for each query
-        print('Filtering BLAST hits')
-        self.filter_blast_results(unique_ids, e_value_threshold, min_fraction, min_identity, max_identity, blast_fn,
-                                  processes, verbose)
-        # Aligning BLAST hits for each query
-        print('Aligning BLAST hits')
-        self.align_blast_hits(unique_ids, msf, fasta, processes, verbose)
-        # Performing identity filter on aligned sequences
-        print('Performing Identity filter')
-        self.identity_filter_alignment(unique_ids, max_identity, processes, verbose)
-        # Aligning identity filter sequences
-        print('Aligning Identity filtered sequences')
-        self.align_identity_filtered(unique_ids, msf, fasta, processes, verbose)
+            all_seqs_fn, unique_ids, sequences = self.identify_protein_sequences(
+                data_set_name=data_set_name, protein_list_fn=protein_list_fn, sources=sources, processes=processes,
+                verbose=verbose)
+            # BLAST all query sequences at once
+            print('BLASTing query sequences')
+            blast_fn, hits = blast_query_sequence(protein_id=data_set_name + '_All_Seqs', blast_path=self.blast_path,
+                                                  sequence_fn=all_seqs_fn, evalue=e_value_threshold,
+                                                  processes=processes, max_target_seqs=max_target_seqs,
+                                                  database=database, remote=remote)
+            for p_id in hits:
+                for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
+                    self.protein_data[related_p_id].update(hits[p_id])
+                    self.protein_data[related_p_id]['BLAST'] = blast_fn
+            # Filter the BLAST hits for each query
+            print('Filtering BLAST hits')
+            self.filter_blast_results(unique_ids, e_value_threshold, min_fraction, min_identity, max_identity, blast_fn,
+                                      processes, verbose)
+            # Aligning BLAST hits for each query
+            print('Aligning BLAST hits')
+            self.align_blast_hits(unique_ids, msf, fasta, processes, verbose)
+            # Performing identity filter on aligned sequences
+            print('Performing Identity filter')
+            self.identity_filter_alignment(unique_ids, max_identity, processes, verbose)
+            # Aligning identity filter sequences
+            print('Aligning Identity filtered sequences')
+            self.align_identity_filtered(unique_ids, msf, fasta, processes, verbose)
 
-        summary = {'Protein_ID': [], 'Sequence_Length': [], 'BLAST_Hits': [], 'Filtered_BLAST': [],
-                   'Filtered_Alignment': []}
-        for p_id in unique_ids:
-            for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
-                summary['Protein_ID'].append(related_p_id)
-                summary['Sequence_Length'].append(len(str(self.protein_data[p_id]['Sequence'])))
-                summary['BLAST_Hits'].append(self.protein_data[p_id]['BLAST_Hits'])
-                summary['Filtered_BLAST'].append(self.protein_data[p_id]['Filter_Count'])
-                summary['Filtered_Alignment'].append(self.protein_data[p_id]['Final_Count'])
-        df = pd.DataFrame(summary)
+            summary = {'Protein_ID': [], 'Chain': [], 'Accession': [], 'Sequence_Length': [], 'BLAST_Hits': [],
+                       'Filtered_BLAST': [], 'Filtered_Alignment': [], 'Total_Size': []}
+            for p_id in unique_ids:
+                for related_p_id in sequences[str(self.protein_data[p_id]['Sequence'].seq)]:
+                    summary['Protein_ID'].append(related_p_id)
+                    summary['Chain'].append(len(str(self.protein_data[p_id]['Chain'])))
+                    summary['Accession'].append(len(str(self.protein_data[p_id]['Accession'])))
+                    summary['Sequence_Length'].append(len(str(self.protein_data[p_id]['Sequence'])))
+                    summary['BLAST_Hits'].append(self.protein_data[p_id]['BLAST_Hits'])
+                    summary['Filtered_BLAST'].append(self.protein_data[p_id]['Filter_Count'])
+                    summary['Filtered_Alignment'].append(self.protein_data[p_id]['Final_Count'])
+                    summary['Total_Size'].append(len(str(self.protein_data[p_id]['Sequence'])) *
+                                                 self.protein_data[p_id]['Final_Count'])
+            df = pd.DataFrame(summary)
+            df.to_csv(summary_fn, sep='\t', index=False, header=True,
+                      columns=['Protein_ID', 'Chain', 'Accession', 'BLAST_Hits', 'Filtered_BLAST', 'Filtered_Alignment',
+                               'Length', 'Total_Size'])
         end = time()
         print(f'It took {(end - start) / 60.} min to generate data set')
         return df
