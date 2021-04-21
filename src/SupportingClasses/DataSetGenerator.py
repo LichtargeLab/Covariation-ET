@@ -410,9 +410,9 @@ class DataSetGenerator(object):
         """
         start = time()
         data_set_name = os.path.splitext(os.path.basename(protein_list_fn))[0]
-        summary_fn = self.input_path + f'{data_set_name}_summary.tsv'
+        summary_fn = os.path.join(self.input_path, f'{data_set_name}_summary.tsv')
         if os.path.isfile(summary_fn):
-            df = pd.read_csv(summary_fn, )
+            df = pd.read_csv(summary_fn, header=0, index_col=None, sep='\t')
         else:
             protein_list_fn = os.path.join(self.protein_list_path, protein_list_fn)
 
@@ -458,8 +458,8 @@ class DataSetGenerator(object):
                                                  self.protein_data[p_id]['Final_Count'])
             df = pd.DataFrame(summary)
             df.to_csv(summary_fn, sep='\t', index=False, header=True,
-                      columns=['Protein_ID', 'Chain', 'Accession', 'BLAST_Hits', 'Filtered_BLAST', 'Filtered_Alignment',
-                               'Length', 'Total_Size'])
+                      columns=['Protein_ID', 'Chain', 'Accession', 'Sequence_Length', 'BLAST_Hits', 'Filtered_BLAST',
+                               'Filtered_Alignment', 'Total_Size'])
         end = time()
         print(f'It took {(end - start) / 60.} min to generate data set')
         return df
