@@ -152,15 +152,18 @@ class EvolutionaryTrace(Predictor):
         the tree is written to the output directory (in Newick/nhx format). Finally, nodes from the tree are assigned to
         ranks and groups.
         """
-        serial_fn = '{}_{}{}_Dist_{}_Tree.pkl'.format(self.query, ('ET_' if self.et_distance else ''),
-                                                      self.distance_model, self.tree_building_method)
+        serial_fn = f'{self.query}_{("ET_" if self.et_distance else "")}{self.distance_model}_Dist_'\
+                    f'{self.tree_building_method}_Tree.pkl'
         serial_fn = os.path.join(self.out_dir, serial_fn)
         if os.path.isfile(serial_fn):
             with open(serial_fn, 'rb') as handle:
                 self.distance_matrix, self.phylo_tree, self.phylo_tree_fn, self.assignments = pickle.load(handle)
+            # This check is performed for legacy files where the full path was stored instead of the relative path
+            if os.path.isabs(self.phylo_tree_fn):
+                self.phylo_tree_fn = os.path.basename(self.phylo_tree_fn)
         else:
-            calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'), model=self.distance_model,
-                                                     skip_letters=None)
+            calculator = AlignmentDistanceCalculator(protein=(self.polymer_type == 'Protein'),
+                                                     model=self.distance_model, skip_letters=None)
             if self.et_distance:
                 _, self.distance_matrix, _, _ = calculator.get_et_distance(self.original_aln.alignment,
                                                                            processes=self.processors)
@@ -170,8 +173,8 @@ class EvolutionaryTrace(Predictor):
             self.phylo_tree = PhylogeneticTree(tree_building_method=self.tree_building_method,
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
-            self.phylo_tree_fn = os.path.join(self.out_dir, '{}_{}{}_dist_{}_tree.nhx'.format(
-                self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method))
+            self.phylo_tree_fn = f'{self.query}_{("ET_" if self.et_distance else "")}{self.distance_model}_dist_'\
+                                 f'{self.tree_building_method}_tree.nhx '
             end_tree = time()
             print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
@@ -179,7 +182,7 @@ class EvolutionaryTrace(Predictor):
                 pickle.dump((self.distance_matrix, self.phylo_tree, self.phylo_tree_fn, self.assignments), handle,
                             pickle.HIGHEST_PROTOCOL)
         if 'tree' in self.output_files:
-            self.phylo_tree.write_out_tree(filename=self.phylo_tree_fn)
+            self.phylo_tree.write_out_tree(filename=os.path.join(self.out_dir, self.phylo_tree_fn))
 
     def perform_trace(self):
         """
