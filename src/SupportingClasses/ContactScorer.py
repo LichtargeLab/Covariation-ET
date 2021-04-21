@@ -21,13 +21,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
-from SeqAlignment import SeqAlignment
-try:
-    from SupportingClasses.SeqAlignment import SeqAlignment as UpperSeqAlignment
-    seq_aln_classes = (SeqAlignment, UpperSeqAlignment)
-except ImportError:
-    seq_aln_classes = (SeqAlignment, )
-from PDBReference import PDBReference
+from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.PDBReference import PDBReference
 
 
 class ContactScorer(object):
@@ -134,7 +129,7 @@ class ContactScorer(object):
             if self.query_alignment is None:
                 raise ValueError('Scorer cannot be fit, because no alignment was provided.')
             else:
-                if not isinstance(self.query_alignment, seq_aln_classes):
+                if not isinstance(self.query_alignment, SeqAlignment):
                     self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
                 self.query_alignment.import_alignment()
                 self.query_alignment = self.query_alignment.remove_gaps()
