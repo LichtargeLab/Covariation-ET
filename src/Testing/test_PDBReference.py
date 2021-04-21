@@ -3,6 +3,8 @@ import sys
 import unittest
 from datetime import datetime
 from unittest import TestCase
+
+import pandas as pd
 from Bio.ExPASy import get_sprot_raw
 
 #
@@ -581,7 +583,7 @@ class TestParseExternalSequences(TestCase):
         os.remove(fn)
 
 
-class GetPDBSequence(TestCase):
+class TestGetPDBSequence(TestCase):
 
     def evaluate_get_sequence(self, seq, expected_ids, expected_seq):
         self.assertTrue(seq[0] in expected_ids)
@@ -712,6 +714,239 @@ class GetPDBSequence(TestCase):
         seq = pdb.get_sequence(chain='B', source='GB')
         self.assertIsNone(seq[0])
         self.assertIsNone(seq[1])
+        os.remove(fn)
+
+
+class TestColorStructure(TestCase):
+
+    # The current tests for correctness are simple and only ensure that the code runs and produces the correct files, it
+    # would be good to make them more thorough and check that the correct colors are being used.
+
+    def test_color_structure_et_cm_min(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='min', coloring_threshold=0.3, color_map='ET',
+                                                         out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertEqual(commands_path, expected_command_path)
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_et_cm_max(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='max', coloring_threshold=0.3, color_map='ET',
+                                                         out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_et_cm_min_color_all(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='min', coloring_threshold=1.0, color_map='ET',
+                                                         out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_et_cm_max_color_all(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='max', coloring_threshold=0.0, color_map='ET',
+                                                         out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_seismic_cm_min(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='min', coloring_threshold=0.3,
+                                                         color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_seismic_cm_max(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='max', coloring_threshold=0.3,
+                                                         color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_seismic_cm_min_color_all(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='min', coloring_threshold=1.0,
+                                                         color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_seismic_cm_max_color_all(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        pse_path, commands_path = pdbref.color_structure(chain_id='A', data=data, data_type='Coverage',
+                                                         data_direction='max', coloring_threshold=0.0,
+                                                         color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Coverage_Chain_A.pse'
+        self.assertEqual(pse_path, expected_pse_path)
+        self.assertTrue(os.path.isfile(expected_pse_path))
+        expected_command_path = f'./1TES_Coverage_Chain_A_all_pymol_commands.txt'
+        self.assertTrue(os.path.isfile(expected_command_path))
+        self.assertTrue(os.path.isfile(expected_command_path))
+        os.remove(expected_pse_path)
+        os.remove(expected_command_path)
+        os.remove(fn)
+
+    def test_color_structure_failuare_bad_cm(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdbref.color_structure(chain_id=None, data=None, data_type=None, data_direction=None,
+                                   coloring_threshold=None, color_map='foo', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_data_direction(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        with self.assertRaises(ValueError):
+            pdbref.color_structure(chain_id=None, data=None, data_type=None, data_direction='foo',
+                                   coloring_threshold=None, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_no_data_type(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        with self.assertRaises(AttributeError):
+            pdbref.color_structure(chain_id=None, data=None, data_type=None, data_direction='min',
+                                   coloring_threshold=None, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_data_type(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        with self.assertRaises(KeyError):
+            pdbref.color_structure(chain_id='A', data=data, data_type='foo', data_direction='min',
+                                   coloring_threshold=None, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_data(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        with self.assertRaises(TypeError):
+            pdbref.color_structure(chain_id='A', data=[0.1, 0.5, 0.9], data_type='foo', data_direction='min',
+                                   coloring_threshold=None, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_chain_id(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        with self.assertRaises(ValueError):
+            pdbref.color_structure(chain_id='B', data=data, data_type='Coverage', data_direction='min',
+                                   coloring_threshold=None, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_coloring_threshold_low(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        with self.assertRaises(ValueError):
+            pdbref.color_structure(chain_id='A', data=data, data_type='Coverage', data_direction='min',
+                                   coloring_threshold=-1, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_coloring_threshold_high(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        with self.assertRaises(ValueError):
+            pdbref.color_structure(chain_id='A', data=data, data_type='Coverage', data_direction='min',
+                                   coloring_threshold=2, color_map='ET', out_dir=None)
+        os.remove(fn)
+
+    def test_color_structure_failure_bad_out_dir(self):
+        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
+        pdbref = PDBReference(pdb_file=fn)
+        pdbref.import_pdb(structure_id='1TES')
+        data = pd.DataFrame({'RESIDUE_Index': [1, 2, 3], 'Coverage': [0.1, 0.5, 0.9]})
+        with self.assertRaises(TypeError):
+            pdbref.color_structure(chain_id='A', data=data, data_type='Coverage', data_direction='min',
+                                   coloring_threshold=0.3, color_map='ET', out_dir=None)
         os.remove(fn)
 
 

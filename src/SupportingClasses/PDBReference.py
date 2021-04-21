@@ -6,8 +6,13 @@ Created on Aug 17, 2017
 import os
 import re
 import pickle
+import numpy as np
+import pandas as pd
+from pymol import cmd
 from time import time, sleep
 from urllib.error import HTTPError
+from matplotlib.cm import get_cmap
+from matplotlib.colors import to_hex, hex2color, LinearSegmentedColormap
 from Bio import Entrez
 from Bio.SeqIO import parse, read
 # This tool no longer works correctly so I have written my own regular expression based parser for amino acid sequences
@@ -361,6 +366,130 @@ class PDBReference(object):
         else:
             raise ValueError('Expected sources are PDB, UNP, or GB.')
         return identifier, sequence
+
+    def color_structure(self, chain_id, data, data_type, data_direction, coloring_threshold, color_map, out_dir):
+        """
+        Color Structure
+
+        This function takes data and colors the specified chain for this the current instance's structure according to
+        that data and the direction, threshold, and color map provided.
+
+        Args:
+            chain_id (str): The chain in the structure to color.
+            data_type (str): The name of the data to use from the provided pandas.DataFrame.
+            data (pandas.DataFrame): A dataframe containing at least a column named 'RESIDUE_Index' and with the name
+            provided in the data_type parameter. Entries in the 'RESIDUE_Index' column should be the numerical indices
+            for the residues in the structure. Entries in the column corresponding to data_type, should be normalized
+            between 0 and 1.
+            data_direction (str): Expected values are 'min' or 'max'. If 'min' is specified then the normal version of
+            the specified color map is used, if 'max' is specified then the reverse version of the specified color map
+            is used. This parameter also affects how the coloring_threshold is used.
+            coloring_threshold (float): The cutoff value for coloring residues. If data_direction is 'min' then any
+            value greater than the provided threshold is not colored, if data_direction is 'max' then any value less
+            than the provided threshold is not colored.
+            color_map (str): A string specifying the color map to use. If 'ET' is specified the prismatic colormap used
+            in the PyETViewer is used. Any other value which is provided should be a valid matplotlib colormap name as
+            described here: https://matplotlib.org/stable/gallery/color/colormap_reference.html
+            out_dir (str): The path to the directory where the .pse file and .txt file with all commands for this
+            coloring should be saved.
+        Returns:
+            str: The path to the created pse file.
+            str: The path to the text file containing all commands used to generate the pse file.
+        """
+        if color_map == 'ET':
+            color_list = ["ff0000", "ff0c00", "ff1800", "ff2400", "ff3000", "ff3d00", "ff4900", "ff5500", "ff6100",
+                          "ff6e00", "ff7a00", "ff8600", "ff9200", "ff9f00", "ffab00", "ffb700", "ffc300", "ffd000",
+                          "ffdc00", "ffe800", "fff400", "fcff00", "f0ff00", "e4ff00", "d8ff00", "cbff00", "bfff00",
+                          "b3ff00", "a7ff00", "9bff00", "8eff00", "82ff00", "76ff00", "6aff00", "5dff00", "51ff00",
+                          "45ff00", "39ff00", "2cff00", "20ff00", "14ff00", "08ff00", "00ff04", "00ff10", "00ff1c",
+                          "00ff28", "00ff35", "00ff41", "00ff4d", "00ff59", "00ff66", "00ff72", "00ff7e", "00ff8a",
+                          "00ff96", "00ffa3", "00ffaf", "00ffbb", "00ffc7", "00ffd4", "00ffe0", "00ffec", "00fff8",
+                          "00f8ff", "00ecff", "00e0ff", "00d4ff", "00c7ff", "00bbff", "00afff", "00a3ff", "0096ff",
+                          "008aff", "007eff", "0072ff", "0066ff", "0059ff", "004dff", "0041ff", "0035ff", "0028ff",
+                          "001cff", "0010ff", "0004ff", "0800ff", "1400ff", "2000ff", "2c00ff", "3900ff", "4500ff",
+                          "5100ff", "5d00ff", "6a00ff", "7600ff", "8200ff", "8e00ff", "9b00ff", "a700ff", "b300ff",
+                          "bf00ff"]
+            converted_color_list = [hex2color('#' + x) for x in color_list]
+            cmap_f = LinearSegmentedColormap.from_list('ET_Color_Map', converted_color_list, N=len(color_list))
+            cmap_r = LinearSegmentedColormap.from_list('Reverse_ET_Color_Map', converted_color_list[::-1],
+                                                       N=len(color_list))
+        else:
+            cmap_f = get_cmap(color_map)
+            cmap_r = get_cmap(color_map + '_r')
+        # full_obj_list = []
+        all_commands = []
+        # for i, column in enumerate(columns_to_visualize):
+        if data_direction == 'min':
+            cmap = cmap_f
+        elif data_direction == 'max':
+            cmap = cmap_r
+        else:
+            raise ValueError('Bad value provided for data_direction, expected "min" or "max".')
+        curr_name = f"{self.structure.id}_{data_type.replace(' ', '')}"
+        cmd.load(self.file_name, curr_name)
+        all_commands.append(f'load {self.file_name}, {curr_name}')
+        # keep_sel = 'to_keep'
+        # cmd.select(keep_sel, f"{curr_name} and {' or '.join([f'chain {c}' for c in [chain_id] + chains_to_keep])}")
+        # all_commands.append(
+        #     f"select {keep_sel}, {curr_name} and {' or '.join([f'chain {c}' for c in [chain_id] + chains_to_keep])}")
+        # remove_sel = 'to_remove'
+        # cmd.select(remove_sel, f'{curr_name} and (not {keep_sel})')
+        # all_commands.append(f'select {remove_sel}, {curr_name} and (not {keep_sel})')
+        # cmd.remove(remove_sel)
+        # all_commands.append(f'remove {remove_sel}')
+        # cmd.delete(keep_sel)
+        # all_commands.append(f'delete {keep_sel}')
+        # all_commands.append(f'delete {remove_sel}')
+        # cmd.select('target_chain', f'{curr_name} and chain {chain_id}')
+        # all_commands.append(f'select target_chain, {curr_name} and chain {chain_id}')
+        # cmd.color('white', 'target_chain')
+        # all_commands.append('color white, target_chain')
+        # cmd.delete('target_chain')
+        # all_commands.append('delete target_chain')
+        cmd.color('white', curr_name)
+        all_commands.append(f'color white, {curr_name}')
+        if chain_id not in self.chains:
+            raise ValueError('Provided chain_id is not in the current structure.')
+        curr_chain = f'Chain_{chain_id}'
+        cmd.select(curr_chain, f'{curr_name} and chain {chain_id}')
+        all_commands.append(f'select {curr_chain}, {curr_name} and chain {chain_id}')
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError('Bad data provided, expected pandas.DataFrame')
+        unique_values = data[data_type].unique()
+        if (coloring_threshold < 0.0) or (coloring_threshold > 1.0):
+            raise ValueError('coloring threshold outside of range from 0.0 to 1.0')
+        for value in unique_values:
+            #             print(f'Value: {value}')
+            # if (not (value > coloring_threshold)) or (value is None) or np.isnan(value):
+            if ((value > coloring_threshold) and (data_direction == 'min')) or\
+                    ((value < coloring_threshold) and (data_direction == 'max')) or (value is None) or np.isnan(value):
+                continue
+            residues = sorted(data.loc[data[data_type] == value, 'RESIDUE_Index'].unique())
+            #             print(residues)
+            #             print(f"chain {chain_id} and resi {'+'.join([str(x) for x in residues])}")
+            cmd.select('curr_residues', f"{curr_chain} and resi {'+'.join([str(x) for x in residues])}")
+            all_commands.append( f"select curr_residues, {curr_chain} and resi {'+'.join([str(x) for x in residues])}")
+            cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_residues')
+            all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_residues')
+            cmd.delete('curr_residues')
+            all_commands.append(f'delete curr_residues')
+        #         print(os.path.join(out_dir, f'{curr_name}.pse'))
+        pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')
+        cmd.save(pse_path, f'{curr_name} or {curr_chain}', -1, 'pse')
+        all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')}, {curr_name}, -1, pse")
+        # full_obj_list.append(curr_name)
+        # cmd.set('grid_mode', 1)
+        # all_commands.append('set grid_mode, 1')
+        # cmd.save(os.path.join(out_dir, f'{self.structure.id}_combined.pse'), ' or '.join(full_obj_list), -1, 'pse')
+        # all_commands.append(
+        #     f"save {os.path.join(out_dir, f'{self.structure.id}_combined.pse')}, {' or '.join(full_obj_list)}, -1, pse")
+        cmd.delete('all')
+        all_commands.append('delete all')
+        commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_all_pymol_commands.txt')
+        with open(commands_path, 'w') as handle:
+            for line in all_commands:
+                handle.write(line + '\n')
+        return pse_path, commands_path
 
 
 def dbref_parse(dbref_line):
