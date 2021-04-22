@@ -416,9 +416,8 @@ class PDBReference(object):
         else:
             cmap_f = get_cmap(color_map)
             cmap_r = get_cmap(color_map + '_r')
-        # full_obj_list = []
+        full_selection_list = []
         all_commands = []
-        # for i, column in enumerate(columns_to_visualize):
         if data_direction == 'min':
             cmap = cmap_f
         elif data_direction == 'max':
@@ -427,62 +426,35 @@ class PDBReference(object):
             raise ValueError('Bad value provided for data_direction, expected "min" or "max".')
         curr_name = f"{self.structure.id}_{data_type.replace(' ', '')}"
         cmd.load(self.file_name, curr_name)
+        full_selection_list.append(curr_name)
         all_commands.append(f'load {self.file_name}, {curr_name}')
-        # keep_sel = 'to_keep'
-        # cmd.select(keep_sel, f"{curr_name} and {' or '.join([f'chain {c}' for c in [chain_id] + chains_to_keep])}")
-        # all_commands.append(
-        #     f"select {keep_sel}, {curr_name} and {' or '.join([f'chain {c}' for c in [chain_id] + chains_to_keep])}")
-        # remove_sel = 'to_remove'
-        # cmd.select(remove_sel, f'{curr_name} and (not {keep_sel})')
-        # all_commands.append(f'select {remove_sel}, {curr_name} and (not {keep_sel})')
-        # cmd.remove(remove_sel)
-        # all_commands.append(f'remove {remove_sel}')
-        # cmd.delete(keep_sel)
-        # all_commands.append(f'delete {keep_sel}')
-        # all_commands.append(f'delete {remove_sel}')
-        # cmd.select('target_chain', f'{curr_name} and chain {chain_id}')
-        # all_commands.append(f'select target_chain, {curr_name} and chain {chain_id}')
-        # cmd.color('white', 'target_chain')
-        # all_commands.append('color white, target_chain')
-        # cmd.delete('target_chain')
-        # all_commands.append('delete target_chain')
         cmd.color('white', curr_name)
         all_commands.append(f'color white, {curr_name}')
         if chain_id not in self.chains:
             raise ValueError('Provided chain_id is not in the current structure.')
         curr_chain = f'Chain_{chain_id}'
         cmd.select(curr_chain, f'{curr_name} and chain {chain_id}')
+        full_selection_list.append(curr_chain)
         all_commands.append(f'select {curr_chain}, {curr_name} and chain {chain_id}')
         if not isinstance(data, pd.DataFrame):
             raise TypeError('Bad data provided, expected pandas.DataFrame')
         unique_values = data[data_type].unique()
         if (coloring_threshold < 0.0) or (coloring_threshold > 1.0):
             raise ValueError('coloring threshold outside of range from 0.0 to 1.0')
-        for value in unique_values:
-            #             print(f'Value: {value}')
-            # if (not (value > coloring_threshold)) or (value is None) or np.isnan(value):
+        for value in sorted(unique_values, reverse=(False if data_direction == 'min' else True)):
             if ((value > coloring_threshold) and (data_direction == 'min')) or\
                     ((value < coloring_threshold) and (data_direction == 'max')) or (value is None) or np.isnan(value):
                 continue
             residues = sorted(data.loc[data[data_type] == value, 'RESIDUE_Index'].unique())
-            #             print(residues)
-            #             print(f"chain {chain_id} and resi {'+'.join([str(x) for x in residues])}")
-            cmd.select('curr_residues', f"{curr_chain} and resi {'+'.join([str(x) for x in residues])}")
-            all_commands.append( f"select curr_residues, {curr_chain} and resi {'+'.join([str(x) for x in residues])}")
-            cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_residues')
-            all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_residues')
-            cmd.delete('curr_residues')
-            all_commands.append(f'delete curr_residues')
-        #         print(os.path.join(out_dir, f'{curr_name}.pse'))
+            res_selection_label = f'{round(value, 5)}_residues'
+            cmd.select(res_selection_label, f"{curr_chain} and resi {'+'.join([str(x) for x in residues])}")
+            all_commands.append(f"select {res_selection_label}, {curr_chain} and resi {'+'.join([str(x) for x in residues])}")
+            cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', res_selection_label)
+            all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, {res_selection_label}')
+            full_selection_list.append(res_selection_label)
         pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')
-        cmd.save(pse_path, f'{curr_name} or {curr_chain}', -1, 'pse')
+        cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
         all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')}, {curr_name}, -1, pse")
-        # full_obj_list.append(curr_name)
-        # cmd.set('grid_mode', 1)
-        # all_commands.append('set grid_mode, 1')
-        # cmd.save(os.path.join(out_dir, f'{self.structure.id}_combined.pse'), ' or '.join(full_obj_list), -1, 'pse')
-        # all_commands.append(
-        #     f"save {os.path.join(out_dir, f'{self.structure.id}_combined.pse')}, {' or '.join(full_obj_list)}, -1, pse")
         cmd.delete('all')
         all_commands.append('delete all')
         commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_all_pymol_commands.txt')
