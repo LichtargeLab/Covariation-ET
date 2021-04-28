@@ -34,7 +34,8 @@ from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.FrequencyTable import FrequencyTable
 from SupportingClasses.SeqAlignment import SeqAlignment
-from EvolutionaryTrace import EvolutionaryTrace, init_var_pool, get_var_pool, convert_pair_to_single_residue_output
+from EvolutionaryTrace import (EvolutionaryTrace, init_var_pool, get_var_pool, convert_pair_to_single_residue_output,
+                               convert_file_to_legacy_format)
 from Testing.test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft,
                                pro_pair_ft, protein_mm_freq_tables, protein_mm_table, pro_pair_alpha_size, pro_pair_map,
                                pro_pair_rev, generate_temp_fn)
@@ -2570,6 +2571,61 @@ class TestConvertPairToSingleResidueOutput(TestCase):
                                   float_format='%.3f')
         with self.assertRaises(AssertionError):
             convert_pair_to_single_residue_output(fn)
+        os.remove(fn)
+
+
+class TestConvertFileToLegacyFormat(TestCase):
+
+    def test_convert_file_to_legacy_format(self):
+        single_columns = ['Position', 'Query']
+        shared_columns = ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+        data = {'Position': [1, 2, 3, 4],
+                'Query': ['M', 'E', 'T', 'R'],
+                'Variability_Count': [1, 4, 3, 2],
+                'Variability_Characters': ['M', 'E,F,G,H', 'T,U,V', 'R,S'],
+                'Rank': [1, 4, 3, 2],
+                'Score': [1.000, 1.099, 1.073, 1.026],
+                'Coverage': [0.250, 1.000, 0.750, 0.500]}
+        fn = generate_temp_fn(suffix='ranks')
+        original_df = pd.DataFrame(data)
+        original_df.to_csv(fn, columns=single_columns + shared_columns, sep='\t', header=True, index=False,
+                           float_format='%.3f')
+        converted_fn = convert_file_to_legacy_format(fn)
+        converted_df = pd.read_csv(converted_fn, delimiter=r"\s+", header=None, index_col=None, comment='%',
+                                   names=['aln#', 'res#', 'res_type', 'rank', 'var_count', 'var_char', 'rho',
+                                          'coverage'])
+        self.assertEqual(len(original_df), len(converted_df))
+        for ind in original_df.index:
+            self.assertEqual(original_df.loc[ind, 'Position'], converted_df.loc[ind, 'aln#'])
+            self.assertEqual(original_df.loc[ind, 'Position'], converted_df.loc[ind, 'res#'])
+            self.assertEqual(original_df.loc[ind, 'Query'], converted_df.loc[ind, 'res_type'])
+            self.assertEqual(original_df.loc[ind, 'Score'], converted_df.loc[ind, 'rank'])
+            self.assertEqual(original_df.loc[ind, 'Variability_Count'], converted_df.loc[ind, 'var_count'])
+            self.assertEqual(original_df.loc[ind, 'Variability_Characters'].replace(',', ''),
+                             converted_df.loc[ind, 'var_char'])
+            self.assertEqual(original_df.loc[ind, 'Score'], converted_df.loc[ind, 'rho'])
+            self.assertEqual(original_df.loc[ind, 'Coverage'], converted_df.loc[ind, 'coverage'])
+        os.remove(fn)
+        os.remove(converted_fn)
+
+    def test_convert_file_to_legacy_format_fail_bad_file(self):
+        shared_columns = ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+        pair_columns = ['Position_i', 'Position_j', 'Query_i', 'Query_j']
+        data = {'Position_i': [1, 1, 1, 2, 2, 3],
+                'Position_j': [2, 3, 4, 3, 4, 4],
+                'Query_i': ['M', 'M', 'M', 'E', 'E', 'T'],
+                'Query_j': ['E', 'T', 'R', 'T', 'R', 'R'],
+                'Variability_Count': [1, 6, 5, 2, 3, 4],
+                'Variability_Characters': ['ME', 'MT,MR,MS,NT,NR,NS', 'MR,NR,MS,NS,MT', 'ET,DS', 'ER,ES,DR',
+                                           'TR,TS,RR,RS'],
+                'Rank': [1, 6, 5, 2, 3, 4],
+                'Score': [1.000, 1.099, 1.073, 1.026, 1.04, 1.066],
+                'Coverage': [0.000, 0.833, 1.000, 0.166, 0.333, 0.666]}
+        fn = generate_temp_fn(suffix='ranks')
+        pd.DataFrame(data).to_csv(fn, columns=pair_columns + shared_columns, sep='\t', header=True, index=False,
+                                  float_format='%.3f')
+        with self.assertRaises(AssertionError):
+            convert_file_to_legacy_format(fn)
         os.remove(fn)
 
 

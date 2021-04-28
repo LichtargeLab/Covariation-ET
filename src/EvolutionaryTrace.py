@@ -516,7 +516,7 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
     second character from the list of unique characters observed for a pair of positions.
 
     Args:
-        res_fn (str): The path to the file to be converted.
+        res_fn (str): The path to the file to the pair ranks file to be converted.
         precision (int): The number of decimal places to write out for floating point values such coverages (and scores
         if a real valued scoring metric was used). If a precision greater than that used to write out the original file
         is provided, no additional value will be added to the 'Score' column since this is preserved from the original
@@ -572,6 +572,44 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
     full_path = os.path.join(res_dir, f'{res_base_name}_Converted_To_Single_Pos{res_base_extension}')
     converted_scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                                 columns=columns)
+    return full_path
+
+
+def convert_file_to_legacy_format(res_fn):
+    """
+    Convert File To Legacy Format
+
+    This function accepts a single residue analysis file (tab separated .ranks file) and convets it to the legacy ETC
+    ranks file format. This file format is needed to use previous tools like the PyETViewer.
+
+    Args:
+        res_fn (str): The path the the single residue ranks file to be converted.
+    Return:
+        str: The path to the converted output file.
+    """
+    res_dir = os.path.dirname(res_fn)
+    res_base_name, res_base_extension = os.path.splitext(os.path.basename(res_fn))
+    scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
+    assert {'Position', 'Query'}.issubset(scoring_df.columns), "Provided file does not include expected columns, make"\
+                                                               " sure this is a single position analysis result!"
+    full_path = os.path.join(res_dir, f'{res_base_name}.legacy.ranks')
+    with open(full_path, 'w') as handle:
+        handle.write('% Note: in this file % is a comment sign.\n')
+        handle.write(f'% This file converted from: {res_fn}\n')
+        handle.write('%	 RESIDUE RANKS: \n')
+        handle.write('% alignment#  residue#      type      rank              variability           rho     coverage\n')
+        for ind in scoring_df.index:
+            pos_str = str(scoring_df.loc[ind, 'Position'])
+            aln_str = pos_str.rjust(10, ' ')
+            res_str = aln_str
+            type_str = scoring_df.loc[ind, 'Query'].rjust(10, ' ')
+            rank_str = f'{scoring_df.loc[ind, "Score"]:.3f}'.rjust(10, ' ')
+            var_count_str = str(scoring_df.loc[ind, 'Variability_Count']).rjust(10, ' ')
+            var_char_str = scoring_df.loc[ind, 'Variability_Characters'].replace(',', '').rjust(22, ' ')
+            rho_str = rank_str
+            cov_str = f'{scoring_df.loc[ind, "Coverage"]:.3f}'.rjust(10, ' ')
+            handle.write(aln_str + res_str + type_str + rank_str + var_count_str + var_char_str + rho_str + cov_str +
+                         '\n')
     return full_path
 
 
