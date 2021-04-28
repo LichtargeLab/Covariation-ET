@@ -21,27 +21,43 @@ There is one main pre-requisites for using this code: Anaconda
     ```
     conda env create -f environment.yml
     ```
-    *Caveats* * Using Anaconda environments allows for greater portability but some operating systems use different channels meaning it may not be possible to set up the environment as described in this step, consider using other channels or looking for different versions of the same packages.
-2. Activate the environment
+    *Caveats* * Using Anaconda environments allows for greater portability, but some operating systems use different channels meaning it may not be possible to set up the environment as described in this step, consider using other channels or looking for different versions of the same packages.
+2. Activate the environment to use the code in this package.
     ```
-    source activate ET
+    conda activate ET
     ```
-3. Use commandline calls to EvolutionaryTrace.py or DataSetGenerator.py to generate predictions and datasets:
-* Generate Evolutionary Trace predictions (please run ```python EvolutionaryTrace.py --help``` for more details on each parameter):
+### Usage
+To use the code in this package please navigate to the 'src' directory.
+
+There are several options for running the EvolutionaryTrace.py code:
+1. Preset one 'intET' will run the original integer Evolutionary Trace on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
 ```
-python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --polymer_type <DNA or Protein> --alignment <Path to a fasta alignment> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_dir <Directory to which results will be written.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
+python EvolutionaryTrace.py --preset intET --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
 ```
-* Generate input for BLAST databases, full datasets, or evaluate alignments with DataSetGenerator.py (please run ```python DataSetGenerator.py --help``` for more details on each parameter):
-    - To generate the custom Uniref data for building BLAST databases, please download and extract the fasta file for the Uniref database of interest then run
-    ```python DataSetGenerator.py --custom_uniref --original_uniref_fasta <Path to the extracted fasta file of the Uniref database.> --filtered_uniref_fasta <Path to where the filtered fasta file should be written>```
-    - To generate a dataset based on a set of PDB identifiers and chains, please create a directory, with a sub-directory named ProteinLists and create a file there with each five letter code on its own line (4 letter PDB identifier, and one letter for chain specification). Then run:
-    ```python DataSetGenerator.py --create_data_set --input_dir <The path to the top level directory where input data can be stored (this should be the parent to the ProteinLists directory).> --protein_list_fn <The name of the protein list file.> --processes <The number of processes available for data set generation.> --max_target_seqs <The maximum number of sequences to return from a BLAST search.> --e_value_threshold <The maximum e-value to allow in a BLAST search return.> --min_fraction <The minimum fraction of the length between the query sequence and a BLAST hit.> --min_identity <The minimum identity between the query sequence and a BLAST hit.> --max_identity <The maximum identity between the query sequence and a BLAST hit.> --msf <Optional flag for creating MSF formatted alignments.> --fasta <Optional flag for creating Fasta formatted alignments.> --verbose <What level of print outs to provide during processing.>```
-    - To characterize a fasta formatted alignment, please run:
-    ```python DataSetGenerator.py --characterize_alignment --file_name <The path to the alignment to characterize.> --query_id <The sequence identifier for sequence of interest.> --min_fraction <The minimum fraction that a sequence can be of the query sequence length.> --max_identity <The maximum identity that a sequence can be relative to the query sequence.> --min_identity <The mminimum identity that a sequence can be relative to the query sequence.>```
-Or incorporate the code in your own pipelines, using the activate environment, for examples of how to use the code base, please see the Jupyter notebooks in the notebooks directory.
+2. Preset two 'rvET' will run the updated real valued Evolutionary Trace on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
+```
+python EvolutionaryTrace.py --preset rvET --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
+```
+3. The final preset 'ET-MIp' will run the original Evolutionary Trace covariation algorithm developed by the lab on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
+```
+python EvolutionaryTrace.py --preset ET-MIp --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
+```
+4. Commandline calls to EvolutionaryTrace.py that do not use an existing preset have many more possible options, though most have default values and do not need to be specified unless you want the code to perform a specific type of analysis. To see all the options for running EvolutionaryTrace.py please run ```python EvolutionaryTrace.py --help``` for more details on each parameter):
+```
+python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --polymer_type <DNA or Protein> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
+```
+
+There are also several options for creating data sets or characterizing input when using DataSetGenerator.py, which can be accessed by navigating to src/SupportingClasses, for additional details about any options used when calling DataSetGenerator.py please run ```python DataSetGenerator.py --help```.
+1. To generate the custom Uniref data for building BLAST databases, please download and extract the fasta file for the Uniref database of interest then run:
+```python DataSetGenerator.py --custom_uniref --original_uniref_fasta <Path to the extracted fasta file of the Uniref database.> --filtered_uniref_fasta <Path to where the filtered fasta file should be written>```
+2. To generate a dataset based on a set of PDB identifiers and chains, please create a directory, with a sub-directory named ProteinLists and create a file there with each five-letter code on its own line (4-letter PDB identifier, and one-letter for chain specification). Then run:
+```python DataSetGenerator.py --create_data_set --input_dir <The path to the top level directory where input data can be stored (this should be the parent to the ProteinLists directory).> --protein_list_fn <The name of the protein list file.> --processes <The number of processes available for data set generation.> --max_target_seqs <The maximum number of sequences to return from a BLAST search.> --e_value_threshold <The maximum e-value to allow in a BLAST search return.> --min_fraction <The minimum fraction of the length between the query sequence and a BLAST hit.> --min_identity <The minimum identity between the query sequence and a BLAST hit.> --max_identity <The maximum identity between the query sequence and a BLAST hit.> --msf <Optional flag for creating MSF formatted alignments.> --fasta <Optional flag for creating Fasta formatted alignments.> --verbose <What level of print outs to provide during processing.>```
+3. To characterize a fasta formatted alignment, please run:
+```python DataSetGenerator.py --characterize_alignment --file_name <The path to the alignment to characterize.> --query_id <The sequence identifier for sequence of interest.> --min_fraction <The minimum fraction that a sequence can be of the query sequence length.> --max_identity <The maximum identity that a sequence can be relative to the query sequence.> --min_identity <The mminimum identity that a sequence can be relative to the query sequence.>```
+Or incorporate the code in your own pipelines, using the active environment, for examples of how to use the code base, please see the Jupyter notebooks in the notebooks directory.
 
 ## Authors
-* **Daniel Konecki** - *Python Libraries and adaptation of C code base. Further development of ET-MIp method. Optimization of algorithm implementation and evaluation.* - [dkonecki](https://github.com/dkonecki)
+* **Daniel Konecki** - *Python Libraries and adaptation of C code base. Further development of ET-MIp method. Optimization of algorithm implementation and evaluation. Development of new ET covariation method penalizing transitions in pairs of columns which do not represent concerted variation or conservation.* - [dkonecki](https://github.com/dkonecki)
 * **Benu Atri** - *Original work on ET-MIp continuation, identification of the fact that a limited traversal could achieve the same, and sometimes better covariation predictions*
 * **Jonathan Gallion** - *Assessment of covariation by structural clustering and enrichment methods and frequent discussion of important factors for the improvement of covariation prediction.*
 * **Angela Wilkins** - *Original developer of the ET-MIp method, who made original suggestion on how it might be possible to improve the method.*
