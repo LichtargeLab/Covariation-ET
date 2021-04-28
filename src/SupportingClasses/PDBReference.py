@@ -395,6 +395,7 @@ class PDBReference(object):
         Returns:
             str: The path to the created pse file.
             str: The path to the text file containing all commands used to generate the pse file.
+            list: The residues in the structure which have been colored by this method using the provided data.
         """
         if color_map == 'ET':
             color_list = ["ff0000", "ff0c00", "ff1800", "ff2400", "ff3000", "ff3d00", "ff4900", "ff5500", "ff6100",
@@ -424,7 +425,7 @@ class PDBReference(object):
             cmap = cmap_r
         else:
             raise ValueError('Bad value provided for data_direction, expected "min" or "max".')
-        curr_name = f"{self.structure.id}_{data_type.replace(' ', '')}"
+        curr_name = f"{self.structure.id}_{data_type.replace(' ', '_')}"
         cmd.load(self.file_name, curr_name)
         full_selection_list.append(curr_name)
         all_commands.append(f'load {self.file_name}, {curr_name}')
@@ -441,6 +442,7 @@ class PDBReference(object):
         unique_values = data[data_type].unique()
         if (coloring_threshold < 0.0) or (coloring_threshold > 1.0):
             raise ValueError('coloring threshold outside of range from 0.0 to 1.0')
+        colored_residues = []
         for value in sorted(unique_values, reverse=(False if data_direction == 'min' else True)):
             if ((value > coloring_threshold) and (data_direction == 'min')) or\
                     ((value < coloring_threshold) and (data_direction == 'max')) or (value is None) or np.isnan(value):
@@ -452,16 +454,24 @@ class PDBReference(object):
             cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', res_selection_label)
             all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, {res_selection_label}')
             full_selection_list.append(res_selection_label)
-        pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')
+            colored_residues += residues
+        cmd.select('colored', f"{curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+        all_commands.append(
+            f"select colored, {curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+        cmd.select('not_colored', f"{curr_chain} and (not colored)")
+        all_commands.append(f"select not_colored, {curr_chain} and (not colored)")
+        full_selection_list = full_selection_list[:2] + ['colored', 'not_colored'] + full_selection_list[2:]
+        pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}.pse')
         cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
-        all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}.pse')}, {curr_name}, -1, pse")
+        all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}_{coloring_threshold}.pse')},"
+                            ' or '.join(full_selection_list) + ' , -1, pse')
         cmd.delete('all')
         all_commands.append('delete all')
-        commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_all_pymol_commands.txt')
+        commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}_all_pymol_commands.txt')
         with open(commands_path, 'w') as handle:
             for line in all_commands:
                 handle.write(line + '\n')
-        return pse_path, commands_path
+        return pse_path, commands_path, sorted(colored_residues)
 
 
 def dbref_parse(dbref_line):
