@@ -18,8 +18,9 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator
+from SupportingClasses.Trace import Trace
 from SupportingClasses.Predictor import Predictor
-from SupportingClasses.Trace import Trace, load_freq_table
+from SupportingClasses.utils import compute_rank_and_coverage
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
@@ -500,6 +501,78 @@ def write_out_et_scores(file_name, out_dir, aln, pos_size, match_mismatch, ranks
                       columns=columns)
     end = time()
     print('Results written to file in {} min'.format((end - start) / 60.0))
+
+
+def convert_pair_to_single_residue_output(res_fn, precision=3):
+    """
+    Convert Pair To Single Residue Output
+
+    This function accepts the file name for a pair residue result, reads it in, and converts it to a single residue
+    result. This means the first occurrence of each residue by pair rank is recorded and new coverage scores and ranks
+    are computed based on the single residue data. The coverage and ranks are computed based on the original ranks since
+    these are not impacted by the precision used when writing out the oriignal file, however the original score is
+    preserved in the 'Score' column. If many pairs (and therefore residues) were tied in their rank, this is preserved
+    in the conversion. The residue variability is parsed from the pair of positions data, by keeping only the first or
+    second character from the list of unique characters observed for a pair of positions.
+
+    Args:
+        res_fn (str): The path to the file to be converted.
+        precision (int): The number of decimal places to write out for floating point values such coverages (and scores
+        if a real valued scoring metric was used). If a precision greater than that used to write out the original file
+        is provided, no additional value will be added to the 'Score' column since this is preserved from the original
+        file, however the 'Rank' and 'Coverage' columns will reflect this change.
+    Return:
+        str: The path to the converted output file.
+    """
+    res_dir = os.path.dirname(res_fn)
+    res_base_name, res_base_extension = os.path.splitext(os.path.basename(res_fn))
+    scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
+    assert {'Position_i', 'Position_j', 'Query_i', 'Query_j'}.issubset(scoring_df.columns), "Provided file does not "\
+                                                                                            "include expected columns,"\
+                                                                                            " make sure this is a pair"\
+                                                                                            " analysis result!"
+
+    columns = ['Position', 'Query', 'Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+    converted_scoring_data = {x: [] for x in columns + ['Original_Rank']}
+
+    all_res = len(set(scoring_df['Position_i']).union(set(scoring_df['Position_j'])))
+    counter = 0
+    completed = set()
+    rank_groups = scoring_df.groupby('Rank')
+    for rank in sorted(rank_groups.groups.keys()):
+        if counter == all_res:
+            break
+
+        curr_group = rank_groups.get_group(rank)
+        for i in curr_group.index:
+            if curr_group.loc[i, 'Position_i'] not in completed:
+                converted_scoring_data['Position'].append(curr_group.loc[i, 'Position_i'])
+                converted_scoring_data['Query'].append(curr_group.loc[i, 'Query_i'])
+                converted_scoring_data['Original_Rank'].append(rank)
+                converted_scoring_data['Score'].append(curr_group.loc[i, 'Score'])
+                var_chars = list(set([x[0] for x in curr_group.loc[i, 'Variability_Characters'].split(',')]))
+                converted_scoring_data['Variability_Count'].append(len(var_chars))
+                converted_scoring_data['Variability_Characters'].append(','.join(var_chars))
+                completed.add(curr_group.loc[i, 'Position_i'])
+            if curr_group.loc[i, 'Position_j'] not in completed:
+                converted_scoring_data['Position'].append(curr_group.loc[i, 'Position_j'])
+                converted_scoring_data['Query'].append(curr_group.loc[i, 'Query_j'])
+                converted_scoring_data['Original_Rank'].append(rank)
+                converted_scoring_data['Score'].append(curr_group.loc[i, 'Score'])
+                var_chars = list(set([x[1] for x in curr_group.loc[i, 'Variability_Characters'].split(',')]))
+                converted_scoring_data['Variability_Count'].append(len(var_chars))
+                converted_scoring_data['Variability_Characters'].append(','.join(sorted(var_chars)))
+                completed.add(curr_group.loc[i, 'Position_j'])
+    new_ranks, new_coverage = compute_rank_and_coverage(seq_length=all_res, pos_size=1, rank_type='min',
+                                                        scores=np.array(converted_scoring_data['Original_Rank']))
+    converted_scoring_data['Rank'] = new_ranks
+    converted_scoring_data['Coverage'] = new_coverage
+    converted_scoring_df = pd.DataFrame(converted_scoring_data)
+    converted_scoring_df.sort_values(by='Position', inplace=True)
+    full_path = os.path.join(res_dir, f'{res_base_name}_Converted_To_Single_Pos{res_base_extension}')
+    converted_scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
+                                columns=columns)
+    return full_path
 
 
 def parse_args():

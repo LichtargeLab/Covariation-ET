@@ -34,10 +34,10 @@ from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.FrequencyTable import FrequencyTable
 from SupportingClasses.SeqAlignment import SeqAlignment
-from EvolutionaryTrace import EvolutionaryTrace, init_var_pool, get_var_pool
+from EvolutionaryTrace import EvolutionaryTrace, init_var_pool, get_var_pool, convert_pair_to_single_residue_output
 from Testing.test_Base import (protein_aln, compare_nodes_key, compare_nodes, protein_phylo_tree, pro_single_ft,
                                pro_pair_ft, protein_mm_freq_tables, protein_mm_table, pro_pair_alpha_size, pro_pair_map,
-                               pro_pair_rev)
+                               pro_pair_rev, generate_temp_fn)
 from Testing.test_Base import processes as max_processes
 
 
@@ -2486,6 +2486,92 @@ class TestEvolutionaryTraceGetVarPool(TestCase):
     def test_get_var_pool_match_mismatch_double_double_pos(self):
         self.evaluate_get_var_pool(freq_table=protein_mm_freq_tables['match'] + protein_mm_freq_tables['mismatch'],
                                    mm_bool=True)
+
+
+class TestConvertPairToSingleResidueOutput(TestCase):
+
+    # These examples are not necessarily representative of real results, they are just meant to be easy examples that
+    # test specific functionality.
+
+    def test_convert_pair_to_single_residue_output_no_ties(self):
+        shared_columns = ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+        pair_columns = ['Position_i', 'Position_j', 'Query_i', 'Query_j']
+        single_columns = ['Position', 'Query']
+        data = {'Position_i': [1, 1, 1, 2, 2, 3],
+                'Position_j': [2, 3, 4, 3, 4, 4],
+                'Query_i': ['M', 'M', 'M', 'E', 'E', 'T'],
+                'Query_j': ['E', 'T', 'R', 'T', 'R', 'R'],
+                'Variability_Count': [1, 6, 5, 2, 3, 4],
+                'Variability_Characters': ['ME', 'MT,MR,MS,NT,NR,NS', 'MR,NR,MS,NS,MT', 'ET,DS', 'ER,ES,DR',
+                                           'TR,TS,RR,RS'],
+                'Rank': [1, 6, 5, 2, 3, 4],
+                'Score': [1.000, 1.099, 1.073, 1.026, 1.04, 1.066],
+                'Coverage': [0.000, 0.833, 1.000, 0.166, 0.333, 0.666]}
+        fn = generate_temp_fn(suffix='ranks')
+        pd.DataFrame(data).to_csv(fn, columns=pair_columns + shared_columns, sep='\t', header=True, index=False,
+                                  float_format='%.3f')
+        converted_fn = convert_pair_to_single_residue_output(fn)
+        self.assertTrue(os.path.isfile(converted_fn))
+        converted_df = pd.read_csv(converted_fn, sep='\t', header=0, index_col=None)
+        self.assertTrue(all(converted_df.columns == (single_columns + shared_columns)))
+        self.assertTrue(all(converted_df['Position'] == [1, 2, 3, 4]))
+        self.assertTrue(all(converted_df['Query'] == ['M', 'E', 'T', 'R']))
+        self.assertTrue(all(converted_df['Variability_Count'] == [1, 1, 2, 2]))
+        self.assertTrue(all(converted_df['Variability_Characters'] == ['M', 'E', 'S,T', 'R,S']))
+        self.assertTrue(all(converted_df['Rank'] == [1, 1, 2, 3]))
+        self.assertTrue(all(converted_df['Score'] == [1.000, 1.000, 1.026, 1.04]))
+        self.assertTrue(all(converted_df['Coverage'] == [0.5, 0.5, 0.75, 1.0]))
+        os.remove(fn)
+        os.remove(converted_fn)
+
+    def test_convert_pair_to_single_residue_output_with_ties(self):
+        shared_columns = ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+        pair_columns = ['Position_i', 'Position_j', 'Query_i', 'Query_j']
+        single_columns = ['Position', 'Query']
+        data = {'Position_i': [1, 1, 1, 2, 2, 3],
+                'Position_j': [2, 3, 4, 3, 4, 4],
+                'Query_i': ['M', 'M', 'M', 'E', 'E', 'T'],
+                'Query_j': ['E', 'T', 'R', 'T', 'R', 'R'],
+                'Variability_Count': [1, 6, 5, 1, 3, 4],
+                'Variability_Characters': ['ME', 'MT,MR,MS,NT,NR,NS', 'MR,NR,MS,NS,MT', 'ET', 'ER,ES,DR',
+                                           'TR,TS,RR,RS'],
+                'Rank': [1, 6, 5, 1, 3, 4],
+                'Score': [1.000, 1.099, 1.073, 1.000, 1.04, 1.066],
+                'Coverage': [0.000, 0.833, 1.000, 0.000, 0.333, 0.666]}
+        fn = generate_temp_fn(suffix='ranks')
+        pd.DataFrame(data).to_csv(fn, columns=pair_columns + shared_columns, sep='\t', header=True, index=False,
+                                  float_format='%.3f')
+        converted_fn = convert_pair_to_single_residue_output(fn)
+        self.assertTrue(os.path.isfile(converted_fn))
+        converted_df = pd.read_csv(converted_fn, sep='\t', header=0, index_col=None)
+        self.assertTrue(all(converted_df.columns == (single_columns + shared_columns)))
+        self.assertTrue(all(converted_df['Position'] == [1, 2, 3, 4]))
+        self.assertTrue(all(converted_df['Query'] == ['M', 'E', 'T', 'R']))
+        self.assertTrue(all(converted_df['Variability_Count'] == [1, 1, 1, 2]))
+        self.assertTrue(all(converted_df['Variability_Characters'] == ['M', 'E', 'T', 'R,S']))
+        self.assertTrue(all(converted_df['Rank'] == [1, 1, 1, 2]))
+        self.assertTrue(all(converted_df['Score'] == [1.000, 1.000, 1.000, 1.04]))
+        self.assertTrue(all(converted_df['Coverage'] == [0.75, 0.75, 0.75, 1.0]))
+        os.remove(fn)
+        os.remove(converted_fn)
+
+    def test_convert_pair_to_single_residue_output_fail_bad_file(self):
+        single_columns = ['Position', 'Query']
+        shared_columns = ['Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
+        data = {'Position': [1, 2, 3, 4],
+                'Query': ['M', 'E', 'T', 'R'],
+                'Variability_Count': [1, 1, 1, 2],
+                'Variability_Characters': ['M', 'E', 'T', 'R,S'],
+                'Rank': [1, 1, 1, 2],
+                'Score': [1.000, 1.000, 1.000, 1.04],
+                'Coverage': [0.75, 0.75, 0.75, 1.0]}
+        fn = generate_temp_fn(suffix='ranks')
+        pd.DataFrame(data).to_csv(fn, columns=single_columns + shared_columns, sep='\t', header=True, index=False,
+                                  float_format='%.3f')
+        with self.assertRaises(AssertionError):
+            convert_pair_to_single_residue_output(fn)
+        os.remove(fn)
+
 
 # class TestEvoultionaryTrace(TestBase):
 #
