@@ -24,7 +24,7 @@ There is one main pre-requisites for using this code: Anaconda
     *Caveats* * Using Anaconda environments allows for greater portability, but some operating systems use different channels meaning it may not be possible to set up the environment as described in this step, consider using other channels or looking for different versions of the same packages.
 2. Activate the environment to use the code in this package.
     ```
-    conda activate ET
+    conda activate PyET
     ```
 ### Usage
 To use the code in this package please navigate to the 'src' directory.

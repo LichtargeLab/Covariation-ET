@@ -1,4 +1,4 @@
-name: PyETTest
+name: PyET
 channels:
   - schrodinger
   - etetoolkit
