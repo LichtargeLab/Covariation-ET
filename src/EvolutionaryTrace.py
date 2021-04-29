@@ -632,8 +632,10 @@ def parse_args():
                         default=os.getcwd(), help='File path to a directory where the results can be generated.')
     # Check if a preset has been selected.
     parser.add_argument('--preset', metavar='P', type=str, nargs='?', choices=['intET', 'rvET', 'ET-MIp'],
-                        help='Preset Evolutionary Action methodology which has been used and characterized in the past '
-                        'current options are: intET, rvET, or ET-MIp')
+                        help='Specifying a preset will run a previously published Evolutionary Trace algorithm. '
+                             'The current options are: "intET", "rvET", or "ET-MIp". Specifying any of these will '
+                             'overwrite other options except "query", "alignment", "output_dir", "processes", and '
+                             '"low_memory_off".')
     # Optional argument (has default), which is not part of a preset.
     parser.add_argument('--polymer_type', metavar='p', type=str, default='Protein', choices=['Protein', 'DNA'],
                         nargs='?', help='Which kind of sequence is being analyzed, currently accepted values are: '
@@ -644,9 +646,9 @@ def parse_args():
                              f'available to: Both polymer types: [{", ".join(["identity"])}];Protein only models: ' \
                              f'[{", ".join(DistanceCalculator.protein_models)}]; DNA only models: ' \
                              f'[{", ".join(DistanceCalculator.dna_models)}]')
-    parser.add_argument('--et_distance', default=True, action='store_false',
-                        help='Whether or not to use the Evolutionary Trace distance computation over the specified '
-                             'distance model (i.e. similarity using the specified distance model).')
+    parser.add_argument('--et_distance_off', default=True, action='store_false', dest='et_distance',
+                        help='If this flag is provided the Evolutionary Trace distance computation over the specified '
+                             'distance model (i.e. similarity using the specified distance model) will not be used.')
     parser.add_argument('--tree_building_method', metavar='T', type=str, default='et', nargs='?',
                         choices=['et', 'upgma', 'agglomerative', 'custom'],
                         help='Which tree building method to use when constructing the tree, options required for each '
@@ -688,10 +690,14 @@ def parse_args():
                                  'match_mismatch_diversity_ratio', 'match_mismatch_diversity_angle',
                                  'match_diversity_mismatch_entropy_ratio', 'match_diversity_mismatch_entropy_angle'],
                         help="Scoring metric to use when performing trace algorithm, method availability depends on "
-                             "the specified position_type:\n\tsingle:\n\t\tidentity\n\t\tplain_entropy\n\tpair:\n\t\t"
-                             "identity\n\t\tplain_entropy\n\t\tmutual_information\n\t\tnormalized_mutual_information"
-                             "\n\t\taverage_product_corrected_mutual_information\n\t\t"
-                             "filtered_average_product_corrected_mutual_information\n\t\tmatch_mismatch_entropy_angle")
+                             "the specified position_type: single: [identity, plain_entropy]; pair: [identity, "
+                             "plain_entropy, mutual_information, normalized_mutual_information, "
+                             "average_product_corrected_mutual_information, "
+                             "filtered_average_product_corrected_mutual_information, match_count, match_entropy, "
+                             "match_diversity, mismatch_count, mismatch_entropy, mismatch_diversity, "
+                             "match_mismatch_count_ratio, match_mismatch_entropy_ratio, match_mismatch_diversity_ratio"
+                             "match_mismatch_count_angle, match_mismatch_entropy_angle, match_mismatch_diversity_angle"
+                             "match_diversity_mismatch_entropy_ratio, match_diversity_mismatch_entropy_angle].")
     parser.add_argument('--gap_correction', metavar='G', type=float, default=None, nargs='?',
                         help="The fraction of rows in a column which should be a gap for a position to be correct. The"
                              "correction simply leads to that position being assigned the worst value found among all "
@@ -703,11 +709,10 @@ def parse_args():
                              "--output_files original_aln tree scores), or the option 'default' can be specified which "
                              "will result in 'original_aln', 'non-gap_aln', 'tree', and 'scores' being written to "
                              "file.")
-    parser.add_argument('--low_memory', default=True, action='store_false',
-                        help="Whether or not to use the low memory option which will serialize intermediate data "
+    parser.add_argument('--low_memory_off', default=True, action='store_false', dest='low_memory',
+                        help="If this flag is specified the low memory option, which serializes intermediate data "
                              "(sub-alignment frequency tables, group scores, and rank scores) to file instead of "
-                             "holding it in memory. The default behavior is to use this option, specifying this flag "
-                             "turns it off.")
+                             "holding it in memory, will not be used. The default behavior is to use this option.")
     parser.add_argument('--processors', metavar='C', type=int, nargs='?', default=1,
                         help="The number of CPU cores available to this process while running (will determine the "
                              "number of processes forked by steps which can be completed using multiprocessing pools).")
