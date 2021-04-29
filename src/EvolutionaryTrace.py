@@ -640,10 +640,10 @@ def parse_args():
                                         'Protein and DNA.')
     parser.add_argument('--distance_model', metavar='D', type=str, default='blosum62', nargs='?',
                         choices=['identity'] + DistanceCalculator.protein_models + DistanceCalculator.dna_models,
-                        help='Which distance model to use, availability is limited depending on polymer type models '
-                             'available to both polymer types:\n{}to protein models:\n{}to DNA models:\n{}'.format(
-                            '\n'.join(['identity']), '\n'.join(DistanceCalculator.protein_models),
-                            '\n'.join(DistanceCalculator.dna_models)))
+                        help=f'Which distance model to use, availability is limited depending on polymer type models ' \
+                             f'available to: Both polymer types: [{", ".join(["identity"])}];Protein only models: ' \
+                             f'[{", ".join(DistanceCalculator.protein_models)}]; DNA only models: ' \
+                             f'[{", ".join(DistanceCalculator.dna_models)}]')
     parser.add_argument('--et_distance', default=True, action='store_false',
                         help='Whether or not to use the Evolutionary Trace distance computation over the specified '
                              'distance model (i.e. similarity using the specified distance model).')
