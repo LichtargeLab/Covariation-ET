@@ -455,12 +455,13 @@ class PDBReference(object):
             all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, {res_selection_label}')
             full_selection_list.append(res_selection_label)
             colored_residues += residues
-        cmd.select('colored', f"{curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
-        all_commands.append(
-            f"select colored, {curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
-        cmd.select('not_colored', f"{curr_chain} and (not colored)")
-        all_commands.append(f"select not_colored, {curr_chain} and (not colored)")
-        full_selection_list = full_selection_list[:2] + ['colored', 'not_colored'] + full_selection_list[2:]
+        if len(colored_residues) > 0:
+            cmd.select('colored', f"{curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+            all_commands.append(
+                f"select colored, {curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+            cmd.select('not_colored', f"{curr_chain} and (not colored)")
+            all_commands.append(f"select not_colored, {curr_chain} and (not colored)")
+            full_selection_list = full_selection_list[:2] + ['colored', 'not_colored'] + full_selection_list[2:]
         pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}.pse')
         cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
         all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}_{coloring_threshold}.pse')},"
