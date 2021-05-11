@@ -473,6 +473,153 @@ class PDBReference(object):
                 handle.write(line + '\n')
         return pse_path, commands_path, sorted(colored_residues)
 
+    def display_pairs(self, chain_id, data, pair_col, res_col1, res_col2, data_direction, coloring_threshold, color_map,
+                      out_dir):
+        """
+        Color Structure
+
+        This function takes data and colors the specified chain for this the current instance's structure according to
+        that data and the direction, threshold, and color map provided.
+
+        Args:
+            chain_id (str): The chain in the structure to color.
+            pair_col (str): The name of the column to use for the pair data from the provided pandas.DataFrame.
+            res_col1 (str): The name of the column to use for residue specific data for the first residue in a pair
+            (i.e. the residue in column 'RESIDUE_Index_1') from the provided pandas.DataFrame.
+            res_col2 (str): The name of the column to use for residue specific data for the second residue in a pair
+            (i.e. the residue in column 'RESIDUE_Index_2') from the provided pandas.DataFrame.
+            data (pandas.DataFrame): A dataframe containing at least a column named 'RESIDUE_Index_1', 'RESIDUE_Index_2'
+            and columns with the names provided in the pair_col and residue_col parameters. Entries in the
+            'RESIDUE_Index_1' and 'RESIDUE_Index_2' columns should be the numerical indices for the residues in the
+            structure. Entries in the column corresponding to pair_col and residue_col, should be normalized
+            between 0 and 1.
+            data_direction (str): Expected values are 'min' or 'max'. If 'min' is specified then the normal version of
+            the specified color map is used, if 'max' is specified then the reverse version of the specified color map
+            is used. This parameter also affects how the coloring_threshold is used.
+            coloring_threshold (float): The cutoff value for coloring residues. If data_direction is 'min' then any
+            value greater than the provided threshold is not colored, if data_direction is 'max' then any value less
+            than the provided threshold is not colored. This threshold is applied to the residue_col not the
+            pair_col, all pairs associated with passing residue_col values will be displayed.
+            color_map (str): A string specifying the color map to use. If 'ET' is specified the prismatic colormap used
+            in the PyETViewer is used. Any other value which is provided should be a valid matplotlib colormap name as
+            described here: https://matplotlib.org/stable/gallery/color/colormap_reference.html
+            out_dir (str): The path to the directory where the .pse file and .txt file with all commands for this
+            coloring should be saved.
+        Returns:
+            str: The path to the created pse file.
+            str: The path to the text file containing all commands used to generate the pse file.
+            list: The residues in the structure which have been colored by this method using the provided data.
+        """
+        if color_map == 'ET':
+            color_list = ["ff0000", "ff0c00", "ff1800", "ff2400", "ff3000", "ff3d00", "ff4900", "ff5500", "ff6100",
+                          "ff6e00", "ff7a00", "ff8600", "ff9200", "ff9f00", "ffab00", "ffb700", "ffc300", "ffd000",
+                          "ffdc00", "ffe800", "fff400", "fcff00", "f0ff00", "e4ff00", "d8ff00", "cbff00", "bfff00",
+                          "b3ff00", "a7ff00", "9bff00", "8eff00", "82ff00", "76ff00", "6aff00", "5dff00", "51ff00",
+                          "45ff00", "39ff00", "2cff00", "20ff00", "14ff00", "08ff00", "00ff04", "00ff10", "00ff1c",
+                          "00ff28", "00ff35", "00ff41", "00ff4d", "00ff59", "00ff66", "00ff72", "00ff7e", "00ff8a",
+                          "00ff96", "00ffa3", "00ffaf", "00ffbb", "00ffc7", "00ffd4", "00ffe0", "00ffec", "00fff8",
+                          "00f8ff", "00ecff", "00e0ff", "00d4ff", "00c7ff", "00bbff", "00afff", "00a3ff", "0096ff",
+                          "008aff", "007eff", "0072ff", "0066ff", "0059ff", "004dff", "0041ff", "0035ff", "0028ff",
+                          "001cff", "0010ff", "0004ff", "0800ff", "1400ff", "2000ff", "2c00ff", "3900ff", "4500ff",
+                          "5100ff", "5d00ff", "6a00ff", "7600ff", "8200ff", "8e00ff", "9b00ff", "a700ff", "b300ff",
+                          "bf00ff"]
+            converted_color_list = [hex2color('#' + x) for x in color_list]
+            cmap_f = LinearSegmentedColormap.from_list('ET_Color_Map', converted_color_list, N=len(color_list))
+            cmap_r = LinearSegmentedColormap.from_list('Reverse_ET_Color_Map', converted_color_list[::-1],
+                                                       N=len(color_list))
+        else:
+            cmap_f = get_cmap(color_map)
+            cmap_r = get_cmap(color_map + '_r')
+        full_selection_list = []
+        all_commands = []
+        if data_direction == 'min':
+            cmap = cmap_f
+        elif data_direction == 'max':
+            cmap = cmap_r
+        else:
+            raise ValueError('Bad value provided for data_direction, expected "min" or "max".')
+        curr_name = f"{self.structure.id}_{pair_col.replace(' ', '_')}_pairs"
+        cmd.load(self.file_name, curr_name)
+        full_selection_list.append(curr_name)
+        all_commands.append(f'load {self.file_name}, {curr_name}')
+        cmd.color('white', curr_name)
+        all_commands.append(f'color white, {curr_name}')
+        if chain_id not in self.chains:
+            raise ValueError('Provided chain_id is not in the current structure.')
+        curr_chain = f'Chain_{chain_id}'
+        cmd.select(curr_chain, f'{curr_name} and chain {chain_id}')
+        full_selection_list.append(curr_chain)
+        all_commands.append(f'select {curr_chain}, {curr_name} and chain {chain_id}')
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError('Bad data provided, expected pandas.DataFrame')
+        unique_res_values = data[pair_col].unique()
+        if (coloring_threshold < 0.0) or (coloring_threshold > 1.0):
+            raise ValueError('coloring threshold outside of range from 0.0 to 1.0')
+        colored_residues = []
+        colored_pairs = []
+        for value in sorted(unique_res_values, reverse=(False if data_direction == 'min' else True)):
+            pairs = data.loc[data[pair_col] == value, ['RESIDUE_Index_1', 'RESIDUE_Index_2', res_col1, res_col2]]
+            for _, pair in pairs.iterrows():
+                if ((pair[res_col1] > coloring_threshold or pair[res_col2] > coloring_threshold) and
+                    (data_direction == 'min')) or\
+                        ((pair[res_col1] < coloring_threshold or pair[res_col2] < coloring_threshold) and
+                         (data_direction == 'max')) or\
+                        (pair[res_col1] is None or pair[res_col2] is None) or\
+                        (np.isnan(pair[res_col1]) or np.isnan(pair[res_col2])):
+                    continue
+                if pair['RESIDUE_Index_1'] not in colored_residues:
+                    cmd.select('curr_res', f"{curr_chain} and resi {pair['RESIDUE_Index_1']}")
+                    all_commands.append(f"select curr_res, {curr_chain} and resi {pair['RESIDUE_Index_1']}")
+                    cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_res')
+                    all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_res')
+                    cmd.delete('curr_res')
+                    all_commands.append('delete curr_res')
+                    colored_residues.append(pair['RESIDUE_Index_1'])
+                if pair['RESIDUE_Index_2'] not in colored_residues:
+                    cmd.select('curr_res', f"{curr_chain} and resi {pair['RESIDUE_Index_2']}")
+                    all_commands.append(f"select curr_res, {curr_chain} and resi {pair['RESIDUE_Index_2']}")
+                    cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_res')
+                    all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_res')
+                    cmd.delete('curr_res')
+                    all_commands.append('delete curr_res')
+                    colored_residues.append(pair['RESIDUE_Index_2'])
+                if data_direction == 'min':
+                    worse_score = max(pair[res_col1], pair[res_col2])
+                else:
+                    worse_score = min(pair[res_col1], pair[res_col2])
+                pair_label = f"{pair['RESIDUE_Index_1']}_{pair['RESIDUE_Index_1']}_pair"
+                cmd.distance(pair_label, f"{curr_chain} and resi {pair['RESIDUE_Index_1']} and name CA",
+                             f"{curr_chain} and resi {pair['RESIDUE_Index_2']} and name CA")
+                all_commands.append(f"distance {pair_label}, {curr_chain} and resi {pair['RESIDUE_Index_1']} and name"
+                                    f" CA, {curr_chain} and resi {pair['RESIDUE_Index_2']} and name CA")
+                cmd.hide(representation='labels', selection=pair_label)
+                all_commands.append(f'hide labels, {pair_label}')
+                cmd.set('dash_gap', 0.0, selection=pair_label)
+                all_commands.append(f'set dash_gap, 0.0, {pair_label}')
+                cmd.set('dash_radius', 0.1, selection=pair_label)
+                all_commands.append(f'set dash_radius, 0.1, {pair_label}')
+                cmd.set('dash_color', f'0x{to_hex(cmap(worse_score)).upper()[1:]}', selection=pair_label)
+                all_commands.append(f'set dash_color, 0x{to_hex(cmap(worse_score)).upper()[1:]}, {pair_label}')
+                colored_pairs.append((pair['RESIDUE_Index_1'], pair['RESIDUE_Index_2']))
+        if len(colored_residues) > 0:
+            cmd.select('colored', f"{curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+            all_commands.append(
+                f"select colored, {curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
+            cmd.select('not_colored', f"{curr_chain} and (not colored)")
+            all_commands.append(f"select not_colored, {curr_chain} and (not colored)")
+            full_selection_list = full_selection_list[:2] + ['colored', 'not_colored'] + full_selection_list[2:]
+        pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}.pse')
+        cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
+        all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}_{coloring_threshold}.pse')},"
+                            ' or '.join(full_selection_list) + ' , -1, pse')
+        cmd.delete('all')
+        all_commands.append('delete all')
+        commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}_all_pymol_commands.txt')
+        with open(commands_path, 'w') as handle:
+            for line in all_commands:
+                handle.write(line + '\n')
+        return pse_path, commands_path, sorted(colored_residues), sorted(colored_pairs)
+
 
 def dbref_parse(dbref_line):
     """
