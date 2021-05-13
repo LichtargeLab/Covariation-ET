@@ -124,10 +124,13 @@ class SequencePDBMap(object):
         Args:
             seq_pos (int): The position of interest in the sequence.
         Return:
-            int: The corresponding residue in the PDB structure.
+            int: The corresponding residue in the PDB structure.  None is returned if the provided value is not in the
+            mapping.
         """
         if self.query_pdb_mapping is None:
             raise AttributeError('Alignment must be performed to be able to map.')
+        if seq_pos not in self.query_pdb_mapping:
+            return None
         return self.pdb_ref.pdb_residue_list[self.best_chain][self.query_pdb_mapping[seq_pos]]
 
     def map_pdb_res_to_seq_position(self, pdb_res):
@@ -140,9 +143,12 @@ class SequencePDBMap(object):
         Args:
             pdb_res (int): Position from the reference PDB structure.
         Return:
-            int: Position in the query sequence which corresponds to the provided PDB residue.
+            int: Position in the query sequence which corresponds to the provided PDB residue. None is returned if the
+            provided value is not in the mapping.
         """
         if self.pdb_query_mapping is None:
             raise AttributeError('Alignment must be performed to be able to map.')
+        if pdb_res not in self.pdb_query_mapping:
+            return None
         index = self.pdb_ref.pdb_residue_list[self.best_chain].index(pdb_res)
         return self.pdb_query_mapping[index]

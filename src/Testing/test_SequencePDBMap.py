@@ -484,6 +484,16 @@ class TestSequencePDBMapMapSeqPositionToPDBRes(TestCase):
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
+    def test_first_alignment_and_pdb_bad_seq_pos(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain='A')
+        mapper.align()
+        pdb_res = mapper.map_seq_position_to_pdb_res(5)
+        self.assertIsNone(pdb_res)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
 
 class TestSequencePDBMapMapPDBResToSeqPosition(TestCase):
 
@@ -568,6 +578,16 @@ class TestSequencePDBMapMapPDBResToSeqPosition(TestCase):
         mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain='A')
         with self.assertRaises(AttributeError):
             self.evaluate_map_seq_position_to_pdb_res(mapper=mapper, expected_mapping=self.expected_mapping_A)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_first_alignment_and_pdb_bad_pdb_res(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain='A')
+        mapper.align()
+        seq_pos = mapper.map_pdb_res_to_seq_position(6)
+        self.assertIsNone(seq_pos)
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
