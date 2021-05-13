@@ -117,9 +117,6 @@ class TestSequencePDBMapAlign(TestCase):
         self.assertEqual(mapper.best_chain, expected_chain)
         self.assertEqual(mapper.query_pdb_mapping, expected_mapping)
         self.assertEqual(mapper.pdb_query_mapping, reverse_expected_mapping)
-        if type(expected_struct) is str:
-            expected_struct = PDBReference(pdb_file=expected_struct)
-            expected_struct.import_pdb(structure_id='1TES')
 
     def test_align_aln_file_pdb_file_chain_specified_1(self):
         protein_aln1.write_out_alignment(aln_fn)
