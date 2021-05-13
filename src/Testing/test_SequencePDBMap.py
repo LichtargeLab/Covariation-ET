@@ -398,6 +398,61 @@ class TestSequencePDBMapAlign(TestCase):
         os.remove(pdb_fn)
 
 
+class TestSequencePDBMapIsAligned(TestCase):
+
+    def test_not_aligned(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain=None)
+        align_status = mapper.is_aligned()
+        self.assertFalse(align_status)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_aligned(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain=None)
+        mapper.align()
+        align_status = mapper.is_aligned()
+        self.assertTrue(align_status)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_best_chain_missing(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain=None)
+        mapper.align()
+        mapper.best_chain = None
+        align_status = mapper.is_aligned()
+        self.assertFalse(align_status)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_query_pdb_mapping_missing(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain=None)
+        mapper.align()
+        mapper.query_pdb_mapping = None
+        align_status = mapper.is_aligned()
+        self.assertFalse(align_status)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_pdb_query_mapping_missing(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain=None)
+        mapper.align()
+        mapper.pdb_query_mapping = None
+        align_status = mapper.is_aligned()
+        self.assertFalse(align_status)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+
 class TestSequencePDBMapMapSeqPositionToPDBRes(TestCase):
 
     def setUp(self):

@@ -3,6 +3,7 @@ Created on May 11, 2021
 
 @author: Daniel Konecki
 """
+import os
 from time import time
 from Bio import pairwise2
 from Bio.SubsMat import MatrixInfo
@@ -48,11 +49,32 @@ class SequencePDBMap(object):
             to find the best matching chain.
         """
         self.query = query
-        self.seq_aln = query_alignment
-        self.pdb_ref = query_structure
+        if isinstance(query_alignment, os.PathLike):
+            self.seq_aln = os.path.abspath(query_alignment)
+        else:
+            self.seq_aln = query_alignment
+        if isinstance(query_structure, os.PathLike):
+            self.pdb_ref = os.path.abspath(query_structure)
+        else:
+            self.pdb_ref = query_structure
         self.best_chain = chain
         self.query_pdb_mapping = None
         self.pdb_query_mapping = None
+
+    def is_aligned(self):
+        """
+        Is Aligned
+
+        This method returns True if all attributes which can be updated by the align() method have values and false if
+        any are None (which can be used to check if align has been run).
+
+        Return:
+            bool: True if query_pdb_map, pdb_query_map, and best_chain have values that are not None, False otherwise.
+        """
+        if (self.query_pdb_mapping is None) or (self.pdb_query_mapping is None) or (self.best_chain is None):
+            return False
+        else:
+            return True
 
     def align(self):
         """
