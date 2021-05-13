@@ -71,6 +71,7 @@ class SequencePDBMap(object):
         Return:
             bool: True if query_pdb_map, pdb_query_map, and best_chain have values that are not None, False otherwise.
         """
+        print()
         if (self.query_pdb_mapping is None) or (self.pdb_query_mapping is None) or (self.best_chain is None):
             return False
         else:
@@ -89,7 +90,7 @@ class SequencePDBMap(object):
         """
         gap_open = -10
         gap_extend = -0.5
-        if (self.best_chain is None) or (self.query_pdb_mapping is None):
+        if not self.is_aligned():
             start = time()
             if self.seq_aln is None:
                 raise ValueError('Scorer cannot be fit, because no alignment was provided.')
