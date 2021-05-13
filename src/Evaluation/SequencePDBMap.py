@@ -148,12 +148,15 @@ class SequencePDBMap(object):
         Return:
             int: The corresponding residue in the PDB structure.  None is returned if the provided value is not in the
             mapping.
+            char: The nucleotide or amino acid at the mapped residue in the structure.
         """
         if self.query_pdb_mapping is None:
             raise AttributeError('Alignment must be performed to be able to map.')
         if seq_pos not in self.query_pdb_mapping:
-            return None
-        return self.pdb_ref.pdb_residue_list[self.best_chain][self.query_pdb_mapping[seq_pos]]
+            return None, None
+        pdb_res = self.pdb_ref.pdb_residue_list[self.best_chain][self.query_pdb_mapping[seq_pos]]
+        pdb_char = self.pdb_ref.residue_pos[self.best_chain][pdb_res]
+        return pdb_res, pdb_char
 
     def map_pdb_res_to_seq_position(self, pdb_res):
         """
@@ -167,10 +170,13 @@ class SequencePDBMap(object):
         Return:
             int: Position in the query sequence which corresponds to the provided PDB residue. None is returned if the
             provided value is not in the mapping.
+            char: The nucleotide or amino acid at the mapped position in the query sequence.
         """
         if self.pdb_query_mapping is None:
             raise AttributeError('Alignment must be performed to be able to map.')
-        if pdb_res not in self.pdb_query_mapping:
-            return None
+        if pdb_res not in self.pdb_ref.pdb_residue_list[self.best_chain]:
+            return None, None
         index = self.pdb_ref.pdb_residue_list[self.best_chain].index(pdb_res)
-        return self.pdb_query_mapping[index]
+        seq_pos = self.pdb_query_mapping[index]
+        seq_char = self.seq_aln.query_sequence[seq_pos]
+        return seq_pos, seq_char

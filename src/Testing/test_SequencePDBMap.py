@@ -456,16 +456,15 @@ class TestSequencePDBMapIsAligned(TestCase):
 class TestSequencePDBMapMapSeqPositionToPDBRes(TestCase):
 
     def setUp(self):
-        self.expected_mapping_A = {0: 1, 1: 2, 2: 3}
-        self.expected_mapping_B = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5}
-        self.expected_mapping_mismatch = {0: 1, 1: 4, 2: 5}
-        self.expected_pro_seq_2 = SeqRecord(id='seq2', seq=Seq('MTREE', alphabet=FullIUPACProtein()))
-        self.expected_pro_seq_3 = SeqRecord(id='seq3', seq=Seq('MFREE', alphabet=FullIUPACProtein()))
+        self.expected_mapping_A = {0: (1, 'M'), 1: (2, 'E'), 2: (3, 'T')}
+        self.expected_mapping_B = {0: (1, 'M'), 1: (2, 'T'), 2: (3, 'R'), 3: (4, 'E'), 4: (5, 'E')}
+        self.expected_mapping_mismatch = {0: (1, 'M'), 1: (4, 'E'), 2: (5, 'E')}
 
     def evaluate_map_seq_position_to_pdb_res(self, mapper, expected_mapping):
         for key in expected_mapping:
-            pdb_res = mapper.map_seq_position_to_pdb_res(key)
-            self.assertEqual(pdb_res, expected_mapping[key])
+            pdb_res, pdb_char = mapper.map_seq_position_to_pdb_res(key)
+            self.assertEqual(pdb_res, expected_mapping[key][0])
+            self.assertEqual(pdb_char, expected_mapping[key][1])
 
     def test_first_alignment_and_pdb(self):
         protein_aln1.write_out_alignment(aln_fn)
@@ -544,8 +543,9 @@ class TestSequencePDBMapMapSeqPositionToPDBRes(TestCase):
         pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
         mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain='A')
         mapper.align()
-        pdb_res = mapper.map_seq_position_to_pdb_res(5)
+        pdb_res, pdb_char = mapper.map_seq_position_to_pdb_res(5)
         self.assertIsNone(pdb_res)
+        self.assertIsNone(pdb_char)
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
@@ -553,16 +553,16 @@ class TestSequencePDBMapMapSeqPositionToPDBRes(TestCase):
 class TestSequencePDBMapMapPDBResToSeqPosition(TestCase):
 
     def setUp(self):
-        self.expected_mapping_A = {1: 0, 2: 1, 3: 2}
-        self.expected_mapping_B = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4}
-        self.expected_mapping_mismatch = {1: 0, 4: 1, 5: 2}
-        self.expected_pro_seq_2 = SeqRecord(id='seq2', seq=Seq('MTREE', alphabet=FullIUPACProtein()))
-        self.expected_pro_seq_3 = SeqRecord(id='seq3', seq=Seq('MFREE', alphabet=FullIUPACProtein()))
+        self.expected_mapping_A = {1: (0, 'M'), 2: (1, 'E'), 3: (2, 'T')}
+        self.expected_mapping_B = {1: (0, 'M'), 2: (1, 'T'), 3: (2, 'R'), 4: (3, 'E'), 5: (4, 'E')}
+        self.expected_mapping_C = {1: (0, 'M'), 2: (1, 'F'), 3: (2, 'R'), 4: (3, 'E'), 5: (4, 'E')}
+        self.expected_mapping_mismatch = {1: (0, 'M'), 4: (1, 'E'), 5: (2, 'T')}
 
     def evaluate_map_seq_position_to_pdb_res(self, mapper, expected_mapping):
         for key in expected_mapping:
-            seq_pos = mapper.map_pdb_res_to_seq_position(key)
-            self.assertEqual(seq_pos, expected_mapping[key])
+            seq_pos, seq_char = mapper.map_pdb_res_to_seq_position(key)
+            self.assertEqual(seq_pos, expected_mapping[key][0])
+            self.assertEqual(seq_char, expected_mapping[key][1])
 
     def test_first_alignment_and_pdb(self):
         protein_aln1.write_out_alignment(aln_fn)
@@ -623,7 +623,7 @@ class TestSequencePDBMapMapPDBResToSeqPosition(TestCase):
         pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
         mapper = SequencePDBMap(query='seq3', query_alignment=aln_fn, query_structure=pdb_fn, chain='B')
         mapper.align()
-        self.evaluate_map_seq_position_to_pdb_res(mapper=mapper, expected_mapping=self.expected_mapping_B)
+        self.evaluate_map_seq_position_to_pdb_res(mapper=mapper, expected_mapping=self.expected_mapping_C)
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
@@ -641,8 +641,9 @@ class TestSequencePDBMapMapPDBResToSeqPosition(TestCase):
         pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
         mapper = SequencePDBMap(query='seq1', query_alignment=aln_fn, query_structure=pdb_fn, chain='A')
         mapper.align()
-        seq_pos = mapper.map_pdb_res_to_seq_position(6)
+        seq_pos, seq_char = mapper.map_pdb_res_to_seq_position(6)
         self.assertIsNone(seq_pos)
+        self.assertIsNone(seq_char)
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
