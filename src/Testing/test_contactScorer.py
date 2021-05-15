@@ -2196,12 +2196,79 @@ class TestContactScorerWriteOutCovariationAndStructuralData(TestCase):
         self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=None,
                                                                 expected_path=expected_path)
         os.remove(expected_path)
+
+
+class TestHeatmapPlot(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scores = np.random.rand(50, 50)
+        cls.scores[np.tril_indices(50, 1)] = 0
+        cls.scores += cls.scores.T
+
+    def evaluate_heatmap_plot(self, name, output_dir, expected_path):
+        heatmap_plot(name=name, data_mat=self.scores, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+
+    def test_fail_no_data(self):
+        with self.assertRaises(TypeError):
+            heatmap_plot(name='Test', data_mat=None, output_dir=None)
+
+    def test_fail_no_fn(self):
+        with self.assertRaises(AttributeError):
+            self.evaluate_heatmap_plot(name=None, output_dir=None, expected_path=None)
+
+    def test_fn_no_dir(self):
+        expected_path = 'First_Test.png'
+        self.evaluate_heatmap_plot(name='First Test', output_dir=None, expected_path=expected_path)
+
+    def test_fn_dir(self):
+        expected_path = 'First_Test.png'
+        new_dir = 'Output'
+        os.makedirs(new_dir)
+        self.evaluate_heatmap_plot(name='First Test', output_dir=new_dir,
+                                   expected_path=os.path.join(new_dir, expected_path))
+        rmtree(new_dir)
+
+
+class TestSurfacePlot(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scores = np.random.rand(50, 50)
+        cls.scores[np.tril_indices(50, 1)] = 0
+        cls.scores += cls.scores.T
+
+    def evaluate_surface_plot(self, name, output_dir, expected_path):
+        surface_plot(name=name, data_mat=self.scores, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+
+    def test_fail_no_data(self):
+        with self.assertRaises(TypeError):
+            surface_plot(name='Test', data_mat=None, output_dir=None)
+
+    def test_fail_no_fn(self):
+        with self.assertRaises(AttributeError):
+            self.evaluate_surface_plot(name=None, output_dir=None, expected_path=None)
+
+    def test_fn_no_dir(self):
+        expected_path = 'First_Test.png'
+        self.evaluate_surface_plot(name='First Test', output_dir=None, expected_path=expected_path)
+
+    def test_fn_dir(self):
+        expected_path = 'First_Test.png'
+        new_dir = 'Output'
+        os.makedirs(new_dir)
+        self.evaluate_surface_plot(name='First Test', output_dir=new_dir,
+                                   expected_path=os.path.join(new_dir, expected_path))
+        rmtree(new_dir)
+
 # class TestContactScorerEvaluatePredictor(TestCase):
 # class TestContactScorerEvaluatePredictions(TestCase):
 # class TestWriteOutContactScoring(TestCase):
 # class TestPlotZScores(TestCase):
-# class TestHeatmapPlot(TestCase):
-# class TestSurfacePlot(TestCase):
 # class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
 # class TestComputeWAndW2Ave(TestCase):
 # class TestClusteringZScore(TestCase):
@@ -2538,217 +2605,6 @@ class TestContactScorerWriteOutCovariationAndStructuralData(TestCase):
 #             prev_score = score_data
 #         return pd.DataFrame(data)
 #
-#     def evaluate_plot_auc(self, scorer, seq_len, structure_id, dir):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         auroc1a = scorer.score_auc(category='Any')
-#         scorer.plot_auc(auc_data=auroc1a, title='{} AUROC for All Pairs'.format(structure_id),
-#                         file_name='{}_Any_AUROC'.format(structure_id), output_dir=dir)
-#         expected_path1 = os.path.abspath(os.path.join(dir, '{}_Any_AUROC.png'.format(structure_id)))
-#         self.assertTrue(os.path.isfile(expected_path1))
-#         os.remove(expected_path1)
-#
-#     def test_10a_plot_auc(self):
-#         self.evaluate_plot_auc(scorer=self.scorer1, seq_len=self.seq_len1, structure_id=self.small_structure_id,
-#                                dir=self.testing_dir)
-#
-#     def test_10b_plot_auc(self):
-#         self.evaluate_plot_auc(scorer=self.scorer2, seq_len=self.seq_len2, structure_id=self.large_structure_id,
-#                                dir=self.testing_dir)
-#
-#     def evaluate_score_precision_recall(self, scorer, seq_len):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         expected_df_a = TestContactScorer.identify_expected_scores_and_distances(
-#             scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Any')
-#         precision_expected1a, recall_expected1a, _ = precision_recall_curve(expected_df_a['Distance'] <= 8.0,
-#                                                                             1.0 - expected_df_a['Coverage'],
-#                                                                             pos_label=True)
-#         recall_expected1a, precision_expected1a = zip(*sorted(zip(recall_expected1a, precision_expected1a)))
-#         recall_expected1a, precision_expected1a = np.array(recall_expected1a), np.array(precision_expected1a)
-#         auprc_expected1a = auc(recall_expected1a, precision_expected1a)
-#         precision1a, recall1a, auprc1a = scorer.score_precision_recall(category='Any')
-#         self.assertEqual(np.sum(precision_expected1a - precision1a), 0)
-#         self.assertEqual(np.sum(recall_expected1a - recall1a), 0)
-#         self.assertEqual(auprc_expected1a, auprc1a)
-#         expected_df_b = TestContactScorer.identify_expected_scores_and_distances(
-#             scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#             category='Neighbors')
-#         precision_expected1b, recall_expected1b, _ = precision_recall_curve(expected_df_b['Distance'] <= 8.0,
-#                                                                             1.0 - expected_df_b['Coverage'],
-#                                                                             pos_label=True)
-#         recall_expected1b, precision_expected1b = zip(*sorted(zip(recall_expected1b, precision_expected1b)))
-#         recall_expected1b, precision_expected1b = np.array(recall_expected1b), np.array(precision_expected1b)
-#         auprc_expected1b = auc(recall_expected1b, precision_expected1b)
-#         precision1b, recall1b, auprc1b = scorer.score_precision_recall(category='Neighbors')
-#         self.assertEqual(np.sum(precision_expected1b - precision1b), 0)
-#         self.assertEqual(np.sum(recall_expected1b - recall1b), 0)
-#         self.assertEqual(auprc_expected1b, auprc1b)
-#         expected_df_c = TestContactScorer.identify_expected_scores_and_distances(
-#             scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#             category='Short')
-#         precision_expected1c, recall_expected1c, _ = precision_recall_curve(expected_df_c['Distance'] <= 8.0,
-#                                                                             1.0 - expected_df_c['Coverage'],
-#                                                                             pos_label=True)
-#         recall_expected1c, precision_expected1c = zip(*sorted(zip(recall_expected1c, precision_expected1c)))
-#         recall_expected1c, precision_expected1c = np.array(recall_expected1c), np.array(precision_expected1c)
-#         auprc_expected1c = auc(recall_expected1c, precision_expected1c)
-#         precision1c, recall1c, auprc1c = scorer.score_precision_recall(category='Short')
-#         self.assertEqual(np.sum(precision_expected1c - precision1c), 0)
-#         self.assertEqual(np.sum(recall_expected1c - recall1c), 0)
-#         self.assertEqual(auprc_expected1c, auprc1c)
-#         expected_df_d = TestContactScorer.identify_expected_scores_and_distances(
-#             scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#             category='Medium')
-#         precision_expected1d, recall_expected1d, _ = precision_recall_curve(expected_df_d['Distance'] <= 8.0,
-#                                                                             1.0 - expected_df_d['Coverage'],
-#                                                                             pos_label=True)
-#         recall_expected1d, precision_expected1d = zip(*sorted(zip(recall_expected1d, precision_expected1d)))
-#         recall_expected1d, precision_expected1d = np.array(recall_expected1d), np.array(precision_expected1d)
-#         auprc_expected1d = auc(recall_expected1d, precision_expected1d)
-#         precision1d, recall1d, auprc1d = scorer.score_precision_recall(category='Medium')
-#         self.assertEqual(np.sum(precision_expected1d - precision1d), 0)
-#         self.assertEqual(np.sum(recall_expected1d - recall1d), 0)
-#         self.assertEqual(auprc_expected1d, auprc1d)
-#         expected_df_e = TestContactScorer.identify_expected_scores_and_distances(
-#             scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances, category='Long')
-#         precision_expected1e, recall_expected1e, _ = precision_recall_curve(expected_df_e['Distance'] <= 8.0,
-#                                                                             1.0 - expected_df_e['Coverage'],
-#                                                                             pos_label=True)
-#         recall_expected1e, precision_expected1e = zip(*sorted(zip(recall_expected1e, precision_expected1e)))
-#         recall_expected1e, precision_expected1e = np.array(recall_expected1e), np.array(precision_expected1e)
-#         auprc_expected1e = auc(recall_expected1e, precision_expected1e)
-#         precision1e, recall1e, auprc1e = scorer.score_precision_recall(category='Long')
-#         self.assertEqual(np.sum(precision_expected1e - precision1e), 0)
-#         self.assertEqual(np.sum(recall_expected1e - recall1e), 0)
-#         self.assertEqual(auprc_expected1e, auprc1e)
-#
-#     def test_11a_score_precision_recall(self):
-#         self.evaluate_score_precision_recall(scorer=self.scorer1, seq_len=self.seq_len1)
-#
-#     def test_11b_score_precision_recall(self):
-#         self.evaluate_score_precision_recall(scorer=self.scorer2, seq_len=self.seq_len2)
-#
-#     def evaluate_plot_auprc(self, scorer, seq_len, structure_id, dir):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(seq_len, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         auprc1a = scorer.score_precision_recall(category='Any')
-#         scorer.plot_auprc(auprc_data=auprc1a, title='{} AUPRC for All Pairs'.format(structure_id),
-#                           file_name='{}_Any_AUPRC'.format(structure_id), output_dir=dir)
-#         expected_path1 = os.path.abspath(os.path.join(dir, '{}_Any_AUPRC.png'.format(structure_id)))
-#         self.assertTrue(os.path.isfile(expected_path1))
-#         os.remove(expected_path1)
-#
-#     def test_12a_plot_auprc(self):
-#         self.evaluate_plot_auprc(scorer=self.scorer1, seq_len=self.seq_len1, structure_id=self.small_structure_id,
-#                                  dir=self.testing_dir)
-#
-#     def test_12b_plot_auprc(self):
-#         self.evaluate_plot_auprc(scorer=self.scorer2, seq_len=self.seq_len2, structure_id=self.large_structure_id,
-#                                  dir=self.testing_dir)
-#
-#     def evaluate_score_precision(self, scorer, seq_len):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(self.seq_len1, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         with self.assertRaises(ValueError):
-#             scorer.score_precision(category='Any', n=10, k=10)
-#         for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-#             print('Category: {}'.format(category))
-#             for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
-#                          (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
-#                 print('N: {}, K: {}'.format(n, k))
-#                 precision = scorer.score_precision(category=category, n=n, k=k)
-#                 expected_df = TestContactScorer.identify_expected_scores_and_distances(
-#                     scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#                     category=category, n=n, k=k)
-#                 expected_precision = precision_score(expected_df['Distance'] <= scorer.cutoff,
-#                                                      expected_df['Coverage'] <= 0.5, pos_label=True)
-#                 self.assertEqual(precision, expected_precision)
-#
-#     def test_13a_score_precision(self):
-#         self.evaluate_score_precision(scorer=self.scorer1, seq_len=self.seq_len1)
-#
-#     def test_13b_score_precision(self):
-#         self.evaluate_score_precision(scorer=self.scorer2, seq_len=self.seq_len2)
-#
-#     def evaluate_score_recall(self, scorer, seq_len):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(self.seq_len1, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         with self.assertRaises(ValueError):
-#             scorer.score_recall(category='Any', n=10, k=10)
-#         for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-#             print('Category: {}'.format(category))
-#             for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
-#                          (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
-#                 print('N: {}, K: {}'.format(n, k))
-#                 precision = scorer.score_precision(category=category, n=n, k=k)
-#                 expected_df = TestContactScorer.identify_expected_scores_and_distances(
-#                     scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#                     category=category, n=n, k=k)
-#                 expected_precision = precision_score(expected_df['Distance'] <= scorer.cutoff,
-#                                                      expected_df['Coverage'] <= 0.5, pos_label=True)
-#                 self.assertEqual(precision, expected_precision)
-#
-#     def test_14a_score_precision(self):
-#         self.evaluate_score_recall(scorer=self.scorer1, seq_len=self.seq_len1)
-#
-#     def test_14b_score_precision(self):
-#         self.evaluate_score_recall(scorer=self.scorer2, seq_len=self.seq_len2)
-#
-#     def evaluate_score_f1(self, scorer, seq_len):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(seq_len, seq_len)
-#         scores[np.tril_indices(self.seq_len1, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         with self.assertRaises(ValueError):
-#             scorer.score_recall(category='Any', n=10, k=10)
-#         for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-#             print('Category: {}'.format(category))
-#             for n, k in [(None, None), (10, None), (100, None), (None, 1), (None, 2), (None, 3), (None, 4), (None, 5),
-#                          (None, 6), (None, 7), (None, 8), (None, 9), (None, 10)]:
-#                 print('N: {}, K: {}'.format(n, k))
-#                 f1 = scorer.score_f1(category=category, n=n, k=k)
-#                 expected_df = TestContactScorer.identify_expected_scores_and_distances(
-#                     scorer=scorer, scores=scores, coverages=coverages, ranks=ranks, distances=scorer.distances,
-#                     category=category, n=n, k=k)
-#                 expected_f1 = f1_score(expected_df['Distance'] <= scorer.cutoff, expected_df['Coverage'] <= 0.5,
-#                                        pos_label=True)
-#                 self.assertEqual(f1, expected_f1)
-#
-#     def test_15a_score_f1(self):
-#         self.evaluate_score_f1(scorer=self.scorer1, seq_len=self.seq_len1)
-#
-#     def test_15b_score_f1(self):
-#         self.evaluate_score_f1(scorer=self.scorer2, seq_len=self.seq_len2)
-#
 #     def evaluate_compute_w2_ave_sub(self, scorer):
 #         scorer.fit()
 #         scorer.measure_distance(method='Any')
@@ -3025,64 +2881,6 @@ class TestContactScorerWriteOutCovariationAndStructuralData(TestCase):
 #     def test_18d_score_clustering_of_contact_predictions(self):
 #         self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer2, seq_len=self.seq_len2, bias=False)
 #
-#     def evaluate_write_out_clustering_results(self, scorer, seq_len):
-#         today = str(datetime.date.today())
-#         header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-#         #
-#         scorer.fit()
-#         scorer.measure_distance(method='Any')
-#         recip_map = {v: k for k, v in scorer.query_pdb_mapping.items()}
-#         struc_seq_map = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
-#         final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
-#         A, res_atoms = self._et_computeAdjacency(scorer.query_structure.structure[0][scorer.best_chain],
-#                                                  mapping=final_map)
-#         pdb_query_mapping = {v: k for k, v in scorer.query_pdb_mapping.items()}
-#         pdb_index_mapping = {k: i for i, k in enumerate(scorer.query_structure.pdb_residue_list[scorer.best_chain])}
-#         scores = np.random.RandomState(1234567890).rand(scorer.query_alignment.seq_length,
-#                                                          scorer.query_alignment.seq_length)
-#         scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         scorer.write_out_clustering_results(today=today, file_name='Contact_1a_Scores.tsv',
-#                                             output_dir=self.testing_dir)
-#         curr_path = os.path.join(self.testing_dir, 'Contact_1a_Scores.tsv')
-#         self.assertTrue(os.path.isfile(curr_path))
-#         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-#         self.assertEqual(list(test_df.columns), header)
-#         self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-#                            seq_pdb_map=scorer.query_pdb_mapping,
-#                            seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
-#                            distances=scorer.distances, adjacencies=A)
-#         os.remove(curr_path)
-#         scorer.write_out_clustering_results(today=None, file_name='Contact_1b_Scores.tsv',
-#                                             output_dir=self.testing_dir)
-#         curr_path = os.path.join(self.testing_dir, 'Contact_1b_Scores.tsv')
-#         self.assertTrue(os.path.isfile(curr_path))
-#         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-#         self.assertEqual(list(test_df.columns), header)
-#         self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-#                            seq_pdb_map=scorer.query_pdb_mapping,
-#                            seq=scorer.query_alignment.query_sequence, scores=scores, coverages=coverages,
-#                            distances=scorer.distances, adjacencies=A)
-#         os.remove(curr_path)
-#         scorer.write_out_clustering_results(today=today, file_name=None, output_dir=self.testing_dir)
-#         curr_path = os.path.join(self.testing_dir, "{}_{}.Covariance_vs_Structure.txt".format(today, scorer.query))
-#         self.assertTrue(os.path.isfile(curr_path))
-#         test_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-#         self.assertEqual(list(test_df.columns), header)
-#         self.comp_function(df=test_df, q_ind_map=pdb_index_mapping, q_to_s_map=pdb_query_mapping,
-#                            seq_pdb_map=scorer.query_pdb_mapping,
-#                            seq=scorer.query_alignment.query_sequence, scores=scores,coverages=coverages,
-#                            distances=scorer.distances, adjacencies=A)
-#         os.remove(curr_path)
-#
-#     def test_19a_write_out_clustering_results(self):
-#         self.evaluate_write_out_clustering_results(scorer=self.scorer1, seq_len=self.seq_len1)
-#
-#     def test_19b_write_out_clustering_results(self):
-#         self.evaluate_write_out_clustering_results(scorer=self.scorer2, seq_len=self.seq_len2)
-#
 #     def evaluate_evaluate_predictions(self, scorer, seq_len):
 #         scores = np.random.RandomState(1234567890).rand(seq_len, seq_len)
 #         scores[np.tril_indices(seq_len, 1)] = 0
@@ -3229,135 +3027,6 @@ class TestContactScorerWriteOutCovariationAndStructuralData(TestCase):
 #
 #     def test_21b_evaluate_predictor(self):
 #         self.evluate_evaluate_predictor(query_id=self.query2, aln_file=self.aln_file2, scorer=self.scorer2)
-#
-#     # # def test_write_out_contact_scoring(self):
-#     # #     aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y',
-#     # #                '-']
-#     # #     aa_dict = {aa_list[i]: i for i in range(len(aa_list))}
-#     # #     out_dir = os.path.abspath('../Test/')
-#     # #     today = str(datetime.date.today())
-#     # #     headers = {1: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
-#     # #                2: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
-#     # #                3: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Raw_Score_3', 'Integrated_Score', 'Final_Score', 'Coverage_Score'],
-#     # #                4: ['Pos1', 'AA1', 'Pos2', 'AA2', 'Raw_Score_1', 'Raw_Score_2', 'Raw_Score_3', 'Raw_Score_4', 'Integrated_Score', 'Final_Score', 'Coverage_Score']}
-#     # #     #
-#     # #     self.scorer1.fit()
-#     # #     self.scorer1.measure_distance(method='Any')
-#     # #     path1 = os.path.join(out_dir, '1c17A.fa')
-#     # #     etmipc1 = ETMIPC(path1)
-#     # #     start1 = time()
-#     # #     time1 = etmipc1.calculate_scores(curr_date=today, query='1c17A', tree_depth=(2, 5),
-#     # #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
-#     # #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-#     # #                                                                                   'linkage': 'ward'},
-#     # #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
-#     # #                                      del_intermediate=False, low_mem=False)
-#     # #     end1 = time()
-#     # #     print(time1)
-#     # #     print(end1 - start1)
-#     # #     self.assertLessEqual(time1, end1 - start1)
-#     # #     for branch1 in etmipc1.tree_depth:
-#     # #         branch_dir = os.path.join(etmipc1.output_dir, str(branch1))
-#     # #         self.assertTrue(os.path.isdir(branch_dir))
-#     # #         score_path = os.path.join(branch_dir,
-#     # #                                   "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, branch1))
-#     # #         self.assertTrue(os.path.isfile(score_path))
-#     # #         test_df = pd.read_csv(score_path, index_col=None, delimiter='\t')
-#     # #         self.assertEqual(list(test_df.columns), headers[branch1])
-#     # #         self.score_comp_function(df=test_df, seq=self.scorer1.query_alignment.query_sequence,
-#     # #                                  clusters=etmipc1.get_cluster_scores(branch=branch1),
-#     # #                                  branches=etmipc1.get_branch_scores(branch=branch1),
-#     # #                                  scores=etmipc1.get_scores(branch=branch1),
-#     # #                                  coverages=etmipc1.get_coverage(branch=branch1))
-#     # #     for curr_pos, mapped_pos in etmipc1.cluster_mapping.items():
-#     # #         curr_path = os.path.join(etmipc1.output_dir, str(curr_pos[0]),
-#     # #                                  "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, curr_pos[0]))
-#     # #         mapped_path = os.path.join(etmipc1.output_dir, str(mapped_pos[0]),
-#     # #                                    "{}_{}_{}.all_scores.txt".format(today, self.scorer1.query, mapped_pos[0]))
-#     # #         curr_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-#     # #         mapped_df = pd.read_csv(mapped_path, index_col=None, delimiter='\t')
-#     # #         self.score_comp_nonunique_cluster_files(df1=curr_df, df2=mapped_df, cluster1=curr_pos[1],
-#     # #                                                 cluster2=mapped_pos[1])
-#     # #     for branch1 in etmipc1.tree_depth:
-#     # #         rmtree(os.path.join(etmipc1.output_dir, str(branch1)))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1c17A')))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1c17A')))
-#     # #     rmtree(os.path.join(out_dir, 'joblib'))
-#     # #     #
-#     # #     self.scorer2.fit()
-#     # #     self.scorer2.measure_distance(method='Any')
-#     # #     path2 = os.path.join(out_dir, '1h1vA.fa')
-#     # #     etmipc2 = ETMIPC(path2)
-#     # #     start2 = time()
-#     # #     time2 = etmipc2.calculate_scores(curr_date=today, query='1h1vA', tree_depth=(2, 5),
-#     # #                                      out_dir=out_dir, processes=1, ignore_alignment_size=True,
-#     # #                                      clustering='agglomerative', clustering_args={'affinity': 'euclidean',
-#     # #                                                                                   'linkage': 'ward'},
-#     # #                                      aa_mapping=aa_dict, combine_clusters='sum', combine_branches='sum',
-#     # #                                      del_intermediate=False, low_mem=False)
-#     # #     end2 = time()
-#     # #     print(time2)
-#     # #     print(end2 - start2)
-#     # #     self.assertLessEqual(time2, end2 - start2)
-#     # #     for branch2 in etmipc2.tree_depth:
-#     # #         branch_dir = os.path.join(etmipc2.output_dir, str(branch2))
-#     # #         self.assertTrue(os.path.isdir(branch_dir))
-#     # #         score_path = os.path.join(branch_dir,
-#     # #                                   "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, branch2))
-#     # #         self.assertTrue(os.path.isfile(score_path))
-#     # #         test_df = pd.read_csv(score_path, index_col=None, delimiter='\t')
-#     # #         self.assertEqual(list(test_df.columns), headers[branch2])
-#     # #         self.score_comp_function(df=test_df, seq=self.scorer2.query_alignment.query_sequence,
-#     # #                                  clusters=etmipc2.get_cluster_scores(branch=branch2),
-#     # #                                  branches=etmipc2.get_branch_scores(branch=branch2),
-#     # #                                  scores=etmipc2.get_scores(branch=branch2),
-#     # #                                  coverages=etmipc2.get_coverage(branch=branch2))
-#     # #     for curr_pos, mapped_pos in etmipc2.cluster_mapping.items():
-#     # #         curr_path = os.path.join(etmipc2.output_dir, str(curr_pos[0]),
-#     # #                                  "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, curr_pos[0]))
-#     # #         mapped_path = os.path.join(etmipc2.output_dir, str(mapped_pos[0]),
-#     # #                                    "{}_{}_{}.all_scores.txt".format(today, self.scorer2.query, mapped_pos[0]))
-#     # #         curr_df = pd.read_csv(curr_path, index_col=None, delimiter='\t')
-#     # #         mapped_df = pd.read_csv(mapped_path, index_col=None, delimiter='\t')
-#     # #         self.score_comp_nonunique_cluster_files(df1=curr_df, df2=mapped_df, cluster1=curr_pos[1],
-#     # #                                                 cluster2=mapped_pos[1])
-#     # #     for branch2 in etmipc2.tree_depth:
-#     # #         rmtree(os.path.join(etmipc2.output_dir, str(branch2)))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'alignment.pkl'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'ungapped_alignment.pkl'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'UngappedAlignment.fa'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), 'X.npz'))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.npz'.format('1h1vA')))
-#     # #     os.remove(os.path.join(os.path.abspath('../Test/'), '{}_cET-MIp.pkl'.format('1h1vA')))
-#     # #     rmtree(os.path.join(out_dir, 'joblib'))
-#     #
-#     # # def test_heatmap_plot(self):
-#     # #     save_dir = os.path.abspath('../Test')
-#     # #     #
-#     # #     scores1 = np.random.rand(79, 79)
-#     # #     scores1[np.tril_indices(79, 1)] = 0
-#     # #     scores1 += scores1.T
-#     # #     heatmap_plot(name='Score 1 Heatmap Plot', data_mat=scores1, output_dir=save_dir)
-#     # #     expected_path1 = os.path.abspath(os.path.join(save_dir, 'Score_1_Heatmap_Plot.eps'))
-#     # #     print(expected_path1)
-#     # #     self.assertTrue(os.path.isfile(expected_path1))
-#     # #     os.remove(expected_path1)
-#     # #
-#     # # def test_surface_plot(self):
-#     # #     save_dir = os.path.abspath('../Test')
-#     # #     #
-#     # #     scores1 = np.random.rand(79, 79)
-#     # #     scores1[np.tril_indices(79, 1)] = 0
-#     # #     scores1 += scores1.T
-#     # #     surface_plot(name='Score 1 Surface Plot', data_mat=scores1, output_dir=save_dir)
-#     # #     expected_path1 = os.path.abspath(os.path.join(save_dir, 'Score_1_Surface_Plot.eps'))
-#     # #     print(expected_path1)
-#     # #     self.assertTrue(os.path.isfile(expected_path1))
-#     # #     os.remove(expected_path1)
 
 
 if __name__ == '__main__':
