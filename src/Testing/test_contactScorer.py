@@ -4,8 +4,8 @@ import math
 import datetime
 import unittest
 import numpy as np
-from pymol import cmd
 import pandas as pd
+from pymol import cmd
 from time import time
 from math import floor
 from shutil import rmtree
@@ -2081,7 +2081,121 @@ class TestContactScorerScoreF1(TestCase):
         self.evaluate_score_f1(scorer=scorer, k=2)
 
 
-# class TestContactScorerWriteOutClusteringResults(TestCase):
+class TestContactScorerWriteOutCovariationAndStructuralData(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_write_out_covariation_and_structural_data(self, scorer, filename, output_dir, expected_path):
+        self.assertFalse(os.path.isfile(expected_path))
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        scorer.write_out_covariation_and_structural_data(file_name=filename, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_path))
+        df = pd.read_csv(expected_path, sep='\t', header=0, index_col=None)
+        self.assertEqual(len(df), len(scorer.data))
+        self.assertTrue(all(df.columns == ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'PDB Pos1',
+                                           '(PDB AA1)', 'PDB Pos2', '(PDB AA2)', 'Residue_Dist', 'Within_Threshold']))
+        self.assertTrue(all(scorer.data['Seq Pos 1'] == df['Pos1']))
+        self.assertTrue(all(scorer.data['Seq AA 1'] == df['(AA1)']))
+        self.assertTrue(all(scorer.data['Seq Pos 2'] == df['Pos2']))
+        self.assertTrue(all(scorer.data['Seq AA 2'] == df['(AA2)']))
+        self.assertTrue(all(np.abs(scorer.data['Score'] - df['Raw_Score']) < 1E-6))
+        self.assertTrue(all(np.abs(scorer.data['Coverage'] - df['Coverage_Score']) < 1E-6))
+        self.assertTrue(all(scorer.data['Struct Pos 1'] == df['PDB Pos1']))
+        self.assertTrue(all(scorer.data['Struct AA 1'] == df['(PDB AA1)']))
+        self.assertTrue(all(scorer.data['Struct Pos 2'] == df['PDB Pos2']))
+        self.assertTrue(all(scorer.data['Struct AA 2'] == df['(PDB AA2)']))
+        self.assertTrue(all(np.abs(scorer.data['Distance'] - df['Residue_Dist']) < 1E-6))
+        self.assertTrue(all(scorer.data[f'Contact (within {scorer.cutoff}A cutoff)'] == df['Within_Threshold']))
+
+    def test_seq1_no_filename_no_dir(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=8.0, chain='A')
+        expected_path = f"{datetime.datetime.now().strftime('%m_%d_%Y')}_{scorer.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=None,
+                                                                expected_path=expected_path)
+        os.remove(expected_path)
+
+    def test_seq1_filename_no_dir(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=8.0, chain='A')
+        expected_path = "Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=expected_path, output_dir=None,
+                                                                expected_path=expected_path)
+        os.remove(expected_path)
+
+    def test_seq1_no_filename_dir(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=8.0, chain='A')
+        new_dir = 'Output'
+        os.mkdir(new_dir)
+        expected_path = f"{datetime.datetime.now().strftime('%m_%d_%Y')}_{scorer.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=new_dir,
+                                                                expected_path=os.path.join(new_dir, expected_path))
+        rmtree(new_dir)
+
+    def test_seq1_filename_dir(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=8.0, chain='A')
+        new_dir = 'Output'
+        os.mkdir(new_dir)
+        expected_path = "Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=expected_path,
+                                                                output_dir=new_dir,
+                                                                expected_path=os.path.join(new_dir, expected_path))
+        rmtree(new_dir)
+
+    def test_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=8.0, chain='A')
+        expected_path = f"{datetime.datetime.now().strftime('%m_%d_%Y')}_{scorer.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=None,
+                                                                expected_path=expected_path)
+        os.remove(expected_path)
+
+    def test_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=8.0, chain='B')
+        expected_path = f"{datetime.datetime.now().strftime('%m_%d_%Y')}_{scorer.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=None,
+                                                                expected_path=expected_path)
+        os.remove(expected_path)
+
+    def test_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=8.0, chain='B')
+        expected_path = f"{datetime.datetime.now().strftime('%m_%d_%Y')}_{scorer.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
+        self.evaluate_write_out_covariation_and_structural_data(scorer=scorer, filename=None, output_dir=None,
+                                                                expected_path=expected_path)
+        os.remove(expected_path)
 # class TestContactScorerEvaluatePredictor(TestCase):
 # class TestContactScorerEvaluatePredictions(TestCase):
 # class TestWriteOutContactScoring(TestCase):

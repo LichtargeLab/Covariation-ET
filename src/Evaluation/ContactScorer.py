@@ -10,6 +10,7 @@ import pandas as pd
 from pymol import cmd
 from time import time
 from math import floor
+from datetime import datetime
 from multiprocessing import Pool
 from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
@@ -19,6 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
+# from SupportingClasses.Predictor import Predictor
 from Evaluation.SequencePDBMap import SequencePDBMap
 
 
@@ -837,24 +839,21 @@ class ContactScorer(object):
         print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
         return df, w_and_w2_ave_sub, au_scw_z_score_curve
 
-    def write_out_clustering_results(self, today, output_dir, file_name=None, prefix=None):
+    def write_out_covariation_and_structural_data(self, output_dir=None, file_name=None):
         """
         Write Out Clustering Results
 
         This method writes the covariation scores to file along with the structural validation data if available.
 
         Args:
-            today (date/str): Today's date.
             output_dir (str): The full path to where the output file should be stored. If None (default) the file will
             be stored in the current working directory.
             file_name (str): The filename under which to save the results.
-            prefix (str): A string to prepend to the specified file_name.
         """
         start = time()
         if file_name is None:
-            file_name = "{}_{}.Covariance_vs_Structure.txt".format(today, self.query_pdb_mapper.query)
-        if prefix is not None and prefix != '':
-            file_name = prefix + file_name
+            file_name = f"{datetime.now().strftime('%m_%d_%Y')}_{self.query_pdb_mapper.query}" \
+                        ".Covariance_vs_Structure.tsv"
         if output_dir:
             file_name = os.path.join(output_dir, file_name)
         if os.path.isfile(file_name):
@@ -862,12 +861,16 @@ class ContactScorer(object):
             print('Contact prediction scores and structural validation data already written {} min'.format(
                 (end - start) / 60.0))
             return
-        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'Residue_Dist', 'Within_Threshold']
-        df = self.data[['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Score', 'Coverage', 'Distance',
-                        'Contact (within {}A cutoff)'.format(self.cutoff)]]
+        header = ['Pos1', '(AA1)', 'Pos2', '(AA2)', 'Raw_Score', 'Coverage_Score', 'PDB Pos1', '(PDB AA1)', 'PDB Pos2',
+                  '(PDB AA2)', 'Residue_Dist', 'Within_Threshold']
+        df = self.data[['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Score', 'Coverage', 'Struct Pos 1',
+                        'Struct AA 1', 'Struct Pos 2', 'Struct AA 2', 'Distance',
+                        f'Contact (within {self.cutoff}A cutoff)']]
         df = df.rename(columns={'Seq Pos 1': 'Pos1', 'Seq AA 1': '(AA1)', 'Seq Pos 2': 'Pos2', 'Seq AA 2': '(AA2)',
-                                'Score': 'Raw_Score', 'Coverage': 'Coverage_Score', 'Distance': 'Residue_Dist',
-                                'Contact (within {}A cutoff)'.format(self.cutoff): 'Within_Threshold'})
+                                'Score': 'Raw_Score', 'Coverage': 'Coverage_Score', 'Struct Pos 1': 'PDB Pos1',
+                                'Struct AA 1': '(PDB AA1)', 'Struct Pos 2': 'PDB Pos2', 'Struct AA 2': '(PDB AA2)',
+                                'Distance': 'Residue_Dist',
+                                f'Contact (within {self.cutoff}A cutoff)': 'Within_Threshold'})
         df.to_csv(file_name, sep='\t', header=True, index=False, columns=header)
         end = time()
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
