@@ -11,9 +11,7 @@ from pymol import cmd
 from time import time
 from math import floor
 from multiprocessing import Pool
-from Bio import pairwise2
 from Bio.PDB.Polypeptide import one_to_three
-from Bio.SubsMat import MatrixInfo as matlist
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
 matplotlib.use('Agg')
@@ -21,8 +19,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
-from SupportingClasses.SeqAlignment import SeqAlignment
-from SupportingClasses.PDBReference import PDBReference
+from Evaluation.SequencePDBMap import SequencePDBMap
 
 
 class ContactScorer(object):
@@ -45,8 +42,8 @@ class ContactScorer(object):
         cutoff (float): Value to use as a distance cutoff for contact prediction.
         best_chain (str): The chain in the provided pdb which most closely matches the query sequence as specified by
         in the "chain" option of the __init__ function or determined by pairwise global alignment.
-        query_pdb_mapping (dict): A mapping from the index of the query sequence to the index of the pdb chain's
-        sequence for those positions which match according to a pairwise global alignment.
+        query_pdb_mapper (SequencePDBMap): An mapping from the index of the query sequence to the index of the
+        pdb chain's sequence for those positions which match according to a pairwise global alignment and vice versa.
         _specific_mapping (dict): A mapping for the indices of the distance matrix used to determine residue contacts.
         distances (np.array): The distances between residues, used for determining those which are in contact in order
         to assess predictions.
@@ -77,18 +74,9 @@ class ContactScorer(object):
             chain will be identified by aligning the query sequence from seq_alignment against the chains in
             pdb_reference and the closest match will be selected.
         """
-        self.query = query
-        if isinstance(seq_alignment, os.PathLike):
-            self.query_alignment = os.path.abspath(seq_alignment)
-        else:
-            self.query_alignment = seq_alignment
-        if isinstance(pdb_reference, os.PathLike):
-            self.query_structure = os.path.abspath(pdb_reference)
-        else:
-            self.query_structure = pdb_reference
+        self.query_pdb_mapper = SequencePDBMap(query=query, query_alignment=seq_alignment,
+                                               query_structure=pdb_reference, chain=chain)
         self.cutoff = cutoff
-        self.best_chain = chain
-        self.query_pdb_mapping = None
         self._specific_mapping = None
         self.distances = None
         self.dist_type = None
@@ -105,13 +93,14 @@ class ContactScorer(object):
 
         Usage Example:
         >>> scorer = ContactScorer(p53_sequence, p53_structure, query='P53', cutoff=8.0)
-        >>> scorer.fit()
+        >>> scorer.fit
         >>> str(scorer)
         """
-        if (self.best_chain is None) or (self.query_pdb_mapping is None):
+        if not self.query_pdb_mapper.is_aligned():
             raise ValueError('Scorer not yet fitted.')
-        return 'Query Sequence of Length: {}\nPDB with {} Chains\nBest Sequence Match to Chain: {}'.format(
-            self.query_alignment.seq_length, len(self.query_structure.chains), self.best_chain)
+        return f'Query Sequence of Length: {self.query_pdb_mapper.seq_aln.seq_length}\n' \
+               f'PDB with {len(self.query_pdb_mapper.pdb_ref.chains)} Chains\n' \
+               f'Best Sequence Match to Chain: {self.query_pdb_mapper.best_chain}'
 
     def fit(self):
         """
@@ -122,51 +111,9 @@ class ContactScorer(object):
         (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
         query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
         """
-        gap_open = -10
-        gap_extend = -0.5
-        if (self.best_chain is None) or (self.query_pdb_mapping is None):
+        if not self.query_pdb_mapper.is_aligned():
             start = time()
-            if self.query_alignment is None:
-                raise ValueError('Scorer cannot be fit, because no alignment was provided.')
-            else:
-                if not isinstance(self.query_alignment, SeqAlignment):
-                    self.query_alignment = SeqAlignment(file_name=self.query_alignment, query_id=self.query)
-                self.query_alignment.import_alignment()
-                self.query_alignment = self.query_alignment.remove_gaps()
-            if self.query_structure is None:
-                raise ValueError('Scorer cannot be fit, because no PDB was provided.')
-            else:
-                if not isinstance(self.query_structure, PDBReference):
-                    self.query_structure = PDBReference(pdb_file=self.query_structure)
-                self.query_structure.import_pdb(structure_id=self.query)
-            if self.best_chain is None:
-                best_chain = None
-                best_alignment = None
-                for ch in self.query_structure.seq:
-                    curr_align = pairwise2.align.globalds(self.query_alignment.query_sequence,
-                                                          self.query_structure.seq[ch], matlist.blosum62, gap_open,
-                                                          gap_extend)
-                    if (best_alignment is None) or (best_alignment[0][2] < curr_align[0][2]):
-                        best_alignment = curr_align
-                        best_chain = ch
-                self.best_chain = best_chain
-            else:
-                best_alignment = pairwise2.align.globalds(self.query_alignment.query_sequence,
-                                                          self.query_structure.seq[self.best_chain], matlist.blosum62,
-                                                          gap_open, gap_extend)
-            print(pairwise2.format_alignment(*best_alignment[0]))
-            if self.query_pdb_mapping is None:
-                f_counter = 0
-                p_counter = 0
-                f_to_p_map = {}
-                for i in range(len(best_alignment[0][0])):
-                    if (best_alignment[0][0][i] != '-') and (best_alignment[0][1][i] != '-'):
-                        f_to_p_map[f_counter] = p_counter
-                    if best_alignment[0][0][i] != '-':
-                        f_counter += 1
-                    if best_alignment[0][1][i] != '-':
-                        p_counter += 1
-                self.query_pdb_mapping = f_to_p_map
+            self.query_pdb_mapper.align()
             end = time()
             print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
         if (self.data is None) or (not self.data.columns.isin(
@@ -175,25 +122,19 @@ class ContactScorer(object):
             start = time()
             data_dict = {'Seq Pos 1': [], 'Seq AA 1': [], 'Seq Pos 2': [], 'Seq AA 2': [], 'Struct Pos 1': [],
                          'Struct AA 1': [], 'Struct Pos 2': [], 'Struct AA 2': []}
-            for pos1 in range(self.query_alignment.seq_length):
-                char1 = self.query_alignment.query_sequence[pos1]
-                pos_other = list(range(pos1 + 1, self.query_alignment.seq_length))
-                char_other = list(self.query_alignment.query_sequence[pos1+1:])
-                if pos1 in self.query_pdb_mapping:
-                    struct_pos1 = self.query_structure.pdb_residue_list[self.best_chain][self.query_pdb_mapping[pos1]]
-                    struct_char1 = self.query_structure.residue_pos[self.best_chain][struct_pos1]
-                else:
-                    struct_pos1 = '-'
-                    struct_char1 = '-'
+            for pos1 in range(self.query_pdb_mapper.seq_aln.seq_length):
+                char1 = self.query_pdb_mapper.seq_aln.query_sequence[pos1]
+                pos_other = list(range(pos1 + 1, self.query_pdb_mapper.seq_aln.seq_length))
+                char_other = list(self.query_pdb_mapper.seq_aln.query_sequence[pos1+1:])
+                struct_pos1, struct_char1 = self.query_pdb_mapper.map_seq_position_to_pdb_res(pos1)
+                if struct_pos1 is None:
+                    struct_pos1, struct_char1 = '-', '-'
                 struct_pos_other = []
                 struct_char_other = []
                 for pos2 in pos_other:
-                    if pos2 in self.query_pdb_mapping:
-                        struct_pos2 = self.query_structure.pdb_residue_list[self.best_chain][self.query_pdb_mapping[pos2]]
-                        struct_char2 = self.query_structure.residue_pos[self.best_chain][struct_pos2]
-                    else:
-                        struct_pos2 = '-'
-                        struct_char2 = '-'
+                    struct_pos2, struct_char2 = self.query_pdb_mapper.map_seq_position_to_pdb_res(pos2)
+                    if struct_pos2 is None:
+                        struct_pos2, struct_char2 = '-', '-'
                     struct_pos_other.append(struct_pos2)
                     struct_char_other.append(struct_char2)
                 data_dict['Seq Pos 1'] += [pos1] * len(pos_other)
@@ -243,7 +184,8 @@ class ContactScorer(object):
             for atm in model.atom:
                 all_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
         else:
-            raise ValueError(f'No atoms found for Structure: {self.query} Chain: {self.best_chain} Residue: {residue.get_id()[1]}')
+            raise ValueError(f'No atoms found for Structure: {self.query_pdb_mapper.query} Chain: '
+                             f'{self.query_pdb_mapper.best_chain} Residue: {residue.get_id()[1]}')
         return all_coords
 
     def _get_c_alpha_coords(self, residue):
@@ -337,7 +279,7 @@ class ContactScorer(object):
             stored on a previous run (optional).
     """
         start = time()
-        if self.query_structure is None:
+        if self.query_pdb_mapper.pdb_ref is None:
             raise ValueError('Distance cannot be measured, because no PDB was provided.')
         elif ((self.distances is not None) and (self.dist_type == method) and
               (pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all())):
@@ -345,20 +287,21 @@ class ContactScorer(object):
         elif (save_file is not None) and os.path.exists(save_file):
             dists = np.load(save_file + '.npz')['dists']
         else:
-            if self.best_chain is None:
-                self.fit()
+            if not self.query_pdb_mapper.is_aligned():
+                self.query_pdb_mapper.align()
             self.data['Distance'] = '-'
             # Open and load PDB structure in pymol, needed for get_coord methods
-            cmd.load(self.query_structure.file_name, self.query)
-            cmd.select('best_chain', f'{self.query} and chain {self.best_chain}')
-            dists = np.zeros((self.query_structure.size[self.best_chain], self.query_structure.size[self.best_chain]))
+            cmd.load(self.query_pdb_mapper.pdb_ref.file_name, self.query_pdb_mapper.query)
+            cmd.select('best_chain', f'{self.query_pdb_mapper.query} and chain {self.query_pdb_mapper.best_chain}')
+            chain_size = self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]
+            dists = np.zeros((chain_size, chain_size))
             coords = {}
             counter = 0
             pos = {}
             key = {}
             # Loop over all residues in the pdb
-            for res_num1 in self.query_structure.pdb_residue_list[self.best_chain]:
-                residue = self.query_structure.structure[0][self.best_chain][res_num1]
+            for res_num1 in self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain]:
+                residue = self.query_pdb_mapper.pdb_ref.structure[0][self.query_pdb_mapper.best_chain][res_num1]
                 # Loop over residues to calculate distance between all residues i and j
                 if res_num1 not in coords:
                     pos[res_num1] = counter
@@ -375,7 +318,7 @@ class ContactScorer(object):
                     norms = np.linalg.norm(res1, axis=2)
                     dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = np.min(norms)
             # Delete loaded structure from pymol session
-            cmd.delete(self.query)
+            cmd.delete(self.query_pdb_mapper.query)
             if save_file is not None:
                 np.savez(save_file, dists=dists)
         indices = self.data.loc[(self.data['Struct Pos 1'] != '-') & (self.data['Struct Pos 2'] != '-')].index
@@ -445,7 +388,7 @@ class ContactScorer(object):
         # Add predictions to the internal data representation, simultaneously mapping them to the structural data.
         if self.data is None:
             self.fit()
-        indices = np.triu_indices(n=self.query_alignment.seq_length, k=1)
+        indices = np.triu_indices(n=self.query_pdb_mapper.seq_aln.seq_length, k=1)
         self.data['Rank'] = ranks[indices]
         self.data['Score'] = predictions[indices]
         self.data['Coverage'] = coverages[indices]
@@ -501,7 +444,7 @@ class ContactScorer(object):
         final_df = final_subset.sort_values(by='Coverage')
         final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
         if k:
-            n = int(floor(self.query_alignment.seq_length / float(k)))
+            n = int(floor(self.query_pdb_mapper.seq_aln.seq_length / float(k)))
         elif n is None:
             n = self.data.shape[0]
         else:
@@ -560,7 +503,7 @@ class ContactScorer(object):
         if (auc_data[0] is None) and (auc_data[1] is None) and (auc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_roc.png'.format(self.query, self.cutoff)
+            file_name = '{}_Cutoff{}A_roc.png'.format(self.query_pdb_mapper.query, self.cutoff)
         if not file_name.endswith('.png'):
             file_name = file_name + '.png'
         if output_dir:
@@ -575,7 +518,7 @@ class ContactScorer(object):
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         if title is None:
-            title = 'Ability to predict positive contacts in {}'.format(self.query)
+            title = 'Ability to predict positive contacts in {}'.format(self.query_pdb_mapper.query)
         plt.title(title)
         plt.legend(loc="lower right")
         plt.savefig(file_name, format='png', dpi=300, fontsize=8)
@@ -634,7 +577,7 @@ class ContactScorer(object):
         if (auprc_data[0] is None) and (auprc_data[1] is None) and (auprc_data[2] in {None, '-', 'NA'}):
             return
         if file_name is None:
-            file_name = '{}_Cutoff{}A_auprc.png'.format(self.query, self.cutoff)
+            file_name = '{}_Cutoff{}A_auprc.png'.format(self.query_pdb_mapper.query, self.cutoff)
         if not file_name.endswith('.png'):
             file_name = file_name + '.png'
         if output_dir:
@@ -649,7 +592,7 @@ class ContactScorer(object):
         plt.xlabel('Recall')
         plt.ylabel('Precision')
         if title is None:
-            title = 'Ability to predict positive contacts in {}'.format(self.query)
+            title = 'Ability to predict positive contacts in {}'.format(self.query_pdb_mapper.query)
         plt.title(title)
         plt.legend(loc="lower left")
         plt.savefig(file_name, format='png', dpi=300, fontsize=8)
@@ -791,7 +734,7 @@ class ContactScorer(object):
             float: The area under the curve defined by the z-scores and the protein coverage.
         """
         start = time()
-        if self.query_structure is None:
+        if self.query_pdb_mapper.query_structure is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
             return pd.DataFrame(), None, None
             # If data has already been computed load and return it without recomputing.
@@ -800,7 +743,7 @@ class ContactScorer(object):
             df_sub = df.replace([None, '-', 'NA'], np.nan)
             df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
-            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_alignment.seq_length)
+            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_pdb_mapper.query_alignment.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
@@ -835,7 +778,7 @@ class ContactScorer(object):
         if w_and_w2_ave_sub is None:
             w_and_w2_ave_sub = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
             pool = Pool(processes=processes, initializer=init_compute_w_and_w2_ave_sub,
-                        initargs=(self.distances, self.query_structure.pdb_residue_list[self.best_chain], bias))
+                        initargs=(self.distances, self.query_pdb_mapper.query_structure.pdb_residue_list[self.query_pdb_mapper.best_chain], bias))
             res = pool.map_async(compute_w_and_w2_ave_sub, range(self.distances.shape[0]))
             pool.close()
             pool.join()
@@ -844,8 +787,9 @@ class ContactScorer(object):
                     w_and_w2_ave_sub[key] += cases[key]
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
-                     initargs=(bias, w_and_w2_ave_sub, self.query_structure, self.query_pdb_mapping, self.distances,
-                               self.best_chain))
+                     initargs=(bias, w_and_w2_ave_sub, self.query_pdb_mapper.query_structure,
+                               self.query_pdb_mapper.query_pdb_mapping, self.distances,
+                               self.query_pdb_mapper.best_chain))
         res = pool2.map(clustering_z_score, to_score)
         pool2.close()
         pool2.join()
@@ -862,7 +806,7 @@ class ContactScorer(object):
             data['Num_Residues'] += [curr_res[11]] * curr_len
             if curr_res[6] not in {None, '-', 'NA'}:
                 y_z_score.append(curr_res[6])
-                x_coverage.append(float(curr_res[11]) / self.query_alignment.seq_length)
+                x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.query_alignment.seq_length)
         data_df['Z-Score'] = data['Z-Score']
         data_df['W'] = data['W']
         data_df['W_Ave'] = data['W_Ave']
@@ -908,7 +852,7 @@ class ContactScorer(object):
         """
         start = time()
         if file_name is None:
-            file_name = "{}_{}.Covariance_vs_Structure.txt".format(today, self.query)
+            file_name = "{}_{}.Covariance_vs_Structure.txt".format(today, self.query_pdb_mapper.query)
         if prefix is not None and prefix != '':
             file_name = prefix + file_name
         if output_dir:

@@ -30,14 +30,13 @@ if source_code_path not in sys.path:
     sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
 #
 
+from EvolutionaryTrace import EvolutionaryTrace
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.utils import compute_rank_and_coverage
-from SupportingClasses.EvolutionaryTrace import EvolutionaryTrace
 from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
-from SupportingClasses.ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores,
-                                             init_compute_w_and_w2_ave_sub, compute_w_and_w2_ave_sub,
-                                             init_clustering_z_score, clustering_z_score)
+from Evaluation.ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores)
+from Evaluation.SequencePDBMap import SequencePDBMap
 from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,
                                write_out_temp_fn, protein_aln)
 from Testing.test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
@@ -109,15 +108,16 @@ def identify_expected_scores_and_distances(scorer, scores, coverages, ranks, dis
                                            cutoff=8.0, threshold=0.5):
     seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
     converted_ind = list(zip(*seq_sep_ind))
-    dist_ind = [(scorer.query_pdb_mapping[x[0]], scorer.query_pdb_mapping[x[1]]) for x in seq_sep_ind]
+    dist_ind = [(scorer.query_pdb_mapper.query_pdb_mapping[x[0]], scorer.query_pdb_mapper.query_pdb_mapping[x[1]])
+                for x in seq_sep_ind]
     converted_dist_ind = list(zip(*dist_ind))
     if n and k:
         raise ValueError('Both n and k cannot be defined when identifying data for testing.')
     elif n is None and k is None:
         # n = len(converted_ind[0])
-        n = scorer.query_alignment.seq_length
+        n = scorer.query_pdb_mapper.seq_aln.seq_length
     elif k is not None:
-        n = int(floor(scorer.query_alignment.seq_length / float(k)))
+        n = int(floor(scorer.query_pdb_mapper.seq_aln.seq_length / float(k)))
     else:
         pass
     scores_subset = scores[converted_ind]
@@ -132,9 +132,9 @@ def identify_expected_scores_and_distances(scorer, scores, coverages, ranks, dis
                                  'Contact': [], 'Top Predictions': []})
     else:
         df = pd.DataFrame({'Seq Pos 1': converted_ind[0], 'Seq Pos 2': converted_ind[1],
-                           'Struct Pos 1': [scorer.query_structure.pdb_residue_list[scorer.best_chain][x]
+                           'Struct Pos 1': [scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scorer.query_pdb_mapper.best_chain][x]
                                             for x in converted_dist_ind[0]],
-                           'Struct Pos 2': [scorer.query_structure.pdb_residue_list[scorer.best_chain][x]
+                           'Struct Pos 2': [scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scorer.query_pdb_mapper.best_chain][x]
                                             for x in converted_dist_ind[1]],
                            'Score': scores_subset, 'Coverage': coverage_subset, 'Rank': ranks_subset,
                            'Predictions': preds_subset, 'Distance': distance_subset, 'Contact': contact_subset})
@@ -150,14 +150,8 @@ class TestContactScorerInit(TestCase):
     def evaluate_init(self, expected_query, expected_aln, expected_structure, expected_cutoff, expected_chain):
         scorer = ContactScorer(query=expected_query, seq_alignment=expected_aln, pdb_reference=expected_structure,
                                cutoff=expected_cutoff, chain=expected_chain)
-        self.assertEqual(scorer.query_alignment, expected_aln)
-        self.assertEqual(scorer.query_structure, expected_structure)
-        self.assertEqual(scorer.cutoff, expected_cutoff)
-        if expected_chain:
-            self.assertEqual(scorer.best_chain, expected_chain)
-        else:
-            self.assertIsNone(scorer.best_chain)
-        self.assertIsNone(scorer.query_pdb_mapping)
+        self.assertIsInstance(scorer.query_pdb_mapper, SequencePDBMap)
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
         self.assertIsNone(scorer._specific_mapping)
         self.assertIsNone(scorer.distances)
         self.assertIsNone(scorer.dist_type)
@@ -202,339 +196,6 @@ class TestContactScorerInit(TestCase):
     def test_init_failure_empty(self):
         with self.assertRaises(TypeError):
             ContactScorer()
-
-
-class TestContactScorerFit(TestCase):
-
-    def setUp(self):
-        self.expected_mapping_A = {0: 0, 1: 1, 2: 2}
-        self.expected_mapping_B = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4}
-        self.expected_mapping_mismatch = {0: 0, 1: 3, 2: 4}
-        self.expected_pro_seq_2 = SeqRecord(id='seq2', seq=Seq('MTREE', alphabet=FullIUPACProtein()))
-        self.expected_pro_seq_3 = SeqRecord(id='seq3', seq=Seq('MFREE', alphabet=FullIUPACProtein()))
-
-    def evaluate_fit(self, scorer, expected_aln, expected_struct, expected_chain, expected_mapping, expected_seq):
-        self.assertEqual(scorer.query_alignment, expected_aln)
-        self.assertEqual(scorer.query_structure, expected_struct)
-        scorer.fit()
-        self.assertEqual(scorer.best_chain, expected_chain)
-        self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
-        self.assertIsNotNone(scorer.data)
-        scorer.best_chain = None
-        scorer.fit()
-        self.assertEqual(scorer.best_chain, expected_chain)
-        self.assertEqual(scorer.query_pdb_mapping, expected_mapping)
-        self.assertIsNotNone(scorer.data)
-        if type(expected_struct) is str:
-            expected_struct = PDBReference(pdb_file=expected_struct)
-            expected_struct.import_pdb(structure_id='1TES')
-        for i in scorer.data.index:
-            self.assertEqual(scorer.data.loc[i, 'Seq AA 1'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 1']])
-            self.assertEqual(scorer.data.loc[i, 'Seq AA 2'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 2']])
-            self.assertEqual(scorer.data.loc[i, 'Seq Separation'],
-                             scorer.data.loc[i, 'Seq Pos 2'] - scorer.data.loc[i, 'Seq Pos 1'])
-            if scorer.data.loc[i, 'Seq Separation'] < 6:
-                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Neighbors')
-            elif scorer.data.loc[i, 'Seq Separation'] < 12:
-                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Short')
-            elif scorer.data.loc[i, 'Seq Separation'] < 24:
-                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Medium')
-            else:
-                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Long')
-            if scorer.data.loc[i, 'Struct Pos 1'] == '-':
-                self.assertFalse(scorer.data.loc[i, 'Seq AA 1'] in scorer.query_pdb_mapping)
-                self.assertEqual(scorer.data.loc[i, 'Struct AA 1'], '-')
-            else:
-                mapped_struct_pos = scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 1']]
-                self.assertEqual(scorer.data.loc[i, 'Struct Pos 1'],
-                                 expected_struct.pdb_residue_list[expected_chain][mapped_struct_pos])
-                self.assertEqual(scorer.data.loc[i, 'Struct AA 1'],
-                                 expected_struct.seq[expected_chain][mapped_struct_pos])
-            if scorer.data.loc[i, 'Struct Pos 2'] == '-':
-                self.assertFalse(scorer.data.loc[i, 'Seq AA 2'] in scorer.query_pdb_mapping)
-                self.assertEqual(scorer.data.loc[i, 'Struct AA 2'], '-')
-            else:
-                mapped_struct_pos = scorer.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 2']]
-                self.assertEqual(scorer.data.loc[i, 'Struct Pos 2'],
-                                 expected_struct.pdb_residue_list[expected_chain][mapped_struct_pos])
-                self.assertEqual(scorer.data.loc[i, 'Struct AA 2'],
-                                 expected_struct.seq[expected_chain][mapped_struct_pos])
-
-    def test_fit_aln_file_pdb_file_chain_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
-        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb_fn, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_chain_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_obj_chain_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='A')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain='A')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_not_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='A',
-                          expected_mapping=self.expected_mapping_A, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_file_chain_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_chain_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_obj_chain_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_not_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1_mismatch(self):
-        protein_aln1.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln1, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_mismatch, expected_seq=protein_seq1)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_file_chain_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        scorer = ContactScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_chain_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln2, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_obj_chain_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln2, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_not_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln2, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln2, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_2(self):
-        protein_aln2.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln2, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_2)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_file_chain_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
-        scorer = ContactScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_chain_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln3, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_file_pdb_obj_chain_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=aln_fn, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln3, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_obj_chain_not_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
-        pdb = PDBReference(pdb_file=pdb_fn)
-        pdb.import_pdb(structure_id='1TES')
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln3, expected_struct=pdb, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln3, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
-
-    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_3(self):
-        protein_aln3.write_out_alignment(aln_fn)
-        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
-        self.evaluate_fit(scorer=scorer, expected_aln=protein_aln3, expected_struct=pdb_fn, expected_chain='B',
-                          expected_mapping=self.expected_mapping_B, expected_seq=self.expected_pro_seq_3)
-        os.remove(aln_fn)
-        os.remove(pdb_fn)
 
 
 class TestContactScorerStr(TestCase):
@@ -672,6 +333,327 @@ class TestContactScorerStr(TestCase):
             5, 2, 'B')
         self.evaluate_str(expected_query='seq3', expected_cutoff=8.0, expected_aln=protein_aln3, expected_struct=pdb_fn,
                           expected_chain='B', expected_str=expected_str)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+
+class TestContactScorerFit(TestCase):
+
+    def setUp(self):
+        self.expected_mapping_A = {0: 0, 1: 1, 2: 2}
+        self.expected_mapping_B = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4}
+        self.expected_mapping_mismatch = {0: 0, 1: 3, 2: 4}
+        self.expected_pro_seq_2 = SeqRecord(id='seq2', seq=Seq('MTREE', alphabet=FullIUPACProtein()))
+        self.expected_pro_seq_3 = SeqRecord(id='seq3', seq=Seq('MFREE', alphabet=FullIUPACProtein()))
+
+    def evaluate_fit(self, scorer, expected_struct, expected_chain, expected_seq):
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.best_chain = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.query_pdb_mapping = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.pdb_query_mapping = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        if type(expected_struct) is str:
+            expected_struct = PDBReference(pdb_file=expected_struct)
+            expected_struct.import_pdb(structure_id='1TES')
+        for i in scorer.data.index:
+            self.assertEqual(scorer.data.loc[i, 'Seq AA 1'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 1']])
+            self.assertEqual(scorer.data.loc[i, 'Seq AA 2'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos 2']])
+            self.assertEqual(scorer.data.loc[i, 'Seq Separation'],
+                             scorer.data.loc[i, 'Seq Pos 2'] - scorer.data.loc[i, 'Seq Pos 1'])
+            if scorer.data.loc[i, 'Seq Separation'] < 6:
+                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Neighbors')
+            elif scorer.data.loc[i, 'Seq Separation'] < 12:
+                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Short')
+            elif scorer.data.loc[i, 'Seq Separation'] < 24:
+                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Medium')
+            else:
+                self.assertEqual(scorer.data.loc[i, 'Seq Separation Category'], 'Long')
+            if scorer.data.loc[i, 'Struct Pos 1'] == '-':
+                self.assertFalse(scorer.data.loc[i, 'Seq AA 1'] in scorer.query_pdb_mapper.query_pdb_mapping)
+                self.assertEqual(scorer.data.loc[i, 'Struct AA 1'], '-')
+            else:
+                mapped_struct_pos = scorer.query_pdb_mapper.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 1']]
+                self.assertEqual(scorer.data.loc[i, 'Struct Pos 1'],
+                                 expected_struct.pdb_residue_list[expected_chain][mapped_struct_pos])
+                self.assertEqual(scorer.data.loc[i, 'Struct AA 1'],
+                                 expected_struct.seq[expected_chain][mapped_struct_pos])
+            if scorer.data.loc[i, 'Struct Pos 2'] == '-':
+                self.assertFalse(scorer.data.loc[i, 'Seq AA 2'] in scorer.query_pdb_mapper.query_pdb_mapping)
+                self.assertEqual(scorer.data.loc[i, 'Struct AA 2'], '-')
+            else:
+                mapped_struct_pos = scorer.query_pdb_mapper.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos 2']]
+                self.assertEqual(scorer.data.loc[i, 'Struct Pos 2'],
+                                 expected_struct.pdb_residue_list[expected_chain][mapped_struct_pos])
+                self.assertEqual(scorer.data.loc[i, 'Struct AA 2'],
+                                 expected_struct.seq[expected_chain][mapped_struct_pos])
+
+    def test_fit_aln_file_pdb_file_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = ContactScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        scorer = ContactScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer,  expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain='B')
+        self.evaluate_fit(scorer=scorer,  expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, cutoff=8.0, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
         os.remove(aln_fn)
         os.remove(pdb_fn)
 
@@ -1000,16 +982,16 @@ class TestContactScorerMeasureDistance(TestCase):
         scorer.measure_distance(method=method)
         self.assertEqual(scorer.dist_type, method)
         residue_coords = {}
-        size1 = len(scorer.query_structure.seq[scorer.best_chain])
+        size1 = len(scorer.query_pdb_mapper.pdb_ref.seq[scorer.query_pdb_mapper.best_chain])
         dists = np.zeros((size1, size1))
         dists2 = np.zeros((size1, size1))
         counter = 0
         counter_map = {}
-        cmd.load(scorer.query_structure.file_name, scorer.query)
-        cmd.select('best_chain', f'{scorer.query} and chain {scorer.best_chain}')
-        for res_num in scorer.query_structure.residue_pos[scorer.best_chain]:
+        cmd.load(scorer.query_pdb_mapper.pdb_ref.file_name, scorer.query_pdb_mapper.query)
+        cmd.select('best_chain', f'{scorer.query_pdb_mapper.query} and chain {scorer.query_pdb_mapper.best_chain}')
+        for res_num in scorer.query_pdb_mapper.pdb_ref.residue_pos[scorer.query_pdb_mapper.best_chain]:
             counter_map[counter] = res_num
-            residue = scorer.query_structure.structure[0][scorer.best_chain][res_num]
+            residue = scorer.query_pdb_mapper.pdb_ref.structure[0][scorer.query_pdb_mapper.best_chain][res_num]
             coords = scorer._get_coords(residue, method=method)
             residue_coords[counter] = coords
             for residue2 in residue_coords:
@@ -1040,7 +1022,7 @@ class TestContactScorerMeasureDistance(TestCase):
                                                            (scorer.data['Struct Pos 2'] == res_num),
                                                            'Distance'].values[0]), 1E-4)
             counter += 1
-        cmd.delete(scorer.query)
+        cmd.delete(scorer.query_pdb_mapper.query)
         distance_diff = np.square(scorer.distances) - dists
         self.assertLess(np.max(distance_diff), 1E-2)
         adj_diff = ((np.square(scorer.distances)[np.nonzero(distance_diff)] < CONTACT_DISTANCE2) ^
@@ -1132,8 +1114,8 @@ class TestContactScorerFindPairsBySeparation(TestCase):
         with self.assertRaises(ValueError):
             scorer.find_pairs_by_separation(category='Wide')
         expected1 = {'Any': [], 'Neighbors': [], 'Short': [], 'Medium': [], 'Long': []}
-        for i in range(scorer.query_alignment.seq_length):
-            for j in range(i + 1, scorer.query_alignment.seq_length):
+        for i in range(scorer.query_pdb_mapper.seq_aln.seq_length):
+            for j in range(i + 1, scorer.query_pdb_mapper.seq_aln.seq_length):
                 pair = (i, j)
                 separation = j - i
                 if (separation >= 1) and (separation < 6):
@@ -1197,10 +1179,10 @@ class TestContactScorerMapPredictionsToPDB(TestCase):
     def evaluate_map_prediction_to_pdb(self, scorer):
         scorer.fit()
         scorer.measure_distance(method='CB')
-        scores = np.random.rand(scorer.query_alignment.seq_length, scorer.query_alignment.seq_length)
-        scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
         scores += scores.T
-        ranks, coverages = compute_rank_and_coverage(scorer.query_alignment.seq_length, scores, 2, 'min')
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         self.assertIsNotNone(scorer.data)
         self.assertTrue(pd.Series(['Rank', 'Score', 'Coverage', 'True Prediction']).isin(scorer.data.columns).all())
@@ -1270,10 +1252,10 @@ class TestContactScorerIdentifyRelevantData(TestCase):
     def evaluate_identify_relevant_data(self, scorer):
         scorer.fit()
         scorer.measure_distance(method='CB')
-        scores = np.random.rand(scorer.query_alignment.seq_length, scorer.query_alignment.seq_length)
-        scores[np.tril_indices(scorer.query_alignment.seq_length)] = 0
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length)] = 0
         scores += scores.T
-        ranks, coverages = compute_rank_and_coverage(scorer.query_alignment.seq_length, scores, 2, 'min')
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         with self.assertRaises(ValueError):
             scorer._identify_relevant_data(category='Any', n=10, k=10)
@@ -1281,10 +1263,11 @@ class TestContactScorerIdentifyRelevantData(TestCase):
             for n, k in [(None, None), (1, None), (2, None), (3, None), (None, 1), (None, 2), (None, 3)]:
                 curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k)
                 expected_subset = identify_expected_scores_and_distances(
-                    scorer, scores, coverages, ranks, scorer.distances, category, n=n, k=k)
+                    scorer, scores, coverages, ranks, scorer.distances, category, n=n, k=k, cutoff=scorer.cutoff)
                 if len(curr_subset) == 0:
                     self.assertEqual(len(expected_subset), 0)
                 else:
+                    self.assertEqual(len(curr_subset), len(expected_subset))
                     seq_1_pos_diff = np.abs(curr_subset['Seq Pos 1'].values - expected_subset['Seq Pos 1'].values)
                     seq_1_pos_not_passing = seq_1_pos_diff > 0
                     self.assertFalse(seq_1_pos_not_passing.any())
@@ -1300,7 +1283,7 @@ class TestContactScorerIdentifyRelevantData(TestCase):
                     struct_2_not_passing = struct_2_pos_diff > 0
                     self.assertFalse(struct_2_not_passing.any())
                     if k and (n is None):
-                        n = int(floor(scorer.query_alignment.seq_length / float(k)))
+                        n = int(floor(scorer.query_pdb_mapper.seq_aln.seq_length / float(k)))
                     if n:
                         self.assertFalse((curr_subset['Rank'] - expected_subset['Rank']).any())
                         self.assertLessEqual(len(curr_subset['Rank'].unique()), n)
@@ -1343,31 +1326,31 @@ class TestContactScorerIdentifyRelevantData(TestCase):
 
     def test_identify_relevant_data_seq1(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
+                               cutoff=16.0, chain='A')
         self.evaluate_identify_relevant_data(scorer=scorer)
 
     def test_identify_relevant_data_seq1_alt_loc_pdb(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
+                               cutoff=14.0, chain='A')
         self.evaluate_identify_relevant_data(scorer=scorer)
 
     def test_identify_relevant_data_seq2(self):
         scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
+                               cutoff=20.0, chain='B')
         self.evaluate_identify_relevant_data(scorer=scorer)
 
     def test_identify_relevant_data_seq3(self):
         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
+                               cutoff=20.0, chain='B')
         self.evaluate_identify_relevant_data(scorer=scorer)
 
     def evaluate_identify_relevant_data_lists(self, scorer):
         scorer.fit()
         scorer.measure_distance(method='CB')
-        scores = np.random.rand(scorer.query_alignment.seq_length, scorer.query_alignment.seq_length)
-        scores[np.tril_indices(scorer.query_alignment.seq_length)] = 0
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length)] = 0
         scores += scores.T
-        ranks, coverages = compute_rank_and_coverage(scorer.query_alignment.seq_length, scores, 2, 'min')
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         with self.assertRaises(ValueError):
             scorer._identify_relevant_data(category='Any', n=10, k=10)
@@ -1377,7 +1360,6 @@ class TestContactScorerIdentifyRelevantData(TestCase):
                 curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k)
                 curr_subset = curr_subset.sort_values(by=['Coverage', 'Seq Pos 1', 'Seq Pos 2'])
                 expected_subset = None
-                print('BUILDING SUBSETS')
                 for cat in category:
                     if expected_subset is None:
                         expected_subset = identify_expected_scores_and_distances(
@@ -1385,8 +1367,6 @@ class TestContactScorerIdentifyRelevantData(TestCase):
                     else:
                         expected_subset = expected_subset.append(identify_expected_scores_and_distances(
                             scorer, scores, coverages, ranks, scorer.distances, cat, n=n, k=k))
-                    print(cat)
-                    print(expected_subset)
                 expected_subset = expected_subset.sort_values(by=['Coverage', 'Seq Pos 1', 'Seq Pos 2'])
                 expected_subset = expected_subset.drop_duplicates()
                 self.assertEqual(len(curr_subset), len(expected_subset))
@@ -1423,145 +1403,684 @@ class TestContactScorerIdentifyRelevantData(TestCase):
 
     def test_identify_relevant_data_lists_seq1(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
+                               cutoff=16.0, chain='A')
         self.evaluate_identify_relevant_data_lists(scorer=scorer)
 
     def test_identify_relevant_data_lists_seq1_alt_loc_pdb(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
+                               cutoff=14.0, chain='A')
         self.evaluate_identify_relevant_data_lists(scorer=scorer)
 
     def test_identify_relevant_data_lists_seq2(self):
         scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
+                               cutoff=20.0, chain='B')
         self.evaluate_identify_relevant_data_lists(scorer=scorer)
 
     def test_identify_relevant_data_lists_seq3(self):
         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
+                               cutoff=20.0, chain='B')
         self.evaluate_identify_relevant_data_lists(scorer=scorer)
 
 
-# class TestContactScorerScoreAUC(TestCase):
-#
-#     @classmethod
-#     def tearDownClass(cls):
-#         os.remove(cls.pdb_fn1)
-#         os.remove(cls.pdb_fn1b)
-#         os.remove(cls.pdb_fn2)
-#         os.remove(cls.aln_fn)
-#
-#     @classmethod
-#     def setUpClass(cls):
-#         cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
-#         cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
-#         cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
-#         cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
-#         cls.pdb_chain_a.import_pdb(structure_id='1TES')
-#         cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
-#         cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
-#         cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
-#         cls.pdb_chain_b.import_pdb(structure_id='1TES')
-#         cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
-#         cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
-#         cls.aln1.import_alignment()
-#         cls.aln1 = cls.aln1.remove_gaps()
-#         cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
-#         cls.aln2.import_alignment()
-#         cls.aln2 = cls.aln2.remove_gaps()
-#         cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
-#         cls.aln3.import_alignment()
-#         cls.aln3 = cls.aln3.remove_gaps()
-#
-#     def evaluate_score_auc(self, scorer):
-#         scorer.fit()
-#         scorer.measure_distance(method='CB')
-#         scores = np.random.rand(scorer.query_alignment.seq_length, scorer.query_alignment.seq_length)
-#         scores[np.tril_indices(scorer.query_alignment.seq_length, 1)] = 0
-#         scores += scores.T
-#         ranks, coverages = compute_rank_and_coverage(scorer.query_alignment.seq_length, scores, 2, 'min')
-#         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-#         expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
-#                                                                ranks=ranks, distances=scorer.distances, category='Any')
-#         fpr_expected1a, tpr_expected1a, _ = roc_curve(expected_df_a['Distance'] <= 8.0,
-#                                                       1.0 - expected_df_a['Coverage'], pos_label=True)
-#         auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
-#         tpr1a, fpr1a, auroc1a = scorer.score_auc(category='Any')
-#         print(fpr_expected1a)
-#         print(fpr1a)
-#         print(tpr_expected1a)
-#         print(tpr1a)
-#         print(auroc_expected1a)
-#         print(auroc1a)
-#         self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
-#         self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
-#         self.assertEqual(auroc_expected1a, auroc1a)
-#         expected_df_b = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
-#                                                                ranks=ranks, distances=scorer.distances,
-#                                                                category='Neighbors')
-#         fpr_expected1b, tpr_expected1b, _ = roc_curve(expected_df_b['Distance'] <= 8.0,
-#                                                       1.0 - expected_df_b['Coverage'], pos_label=True)
-#         auroc_expected1b = auc(fpr_expected1b, tpr_expected1b)
-#         tpr1b, fpr1b, auroc1b = scorer.score_auc(category='Neighbors')
-#         self.assertEqual(np.sum(fpr_expected1b - fpr1b), 0)
-#         self.assertEqual(np.sum(tpr_expected1b - tpr1b), 0)
-#         self.assertEqual(auroc_expected1b, auroc1b)
-#         expected_df_c = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
-#                                                                ranks=ranks, distances=scorer.distances,
-#                                                                category='Short')
-#         fpr_expected1c, tpr_expected1c, _ = roc_curve(expected_df_c['Distance'] <= 8.0,
-#                                                       1.0 - expected_df_c['Coverage'], pos_label=True)
-#         auroc_expected1c = auc(fpr_expected1c, tpr_expected1c)
-#         tpr1c, fpr1c, auroc1c = scorer.score_auc(category='Short')
-#         self.assertEqual(np.sum(fpr_expected1c - fpr1c), 0)
-#         self.assertEqual(np.sum(tpr_expected1c - tpr1c), 0)
-#         self.assertEqual(auroc_expected1c, auroc1c)
-#         expected_df_d = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
-#                                                                ranks=ranks, distances=scorer.distances,
-#                                                                category='Medium')
-#         fpr_expected1d, tpr_expected1d, _ = roc_curve(expected_df_d['Distance'] <= 8.0,
-#                                                       1.0 - expected_df_d['Coverage'], pos_label=True)
-#         auroc_expected1d = auc(fpr_expected1d, tpr_expected1d)
-#         tpr1d, fpr1d, auroc1d = scorer.score_auc(category='Medium')
-#         self.assertEqual(np.sum(fpr_expected1d - fpr1d), 0)
-#         self.assertEqual(np.sum(tpr_expected1d - tpr1d), 0)
-#         self.assertEqual(auroc_expected1d, auroc1d)
-#         expected_df_e = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
-#                                                                ranks=ranks, distances=scorer.distances, category='Long')
-#         fpr_expected1e, tpr_expected1e, _ = roc_curve(expected_df_e['Distance'] <= 8.0,
-#                                                       1.0 - expected_df_e['Coverage'], pos_label=True)
-#         auroc_expected1e = auc(fpr_expected1e, tpr_expected1e)
-#         tpr1e, fpr1e, auroc1e = scorer.score_auc(category='Long')
-#         self.assertEqual(np.sum(fpr_expected1e - fpr1e), 0)
-#         self.assertEqual(np.sum(tpr_expected1e - tpr1e), 0)
-#         self.assertEqual(auroc_expected1e, auroc1e)
-#
-#     def test_score_auc_seq1(self):
-#         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-#                                cutoff=8.0, chain='A')
-#         self.evaluate_score_auc(scorer=scorer)
-#
-#     def test_score_auc_seq1_alt_loc_pdb(self):
-#         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-#                                cutoff=8.0, chain='A')
-#         self.evaluate_score_auc(scorer=scorer)
-#
-#     def test_score_auc_seq2(self):
-#         scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-#                                cutoff=8.0, chain='B')
-#         self.evaluate_score_auc(scorer=scorer)
-#
-#     def test_score_auc_seq3(self):
-#         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
-#                                cutoff=8.0, chain='B')
-#         self.evaluate_score_auc(scorer=scorer)
-# class TestContactScorerPlotAUC(TestCase):
-# class TestContactScorerScorePrecisionRecall(TestCase):
-# class TestContactScorerPlotAUPRC(TestCase):
-# class TestContactScorerScorePrecision(TestCase):
-# class TestContactScorerScoreRecall(TestCase):
-# class TestContactScorerScoreF1(TestCase):
-# class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
+class TestContactScorerScoreAUC(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_score_auc(self, scorer):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
+                                                               ranks=ranks, distances=scorer.distances, category='Any')
+        fpr_expected1a, tpr_expected1a, _ = roc_curve(expected_df_a['Distance'] <= scorer.cutoff,
+                                                      1.0 - expected_df_a['Coverage'], pos_label=True)
+        auroc_expected1a = auc(fpr_expected1a, tpr_expected1a)
+        tpr1a, fpr1a, auroc1a = scorer.score_auc(category='Any')
+        self.assertEqual(np.sum(fpr_expected1a - fpr1a), 0)
+        self.assertEqual(np.sum(tpr_expected1a - tpr1a), 0)
+        self.assertEqual(auroc_expected1a, auroc1a)
+
+    def test_score_auc_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_auc(scorer=scorer)
+
+    def test_score_auc_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_auc(scorer=scorer)
+
+    def test_score_auc_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_auc(scorer=scorer)
+
+    def test_score_auc_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_auc(scorer=scorer)
+
+
+class TestContactScorerPlotAUC(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_plot_auc(self, scorer, file_name, expected_file_name, output_dir):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        tpr, fpr, auroc = scorer.score_auc(category='Any')
+        scorer.plot_auc(auc_data=(tpr, fpr, auroc), title=None, file_name=file_name, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_file_name))
+
+    def test_no_fn_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name=None, expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_png_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name='seq3_Cutoff20.0A_roc', expected_file_name=expected_file_name,
+                               output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name=expected_file_name, expected_file_name=expected_file_name,
+                               output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_no_fn_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name=None, output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_no_png_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name='seq3_Cutoff20.0A_roc', output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name=expected_file_name, output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+        
+        
+class TestContactScorerScorePrecisionAndRecall(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_score_precision_and_recall(self, scorer):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages,
+                                                               ranks=ranks, distances=scorer.distances, category='Any')
+        precision_expected, recall_expected, _ = precision_recall_curve(expected_df_a['Distance'] <= scorer.cutoff,
+                                                                        1.0 - expected_df_a['Coverage'], pos_label=True)
+        recall_expected, precision_expected = zip(*sorted(zip(recall_expected, precision_expected)))
+        auprc_expected = auc(recall_expected, precision_expected)
+        precision, recall, auprc = scorer.score_precision_recall(category='Any')
+        self.assertEqual(np.sum(precision_expected - precision), 0)
+        self.assertEqual(np.sum(recall_expected - recall), 0)
+        self.assertEqual(auprc_expected, auprc)
+
+    def test_score_precision_recall_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_precision_and_recall(scorer=scorer)
+
+    def test_score_precision_recall_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_precision_and_recall(scorer=scorer)
+
+    def test_score_precision_recall_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision_and_recall(scorer=scorer)
+
+    def test_score_auc_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision_and_recall(scorer=scorer)
+
+
+class TestContactScorerPlotAUPRC(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_plot_auprc(self, scorer, file_name, expected_file_name, output_dir):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        precision, recall, auprc = scorer.score_precision_recall(category='Any')
+        scorer.plot_auprc(auprc_data=(precision, recall, auprc), title=None, file_name=file_name, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_file_name))
+
+    def test_no_fn_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name=None, expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_png_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name='seq3_Cutoff20.0A_auprc',
+                                 expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name=expected_file_name, expected_file_name=expected_file_name,
+                                 output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_no_fn_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name=None, output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_no_png_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name='seq3_Cutoff20.0A_auprc', output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_dir(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name=expected_file_name, output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+
+class TestContactScorerScorePrecision(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_score_precision(self, scorer, k=None, n=None):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages, n=n,
+                                                               k=k, ranks=ranks, distances=scorer.distances,
+                                                               category='Any')
+        precision_expected = precision_score(expected_df_a['Distance'] <= scorer.cutoff,
+                                             expected_df_a['Coverage'] <= 0.5, pos_label=True)
+        precision = scorer.score_precision(category='Any', n=n, k=k)
+        self.assertEqual(np.sum(precision_expected - precision), 0)
+
+    def test_score_precision_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer)
+
+    def test_score_precision_seq1_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer, n=2)
+
+    def test_score_precision_seq1_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer, k=2)
+
+    def test_score_precision_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer)
+
+    def test_score_precision_seq1_alt_loc_pdb_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer, n=2)
+
+    def test_score_precision_seq1_alt_loc_pdb_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_precision(scorer=scorer, k=2)
+
+    def test_score_precision_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer)
+
+    def test_score_precision_seq2_n(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer, n=2)
+
+    def test_score_precision_seq2_k(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer, k=2)
+
+    def test_score_precision_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer)
+
+    def test_score_precision_seq3_n(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer, n=2)
+
+    def test_score_precision_seq3_k(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_precision(scorer=scorer, k=2)
+
+
+class TestContactScorerScoreRecall(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_score_recall(self, scorer, k=None, n=None):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages, n=n,
+                                                               k=k, ranks=ranks, distances=scorer.distances,
+                                                               category='Any')
+        precision_expected = recall_score(expected_df_a['Distance'] <= scorer.cutoff,
+                                          expected_df_a['Coverage'] <= 0.5, pos_label=True)
+        precision = scorer.score_recall(category='Any', n=n, k=k)
+        self.assertEqual(np.sum(precision_expected - precision), 0)
+
+    def test_score_recall_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer)
+
+    def test_score_recall_seq1_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer, n=2)
+
+    def test_score_recall_seq1_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer, k=2)
+
+    def test_score_recall_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer)
+
+    def test_score_recall_seq1_alt_loc_pdb_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer, n=2)
+
+    def test_score_recall_seq1_alt_loc_pdb_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_recall(scorer=scorer, k=2)
+
+    def test_score_recall_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer)
+
+    def test_score_recall_seq2_n(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer, n=2)
+
+    def test_score_recall_seq2_k(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer, k=2)
+
+    def test_score_recall_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer)
+
+    def test_score_recall_seq3_n(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer, n=2)
+
+    def test_score_recall_seq3_k(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_recall(scorer=scorer, k=2)
+
+
+class TestContactScorerScoreF1(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_score_f1(self, scorer, k=None, n=None):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        expected_df_a = identify_expected_scores_and_distances(scorer=scorer, scores=scores, coverages=coverages, n=n,
+                                                               k=k, ranks=ranks, distances=scorer.distances,
+                                                               category='Any')
+        precision_expected = f1_score(expected_df_a['Distance'] <= scorer.cutoff, expected_df_a['Coverage'] <= 0.5,
+                                      pos_label=True)
+        precision = scorer.score_f1(category='Any', n=n, k=k)
+        self.assertEqual(np.sum(precision_expected - precision), 0)
+
+    def test_score_f1_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer)
+
+    def test_score_f1_seq1_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer, n=2)
+
+    def test_score_f1_seq1_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer, k=2)
+
+    def test_score_f1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer)
+
+    def test_score_f1_seq1_alt_loc_pdb_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer, n=2)
+
+    def test_score_f1_seq1_alt_loc_pdb_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_score_f1(scorer=scorer, k=2)
+
+    def test_score_f1_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer)
+
+    def test_score_f1_seq2_n(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer, n=2)
+
+    def test_score_f1_k(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer, k=2)
+
+    def test_score_f1_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer)
+
+    def test_score_f1_seq3_n(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer, n=2)
+
+    def test_score_f1_seq3_k(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_score_f1(scorer=scorer, k=2)
+
+
 # class TestContactScorerWriteOutClusteringResults(TestCase):
 # class TestContactScorerEvaluatePredictor(TestCase):
 # class TestContactScorerEvaluatePredictions(TestCase):
@@ -1569,6 +2088,7 @@ class TestContactScorerIdentifyRelevantData(TestCase):
 # class TestPlotZScores(TestCase):
 # class TestHeatmapPlot(TestCase):
 # class TestSurfacePlot(TestCase):
+# class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
 # class TestComputeWAndW2Ave(TestCase):
 # class TestClusteringZScore(TestCase):
 
