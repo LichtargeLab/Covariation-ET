@@ -2296,7 +2296,8 @@ class TestContactScorerEvaluatePredictions(TestCase):
         ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
         prev_b_w2_ave = None
         prev_u_w2_ave = None
-        for v in range(1, 3):
+        chain_len = len(scorer.query_pdb_mapper.pdb_ref.seq[scorer.query_pdb_mapper.best_chain])
+        for v in range(1, 3 if chain_len <= 3 else 4):
             curr_stats, curr_b_w2_ave, curr_u_w2_ave = scorer.evaluate_predictions(
                 verbosity=v, out_dir=output_dir, scores=scores, coverages=coverages, ranks=ranks, dist='CB',
                 file_prefix='SCORER_TEST', biased_w2_ave=prev_b_w2_ave, unbiased_w2_ave=prev_u_w2_ave,
@@ -2385,15 +2386,22 @@ class TestContactScorerEvaluatePredictions(TestCase):
                 biased_df, biased_reusable, biased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
                     bias=True, file_path='test.tsv')
                 os.remove('test.tsv')
-                self.assertEqual(curr_stats.loc['AUC Biased Z-Score'].unique()[0], biased_auc_scw_z_curve)
-                self.assertEqual(curr_stats.loc['Max Biased Z-Score'].unique()[0], biased_df['Z-Score'].max())
+                self.assertEqual(curr_stats['AUC Biased Z-Score'].unique()[0], biased_auc_scw_z_curve)
+                if biased_df['Z-Score'].max() == 'NA':
+                    self.assertTrue(np.isnan(curr_stats['Max Biased Z-Score'].unique()[0]))
+                else:
+                    self.assertEqual(curr_stats['Max Biased Z-Score'].unique()[0], biased_df['Z-Score'].max())
                 self.assertEqual(curr_b_w2_ave, biased_reusable)
                 self.assertTrue('Max Unbiased Z-Score' in curr_stats)
                 self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
                 unbiased_df, unbiased_reusable, unbiased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
                     bias=False, file_path='test.tsv')
-                self.assertEqual(curr_stats.loc['AUC Unbiased Z-Score'].unique()[0], unbiased_auc_scw_z_curve)
-                self.assertEqual(curr_stats.loc['Max Unbiased Z-Score'].unique()[0], unbiased_df['Z-Score'].max())
+                os.remove('test.tsv')
+                self.assertEqual(curr_stats['AUC Unbiased Z-Score'].unique()[0], unbiased_auc_scw_z_curve)
+                if unbiased_df['Z-Score'].max() == 'NA':
+                    self.assertTrue(np.isnan(curr_stats['Max Unbiased Z-Score'].unique()[0]))
+                else:
+                    self.assertEqual(curr_stats['Max Unbiased Z-Score'].unique()[0], unbiased_df['Z-Score'].max())
                 self.assertEqual(curr_u_w2_ave, unbiased_reusable)
                 fn4 = os.path.join(output_dir, 'SCORER_TEST' + 'Dist-CB_Biased_ZScores.tsv')
                 self.assertTrue(os.path.isfile(fn4))
@@ -2462,7 +2470,227 @@ class TestContactScorerEvaluatePredictions(TestCase):
         self.evaluate_evaluate_predictions(scorer=scorer, output_dir=new_dir, processes=2, plot=True)
         rmtree(new_dir)
 
-# class TestContactScorerEvaluatePredictor(TestCase):
+
+class TestContactScorerEvaluatePredictor(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_evaluate_predictor(self, scorer, plot, output_dir, processes):
+        seq_len = scorer.query_pdb_mapper.seq_aln.seq_length
+        scores = np.random.RandomState(1234567890).rand(seq_len, seq_len)
+        scores[np.tril_indices(seq_len, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(seq_len, scores, 2, 'min')
+        predictor = EvolutionaryTrace(query=scorer.query_pdb_mapper.query, polymer_type='Protein',
+                                      aln_file=scorer.query_pdb_mapper.seq_aln.file_name, et_distance=True,
+                                      distance_model='blosum62', tree_building_method='et', tree_building_options={},
+                                      ranks=None, position_type='pair', scoring_metric='mismatch_diversity',
+                                      gap_correction=None, out_dir=output_dir, processors=1, low_memory=True,
+                                      output_files={'original_aln', 'non_gap_aln', 'tree', 'scores'})
+        predictor.rankings = ranks
+        predictor.scores = scores
+        predictor.coverages = coverages
+        prev_b_w2_ave = None
+        prev_u_w2_ave = None
+        chain_len = len(scorer.query_pdb_mapper.pdb_ref.seq[scorer.query_pdb_mapper.best_chain])
+        for v in range(1, 3 if chain_len <= 3 else 4):
+            curr_stats, curr_b_w2_ave, curr_u_w2_ave = scorer.evaluate_predictor(
+                predictor=predictor, verbosity=v, out_dir=output_dir, dist='CB', biased_w2_ave=prev_b_w2_ave,
+                unbiased_w2_ave=prev_u_w2_ave, processes=processes, threshold=0.5, file_prefix='SCORER_TEST',
+                plots=plot)
+            expected_res_fn = os.path.join(output_dir, 'SCORER_TEST_Evaluation_Dist-CB.txt')
+            self.assertTrue(os.path.isfile(expected_res_fn))
+            expected_read_in_df = curr_stats.fillna('N/A')
+            read_in_df = pd.read_csv(expected_res_fn, header=0, index_col=None, sep='\t')
+            read_in_df.fillna('N/A', inplace=True)
+            self.assertEqual(len(set(expected_read_in_df.columns).intersection(read_in_df.columns)), len(curr_stats.columns))
+            for col in curr_stats.columns:
+                self.assertTrue(all(expected_read_in_df[col] == read_in_df[col]))
+            os.remove(expected_res_fn)
+            # Tests
+            # Check that the correct data is in the dataframe according to the verbosity
+            column_length = None
+            for key in curr_stats:
+                if column_length is None:
+                    column_length = len(curr_stats[key])
+                else:
+                    self.assertEqual(len(curr_stats[key]), column_length)
+            if v >= 1:
+                self.assertTrue('Distance' in curr_stats)
+                self.assertTrue('Sequence_Separation' in curr_stats)
+                self.assertTrue('AUROC' in curr_stats)
+                self.assertTrue('AUPRC' in curr_stats)
+                for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                    current_auroc = curr_stats.loc[curr_stats['Sequence_Separation'] == sep, 'AUROC'].unique()[0]
+                    if current_auroc == 'N/A':
+                        with self.assertRaises(IndexError):
+                            scorer.score_auc(category=sep)
+                    else:
+                        _, _, expected_auroc = scorer.score_auc(category=sep)
+                        if np.isnan(current_auroc):
+                            self.assertTrue(np.isnan(expected_auroc))
+                        else:
+                            self.assertEqual(current_auroc, expected_auroc)
+                    current_auprc = curr_stats.loc[curr_stats['Sequence_Separation'] == sep, 'AUPRC'].unique()[0]
+                    if current_auroc == 'N/A':
+                        with self.assertRaises(IndexError):
+                            scorer.score_precision_recall(category=sep)
+                    else:
+                        _, _, expected_auprc = scorer.score_precision_recall(category=sep)
+                        if np.isnan(current_auprc):
+                            self.assertTrue(np.isnan(expected_auprc))
+                        else:
+                            self.assertEqual(current_auprc, expected_auprc)
+                    if plot:
+                        fn1 = os.path.join(output_dir, f'SCORER_TESTAUROC_Evaluation_Dist-CB_Separation-{sep}.png')
+                        if current_auroc == 'N/A':
+                            self.assertFalse(os.path.isfile(fn1))
+                        else:
+                            self.assertTrue(os.path.isfile(fn1))
+                            os.remove(fn1)
+                        fn2 = os.path.join(output_dir, f'SCORER_TESTAUPRC_Evaluation_Dist-CB_Separation-{sep}.png')
+                        if current_auprc == 'N/A':
+                            self.assertFalse(os.path.isfile(fn2))
+                        else:
+                            self.assertTrue(os.path.isfile(fn2))
+                            os.remove(fn2)
+                if v == 1:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 2:
+                self.assertTrue('Top K Predictions' in curr_stats)
+                self.assertTrue('Precision' in curr_stats)
+                self.assertTrue('Recall' in curr_stats)
+                self.assertTrue('F1 Score' in curr_stats)
+                for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+                    for k in range(1, 11):
+                        label = 'L' if k == 1 else f'L/{k}'
+                        self.assertTrue(any(curr_stats['Top K Predictions'] == label))
+                        current_precision = curr_stats.loc[(curr_stats['Sequence_Separation'] == sep) &
+                                                           (curr_stats['Top K Predictions'] == label),
+                                                           'Precision'].unique()[0]
+                        expected_precision = scorer.score_precision(k=k, category=sep)
+                        self.assertEqual(current_precision, expected_precision)
+                        current_recall = curr_stats.loc[(curr_stats['Sequence_Separation'] == sep) &
+                                                        (curr_stats['Top K Predictions'] == label),
+                                                        'Recall'].unique()[0]
+                        expected_recall = scorer.score_recall(k=k, category=sep)
+                        self.assertEqual(current_recall, expected_recall)
+                        current_f1 = curr_stats.loc[(curr_stats['Sequence_Separation'] == sep) &
+                                                    (curr_stats['Top K Predictions'] == label),
+                                                    'F1 Score'].unique()[0]
+                        expected_f1 = scorer.score_f1(k=k, category=sep)
+                        self.assertEqual(current_f1, expected_f1)
+                if v == 2:
+                    self.assertTrue(curr_b_w2_ave is None)
+                    self.assertTrue(curr_u_w2_ave is None)
+            if v >= 3:
+                self.assertTrue('Max Biased Z-Score' in curr_stats)
+                self.assertTrue('AUC Biased Z-Score' in curr_stats)
+                biased_df, biased_reusable, biased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
+                    bias=True, file_path='test.tsv')
+                os.remove('test.tsv')
+                self.assertEqual(curr_stats['AUC Biased Z-Score'].unique()[0], biased_auc_scw_z_curve)
+                if biased_df['Z-Score'].max() == 'NA':
+                    self.assertTrue(np.isnan(curr_stats['Max Biased Z-Score'].unique()[0]))
+                else:
+                    self.assertEqual(curr_stats['Max Biased Z-Score'].unique()[0], biased_df['Z-Score'].max())
+                self.assertEqual(curr_b_w2_ave, biased_reusable)
+                self.assertTrue('Max Unbiased Z-Score' in curr_stats)
+                self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
+                unbiased_df, unbiased_reusable, unbiased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
+                    bias=False, file_path='test.tsv')
+                os.remove('test.tsv')
+                self.assertEqual(curr_stats['AUC Unbiased Z-Score'].unique()[0], unbiased_auc_scw_z_curve)
+                if unbiased_df['Z-Score'].max() == 'NA':
+                    self.assertTrue(np.isnan(curr_stats['Max Unbiased Z-Score'].unique()[0]))
+                else:
+                    self.assertEqual(curr_stats['Max Unbiased Z-Score'].unique()[0], unbiased_df['Z-Score'].max())
+                self.assertEqual(curr_u_w2_ave, unbiased_reusable)
+                fn4 = os.path.join(output_dir, 'SCORER_TEST' + 'Dist-CB_Biased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn4))
+                os.remove(fn4)
+                fn5 = os.path.join(output_dir, 'SCORER_TEST' + 'Dist-CB_Unbiased_ZScores.tsv')
+                self.assertTrue(os.path.isfile(fn5))
+                os.remove(fn5)
+                if plot:
+                    fn6 = os.path.join(output_dir, 'SCORER_TEST' + 'Dist-CB_Biased_ZScores.png')
+                    self.assertTrue(os.path.isfile(fn6))
+                    os.remove(fn6)
+                    fn7 = os.path.join(output_dir, 'SCORER_TEST' + 'Dist-CB_Unbiased_ZScores.png')
+                    self.assertTrue(os.path.isfile(fn7))
+                    os.remove(fn7)
+                self.assertTrue(curr_b_w2_ave is not None)
+                self.assertTrue(curr_u_w2_ave is not None)
+            # Update
+            prev_b_w2_ave = curr_b_w2_ave
+            prev_u_w2_ave = curr_u_w2_ave
+
+    def test_seq1_no_plots_one_process(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=1, plot=False)
+        rmtree(new_dir)
+
+    def test_seq1_plots_one_process(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=1, plot=True)
+        rmtree(new_dir)
+
+    def test_seq1_plots_multi_process(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=2, plot=True)
+        rmtree(new_dir)
+
+    def test_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=2, plot=True)
+        rmtree(new_dir)
+
+    def test_score_auc_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=2, plot=True)
+        rmtree(new_dir)
+
+    def test_score_auc_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        new_dir = 'Test_Dir'
+        os.mkdir(new_dir)
+        self.evaluate_evaluate_predictor(scorer=scorer, output_dir=new_dir, processes=2, plot=True)
+        rmtree(new_dir)
 # class TestPlotZScores(TestCase):
 # class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
 # class TestComputeWAndW2Ave(TestCase):
@@ -3075,79 +3303,6 @@ class TestContactScorerEvaluatePredictions(TestCase):
 #
 #     def test_18d_score_clustering_of_contact_predictions(self):
 #         self.evaluate_score_clustering_of_contact_predictions(scorer=self.scorer2, seq_len=self.seq_len2, bias=False)
-#
-#     def evluate_evaluate_predictor(self, query_id, aln_file, scorer):
-#         os.makedirs(os.path.join(self.testing_dir, query_id), exist_ok=True)
-#         etmip1 = EvolutionaryTrace(query=query_id, polymer_type='Protein', aln_file=aln_file,
-#                                    et_distance=True, distance_model='blosum62', tree_building_method='et',
-#                                    tree_building_options={}, ranks=None, position_type='pair',
-#                                    scoring_metric='filtered_average_product_corrected_mutual_information',
-#                                    gap_correction=None, maximize=False,
-#                                    out_dir=os.path.join(self.testing_dir, query_id), output_files=set(),
-#                                    processors=self.max_threads, low_memory=True)
-#         etmip1.calculate_scores()
-#         prev_b_w2_ave = None
-#         prev_u_w2_ave = None
-#         for v in range(1, 3):
-#             score_df, curr_b_w2_ave, curr_u_w2_ave = scorer.evaluate_predictor(
-#                 predictor=etmip1, verbosity=v, out_dir=self.testing_dir, dist='Any', biased_w2_ave=prev_b_w2_ave,
-#                 unbiased_w2_ave=prev_u_w2_ave, processes=self.max_threads, threshold=0.5,  file_prefix='SCORER1_TEST',
-#                 plots=True)
-#             if v >= 1:
-#                 self.assertTrue('Distance' in score_df.columns)
-#                 self.assertTrue('Sequence_Separation' in score_df.columns)
-#                 self.assertTrue('AUROC' in score_df.columns)
-#                 self.assertTrue('AUPRC' in score_df.columns)
-#                 fn1 = os.path.join(self.testing_dir, '{}_Evaluation_Dist-{}.txt'.format('SCORER1_TEST', 'Any'))
-#                 self.assertTrue(os.path.isfile(fn1))
-#                 os.remove(fn1)
-#                 for sep in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-#                     fn2 = os.path.join(self.testing_dir, 'SCORER1_TESTAUROC_Evaluation_Dist-{}_Separation-{}.png'.format(
-#                         'Any', sep))
-#                     self.assertTrue(os.path.isfile(fn2))
-#                     os.remove(fn2)
-#                     fn3 = os.path.join(self.testing_dir, 'SCORER1_TESTAUPRC_Evaluation_Dist-{}_Separation-{}.png'.format(
-#                         'Any', sep))
-#                     self.assertTrue(os.path.isfile(fn3))
-#                     os.remove(fn3)
-#                 if v == 1:
-#                     self.assertTrue(curr_b_w2_ave is None)
-#                     self.assertTrue(curr_u_w2_ave is None)
-#             if v >= 2:
-#                 self.assertTrue('Top K Predictions' in score_df.columns)
-#                 self.assertTrue('F1 Score' in score_df.columns)
-#                 self.assertTrue('Precision' in score_df.columns)
-#                 self.assertTrue('Recall' in score_df.columns)
-#                 if v == 2:
-#                     self.assertTrue(curr_b_w2_ave is None)
-#                     self.assertTrue(curr_u_w2_ave is None)
-#             if v >= 3:
-#                 self.assertTrue('Max Biased Z-Score' in score_df.columns)
-#                 self.assertTrue('AUC Biased Z-Score' in score_df.columns)
-#                 self.assertTrue('Max Unbiased Z-Score' in score_df.columns)
-#                 self.assertTrue('AUC Unbiased Z-Score' in score_df.columns)
-#                 fn5 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Biased_ZScores.tsv'.format('Any'))
-#                 self.assertTrue(os.path.isfile(fn5))
-#                 os.remove(fn5)
-#                 fn6 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Biased_ZScores.png'.format('Any'))
-#                 self.assertTrue(os.path.isfile(fn6))
-#                 os.remove(fn6)
-#                 fn7 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Unbiased_ZScores.tsv'.format('Any'))
-#                 self.assertTrue(os.path.isfile(fn7))
-#                 os.remove(fn7)
-#                 fn8 = os.path.join(self.testing_dir, 'SCORER1_TEST' + 'Dist-{}_Unbiased_ZScores.png'.format('Any'))
-#                 self.assertTrue(os.path.isfile(fn8))
-#                 os.remove(fn8)
-#                 self.assertTrue(curr_b_w2_ave is not None)
-#                 self.assertTrue(curr_u_w2_ave is not None)
-#             prev_b_w2_ave = curr_b_w2_ave
-#             prev_u_w2_ave = curr_u_w2_ave
-#
-#     def test_21a_evaluate_predictor(self):
-#         self.evluate_evaluate_predictor(query_id=self.query1, aln_file=self.aln_file1, scorer=self.scorer1)
-#
-#     def test_21b_evaluate_predictor(self):
-#         self.evluate_evaluate_predictor(query_id=self.query2, aln_file=self.aln_file2, scorer=self.scorer2)
 
 
 if __name__ == '__main__':

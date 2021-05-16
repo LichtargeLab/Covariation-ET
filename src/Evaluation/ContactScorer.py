@@ -371,7 +371,7 @@ class ContactScorer(object):
         pairs = final_df.to_records(index=False).tolist()
         return pairs
 
-    def map_predictions_to_pdb(self, ranks, predictions, coverages, threshold=0.5): # , category='Any'):
+    def map_predictions_to_pdb(self, ranks, predictions, coverages, threshold=0.5):
         """
         Map Predictions To PDB
 
@@ -736,7 +736,7 @@ class ContactScorer(object):
             float: The area under the curve defined by the z-scores and the protein coverage.
         """
         start = time()
-        if self.query_pdb_mapper.query_structure is None:
+        if self.query_pdb_mapper.pdb_ref is None:
             print('Z-Scores cannot be measured, because no PDB was provided.')
             return pd.DataFrame(), None, None
             # If data has already been computed load and return it without recomputing.
@@ -745,7 +745,7 @@ class ContactScorer(object):
             df_sub = df.replace([None, '-', 'NA'], np.nan)
             df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
-            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_pdb_mapper.query_alignment.seq_length)
+            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_pdb_mapper.seq_aln.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
@@ -780,7 +780,7 @@ class ContactScorer(object):
         if w_and_w2_ave_sub is None:
             w_and_w2_ave_sub = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
             pool = Pool(processes=processes, initializer=init_compute_w_and_w2_ave_sub,
-                        initargs=(self.distances, self.query_pdb_mapper.query_structure.pdb_residue_list[self.query_pdb_mapper.best_chain], bias))
+                        initargs=(self.distances, self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain], bias))
             res = pool.map_async(compute_w_and_w2_ave_sub, range(self.distances.shape[0]))
             pool.close()
             pool.join()
@@ -789,7 +789,7 @@ class ContactScorer(object):
                     w_and_w2_ave_sub[key] += cases[key]
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_clustering_z_score,
-                     initargs=(bias, w_and_w2_ave_sub, self.query_pdb_mapper.query_structure,
+                     initargs=(bias, w_and_w2_ave_sub, self.query_pdb_mapper.pdb_ref,
                                self.query_pdb_mapper.query_pdb_mapping, self.distances,
                                self.query_pdb_mapper.best_chain))
         res = pool2.map(clustering_z_score, to_score)
@@ -808,7 +808,7 @@ class ContactScorer(object):
             data['Num_Residues'] += [curr_res[11]] * curr_len
             if curr_res[6] not in {None, '-', 'NA'}:
                 y_z_score.append(curr_res[6])
-                x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.query_alignment.seq_length)
+                x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.seq_aln.seq_length)
         data_df['Z-Score'] = data['Z-Score']
         data_df['W'] = data['W']
         data_df['W_Ave'] = data['W_Ave']
@@ -875,80 +875,6 @@ class ContactScorer(object):
         end = time()
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
-
-    def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
-                           unbiased_w2_ave=None, processes=1, threshold=0.5,  file_prefix='Scores_', plots=True):
-        """
-        Evaluate Predictor
-
-        This method can be used to perform a number of validations at once for the predictions made by a given
-        predictor.
-
-        Args:
-            predictor (ETMIPC/ETMIPWrapper/DCAWrapper/EVCouplingsWrapper): A predictor which has already calculated its
-            covariance scores.
-            verbosity (int): What level of output to produce.
-                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
-                separation.
-                2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
-                separation and top prediction levels (L, L/2 ... L/10).
-                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
-                against residue count.
-            out_dir (str/path): The path at which to save
-            dist (str): Which type of distance computation to use to determine if residues are in contact, for further
-            details see the measure_distance method. Current choices are:
-                Any - Measures the minimum distance between two residues considering all of their atoms.
-                CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
-                CA - Measures the distance between two residues using their Alpha Carbons as the measuring point.
-            biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
-            returned by this function.
-            unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
-            computation also returned by this function.
-            processes (int): The number of processes to use when computing the clustering z-score (if specified).
-            threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
-            precision, recall, and f1 scores (this should be the expected coverage value).
-            file_prefix (str): string to prepend before filenames.
-            plots (boolean): Whether to create and save plots associated with the scores computed.
-        Returns:
-            pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the raw
-            scores provided when evaluating this predictor. Possible column headings include: 'Time',
-            'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)', 'Precision (L/3)',
-            'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
-            'Precision (L/9)', and 'Precision (L/10)'.
-            dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
-            dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
-        """
-        if not isinstance(predictor, Predictor):
-        #     import inspect
-        #     print(inspect.getmro(type(predictor)))
-        #     print(Predictor)
-            raise TypeError('To evaluate a predictor it must have type Predictor, please use a valid Predictor.')
-        score_fn = os.path.join(out_dir, '{}_Evaluation_Dist-{}.txt'.format(file_prefix, dist))
-        # If the evaluation has already been performed load the data and return it
-        if os.path.isfile(score_fn):
-            score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
-            return score_df, None, None
-        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFDRC',
-                   'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
-                   'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
-        # Retrieve coverages or computes them from the scorer
-        ranks = predictor.rankings
-        coverages = predictor.coverages
-        score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
-            scores=predictor.scores, coverages=coverages, ranks=ranks, verbosity=verbosity, out_dir=out_dir, dist=dist,
-            file_prefix=file_prefix, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
-            threshold=threshold, plots=plots)
-        if (biased_w2_ave is None) and (b_w2_ave is not None):
-            biased_w2_ave = b_w2_ave
-        if (unbiased_w2_ave is None) and (u_w2_ave is not None):
-            unbiased_w2_ave = u_w2_ave
-        if score_stats == {}:
-            score_df = None
-        else:
-            score_df = pd.DataFrame(score_stats)
-            score_df.to_csv(path_or_buf=score_fn, columns=[x for x in columns if x in score_stats], sep='\t',
-                            header=True, index=False)
-        return score_df, biased_w2_ave, unbiased_w2_ave
 
     def evaluate_predictions(self, verbosity, out_dir, scores, coverages, ranks, dist='Any', file_prefix='',
                              biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
@@ -1036,21 +962,21 @@ class ContactScorer(object):
             stats['Distance'] += [dist] * duplicate
             stats['Sequence_Separation'] += ((['-'.join(separation)] if isinstance(separation, list) else [separation])
                                              * duplicate)
-        duplicate *= 5
+        duplicate *= 9
         if verbosity >= 3:
             # Score Prediction Clustering
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
             z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
-                1.0 - coverages, bias=True, file_path=z_score_fn.format(dist, 'Biased'),
-                w_and_w2_ave_sub=biased_w2_ave, processes=processes)
+                bias=True, file_path=z_score_fn.format(dist, 'Biased'), w_and_w2_ave_sub=biased_w2_ave,
+                processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
-                1.0 - coverages, bias=False, file_path=z_score_fn.format(dist, 'Unbiased'),
-                w_and_w2_ave_sub=unbiased_w2_ave, processes=processes)
+                bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w_and_w2_ave_sub=unbiased_w2_ave,
+                processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
             stats['Max Unbiased Z-Score'] = [np.max(pd.to_numeric(z_score_unbiased['Z-Score'], errors='coerce'))] * duplicate
@@ -1059,6 +985,77 @@ class ContactScorer(object):
                 plot_z_scores(z_score_biased, z_score_plot_fn.format(dist, 'Biased'))
                 plot_z_scores(z_score_unbiased, z_score_plot_fn.format(dist, 'Unbiased'))
         return stats, biased_w2_ave, unbiased_w2_ave
+
+    def evaluate_predictor(self, predictor, verbosity, out_dir, dist='Any', biased_w2_ave=None,
+                           unbiased_w2_ave=None, processes=1, threshold=0.5,  file_prefix='Scores_', plots=True):
+        """
+        Evaluate Predictor
+
+        This method can be used to perform a number of validations at once for the predictions made by a given
+        predictor.
+
+        Args:
+            predictor (ETMIPC/ETMIPWrapper/DCAWrapper/EVCouplingsWrapper): A predictor which has already calculated its
+            covariance scores.
+            verbosity (int): What level of output to produce.
+                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
+                separation.
+                2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
+                separation and top prediction levels (L, L/2 ... L/10).
+                3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
+                against residue count.
+            out_dir (str/path): The path at which to save
+            dist (str): Which type of distance computation to use to determine if residues are in contact, for further
+            details see the measure_distance method. Current choices are:
+                Any - Measures the minimum distance between two residues considering all of their atoms.
+                CB - Measures the distance between two residues using their Beta Carbons as the measuring point.
+                CA - Measures the distance between two residues using their Alpha Carbons as the measuring point.
+            biased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for biased z-score computation also
+            returned by this function.
+            unbiased_w2_ave (dict): A dictionary of the precomputed scores for E[w^2] for unbaised z-score
+            computation also returned by this function.
+            processes (int): The number of processes to use when computing the clustering z-score (if specified).
+            threshold (float): Value above which a prediction will be labeled 1 (confident/true) when computing
+            precision, recall, and f1 scores (this should be the expected coverage value).
+            file_prefix (str): string to prepend before filenames.
+            plots (boolean): Whether to create and save plots associated with the scores computed.
+        Returns:
+            pandas.DataFrame: A DataFrame containing the specified amount of information (see verbosity) for the raw
+            scores provided when evaluating this predictor. Possible column headings include: 'Time',
+            'Sequence_Separation', 'Distance', 'AUROC', 'Precision (L)', 'Precision (L/2)', 'Precision (L/3)',
+            'Precision (L/4)', 'Precision (L/5)', 'Precision (L/6)', 'Precision (L/7)', 'Precision (L/8)',
+            'Precision (L/9)', and 'Precision (L/10)'.
+            dict: A dictionary of the precomputed scores for E[w^2] for biased z-score computation.
+            dict: A dictionary of the precomputed scores for E[w^2] for unbiased z-score computation.
+        """
+        if not isinstance(predictor, Predictor):
+            raise TypeError('To evaluate a predictor it must have type Predictor, please use a valid Predictor.')
+        score_fn = os.path.join(out_dir, '{}_Evaluation_Dist-{}.txt'.format(file_prefix, dist))
+        # If the evaluation has already been performed load the data and return it
+        if os.path.isfile(score_fn):
+            score_df = pd.read_csv(score_fn, sep='\t', header=0, index_col=False)
+            return score_df, None, None
+        columns = ['Sequence_Separation', 'Distance', 'Top K Predictions', 'AUROC', 'AUPRC', 'AUTPRFDRC',
+                   'Precision', 'Recall', 'F1 Score', 'Max Biased Z-Score', 'AUC Biased Z-Score',
+                   'Max Unbiased Z-Score', 'AUC Unbiased Z-Score']
+        # Retrieve coverages or computes them from the scorer
+        ranks = predictor.rankings
+        coverages = predictor.coverages
+        score_stats, b_w2_ave, u_w2_ave = self.evaluate_predictions(
+            scores=predictor.scores, coverages=coverages, ranks=ranks, verbosity=verbosity, out_dir=out_dir, dist=dist,
+            file_prefix=file_prefix, biased_w2_ave=biased_w2_ave, unbiased_w2_ave=unbiased_w2_ave, processes=processes,
+            threshold=threshold, plots=plots)
+        if (biased_w2_ave is None) and (b_w2_ave is not None):
+            biased_w2_ave = b_w2_ave
+        if (unbiased_w2_ave is None) and (u_w2_ave is not None):
+            unbiased_w2_ave = u_w2_ave
+        if score_stats == {}:
+            score_df = None
+        else:
+            score_df = pd.DataFrame(score_stats)
+            score_df.to_csv(path_or_buf=score_fn, columns=[x for x in columns if x in score_stats], sep='\t',
+                            header=True, index=False)
+        return score_df, biased_w2_ave, unbiased_w2_ave
 
 
 def heatmap_plot(name, data_mat, output_dir=None):
