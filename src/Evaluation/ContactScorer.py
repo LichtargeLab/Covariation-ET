@@ -513,7 +513,7 @@ class ContactScorer(object):
         # If the figure has already been plotted return
         if os.path.isfile(file_name):
             return
-        plt.plot(auc_data[1], auc_data[0], label='(AUC = {0:.2f})'.format(auc_data[2]))
+        plt.plot(auc_data[1], auc_data[0], label=f'(AUC = {auc_data[2]:.2f})')
         plt.plot([0, 1], [0, 1], 'k--')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
@@ -587,7 +587,7 @@ class ContactScorer(object):
         # If the figure has already been plotted return
         if os.path.isfile(file_name):
             return
-        plt.plot(auprc_data[1], auprc_data[0], label='(AUC = {0:.2f})'.format(auprc_data[2]))
+        plt.plot(auprc_data[1], auprc_data[0], label=f'(AUC = {auprc_data[2]:.2f})')
         plt.plot([0, 1], [0, 1], 'k--')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
@@ -960,8 +960,7 @@ class ContactScorer(object):
         Args:
             scores (np.array): The predicted scores for pairs of residues in a sequence alignment.
             verbosity (int): What level of output to produce.
-                1. Tests the AUROC, AUPRC, and AUTPRFDRC of contact prediction at different levels of sequence
-                separation.
+                1. Tests the AUROC and AUPRC of contact prediction at different levels of sequence separation.
                 2. Tests the precision, recall, and f1 score of  contact prediction at different levels of sequence
                 separation and top prediction levels (L, L/2 ... L/10).
                 3. Tests the clustering Z-score of the predictions and writes them to file as well as plotting Z-Scores
@@ -999,9 +998,15 @@ class ContactScorer(object):
         for separation in ['Any', 'Neighbors', 'Short', 'Medium', 'Long', ['Neighbors', 'Short', 'Medium'],
                            ['Neighbors', 'Short'], ['Short', 'Medium', 'Long'], ['Medium', 'Long']]:
             # AUC Evaluation
-            auc_roc = self.score_auc(category=separation)
-            auc_prc = self.score_precision_recall(category=separation)
-            if plots:
+            try:
+                auc_roc = self.score_auc(category=separation)
+            except IndexError:
+                auc_roc = None, None, 'N/A'
+            try:
+                auc_prc = self.score_precision_recall(category=separation)
+            except IndexError:
+                auc_prc = None, None, 'N/A'
+            if plots and ((auc_roc[2] != 'N/A') and (auc_prc[2] != 'N/A')):
                 self.plot_auc(auc_data=auc_roc, title='AUROC Evaluation', output_dir=out_dir,
                               file_name=file_prefix + 'AUROC_Evaluation_Dist-{}_Separation-{}'.format(dist, separation))
                 self.plot_auprc(auprc_data=auc_prc, title='AUPRC Evaluation', output_dir=out_dir,
