@@ -60,13 +60,15 @@ class SelectionClusterWeighting(object):
         Args:
             processes (int): The number of processes to use when computing the background terms for the SCW score.
         """
-        if self.query_structure is None:
+        if self.query_pdb_mapper.pdb_ref is None:
             print('SCW background cannot be measured because no PDB was provided.')
             return pd.DataFrame(), None, None
         if self.w_and_w2_ave_sub is None:
             self.w_and_w2_ave_sub = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
             pool = Pool(processes=processes, initializer=init_compute_w_and_w2_ave_sub,
-                        initargs=(self.distances, self.query_structure.pdb_residue_list[self.chain], bias))
+                        initargs=(self.distances,
+                                  self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain],
+                                  self.biased))
             res = pool.map_async(compute_w_and_w2_ave_sub, range(self.distances.shape[0]))
             pool.close()
             pool.join()

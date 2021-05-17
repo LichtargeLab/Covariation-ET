@@ -60,6 +60,7 @@ def et_computeAdjacency(chain, mapping):
         "C": "C", }
 
     ResAtoms = {}
+    print(chain)
     for residue in chain:
         try:
             aa = three2one[residue.get_resname()]
@@ -350,6 +351,102 @@ class TestComputeWAndW2Ave(TestCase):
         self.evaluate_compute_w_and_w2_ave(distances=scorer.distances, biased=True,
                                            pdb_residues=scorer.query_pdb_mapper.pdb_ref.residue_pos[scorer.query_pdb_mapper.best_chain])
 
+
+class TestComputeBackgroundWAndW2Ave(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_compute_background_w_and_w2_ave(self, scw_scorer, processes):
+        scw_scorer.compute_background_w_and_w2_ave(processes=processes)
+        best_chain = None
+        print(scw_scorer.query_pdb_mapper.pdb_ref.structure)
+        for model in scw_scorer.query_pdb_mapper.pdb_ref.structure:
+            print(model)
+            for chain in model:
+                print(chain)
+                if chain.id == scw_scorer.query_pdb_mapper.best_chain:
+                    best_chain = chain
+                    break
+        if best_chain is None:
+            raise ValueError('Best Chain Never Initialized')
+        adj, res_atoms = et_computeAdjacency(chain=best_chain,
+                                             mapping={res: i for i, res in enumerate(scw_scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scw_scorer.query_pdb_mapper.best_chain])})
+        case1, case2, case3 = et_calc_w2_sub_problems(adj, bias=1 if scw_scorer.biased else 0)
+        self.assertEqual(scw_scorer.w_and_w2_ave_sub['Case1'], case1)
+        self.assertEqual(scw_scorer.w_and_w2_ave_sub['Case2'], case2)
+        self.assertEqual(scw_scorer.w_and_w2_ave_sub['Case3'], case3)
+
+    def test_seq2_no_bias_single_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=1)
+
+    def test_seq2_no_bias_multi_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=2)
+
+    def test_seq2_bias_single_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=1)
+
+    def test_seq2_bias_multi_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=2)
+
+    def test_seq3_no_bias(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=2)
+
+    def test_seq3_bias(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        self.evaluate_compute_background_w_and_w2_ave(scw_scorer=scw_scorer, processes=2)
 # class TestContactScorer(TestBase):
 #
 #
