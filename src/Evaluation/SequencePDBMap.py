@@ -71,7 +71,6 @@ class SequencePDBMap(object):
         Return:
             bool: True if query_pdb_map, pdb_query_map, and best_chain have values that are not None, False otherwise.
         """
-        print()
         if (self.query_pdb_mapping is None) or (self.pdb_query_mapping is None) or (self.best_chain is None):
             return False
         else:
@@ -97,8 +96,10 @@ class SequencePDBMap(object):
             else:
                 if not isinstance(self.seq_aln, SeqAlignment):
                     self.seq_aln = SeqAlignment(file_name=self.seq_aln, query_id=self.query)
-                self.seq_aln.import_alignment()
-                self.seq_aln = self.seq_aln.remove_gaps()
+                if self.seq_aln.alignment is None:
+                    self.seq_aln.import_alignment()
+                if '-' in self.seq_aln.query_sequence:
+                    self.seq_aln = self.seq_aln.remove_gaps()
             if self.pdb_ref is None:
                 raise ValueError('Scorer cannot be fit, because no PDB was provided.')
             else:
