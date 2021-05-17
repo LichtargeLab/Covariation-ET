@@ -430,12 +430,9 @@ class TestClusteringZScore(TestCase):
         for i in range(chain_length):
             for comb in combinations(list(range(scw_scorer.query_pdb_mapper.seq_aln.seq_length)), i):
                 scw_z_score = scw_scorer.clustering_z_score(res_list=list(comb))
-                print(scw_z_score)
-                # a, m, l, pi1, pi2, pi3, z_score, w, w_ave, w2_ave, sigma, m
                 res_list = [scw_scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scw_scorer.query_pdb_mapper.best_chain][x] for x in comb]
                 expected_scw_z_score = et_calcZScore(reslist=res_list, L=chain_length, A=adj,
                                                      bias=1 if scw_scorer.biased else 0)
-                # M, L, pi1, pi2, pi3, (w - w_ave) / sigma, w, w_ave, w2_ave, sigma, cases
                 mappable = all([x in scw_scorer.query_pdb_mapper.query_pdb_mapping for x in comb])
                 if mappable:
                     self.assertEqual(scw_z_score[1], expected_scw_z_score[0])
