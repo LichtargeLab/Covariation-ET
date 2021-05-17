@@ -90,7 +90,7 @@ class SelectionClusterWeighting(object):
             3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S) Reference 2
 
         Args:
-            res_list (list): a list of int's of protein residue numbers, e.g. ET residues (residues of interest)
+            res_list (list): A list of of sequence positions to score for clustering on the protein structure.
         Returns:
             float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
             float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
