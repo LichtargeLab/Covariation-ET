@@ -2692,10 +2692,6 @@ class TestContactScorerEvaluatePredictor(TestCase):
         rmtree(new_dir)
 
 
-# class TestPlotZScores(TestCase):
-# class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
-
-
 class TestSCWZScoreSelection(TestCase):
 
     @classmethod
@@ -2786,6 +2782,48 @@ class TestSCWZScoreSelection(TestCase):
         scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
                                                biased=True)
         self.evaluate_scw_z_score_selection(scw_scorer=scw_scorer)
+
+
+class TestPlotZScores(TestCase):
+
+    def test_fail_no_data_no_path(self):
+        with self.assertRaises(AttributeError):
+            plot_z_scores(df=None, file_path=None)
+
+    def test_empty_data_no_path(self):
+        plot_z_scores(df=pd.DataFrame(), file_path=None)
+        self.assertFalse(os.path.isfile('./zscore_plot.png'))
+
+    def test_only_mappable_data_no_path(self):
+        df = pd.DataFrame({'Num_Residues': list(range(11)), 'Z-Score': np.random.rand(11)})
+        plot_z_scores(df=df, file_path=None)
+        expected_path = './zscore_plot.png'
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+
+    def test_only_mappable_data_path(self):
+        df = pd.DataFrame({'Num_Residues': list(range(11)), 'Z-Score': np.random.rand(11)})
+        expected_path = './TEST_ZScore_Plot.png'
+        plot_z_scores(df=df, file_path=expected_path)
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+
+    def test_mixed_data_no_path(self):
+        df = pd.DataFrame({'Num_Residues': list(range(21)),
+                           'Z-Score': np.random.rand(11).tolist() + (['-', 'NA'] * 5)})
+        plot_z_scores(df=df, file_path=None)
+        expected_path = './zscore_plot.png'
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+
+    def test_mixed_data_path(self):
+        df = pd.DataFrame({'Num_Residues': list(range(21)),
+                           'Z-Score': np.random.rand(11).tolist() + (['-', 'NA'] * 5)})
+        expected_path = './TEST_ZScore_Plot.png'
+        plot_z_scores(df=df, file_path=expected_path)
+        self.assertTrue(os.path.isfile(expected_path))
+        os.remove(expected_path)
+# class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
 
 
 if __name__ == '__main__':

@@ -721,12 +721,14 @@ class ContactScorer(object):
         That set of residues is evaluated for clustering z-score after each pair is added.
 
         Args:
-            bias (int or bool): option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
+            biased (int or bool): option to calculate z_scores with bias (True) or no bias (False). If bias is used a j-i
             factor accounting for the sequence separation of residues, as well as their distance, is added to the
             calculation.
             file_path (str): path where the z-scoring results should be written to.
-            w_and_w2_ave_sub (dict): A dictionary of the precomputed scores for E[w] and E[w^2] also returned by this
-            function.
+            scw_scorer (SelectionClusterWeighting): A SelectionClusterWeighting instance with the w_ave and w2_ave
+            background already computed. If None, a new SelectionClusterWeighting object will be initialized using the
+            SequencePDBMap held by the current ContactScorer instance and the background values will be computed before
+            scoring the ranked residues.
             processes (int): How many processes may be used in computing the clustering Z-scores.
         Returns:
             pd.DataFrame: Table holding residue I of a pair, residue J of a pair, the covariance score for that pair,
