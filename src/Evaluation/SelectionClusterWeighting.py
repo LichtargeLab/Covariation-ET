@@ -20,9 +20,10 @@ class SelectionClusterWeighting(object):
     involved.
 
     Attributes:
+        query_pdb_mapper
         bias
         w_and_w2_ave_sub
-
+        cutoff
     """
 
     def __init__(self, seq_pdb_map, pdb_dists, biased):
@@ -48,6 +49,7 @@ class SelectionClusterWeighting(object):
         assert isinstance(biased, bool), 'biased must be of type bool!'
         self.biased = biased
         self.w_and_w2_ave_sub = None
+        self.cutoff = 4.0
 
     def compute_background_w_and_w2_ave(self, processes=1):
         """
@@ -116,19 +118,19 @@ class SelectionClusterWeighting(object):
         """
         res_list = sorted(res_list)
         # Make sure all residues in res_list are mapped to the PDB structure in use
-        if not all(res in self.query_pdb_mapping for res in res_list):
+        if not all(res in self.query_pdb_mapper.query_pdb_mapping for res in res_list):
             print('At least one residue of interest is not present in the PDB provided')
             print(', '.join([str(x) for x in res_list]))
-            print(', '.join([str(x) for x in self.query_pdb_mapping.keys()]))
+            print(', '.join([str(x) for x in self.query_pdb_mapper.query_pdb_mapping.keys()]))
             return None, None, None, None, None, None, '-', None, None, None, None, len(res_list)
-        positions = list(range(distances.shape[0]))
-        a = distances < cutoff
+        positions = list(range(self.distances.shape[0]))
+        a = self.distances < self.cutoff
         a[positions, positions] = 0
-        s_i = np.in1d(positions, [self.query_pdb_mapping[r] for r in res_list])
+        s_i = np.in1d(positions, [self.query_pdb_mapper.query_pdb_mapping[r] for r in res_list])
         s_ij = np.outer(s_i, s_i)
         s_ij[positions, positions] = 0
-        if bias:
-            converted_positions = np.array(self.query_structure.pdb_residue_list[self.chain])
+        if self.biased:
+            converted_positions = np.array(self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain])
             bias_ij = np.subtract.outer(converted_positions, converted_positions)
             bias_ij = np.abs(bias_ij)
         else:
@@ -137,7 +139,7 @@ class SelectionClusterWeighting(object):
         # Calculate w, <w>_S, and <w^2>_S.
         # Use expressions (3),(4),(5),(6) in Reference.
         m = len(res_list)
-        l = len(self.query_structure.seq[self.chain])
+        l = self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]
         pi1 = m * (m - 1.0) / (l * (l - 1.0))
         pi2 = pi1 * (m - 2.0) / (l - 2.0)
         pi3 = pi2 * (m - 3.0) / (l - 3.0)
