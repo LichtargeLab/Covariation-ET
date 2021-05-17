@@ -40,21 +40,13 @@ class SelectionClusterWeighting(object):
             computed, taking residues sequence separation into account. If False, the unbiased SCW score will be
             computed, which considers only the position of residues on the protein structure into account.
         """
-        # assert isinstance(seq_len, int) and (seq_len > 0), 'seq_len must be an integer > 0!'
-        # self.query_seq_length = seq_len
-        # assert aln_struct_map is not None, 'aln_struct_map must be provided!'
-        # self.query_pdb_mapping = aln_struct_map
-        # assert isinstance(pdb, PDBReference), 'pdb must be of type PDBReference!'
-        # self.query_structure = pdb
-        # assert chain in self.query_structure.chains, 'chain must be in pdb.chains!'
-        # self.chain = chain
         assert isinstance(seq_pdb_map, SequencePDBMap), 'seq_pdb_map must be SequencePDBMap instance!'
         assert seq_pdb_map.is_aligned(), 'SequencePDBMap must be aligned before use in SelectionClusterWeighting!'
         self.query_pdb_mapper = seq_pdb_map
         assert pdb_dists is not None, 'pdb_dists must be provided!'
         self.distances = pdb_dists
         assert isinstance(biased, bool), 'biased must be of type bool!'
-        self.bias = biased
+        self.biased = biased
         self.w_and_w2_ave_sub = None
 
     def compute_background_w_and_w2_ave(self, processes=1):
@@ -171,13 +163,10 @@ def init_compute_w_and_w2_ave_sub(dists, structure_res_num, bias_bool):
         factor accounting for the sequence separation of residues, as well as their distance, is added to the
         calculation.
     """
-    global distances
+    global distances, w2_ave_residues, bias, cutoff
     distances = dists
-    global w2_ave_residues
     w2_ave_residues = structure_res_num
-    global bias
     bias = bias_bool
-    global cutoff
     # The distance for structural clustering has historically been 4.0 Angstroms and can be found in all previous
     # versions of the code and paper descriptions, it had previously been set as a variable but this changes the meaning
     # of the result and makes it impossible to compare to previous work.
