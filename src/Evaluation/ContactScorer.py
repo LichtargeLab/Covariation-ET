@@ -873,6 +873,79 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
+    def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
+        """
+        Score PDB Residue Identification
+
+        This function takes the top n or L/k pairs or the residues up to a specified coverage cutoff and determines the
+        significance of their overlap with a set of residues on the structure provided to this ContactScorer instance.
+        Significance is measured using the hypergoemteric test, the implementation here is adapted from:
+        https://alexlenail.medium.com/understanding-and-implementing-the-hypergeometric-test-in-python-a7db688a7458
+
+        Args:
+            pdb_residues (list): A list of the residues from the PDB structure used as reference for this scorer whose
+            overlap with the scores should be tested.
+            n (int): Specify n if you would like to evaluate the overlap of the top n pairs with the provided
+            pdb_residues list.
+            k (int): Specify k if you would like to evaluate the overlap of the top L/k (where L is the length of the
+            query sequence) pairs with the provided pdb_residues list.
+            coverage_cutoff (float): Specify coverage cutoff if you would like to evaluate pairs up to that percentage
+            of the residues in the query sequence. For example if 0.3 is specified pairs will be added until 30% of the
+            residues in the sequence are covered. If pairs are tied for rank the residues from those pairs are added at
+            the same time. If adding pairs at a given rank would go over the specified coverage, those pairs are not
+            added. The coverage is measured over all residues, not just those mappable to the structure.
+        Return:
+            int: The number of residues overlapping the provided residue list (the number of successes in the sample).
+            int: The number of residues in the PDB chain (the population size).
+            int: The number of residues in the provided residues list (the number of successes in the population).
+            int: The number of residues passing the n, L/k, or coverage_cutoff threshold (the size of the sample).
+            float: The hypergeometric p-value testing the likelihood of picking the number of residues which overlap the
+            provided list of residues.
+        """
+        from scipy.stats import hypergeom
+        if coverage_cutoff and (n or k):
+            raise ValueError('If coverage_cutoff is specified neither n nor k should be specified.')
+        if coverage_cutoff is not None:
+            groups = self.data.groupby('Rank')
+            all_positions = set()
+            top_pdb_residues = set()
+            for i in sorted(groups.groups.keys()):
+                curr_group = groups.get_group(i)
+                curr_seq_positions = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
+                curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
+                new_positions = curr_seq_positions - all_positions
+                potential_coverage = (len(all_positions.union(new_positions)) /
+                                      float(self.query_pdb_mapper.seq_aln.seq_length))
+                if potential_coverage > coverage_cutoff:
+                    break
+                all_positions |= curr_seq_positions
+                top_pdb_residues |= curr_residues
+        else:
+            # print('N: ', n)
+            # print('K: ', k)
+            sub_df = self._identify_relevant_data(category='Any', n=n, k=k)
+            top_pdb_residues = set(sub_df['Struct Pos 1']).union(set(sub_df['Struct Pos 2']))
+            # print('FULL DATA')
+            # print(self.data.columns)
+            # print(self.data[['Seq Pos 1', 'Seq Pos 2', 'Struct Pos 1', 'Struct Pos 2']])
+            print('SUBSET')
+            print(sub_df)
+        # print('TOP RESIDUES')
+        # print(top_pdb_residues)
+        overlap = len(top_pdb_residues.intersection(set(pdb_residues)))
+        # Perform hypergeometric test for correctly selecting the specified residue from the chain of interest.
+        # X is still the number of drawn “successes” - The number of residues which overlap from the top pairs
+        # M is the population size (previously N) - Size of PDB chain
+        # n is the number of successes in the population (previously K) - Size of the list of pdb_residues passed in
+        # N is the sample size (previously n) - The number of residues returned from the top n or L/k pairs,
+        # or single residue coverage <= coverage cutoff.
+        pvalue = hypergeom.sf(overlap - 1,
+                              self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain],
+                              len(pdb_residues),
+                              len(top_pdb_residues))
+        return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
+                len(top_pdb_residues), pvalue)
+
     def evaluate_predictions(self, verbosity, out_dir, scores, coverages, ranks, dist='Any', file_prefix='',
                              biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
         """
