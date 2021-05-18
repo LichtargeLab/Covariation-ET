@@ -762,6 +762,8 @@ class ContactScorer(object):
                                                    biased=biased)
             # Compute the precomputable part (w_ave_pre, w2_ave_sub)
             scw_scorer.compute_background_w_and_w2_ave(processes=processes)
+        else:
+            assert scw_scorer.biased == biased, 'SelectionClusterWeighting scorer does not match the biased parameter.'
         data_df = self._identify_relevant_data(category='Any').loc[:, ['Seq Pos 1', 'Seq Pos 2', 'Coverage']]
         data_df.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
                        inplace=True)

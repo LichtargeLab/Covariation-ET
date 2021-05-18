@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import datetime
 import unittest
 import numpy as np
@@ -101,6 +102,188 @@ def et_calcDist(atoms1, atoms2):
             if d2 < mind2:
                 mind2 = d2
     return mind2  # Square of distance between most proximate atoms
+
+
+def et_computeAdjacency(chain, mapping):
+    """Compute the pairs of contacting residues
+    A(i,j) implemented as a hash of hash of residue numbers"""
+    three2one = {
+        "ALA": 'A',
+        "ARG": 'R',
+        "ASN": 'N',
+        "ASP": 'D',
+        "CYS": 'C',
+        "GLN": 'Q',
+        "GLU": 'E',
+        "GLY": 'G',
+        "HIS": 'H',
+        "ILE": 'I',
+        "LEU": 'L',
+        "LYS": 'K',
+        "MET": 'M',
+        "PHE": 'F',
+        "PRO": 'P',
+        "SER": 'S',
+        "THR": 'T',
+        "TRP": 'W',
+        "TYR": 'Y',
+        "VAL": 'V',
+        "A": "A",
+        "G": "G",
+        "T": "T",
+        "U": "U",
+        "C": "C", }
+
+    ResAtoms = {}
+    for residue in chain:
+        try:
+            aa = three2one[residue.get_resname()]
+        except KeyError:
+            continue
+        # resi = residue.get_id()[1]
+        resi = mapping[residue.get_id()[1]]
+        for atom in residue:
+            try:
+                # ResAtoms[resi - 1].append(atom.coord)
+                ResAtoms[resi].append(atom.coord)
+            except KeyError:
+                # ResAtoms[resi - 1] = [atom.coord]
+                ResAtoms[resi] = [atom.coord]
+    A = {}
+    for resi in ResAtoms.keys():
+        for resj in ResAtoms.keys():
+            if resi < resj:
+                curr_dist = et_calcDist(ResAtoms[resi], ResAtoms[resj])
+                if curr_dist < CONTACT_DISTANCE2:
+                    try:
+                        A[resi][resj] = 1
+                    except KeyError:
+                        A[resi] = {resj: 1}
+    return A, ResAtoms
+
+
+def et_calcZScore(reslist, L, A, bias=1):
+    """Calculate z-score (z_S) for residue selection reslist=[1,2,...]
+    z_S = (w-<w>_S)/sigma_S
+    The steps are:
+    1. Calculate Selection Clustering Weight (SCW) 'w'
+    2. Calculate mean SCW (<w>_S) in the ensemble of random
+    selections of len(reslist) residues
+    3. Calculate mean square SCW (<w^2>_S) and standard deviation (sigma_S)
+    Reference: Mihalek, Res, Yao, Lichtarge (2003)
+
+    reslist - a list of int's of protein residue numbers, e.g. ET residues
+    L - length of protein
+    A - the adjacency matrix implemented as a dictionary. The first key is related to the second key by resi<resj.
+    bias - option to calculate with bias or nobias (j-i factor)"""
+    w = 0
+    if bias == 1:
+        for resi in reslist:
+            for resj in reslist:
+                if resi < resj:
+                    try:
+                        Aij = A[resi][resj]  # A(i,j)==1
+                        w += (resj - resi)
+                    except KeyError:
+                        pass
+    elif bias == 0:
+        for resi in reslist:
+            for resj in reslist:
+                if resi < resj:
+                    try:
+                        Aij = A[resi][resj]  # A(i,j)==1
+                        w += 1
+                    except KeyError:
+                        pass
+    M = len(reslist)
+    pi1 = M * (M - 1.0) / (L * (L - 1.0))
+    pi2 = pi1 * (M - 2.0) / (L - 2.0)
+    pi3 = pi2 * (M - 3.0) / (L - 3.0)
+    w_ave = 0
+    w2_ave = 0
+    cases = {'Case1': 0, 'Case2': 0, 'Case3': 0}
+    if bias == 1:
+        for resi, neighborsj in A.items():
+            for resj in neighborsj:
+                w_ave += (resj - resi)
+                for resk, neighborsl in A.items():
+                    for resl in neighborsl:
+                        if (resi == resk and resj == resl) or \
+                                (resi == resl and resj == resk):
+                            w2_ave += pi1 * (resj - resi) * (resl - resk)
+                            cases['Case1'] += (resj - resi) * (resl - resk)
+                        elif (resi == resk) or (resj == resl) or \
+                                (resi == resl) or (resj == resk):
+                            w2_ave += pi2 * (resj - resi) * (resl - resk)
+                            cases['Case2'] += (resj - resi) * (resl - resk)
+                        else:
+                            w2_ave += pi3 * (resj - resi) * (resl - resk)
+                            cases['Case3'] += (resj - resi) * (resl - resk)
+    elif bias == 0:
+        for resi, neighborsj in A.items():
+            w_ave += len(neighborsj)
+            for resj in neighborsj:
+                for resk, neighborsl in A.items():
+                    for resl in neighborsl:
+                        if (resi == resk and resj == resl) or \
+                                (resi == resl and resj == resk):
+                            w2_ave += pi1
+                            cases['Case1'] += 1
+                        elif (resi == resk) or (resj == resl) or \
+                                (resi == resl) or (resj == resk):
+                            w2_ave += pi2
+                            cases['Case2'] += 1
+                        else:
+                            w2_ave += pi3
+                            cases['Case3'] += 1
+    w_ave = w_ave * pi1
+    # print('EXPECTED M: ', M)
+    # print('EXPECTED L: ', L)
+    # print('EXPECTED W: ', w)
+    # print('EXPECTED RES LIST: ', sorted(reslist))
+    # print('EXPECTED W_AVE: ', w_ave)
+    # print('EXPECTED W_AVE^2: ', (w_ave * w_ave))
+    # print('EXPECTED W^2_AVE: ', w2_ave)
+    # print('EXPECTED DIFF: ', w2_ave - w_ave * w_ave)
+    # print('EXPECTED DIFF2: ', w2_ave - (w_ave * w_ave))
+    sigma = math.sqrt(w2_ave - w_ave * w_ave)
+    if sigma == 0:
+        return M, L, pi1, pi2, pi3, 'NA', w, w_ave, w2_ave, sigma, cases
+    return M, L, pi1, pi2, pi3, (w - w_ave) / sigma, w, w_ave, w2_ave, sigma, cases
+
+
+# def all_z_scores(A, L, bias, res_i, res_j, scores):
+#     data = {'Res_i': res_i, 'Res_j': res_j, 'Covariance_Score': scores, 'Z-Score': [], 'W': [], 'W_Ave': [],
+#             'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
+#     res_list = []
+#     res_set = set()
+#     prev_size = 0
+#     prev_score = None
+#     for i in range(len(scores)):
+#         curr_i = res_i[i]
+#         curr_j = res_j[i]
+#         if (curr_i not in A) or (curr_j not in A):
+#             score_data = (None, None, None, None, None, None, '-', None, None, None, None, None)
+#         else:
+#             if curr_i not in res_set:
+#                 res_list.append(curr_i)
+#                 res_set.add(curr_i)
+#             if curr_j not in res_set:
+#                 res_list.append(curr_j)
+#                 res_set.add(curr_j)
+#             if len(res_set) == prev_size:
+#                 score_data = prev_score
+#             else:
+#                 score_data = et_calcZScore(reslist=res_list, L=L, A=A, bias=bias)
+#         data['Z-Score'].append(score_data[5])
+#         data['W'].append(score_data[6])
+#         data['W_Ave'].append(score_data[7])
+#         data['W2_Ave'].append(score_data[8])
+#         data['Sigma'].append(score_data[9])
+#         data['Num_Residues'].append(len(res_list))
+#         prev_size = len(res_set)
+#         prev_score = score_data
+#     return pd.DataFrame(data)
 
 
 def identify_expected_scores_and_distances(scorer, scores, coverages, ranks, distances, category='Any', n=None, k=None,
@@ -2823,7 +3006,251 @@ class TestPlotZScores(TestCase):
         plot_z_scores(df=df, file_path=expected_path)
         self.assertTrue(os.path.isfile(expected_path))
         os.remove(expected_path)
-# class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
+
+
+class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    # def evaluate_score_clustering_of_contact_predictions(self, scorer, biased, expected_path, scw_scorer, processes):
+    #     scorer.fit()
+    #     scorer.measure_distance(method='CB')
+    #     scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+    #     scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+    #     scores += scores.T
+    #     ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+    #
+    #     df, new_scw_scorer, auc = scorer.score_clustering_of_contact_predictions(
+    #         biased=True, file_path=expected_path, scw_scorer=scw_scorer, processes=processes)
+    #
+    #     scw_scorer.compute_background_w_and_w2_ave(processes=processes)
+    #     best_chain = None
+    #     for model in scw_scorer.query_pdb_mapper.pdb_ref.structure:
+    #         for chain in model:
+    #             if chain.id == scw_scorer.query_pdb_mapper.best_chain:
+    #                 best_chain = chain
+    #                 break
+    #     if best_chain is None:
+    #         raise ValueError('Best Chain Never Initialized')
+    #     adj, res_atoms = et_computeAdjacency(chain=best_chain,
+    #                                          mapping={res: i for i, res in
+    #                                                   enumerate(scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[
+    #                                                                 scorer.query_pdb_mapper.best_chain])})
+    #     expected_df = all_z_scores(A=adj, L=scorer.query_pdb_mapper.pdb_ref.size[scorer.query_pdb_mapper.best_chain],
+    #                                bias=1 if biased else 0, res_i=, res_j=, scores=)
+
+    def evaluate_score_clustering_of_contact_predictions(self, scorer, bias, processes, scw_scorer):
+        # Initialize scorer and scores
+        scorer.fit()
+        scorer.measure_distance(method='Any')
+        scores = np.random.RandomState(1234567890).rand(scorer.query_pdb_mapper.seq_aln.seq_length,
+                                                        scorer.query_pdb_mapper.seq_aln.seq_length)
+        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        scores += scores.T
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        # Calculate Z-scores for the structure
+        expected_fn = os.path.join('TEST_z_score.tsv')
+        zscore_df, _, _ = scorer.score_clustering_of_contact_predictions(biased=bias, file_path=expected_fn,
+                                                                         scw_scorer=scw_scorer, processes=processes)
+        # Check that the scoring file was written out to the expected file.
+        self.assertTrue(os.path.isfile(expected_fn))
+        os.remove(expected_fn)
+        # Generate data for calculating expected values
+        recip_map = {v: k for k, v in scorer.query_pdb_mapper.query_pdb_mapping.items()}
+        # print(recip_map)
+        struc_seq_map = {k: i for i, k in
+                         enumerate(scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scorer.query_pdb_mapper.best_chain])}
+        # print(struc_seq_map)
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = et_computeAdjacency(scorer.query_pdb_mapper.pdb_ref.structure[0][scorer.query_pdb_mapper.best_chain],
+                                           mapping=final_map)
+        # Iterate over the returned data frame row by row and test whether the results are correct
+        visited_scorable_residues = set()
+        prev_len = 0
+        prev_stats = None
+        prev_composed_w2_ave = None
+        prev_composed_sigma = None
+        prev_composed_z_score = None
+        zscore_df[['Res_i', 'Res_j']] = zscore_df[['Res_i', 'Res_j']].astype(dtype=np.int64)
+        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace([None, '-', 'NA'],
+                                                                                                 np.nan, inplace=True)
+        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = zscore_df[
+            ['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(dtype=np.float64)
+        # print(zscore_df.dtypes)
+        for ind in zscore_df.index:
+            # print('{}:{}'.format(ind, np.max(zscore_df.index)))
+            res_i = zscore_df.loc[ind, 'Res_i']
+            res_j = zscore_df.loc[ind, 'Res_j']
+            if (res_i in scorer.query_pdb_mapper.query_pdb_mapping) and\
+                    (res_j in scorer.query_pdb_mapper.query_pdb_mapping):
+                visited_scorable_residues.add(res_i)
+                visited_scorable_residues.add(res_j)
+                if len(visited_scorable_residues) > prev_len:
+                    curr_stats = et_calcZScore(reslist=sorted(visited_scorable_residues),
+                                               L=len(scorer.query_pdb_mapper.pdb_ref.seq[scorer.query_pdb_mapper.best_chain]),
+                                               A=A, bias=1 if bias else 0)
+                    expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
+                                                (curr_stats[3] * curr_stats[10]['Case2']) +
+                                                (curr_stats[4] * curr_stats[10]['Case3']))
+                    expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
+                    if expected_composed_sigma == 0.0:
+                        expected_composed_z_score = 'NA'
+                    else:
+                        expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
+                    prev_len = len(visited_scorable_residues)
+                    prev_stats = curr_stats
+                    prev_composed_w2_ave = expected_composed_w2_ave
+                    prev_composed_sigma = expected_composed_sigma
+                    prev_composed_z_score = expected_composed_z_score
+                else:
+                    curr_stats = prev_stats
+                    expected_composed_w2_ave = prev_composed_w2_ave
+                    expected_composed_sigma = prev_composed_sigma
+                    expected_composed_z_score = prev_composed_z_score
+                error_message = f'\nW: {zscore_df.loc[ind, "W"]}\nExpected W: {curr_stats[6]}\n' \
+                                f'W Ave: {zscore_df.loc[ind, "W_Ave"]}\nExpected W Ave: {curr_stats[7]}\n' \
+                                f'W2 Ave: {zscore_df.loc[ind, "W2_Ave"]}\nExpected W2 Ave: {curr_stats[8]}\n' \
+                                f'Composed Expected W2 Ave: {expected_composed_w2_ave}\n' \
+                                f'Sigma: {zscore_df.loc[ind, "Sigma"]}\nExpected Sigma: {curr_stats[9]}\n' \
+                                f'Composed Expected Sigma: {expected_composed_sigma}\n' \
+                                f'Z-Score: {zscore_df.loc[ind, "Z-Score"]}\nExpected Z-Score: {curr_stats[5]}\n' \
+                                f'Composed Expected Z-Score: {expected_composed_z_score}'
+                self.assertEqual(zscore_df.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
+                                     error_message)
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-2, error_message)
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
+                                     error_message)
+                self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
+                if expected_composed_sigma == 0.0:
+                    self.assertEqual(zscore_df.loc[ind, 'Z-Score'], expected_composed_z_score)
+                    self.assertEqual(zscore_df.loc[ind, 'Z-Score'], curr_stats[5])
+                else:
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
+                                         error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
+            else:
+                self.assertEqual(zscore_df.loc[ind, 'Z-Score'], '-')
+                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W']))
+                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W_Ave']))
+                self.assertTrue(np.isnan(zscore_df.loc[ind, 'W2_Ave']))
+                self.assertTrue(np.isnan(zscore_df.loc[ind, 'Sigma']))
+                self.assertIsNone(zscore_df.loc[ind, 'Num_Residues'])
+            self.assertEqual(zscore_df.loc[ind, 'Covariance_Score'], coverages[res_i, res_j])
+
+    def test_seq2_no_bias_single_process_no_scw(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=False, processes=1, scw_scorer=None)
+
+    def test_seq2_no_bias_single_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=False, processes=1,
+                                                              scw_scorer=scw_scorer)
+
+    def test_seq2_no_bias_multi_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=False, processes=2,
+                                                              scw_scorer=scw_scorer)
+
+    def test_seq2_bias_single_process_no_scw(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=True, processes=1, scw_scorer=None)
+
+    def test_seq2_bias_single_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=True, processes=1,
+                                                              scw_scorer=scw_scorer)
+
+    def test_seq2_bias_multi_process(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=True, processes=2,
+                                                              scw_scorer=scw_scorer)
+
+    def test_seq3_no_bias(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=False, processes=2,
+                                                              scw_scorer=scw_scorer)
+
+    def test_seq3_bias(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=True, processes=2,
+                                                              scw_scorer=scw_scorer)
+
+    def test_fail_bias_and_scw_mismatched(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        with self.assertRaises(AssertionError):
+            self.evaluate_score_clustering_of_contact_predictions(scorer=scorer, bias=False, processes=2,
+                                                                  scw_scorer=scw_scorer)
 
 
 if __name__ == '__main__':
