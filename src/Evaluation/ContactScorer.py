@@ -921,17 +921,8 @@ class ContactScorer(object):
                 all_positions |= curr_seq_positions
                 top_pdb_residues |= curr_residues
         else:
-            # print('N: ', n)
-            # print('K: ', k)
             sub_df = self._identify_relevant_data(category='Any', n=n, k=k)
             top_pdb_residues = set(sub_df['Struct Pos 1']).union(set(sub_df['Struct Pos 2']))
-            # print('FULL DATA')
-            # print(self.data.columns)
-            # print(self.data[['Seq Pos 1', 'Seq Pos 2', 'Struct Pos 1', 'Struct Pos 2']])
-            print('SUBSET')
-            print(sub_df)
-        # print('TOP RESIDUES')
-        # print(top_pdb_residues)
         overlap = len(top_pdb_residues.intersection(set(pdb_residues)))
         # Perform hypergeometric test for correctly selecting the specified residue from the chain of interest.
         # X is still the number of drawn “successes” - The number of residues which overlap from the top pairs
