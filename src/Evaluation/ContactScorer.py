@@ -12,6 +12,7 @@ from time import time
 from math import floor
 from datetime import datetime
 from multiprocessing import Pool
+from scipy.stats import hypergeom
 from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
@@ -397,12 +398,15 @@ class ContactScorer(object):
         self.data['Coverage'] = coverages[indices]
         self.data['True Prediction'] = self.data['Coverage'].apply(lambda x: x <= threshold)
 
-    def _identify_relevant_data(self, category='Any', n=None, k=None):
+    def _identify_relevant_data(self, category='Any', n=None, k=None, coverage_cutoff=None):
         """
-        Map Predictions To PDB
+        Identify Relevant Data
 
-        This method accepts a set of predictions and uses the mapping between the query sequence and the best PDB chain
-        to extract the comparable predictions and distances.
+        This method accepts parameters describing a subset of the data stored in the ContactScorer instance and subsets
+        it. The order of operations is:
+            1. Filter to only predicted pairs in the specified sequence separation category.
+            2. Filter to only predicted pairs which map to the best_chain of the provided PDB structure.
+            3. Filter to the top predictions as specified by n, k, or coverage_cutoff
 
         Args:
             category (str/list): The category for which to return residue pairs. At the moment the following categories
@@ -414,14 +418,20 @@ class ContactScorer(object):
                 Any - Any/All pairs of residues.
             In order to return a combination of labels, a list may be provided which contains any of the strings from
             the above set of categories (e.g. ['Short', 'Medium', 'Long']).
-            k (int): This value should only be specified if n is not specified. This is the number that L, the length of
-            the query sequence, will be divided by to give the number of predictions to test.
-            n (int): This value should only be specified if k is not specified. This is the number of predictions to
-            test.
+            k (int): This value should only be specified if n and coverage_cutoff are not specified. This is the number
+            that L, the length of the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k and coverage_cutoff are not specified. This is the number
+            of predictions to test.
+            coverage_cutoff (float): This value should only be specified if n and k are not specified. This number
+            determines how many predictions will be tested by considering predictions up to the point that the specified
+            percentage of residues in best_chain are covered. If predictions are tied their residues are added to this
+            calculation together, so if many residues are added by considering the next group of predictions, and the
+            number of unique residues exceeds the specified percentage, none of the predictions in that group will be
+            added.
         Returns:
-            np.array: A set of predictions which can be scored because they map successfully to the PDB.
-            np.array: A set of distances which can be used for scoring because they map successfully to the query
-            sequence.
+            pd.DataFrame: A set of predictions which can be scored because they are in the specified sequence separation
+            category, map successfully to the PDB, and meet the criteria set by n, k, or coverage cutoff for top
+            predictions.
         """
         # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
         # the PDB Structure.
@@ -433,8 +443,9 @@ class ContactScorer(object):
         if not pd.Series(['Rank', 'Score', 'Coverage']).isin(self.data.columns).all():
             raise ValueError('Ranks, Scores, and Coverage values must be provided through map_predictions_to_pdb,'
                              'before a specific evaluation can be made.')
-        if (k is not None) and (n is not None):
-            raise ValueError('Both k and n were set for score_recall which is not a valid option.')
+        parameter_count = (k is not None) + (n is not None) + (coverage_cutoff is not None)
+        if parameter_count > 1:
+            raise ValueError('Only one parameter should be set, either: n, k, or coverage_cutoff.')
         if (category == 'Any') or ('Any' in category):
             category_subset = self.data
         elif type(category) == list:
@@ -446,7 +457,22 @@ class ContactScorer(object):
         final_subset = category_subset.drop(unmappable_index)
         final_df = final_subset.sort_values(by='Coverage')
         final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
-        if k:
+        if coverage_cutoff:
+            assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
+            groups = self.data.groupby('Rank')
+            top_pdb_residues = set()
+            n = 0
+            for i in sorted(groups.groups.keys()):
+                curr_group = groups.get_group(i)
+                curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
+                new_positions = curr_residues - top_pdb_residues
+                potential_coverage = (len(top_pdb_residues.union(new_positions)) /
+                                      float(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]))
+                if potential_coverage > coverage_cutoff:
+                    break
+                top_pdb_residues |= curr_residues
+                n += len(curr_group)
+        elif k:
             n = int(floor(self.query_pdb_mapper.seq_aln.seq_length / float(k)))
         elif n is None:
             n = self.data.shape[0]
@@ -873,6 +899,10 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
+    # def select_and_display_pairs(self, n, k, residue_coverage):
+    #     relevan_data = self._identify_relevant_data(category=, n=, k=, coverage_cutoff=)
+
+
     def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
         """
         Score PDB Residue Identification
@@ -902,7 +932,6 @@ class ContactScorer(object):
             float: The hypergeometric p-value testing the likelihood of picking the number of residues which overlap the
             provided list of residues.
         """
-        from scipy.stats import hypergeom
         if coverage_cutoff and (n or k):
             raise ValueError('If coverage_cutoff is specified neither n nor k should be specified.')
         if coverage_cutoff is not None:

@@ -253,19 +253,58 @@ def et_calcZScore(reslist, L, A, bias=1):
 
 
 def identify_expected_scores_and_distances(scorer, scores, coverages, ranks, distances, category='Any', n=None, k=None,
-                                           cutoff=8.0, threshold=0.5):
+                                           coverage_cutoff=None, cutoff=8.0, threshold=0.5):
     seq_sep_ind = scorer.find_pairs_by_separation(category=category, mappable_only=True)
     converted_ind = list(zip(*seq_sep_ind))
     dist_ind = [(scorer.query_pdb_mapper.query_pdb_mapping[x[0]], scorer.query_pdb_mapper.query_pdb_mapping[x[1]])
                 for x in seq_sep_ind]
     converted_dist_ind = list(zip(*dist_ind))
-    if n and k:
+    if n and k and coverage_cutoff:
+        raise ValueError('n, k, and coverage_cutoff cannot be defined when identifying data for testing.')
+    elif n and k:
         raise ValueError('Both n and k cannot be defined when identifying data for testing.')
-    elif n is None and k is None:
-        # n = len(converted_ind[0])
-        n = scorer.query_pdb_mapper.seq_aln.seq_length
+    elif n and coverage_cutoff:
+        raise ValueError('Both n and coverage_cutoff cannot be defined when identifying data for testing.')
+    elif k and coverage_cutoff:
+        raise ValueError('Both k and coverage_cutoff cannot be defined when identifying data for testing.')
     elif k is not None:
         n = int(floor(scorer.query_pdb_mapper.seq_aln.seq_length / float(k)))
+    elif coverage_cutoff is not None:
+        rank_ind = []
+        for ind in seq_sep_ind:
+            if ind in dist_ind:
+                rank_ind.append((ranks[ind], ind))
+        max_res_count = floor(scorer.query_pdb_mapper.pdb_ref.size[scorer.query_pdb_mapper.best_chain] *
+                              coverage_cutoff)
+        sorted_rank_ind = sorted(rank_ind)
+        prev_rank = None
+        curr_res = set()
+        rank_pairs = 0
+        n = 0
+        all_res = set()
+        for rank, ind in sorted_rank_ind:
+            if (prev_rank is not None) and (prev_rank != rank):
+                # Evaluate
+                curr_res_count = len(all_res.union(curr_res))
+                if curr_res_count > max_res_count:
+                    break
+                # Reset
+                all_res |= curr_res
+                curr_res = set()
+                n += rank_pairs
+                rank_pairs = 0
+                prev_rank = rank
+            curr_res |= set(ind)
+            rank_pairs += 1
+            prev_rank = rank
+        if (len(all_res) <= max_res_count) and (len(all_res.union(curr_res)) <= max_res_count):
+            all_res |= curr_res
+            n += 1
+    elif n is None and k is None:
+        try:
+            n = len(converted_ind[0])
+        except IndexError:
+            n = 0
     else:
         pass
     scores_subset = scores[converted_ind]
@@ -1406,12 +1445,24 @@ class TestContactScorerIdentifyRelevantData(TestCase):
         ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         with self.assertRaises(ValueError):
-            scorer._identify_relevant_data(category='Any', n=10, k=10)
+            scorer._identify_relevant_data(category='Any', n=10, k=10, coverage_cutoff=None)
+        with self.assertRaises(ValueError):
+            scorer._identify_relevant_data(category='Any', n=None, k=10, coverage_cutoff=0.1)
+        with self.assertRaises(ValueError):
+            scorer._identify_relevant_data(category='Any', n=10, k=None, coverage_cutoff=0.1)
+        with self.assertRaises(ValueError):
+            scorer._identify_relevant_data(category='Any', n=10, k=10, coverage_cutoff=0.1)
+        with self.assertRaises(AssertionError):
+            scorer._identify_relevant_data(category='Any', n=None, k=None, coverage_cutoff=10)
         for category in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
-            for n, k in [(None, None), (1, None), (2, None), (3, None), (None, 1), (None, 2), (None, 3)]:
-                curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k)
+            for n, k, cc in [(None, None, None),
+                             (1, None, None), (2, None, None), (3, None, None),
+                             (None, 1, None), (None, 2, None), (None, 3, None),
+                             (None, None, 0.34), (None, None, 0.67), (None, None, 1.0)]:
+                curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=cc)
                 expected_subset = identify_expected_scores_and_distances(
-                    scorer, scores, coverages, ranks, scorer.distances, category, n=n, k=k, cutoff=scorer.cutoff)
+                    scorer, scores, coverages, ranks, scorer.distances, category, n=n, k=k, coverage_cutoff=cc,
+                    cutoff=scorer.cutoff)
                 if len(curr_subset) == 0:
                     self.assertEqual(len(expected_subset), 0)
                 else:
@@ -1504,17 +1555,22 @@ class TestContactScorerIdentifyRelevantData(TestCase):
             scorer._identify_relevant_data(category='Any', n=10, k=10)
         for category in [['Any', 'Neighbors'], ['Any', 'Neighbors', 'Short', 'Medium', 'Long'],
                          ['Neighbors', 'Short'], ['Short', 'Medium', 'Long']]:
-            for n, k in [(None, None), (1, None), (2, None), (3, None), (None, 1), (None, 2), (None, 3)]:
-                curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k)
+            for n, k, cc in [(None, None, None),
+                             (1, None, None), (2, None, None), (3, None, None),
+                             (None, 1, None), (None, 2, None), (None, 3, None),
+                             (None, None, 0.34), (None, None, 0.67), (None, None, 1.0)]:
+                curr_subset = scorer._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=cc)
                 curr_subset = curr_subset.sort_values(by=['Coverage', 'Seq Pos 1', 'Seq Pos 2'])
                 expected_subset = None
                 for cat in category:
                     if expected_subset is None:
                         expected_subset = identify_expected_scores_and_distances(
-                            scorer, scores, coverages, ranks, scorer.distances, cat, n=n, k=k)
+                            scorer, scores, coverages, ranks, scorer.distances, cat, n=n, k=k, coverage_cutoff=cc,
+                            cutoff=scorer.cutoff)
                     else:
                         expected_subset = expected_subset.append(identify_expected_scores_and_distances(
-                            scorer, scores, coverages, ranks, scorer.distances, cat, n=n, k=k))
+                            scorer, scores, coverages, ranks, scorer.distances, cat, n=n, k=k, coverage_cutoff=cc,
+                            cutoff=scorer.cutoff))
                 expected_subset = expected_subset.sort_values(by=['Coverage', 'Seq Pos 1', 'Seq Pos 2'])
                 expected_subset = expected_subset.drop_duplicates()
                 self.assertEqual(len(curr_subset), len(expected_subset))
@@ -1526,9 +1582,9 @@ class TestContactScorerIdentifyRelevantData(TestCase):
                 self.assertFalse((curr_subset['Score'] - expected_subset['Score']).any())
                 self.assertFalse((curr_subset['Coverage'] - expected_subset['Coverage']).any())
                 self.assertFalse((curr_subset['Distance'] - expected_subset['Distance']).any())
-                self.assertFalse((curr_subset['Contact (within {}A cutoff)'.format(scorer.cutoff)] -
+                self.assertFalse((curr_subset['Contact (within {}A cutoff)'.format(scorer.cutoff)] ^
                                   expected_subset['Contact']).any())
-                self.assertFalse((curr_subset['True Prediction'] - expected_subset['Predictions']).any())
+                self.assertFalse((curr_subset['True Prediction'] ^ expected_subset['Predictions']).any())
                     # diff_ranks = np.abs(curr_subset['Rank'].values - expected_subset['Rank'].values)
                     # not_passing_ranks = diff_ranks > 1E-12
                     # self.assertFalse(not_passing_ranks.any())
