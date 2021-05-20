@@ -474,8 +474,7 @@ class PDBReference(object):
                 handle.write(line + '\n')
         return pse_path, commands_path, sorted(colored_residues)
 
-    def display_pairs(self, chain_id, data, pair_col, res_col1, res_col2, data_direction, coloring_threshold, color_map,
-                      out_dir):
+    def display_pairs(self, chain_id, data, pair_col, res_col1, res_col2, data_direction, color_map, out_dir, fn=None):
         """
         Color Structure
 
@@ -497,15 +496,18 @@ class PDBReference(object):
             data_direction (str): Expected values are 'min' or 'max'. If 'min' is specified then the normal version of
             the specified color map is used, if 'max' is specified then the reverse version of the specified color map
             is used. This parameter also affects how the coloring_threshold is used.
-            coloring_threshold (float): The cutoff value for coloring residues. If data_direction is 'min' then any
-            value greater than the provided threshold is not colored, if data_direction is 'max' then any value less
-            than the provided threshold is not colored. This threshold is applied to the residue_col not the
-            pair_col, all pairs associated with passing residue_col values will be displayed.
             color_map (str): A string specifying the color map to use. If 'ET' is specified the prismatic colormap used
             in the PyETViewer is used. Any other value which is provided should be a valid matplotlib colormap name as
             described here: https://matplotlib.org/stable/gallery/color/colormap_reference.html
             out_dir (str): The path to the directory where the .pse file and .txt file with all commands for this
             coloring should be saved.
+            fn (str): A string specifying the filename for the pse and commands files being written out which will have
+            the format:
+                f{fn}.pse
+                f{fn}_all_pymol_commands.txt
+            If None a default will be used with the format:
+                f'{curr_name}_{curr_chain}_displayed_pairs.pse
+                f'{curr_name}_{curr_chain}_displayed_paris_all_pymol_commands.txt
         Returns:
             str: The path to the created pse file.
             str: The path to the text file containing all commands used to generate the pse file.
@@ -554,18 +556,12 @@ class PDBReference(object):
         if not isinstance(data, pd.DataFrame):
             raise TypeError('Bad data provided, expected pandas.DataFrame')
         unique_res_values = data[pair_col].unique()
-        if (coloring_threshold < 0.0) or (coloring_threshold > 1.0):
-            raise ValueError('coloring threshold outside of range from 0.0 to 1.0')
         colored_residues = []
         colored_pairs = []
         for value in sorted(unique_res_values, reverse=(False if data_direction == 'min' else True)):
             pairs = data.loc[data[pair_col] == value, ['RESIDUE_Index_1', 'RESIDUE_Index_2', res_col1, res_col2]]
             for _, pair in pairs.iterrows():
-                if ((pair[res_col1] > coloring_threshold or pair[res_col2] > coloring_threshold) and
-                    (data_direction == 'min')) or\
-                        ((pair[res_col1] < coloring_threshold or pair[res_col2] < coloring_threshold) and
-                         (data_direction == 'max')) or\
-                        (pair[res_col1] is None or pair[res_col2] is None) or\
+                if (pair[res_col1] is None or pair[res_col2] is None) or\
                         (np.isnan(pair[res_col1]) or np.isnan(pair[res_col2])):
                     continue
                 if pair['RESIDUE_Index_1'] not in colored_residues:
@@ -609,13 +605,18 @@ class PDBReference(object):
             cmd.select('not_colored', f"{curr_chain} and (not colored)")
             all_commands.append(f"select not_colored, {curr_chain} and (not colored)")
             full_selection_list = full_selection_list[:2] + ['colored', 'not_colored'] + full_selection_list[2:]
-        pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}.pse')
+        if fn is None:
+            pse_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_displayed_pairs.pse')
+            commands_path = os.path.join(out_dir,
+                                         f'{curr_name}_{curr_chain}_displayed_pairs_all_pymol_commands.txt')
+        else:
+            pse_path = os.path.join(out_dir, fn + '.pse')
+            commands_path = os.path.join(out_dir, fn + '_all_pymol_commands.txt')
         cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
-        all_commands.append(f"save {os.path.join(out_dir, f'{curr_name}_{curr_chain}_{coloring_threshold}.pse')},"
-                            ' or '.join(full_selection_list) + ' , -1, pse')
+        all_commands.append(f"save {pse_path}," ' or '.join(full_selection_list) + ' , -1, pse')
         cmd.delete('all')
         all_commands.append('delete all')
-        commands_path = os.path.join(out_dir, f'{curr_name}_{curr_chain}_threshold_{coloring_threshold}_all_pymol_commands.txt')
+
         with open(commands_path, 'w') as handle:
             for line in all_commands:
                 handle.write(line + '\n')

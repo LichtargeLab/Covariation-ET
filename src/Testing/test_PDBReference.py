@@ -967,15 +967,15 @@ class TestDisplayPairs(TestCase):
         fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdbref = PDBReference(pdb_file=fn)
         pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
+        data = pd.DataFrame({'RESIDUE_Index_1': [1], 'RESIDUE_Index_2': [2], 'Coverage1': [0.1],
+                             'Coverage2': [0.5], 'Covariance': [0.2]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='min', coloring_threshold=0.5, color_map='ET', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5.pse'
+            data_direction='min', color_map='ET', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertEqual(commands_path, expected_command_path)
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2])
@@ -988,15 +988,15 @@ class TestDisplayPairs(TestCase):
         fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdbref = PDBReference(pdb_file=fn)
         pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
+        data = pd.DataFrame({'RESIDUE_Index_1': [2], 'RESIDUE_Index_2': [3], 'Coverage1': [0.5],
+                             'Coverage2': [0.9], 'Covariance': [1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='max', coloring_threshold=0.5, color_map='ET', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5.pse'
+            data_direction='max', color_map='ET', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [2, 3])
@@ -1013,11 +1013,11 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='min', coloring_threshold=1.0, color_map='ET', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_1.0.pse'
+            data_direction='min', color_map='ET', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_1.0_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2, 3])
@@ -1034,11 +1034,11 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='max', coloring_threshold=0.0, color_map='ET', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.0.pse'
+            data_direction='max', color_map='ET', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.0_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2, 3])
@@ -1051,15 +1051,15 @@ class TestDisplayPairs(TestCase):
         fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdbref = PDBReference(pdb_file=fn)
         pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
+        data = pd.DataFrame({'RESIDUE_Index_1': [1], 'RESIDUE_Index_2': [2], 'Coverage1': [0.1],
+                             'Coverage2': [0.5], 'Covariance': [0.2]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='min', coloring_threshold=0.5, color_map='seismic', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5.pse'
+            data_direction='min', color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2])
@@ -1072,15 +1072,15 @@ class TestDisplayPairs(TestCase):
         fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
         pdbref = PDBReference(pdb_file=fn)
         pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
+        data = pd.DataFrame({'RESIDUE_Index_1': [2], 'RESIDUE_Index_2': [3], 'Coverage1': [0.5],
+                             'Coverage2': [0.9], 'Covariance': [1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='max', coloring_threshold=0.5, color_map='seismic', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5.pse'
+            data_direction='max', color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.5_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [2, 3])
@@ -1097,11 +1097,11 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='min', coloring_threshold=1.0, color_map='seismic', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_1.0.pse'
+            data_direction='min', color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_1.0_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2, 3])
@@ -1118,11 +1118,11 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         pse_path, commands_path, colored_res, colored_pairs = pdbref.display_pairs(
             chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1', res_col2='Coverage2',
-            data_direction='max', coloring_threshold=0.0, color_map='seismic', out_dir='./')
-        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.0.pse'
+            data_direction='max', color_map='seismic', out_dir='./')
+        expected_pse_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs.pse'
         self.assertEqual(pse_path, expected_pse_path)
         self.assertTrue(os.path.isfile(expected_pse_path))
-        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_threshold_0.0_all_pymol_commands.txt'
+        expected_command_path = f'./1TES_Covariance_pairs_Chain_A_displayed_pairs_all_pymol_commands.txt'
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertTrue(os.path.isfile(expected_command_path))
         self.assertEqual(colored_res, [1, 2, 3])
@@ -1136,7 +1136,7 @@ class TestDisplayPairs(TestCase):
         pdbref = PDBReference(pdb_file=fn)
         with self.assertRaises(TypeError):
             pdbref.display_pairs(chain_id=None, data=None, pair_col=None, res_col1=None, res_col2=None,
-                                 data_direction=None, coloring_threshold=None, color_map=None, out_dir=None)
+                                 data_direction=None, color_map=None, out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failuare_bad_cm(self):
@@ -1144,7 +1144,7 @@ class TestDisplayPairs(TestCase):
         pdbref = PDBReference(pdb_file=fn)
         with self.assertRaises(ValueError):
             pdbref.display_pairs(chain_id=None, data=None, pair_col=None, res_col1=None, res_col2=None,
-                                 data_direction=None, coloring_threshold=None, color_map='foo', out_dir=None)
+                                 data_direction=None, color_map='foo', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_bad_data_direction(self):
@@ -1152,7 +1152,7 @@ class TestDisplayPairs(TestCase):
         pdbref = PDBReference(pdb_file=fn)
         with self.assertRaises(ValueError):
             pdbref.display_pairs(chain_id=None, data=None, pair_col=None, res_col1=None, res_col2=None,
-                                 data_direction='foo', coloring_threshold=None, color_map='ET', out_dir=None)
+                                 data_direction='foo', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_no_pair_col(self):
@@ -1163,7 +1163,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(AttributeError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col=None, res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=0.5, color_map='ET',
+                                 res_col2='Coverage2', data_direction='min', color_map='ET',
                                  out_dir=None)
         os.remove(fn)
 
@@ -1175,8 +1175,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(KeyError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='foo', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2='Coverage2', data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_no_res_col1(self):
@@ -1187,8 +1186,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(KeyError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1=None,
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2='Coverage2', data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_bad_res_col1(self):
@@ -1199,8 +1197,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(KeyError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='foo',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2='Coverage2', data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_no_res_col2(self):
@@ -1211,8 +1208,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(KeyError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2=None, data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2=None, data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_bad_res_col2(self):
@@ -1223,8 +1219,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(KeyError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='foo', data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2='foo', data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
     def test_display_pairs_failure_bad_data(self):
@@ -1233,7 +1228,7 @@ class TestDisplayPairs(TestCase):
         pdbref.import_pdb(structure_id='1TES')
         with self.assertRaises(TypeError):
             pdbref.display_pairs(chain_id='A', data=[0.2, 0.6, 1.0], pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=None, color_map='ET',
+                                 res_col2='Coverage2', data_direction='min', color_map='ET',
                                  out_dir=None)
         os.remove(fn)
 
@@ -1245,31 +1240,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(ValueError):
             pdbref.display_pairs(chain_id='B', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=None, color_map='ET',
-                                 out_dir=None)
-        os.remove(fn)
-
-    def test_display_pairs_failure_bad_coloring_threshold_low(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdbref = PDBReference(pdb_file=fn)
-        pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
-        with self.assertRaises(ValueError):
-            pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=-1, color_map='ET',
-                                 out_dir=None)
-        os.remove(fn)
-
-    def test_display_pairs_failure_bad_coloring_threshold_high(self):
-        fn = write_out_temp_fn(suffix='pdb', out_str=chain_a_pdb)
-        pdbref = PDBReference(pdb_file=fn)
-        pdbref.import_pdb(structure_id='1TES')
-        data = pd.DataFrame({'RESIDUE_Index_1': [1, 1, 2], 'RESIDUE_Index_2': [2, 3, 3], 'Coverage1': [0.1, 0.1, 0.5],
-                             'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
-        with self.assertRaises(ValueError):
-            pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=2, color_map='ET',
+                                 res_col2='Coverage2', data_direction='min', color_map='ET',
                                  out_dir=None)
         os.remove(fn)
 
@@ -1281,8 +1252,7 @@ class TestDisplayPairs(TestCase):
                              'Coverage2': [0.5, 0.9, 0.9], 'Covariance': [0.2, 0.6, 1.0]})
         with self.assertRaises(TypeError):
             pdbref.display_pairs(chain_id='A', data=data, pair_col='Covariance', res_col1='Coverage1',
-                                 res_col2='Coverage2', data_direction='min', coloring_threshold=0.5, color_map='ET',
-                                 out_dir=None)
+                                 res_col2='Coverage2', data_direction='min', color_map='ET', out_dir=None)
         os.remove(fn)
 
 
