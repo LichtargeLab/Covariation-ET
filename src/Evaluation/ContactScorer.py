@@ -899,9 +899,61 @@ class ContactScorer(object):
         print('Writing the contact prediction scores and structural validation data to file took {} min'.format(
             (end - start) / 60.0))
 
-    # def select_and_display_pairs(self, n, k, residue_coverage):
-    #     relevan_data = self._identify_relevant_data(category=, n=, k=, coverage_cutoff=)
+    def select_and_display_pairs(self, out_dir, category='Any', n=None, k=None, residue_coverage=None, fn=None):
+        """
+        Select and Display Pairs
 
+        This method selects the correct subset of data and uses the PDBReference to create a pse file and text file of
+        commands coloring the residues by their coverage score and the connection between pairs by the the color of the
+        lowest coverage residue.
+
+        Args:
+            out_dir: The directory in which to save the pse file generated and the text file with the commands used to
+            generate it.
+            category (str/list): The category for which to return residue pairs. At the moment the following categories
+            are supported:
+                Neighbors - Residues 1 to 5 sequence positions apart.
+                Short - Residues 6 to 12 sequences positions apart.
+                Medium - Residues 13 to 24 sequences positions apart.
+                Long - Residues more than 24 sequence positions apart.
+                Any - Any/All pairs of residues.
+            In order to return a combination of labels, a list may be provided which contains any of the strings from
+            the above set of categories (e.g. ['Short', 'Medium', 'Long']).
+            k (int): This value should only be specified if n and coverage_cutoff are not specified. This is the number
+            that L, the length of the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k and coverage_cutoff are not specified. This is the number
+            of predictions to test.
+            residue_coverage (float): This value should only be specified if n and k are not specified. This number
+            determines how many predictions will be tested by considering predictions up to the point that the specified
+            percentage of residues in best_chain are covered. If predictions are tied their residues are added to this
+            calculation together, so if many residues are added by considering the next group of predictions, and the
+            number of unique residues exceeds the specified percentage, none of the predictions in that group will be
+            added.
+            fn (str):  A string specifying the filename for the pse and commands files being written out which will have
+            the format:
+                f{fn}.pse
+                f{fn}_all_pymol_commands.txt
+            If None a default will be used as specified in PDBReference display_pairs().
+        """
+        relevant_data = self._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=residue_coverage)
+        res_coverage = {}
+        groups = relevant_data.groupby('Rank')
+        for i in sorted(groups.groups.keys()):
+            curr_group = groups.get_group(i)
+            curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
+            unique_residues = curr_residues - set(res_coverage.keys())
+            curr_coverage = (len(set(res_coverage.keys()).union(unique_residues)) /
+                             float(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]))
+            for res in unique_residues:
+                res_coverage[res] = curr_coverage
+        relevant_data['Pos1_Coverage'] = relevant_data['Struct Pos 1'].apply(lambda x: res_coverage[x])
+        relevant_data['Pos2_Coverage'] = relevant_data['Struct Pos 2'].apply(lambda x: res_coverage[x])
+        coloring_data = relevant_data[['Struct Pos 1', 'Struct Pos 2', 'Pos1_Coverage', 'Pos2_Coverage', 'Rank']]
+        coloring_data.rename(columns={'Struct Pos 1': 'RESIDUE_Index_1', 'Struct Pos 2': 'RESIDUE_Index_2'},
+                             inplace=True)
+        self.query_pdb_mapper.pdb_ref.display_pairs(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
+                                                    pair_col='Rank', res_col1='Pos1_Coverage', res_col2='Pos2_Coverage',
+                                                    data_direction='min', color_map='ET', out_dir=out_dir, fn=fn)
 
     def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
         """

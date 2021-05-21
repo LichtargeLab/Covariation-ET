@@ -2470,6 +2470,148 @@ class TestSurfacePlot(TestCase):
         rmtree(new_dir)
 
 
+class TestContactScorerSelectAndDisplayPairs(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_select_and_display_pairs(self, scorer, scores, n, k, cov_cutoff):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        for cat in ['Any', 'Neighbors', 'Short', 'Medium', 'Long']:
+            new_dir = 'Testing_Dir'
+            os.mkdir(new_dir)
+            scorer.select_and_display_pairs(out_dir=new_dir, category=cat, n=n, k=k, residue_coverage=cov_cutoff,
+                                            fn=None)
+            self.assertTrue(os.path.isfile(os.path.join(
+                new_dir, f'{scorer.query_pdb_mapper.query}_Rank_pairs_Chain_{scorer.query_pdb_mapper.best_chain}_displayed_pairs.pse')))
+            self.assertTrue(os.path.isfile(os.path.join(
+                new_dir, f'{scorer.query_pdb_mapper.query}_Rank_pairs_Chain_{scorer.query_pdb_mapper.best_chain}_displayed_pairs_all_pymol_commands.txt')))
+            scorer.select_and_display_pairs(out_dir=new_dir, category=cat, n=n, k=k, residue_coverage=cov_cutoff,
+                                            fn='Test')
+            self.assertTrue(os.path.isfile(os.path.join(new_dir, 'Test.pse')))
+            self.assertTrue(os.path.isfile(os.path.join(new_dir, 'Test_all_pymol_commands.txt')))
+            rmtree(new_dir)
+
+    def test_seq1_n(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=1, k=None, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+
+    def test_seq1_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=3, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+
+    def test_seq1_cov(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=None, cov_cutoff=0.67,
+                                               scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+
+    def test_seq2_n(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=1, k=None, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.2, 0.3, 0.4], [0.0, 0.0, 0.5, 0.6, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.8, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_seq2_k(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=5, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.2, 0.3, 0.4], [0.0, 0.0, 0.5, 0.6, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.8, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_seq2_cov(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=None, cov_cutoff=0.4,
+                                               scores=np.array([[0.0, 0.1, 0.2, 0.3, 0.4], [0.0, 0.0, 0.5, 0.6, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.8, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_seq3_n(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=2, k=None, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4], [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.2, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_seq3_k(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=2, cov_cutoff=None,
+                                               scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4], [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.2, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_seq3_cov(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=None, cov_cutoff=0.8,
+                                               scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4], [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                [0.0, 0.0, 0.0, 0.2, 0.9], [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                [0.0, 0.0, 0.0, 0.0, 0.0]]))
+
+    def test_fail_n_and_k(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=2, cov_cutoff=None, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([[0.0, 0.1, 0.5],
+                                                                            [0.0, 0.0, 0.9],
+                                                                            [0.0, 0.0, 0.0]]))
+
+    def test_fail_n_and_cov_cutoff(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=None, cov_cutoff=0.3, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([[0.0, 0.1, 0.5],
+                                                                            [0.0, 0.0, 0.9],
+                                                                            [0.0, 0.0, 0.0]]))
+
+    def test_fail_k_and_cov_cutoff(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=2, cov_cutoff=0.3, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([[0.0, 0.1, 0.5],
+                                                                            [0.0, 0.0, 0.9],
+                                                                            [0.0, 0.0, 0.0]]))
+
+
 class TestContactScorerScorePDBResidueIdentification(TestCase):
 
     @classmethod
