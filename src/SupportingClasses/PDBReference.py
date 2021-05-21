@@ -564,31 +564,36 @@ class PDBReference(object):
                 if (pair[res_col1] is None or pair[res_col2] is None) or\
                         (np.isnan(pair[res_col1]) or np.isnan(pair[res_col2])):
                     continue
-                if pair['RESIDUE_Index_1'] not in colored_residues:
-                    cmd.select('curr_res', f"{curr_chain} and resi {pair['RESIDUE_Index_1']}")
-                    all_commands.append(f"select curr_res, {curr_chain} and resi {pair['RESIDUE_Index_1']}")
-                    cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_res')
-                    all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_res')
+                res1 = pair['RESIDUE_Index_1']
+                res1_val = pair[res_col1]
+                if res1 not in colored_residues:
+                    cmd.select('curr_res', f"{curr_chain} and resi {res1}")
+                    all_commands.append(f"select curr_res, {curr_chain} and resi {res1}")
+                    cmd.color(f'0x{to_hex(cmap(res1_val)).upper()[1:]}', 'curr_res')
+                    all_commands.append(f'color 0x{to_hex(cmap(res1_val)).upper()[1:]}, curr_res')
                     cmd.delete('curr_res')
                     all_commands.append('delete curr_res')
-                    colored_residues.append(pair['RESIDUE_Index_1'])
-                if pair['RESIDUE_Index_2'] not in colored_residues:
-                    cmd.select('curr_res', f"{curr_chain} and resi {pair['RESIDUE_Index_2']}")
-                    all_commands.append(f"select curr_res, {curr_chain} and resi {pair['RESIDUE_Index_2']}")
-                    cmd.color(f'0x{to_hex(cmap(value)).upper()[1:]}', 'curr_res')
-                    all_commands.append(f'color 0x{to_hex(cmap(value)).upper()[1:]}, curr_res')
+                    colored_residues.append(res1)
+                res2 = pair['RESIDUE_Index_2']
+                res2_val = pair[res_col2]
+                if res2 not in colored_residues:
+                    cmd.select('curr_res', f"{curr_chain} and resi {res2}")
+                    all_commands.append(f"select curr_res, {curr_chain} and resi {res2}")
+                    cmd.color(f'0x{to_hex(cmap(res2_val)).upper()[1:]}', 'curr_res')
+                    all_commands.append(f'color 0x{to_hex(cmap(res2_val)).upper()[1:]}, curr_res')
                     cmd.delete('curr_res')
                     all_commands.append('delete curr_res')
-                    colored_residues.append(pair['RESIDUE_Index_2'])
+                    colored_residues.append(res2)
                 if data_direction == 'min':
-                    worse_score = max(pair[res_col1], pair[res_col2])
+                    worse_score = max(res1_val, res2_val)
                 else:
-                    worse_score = min(pair[res_col1], pair[res_col2])
-                pair_label = f"{pair['RESIDUE_Index_1']}_{pair['RESIDUE_Index_1']}_pair"
-                cmd.distance(pair_label, f"{curr_chain} and resi {pair['RESIDUE_Index_1']} and name CA",
-                             f"{curr_chain} and resi {pair['RESIDUE_Index_2']} and name CA")
-                all_commands.append(f"distance {pair_label}, {curr_chain} and resi {pair['RESIDUE_Index_1']} and name"
-                                    f" CA, {curr_chain} and resi {pair['RESIDUE_Index_2']} and name CA")
+                    worse_score = min(res1_val, res2_val)
+                pair_label = f"{res1}_{res2}_pair"
+                full_selection_list.append(pair_label)
+                cmd.distance(pair_label, f"{curr_chain} and resi {res1} and name CA",
+                             f"{curr_chain} and resi {res2} and name CA")
+                all_commands.append(f"distance {pair_label}, {curr_chain} and resi {res1} and name"
+                                    f" CA, {curr_chain} and resi {res2} and name CA")
                 cmd.hide(representation='labels', selection=pair_label)
                 all_commands.append(f'hide labels, {pair_label}')
                 cmd.set('dash_gap', 0.0, selection=pair_label)
@@ -597,7 +602,7 @@ class PDBReference(object):
                 all_commands.append(f'set dash_radius, 0.1, {pair_label}')
                 cmd.set('dash_color', f'0x{to_hex(cmap(worse_score)).upper()[1:]}', selection=pair_label)
                 all_commands.append(f'set dash_color, 0x{to_hex(cmap(worse_score)).upper()[1:]}, {pair_label}')
-                colored_pairs.append((pair['RESIDUE_Index_1'], pair['RESIDUE_Index_2']))
+                colored_pairs.append((res1, res2))
         if len(colored_residues) > 0:
             cmd.select('colored', f"{curr_chain} and resi {'+'.join([str(x) for x in colored_residues])}")
             all_commands.append(
