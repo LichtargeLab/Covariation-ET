@@ -984,26 +984,8 @@ class ContactScorer(object):
             float: The hypergeometric p-value testing the likelihood of picking the number of residues which overlap the
             provided list of residues.
         """
-        if coverage_cutoff and (n or k):
-            raise ValueError('If coverage_cutoff is specified neither n nor k should be specified.')
-        if coverage_cutoff is not None:
-            groups = self.data.groupby('Rank')
-            all_positions = set()
-            top_pdb_residues = set()
-            for i in sorted(groups.groups.keys()):
-                curr_group = groups.get_group(i)
-                curr_seq_positions = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
-                curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
-                new_positions = curr_seq_positions - all_positions
-                potential_coverage = (len(all_positions.union(new_positions)) /
-                                      float(self.query_pdb_mapper.seq_aln.seq_length))
-                if potential_coverage > coverage_cutoff:
-                    break
-                all_positions |= curr_seq_positions
-                top_pdb_residues |= curr_residues
-        else:
-            sub_df = self._identify_relevant_data(category='Any', n=n, k=k)
-            top_pdb_residues = set(sub_df['Struct Pos 1']).union(set(sub_df['Struct Pos 2']))
+        sub_df = self._identify_relevant_data(category='Any', n=n, k=k, coverage_cutoff=coverage_cutoff)
+        top_pdb_residues = set(sub_df['Struct Pos 1']).union(set(sub_df['Struct Pos 2']))
         overlap = len(top_pdb_residues.intersection(set(pdb_residues)))
         # Perform hypergeometric test for correctly selecting the specified residue from the chain of interest.
         # X is still the number of drawn “successes” - The number of residues which overlap from the top pairs

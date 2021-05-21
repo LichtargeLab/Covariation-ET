@@ -2582,34 +2582,25 @@ class TestContactScorerSelectAndDisplayPairs(TestCase):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
                                cutoff=16.0, chain='A')
         with self.assertRaises(ValueError):
-            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=2, cov_cutoff=None, res_list=None,
-                                                           expected_X=None, expected_n=None, expected_N=None,
-                                                           expected_M=None, expected_p_val=None,
-                                                           scores=np.array([[0.0, 0.1, 0.5],
-                                                                            [0.0, 0.0, 0.9],
-                                                                            [0.0, 0.0, 0.0]]))
+            self.evaluate_select_and_display_pairs(scorer=scorer, n=2, k=2, cov_cutoff=None,
+                                                   scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+        rmtree('Testing_Dir')
 
     def test_fail_n_and_cov_cutoff(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
                                cutoff=16.0, chain='A')
         with self.assertRaises(ValueError):
-            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=None, cov_cutoff=0.3, res_list=None,
-                                                           expected_X=None, expected_n=None, expected_N=None,
-                                                           expected_M=None, expected_p_val=None,
-                                                           scores=np.array([[0.0, 0.1, 0.5],
-                                                                            [0.0, 0.0, 0.9],
-                                                                            [0.0, 0.0, 0.0]]))
+            self.evaluate_select_and_display_pairs(scorer=scorer, n=2, k=None, cov_cutoff=0.3,
+                                                   scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+        rmtree('Testing_Dir')
 
     def test_fail_k_and_cov_cutoff(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
                                cutoff=16.0, chain='A')
         with self.assertRaises(ValueError):
-            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=2, cov_cutoff=0.3, res_list=None,
-                                                           expected_X=None, expected_n=None, expected_N=None,
-                                                           expected_M=None, expected_p_val=None,
-                                                           scores=np.array([[0.0, 0.1, 0.5],
-                                                                            [0.0, 0.0, 0.9],
-                                                                            [0.0, 0.0, 0.0]]))
+            self.evaluate_select_and_display_pairs(scorer=scorer, n=None, k=2, cov_cutoff=0.3,
+                                                   scores=np.array([[0.0, 0.1, 0.5], [0.0, 0.0, 0.9], [0.0, 0.0, 0.0]]))
+        rmtree('Testing_Dir')
 
 
 class TestContactScorerScorePDBResidueIdentification(TestCase):
