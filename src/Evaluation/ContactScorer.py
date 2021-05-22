@@ -22,6 +22,7 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
 from SupportingClasses.Predictor import Predictor
+from SupportingClasses.utils import compute_rank_and_coverage
 from Evaluation.SequencePDBMap import SequencePDBMap
 from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 
@@ -459,19 +460,28 @@ class ContactScorer(object):
         final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
         if coverage_cutoff:
             assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
+            num_res_passing = len(set(final_df['Struct Pos 1'].unique()).union(set(final_df['Struct Pos 2'].unique())))
+            top_sequence_ranks = np.zeros(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain])
+            residues_visited = set()
             groups = final_df.groupby('Top Predictions')
-            top_pdb_residues = set()
-            n = 0
-            for i in sorted(groups.groups.keys()):
-                curr_group = groups.get_group(i)
-                curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
-                new_positions = curr_residues - top_pdb_residues
-                potential_coverage = (len(top_pdb_residues.union(new_positions)) /
-                                      float(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]))
-                if potential_coverage > coverage_cutoff:
-                    break
-                top_pdb_residues |= curr_residues
-                n += 1
+            for curr_rank in sorted(groups.groups.keys()):
+                curr_group = groups.get_group(curr_rank)
+                curr_residues = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
+                new_positions = curr_residues - residues_visited
+                top_sequence_ranks[list(new_positions)] = curr_rank
+                residues_visited |= new_positions
+            top_residue_ranks = top_sequence_ranks[list(residues_visited)]
+            assert len(top_residue_ranks) <= num_res_passing
+            _, top_coverage = compute_rank_and_coverage(seq_length=num_res_passing, pos_size=1,
+                                                        rank_type='min', scores=top_residue_ranks)
+            final_df['Pos 1 Coverage'] = final_df['Seq Pos 1'].apply(lambda x: top_coverage[x])
+            final_df['Pos 2 Coverage'] = final_df['Seq Pos 2'].apply(lambda x: top_coverage[x])
+            n = final_df.loc[(final_df['Pos 1 Coverage'] > coverage_cutoff) |
+                             (final_df['Pos 2 Coverage'] > coverage_cutoff), 'Top Predictions'].min() - 1
+            if np.isnan(n):
+                n = final_df['Top Predictions'].max()
+                if np.isnan(n):
+                    n = 0
         elif k:
             n = int(floor(self.query_pdb_mapper.seq_aln.seq_length / float(k)))
         elif n is None:
