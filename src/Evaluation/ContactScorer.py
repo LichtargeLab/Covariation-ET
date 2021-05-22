@@ -946,24 +946,31 @@ class ContactScorer(object):
             If None a default will be used as specified in PDBReference display_pairs().
         """
         relevant_data = self._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=residue_coverage)
-        res_coverage = {}
-        groups = relevant_data.groupby('Rank')
-        for i in sorted(groups.groups.keys()):
-            curr_group = groups.get_group(i)
-            curr_residues = set(curr_group['Struct Pos 1']).union(set(curr_group['Struct Pos 2']))
-            unique_residues = curr_residues - set(res_coverage.keys())
-            curr_coverage = (len(set(res_coverage.keys()).union(unique_residues)) /
-                             float(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]))
-            for res in unique_residues:
-                res_coverage[res] = curr_coverage
-        relevant_data['Pos1_Coverage'] = relevant_data['Struct Pos 1'].apply(lambda x: res_coverage[x])
-        relevant_data['Pos2_Coverage'] = relevant_data['Struct Pos 2'].apply(lambda x: res_coverage[x])
-        coloring_data = relevant_data[['Struct Pos 1', 'Struct Pos 2', 'Pos1_Coverage', 'Pos2_Coverage', 'Rank']]
+        if residue_coverage is None:
+            if residue_coverage is None:
+                mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
+                top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
+                residues_visited = set()
+                groups = relevant_data.groupby('Top Predictions')
+                for curr_rank in sorted(groups.groups.keys()):
+                    curr_group = groups.get_group(curr_rank)
+                    curr_residues = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
+                    new_positions = curr_residues - residues_visited
+                    top_sequence_ranks[list(new_positions)] = curr_rank
+                    residues_visited |= new_positions
+                top_residue_ranks = top_sequence_ranks[mappable_res]
+                assert len(top_residue_ranks) <= len(mappable_res)
+                _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
+                                                            scores=top_residue_ranks)
+                relevant_data['Pos 1 Coverage'] = relevant_data['Seq Pos 1'].apply(lambda x: top_coverage[x])
+                relevant_data['Pos 2 Coverage'] = relevant_data['Seq Pos 2'].apply(lambda x: top_coverage[x])
+        coloring_data = relevant_data[['Struct Pos 1', 'Struct Pos 2', 'Pos 1 Coverage', 'Pos 2 Coverage', 'Rank']]
         coloring_data.rename(columns={'Struct Pos 1': 'RESIDUE_Index_1', 'Struct Pos 2': 'RESIDUE_Index_2'},
                              inplace=True)
         self.query_pdb_mapper.pdb_ref.display_pairs(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
-                                                    pair_col='Rank', res_col1='Pos1_Coverage', res_col2='Pos2_Coverage',
-                                                    data_direction='min', color_map='ET', out_dir=out_dir, fn=fn)
+                                                    pair_col='Rank', res_col1='Pos 1 Coverage',
+                                                    res_col2='Pos 2 Coverage', data_direction='min', color_map='ET',
+                                                    out_dir=out_dir, fn=fn)
 
     def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
         """
