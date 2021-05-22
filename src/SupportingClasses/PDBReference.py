@@ -564,7 +564,7 @@ class PDBReference(object):
                 if (pair[res_col1] is None or pair[res_col2] is None) or\
                         (np.isnan(pair[res_col1]) or np.isnan(pair[res_col2])):
                     continue
-                res1 = pair['RESIDUE_Index_1']
+                res1 = int(pair['RESIDUE_Index_1'])
                 res1_val = pair[res_col1]
                 if res1 not in colored_residues:
                     cmd.select('curr_res', f"{curr_chain} and resi {res1}")
@@ -574,7 +574,7 @@ class PDBReference(object):
                     cmd.delete('curr_res')
                     all_commands.append('delete curr_res')
                     colored_residues.append(res1)
-                res2 = pair['RESIDUE_Index_2']
+                res2 = int(pair['RESIDUE_Index_2'])
                 res2_val = pair[res_col2]
                 if res2 not in colored_residues:
                     cmd.select('curr_res', f"{curr_chain} and resi {res2}")
@@ -621,7 +621,6 @@ class PDBReference(object):
         all_commands.append(f"save {pse_path}," ' or '.join(full_selection_list) + ' , -1, pse')
         cmd.delete('all')
         all_commands.append('delete all')
-
         with open(commands_path, 'w') as handle:
             for line in all_commands:
                 handle.write(line + '\n')
