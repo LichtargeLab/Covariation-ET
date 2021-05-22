@@ -460,8 +460,8 @@ class ContactScorer(object):
         final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
         if coverage_cutoff:
             assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
-            num_res_passing = len(set(final_df['Struct Pos 1'].unique()).union(set(final_df['Struct Pos 2'].unique())))
-            top_sequence_ranks = np.zeros(self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain])
+            mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
+            top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
             residues_visited = set()
             groups = final_df.groupby('Top Predictions')
             for curr_rank in sorted(groups.groups.keys()):
@@ -470,10 +470,10 @@ class ContactScorer(object):
                 new_positions = curr_residues - residues_visited
                 top_sequence_ranks[list(new_positions)] = curr_rank
                 residues_visited |= new_positions
-            top_residue_ranks = top_sequence_ranks[list(residues_visited)]
-            assert len(top_residue_ranks) <= num_res_passing
-            _, top_coverage = compute_rank_and_coverage(seq_length=num_res_passing, pos_size=1,
-                                                        rank_type='min', scores=top_residue_ranks)
+            top_residue_ranks = top_sequence_ranks[mappable_res]
+            assert len(top_residue_ranks) <= len(mappable_res)
+            _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
+                                                        scores=top_residue_ranks)
             final_df['Pos 1 Coverage'] = final_df['Seq Pos 1'].apply(lambda x: top_coverage[x])
             final_df['Pos 2 Coverage'] = final_df['Seq Pos 2'].apply(lambda x: top_coverage[x])
             n = final_df.loc[(final_df['Pos 1 Coverage'] > coverage_cutoff) |
