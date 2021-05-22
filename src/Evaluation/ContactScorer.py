@@ -459,7 +459,7 @@ class ContactScorer(object):
         final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
         if coverage_cutoff:
             assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
-            groups = self.data.groupby('Rank')
+            groups = final_df.groupby('Top Predictions')
             top_pdb_residues = set()
             n = 0
             for i in sorted(groups.groups.keys()):
@@ -471,7 +471,7 @@ class ContactScorer(object):
                 if potential_coverage > coverage_cutoff:
                     break
                 top_pdb_residues |= curr_residues
-                n += len(curr_group)
+                n += 1
         elif k:
             n = int(floor(self.query_pdb_mapper.seq_aln.seq_length / float(k)))
         elif n is None:
