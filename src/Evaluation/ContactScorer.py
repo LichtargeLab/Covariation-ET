@@ -109,11 +109,6 @@ class ContactScorer(Scorer):
         query_pdb_mapper and data class attributes.
         """
         super().fit()
-        # if not self.query_pdb_mapper.is_aligned():
-        #     start = time()
-        #     self.query_pdb_mapper.align()
-        #     end = time()
-        #     print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
         if (self.data is None) or (not self.data.columns.isin(
                 ['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Seq Separation', 'Seq Separation Category',
                  'Struct Pos 1', 'Struct AA 1', 'Struct Pos 2', 'Struct AA 2']).all()):
