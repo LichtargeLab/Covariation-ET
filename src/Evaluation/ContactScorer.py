@@ -23,11 +23,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.utils import compute_rank_and_coverage
+from Evaluation.Scorer import Scorer
 from Evaluation.SequencePDBMap import SequencePDBMap
 from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 
 
-class ContactScorer(object):
+class ContactScorer(Scorer):
     """
     ContactScorer
 
@@ -39,15 +40,8 @@ class ContactScorer(object):
     prior ET work.
 
     Attributes:
-        query (str): The name of the query sequence/structure.
-        query_alignment (str/SeqAlignment): Path to the alignment being evaluated in this contact scoring prediction
-        task. This is eventually updated to a SeqAlignment object, after the alignment has been imported.
-        query_structure (str/PDBReference): Path to the pdb file to use for evaluating the contact predictions made.
-        This is eventually updated to a PDBReference once the pdb file has been imported.
         cutoff (float): Value to use as a distance cutoff for contact prediction.
-        best_chain (str): The chain in the provided pdb which most closely matches the query sequence as specified by
-        in the "chain" option of the __init__ function or determined by pairwise global alignment.
-        query_pdb_mapper (SequencePDBMap): An mapping from the index of the query sequence to the index of the
+        query_pdb_mapper (SequencePDBMap): A mapping from the index of the query sequence to the index of the
         pdb chain's sequence for those positions which match according to a pairwise global alignment and vice versa.
         _specific_mapping (dict): A mapping for the indices of the distance matrix used to determine residue contacts.
         distances (np.array): The distances between residues, used for determining those which are in contact in order
@@ -79,13 +73,11 @@ class ContactScorer(object):
             chain will be identified by aligning the query sequence from seq_alignment against the chains in
             pdb_reference and the closest match will be selected.
         """
-        self.query_pdb_mapper = SequencePDBMap(query=query, query_alignment=seq_alignment,
-                                               query_structure=pdb_reference, chain=chain)
+        super().__init__(query, seq_alignment, pdb_reference, chain)
         self.cutoff = cutoff
         self._specific_mapping = None
         self.distances = None
         self.dist_type = None
-        self.data = None
 
     def __str__(self):
         """
@@ -113,14 +105,15 @@ class ContactScorer(object):
 
         This function maps sequence positions between the query sequence from the alignment and residues in PDB file.
         If there are multiple chains for the structure in the PDB, the one which matches the query sequence best
-        (highest global alignment score) is used and recorded in the best_chain variable. This method updates the
-        query_alignment, query_structure, best_chain, and query_pdb_mapping class attributes.
+        (highest global alignment score) is used and recorded in the seq_pdb_mapper attribute. This method updates the
+        query_pdb_mapper and data class attributes.
         """
-        if not self.query_pdb_mapper.is_aligned():
-            start = time()
-            self.query_pdb_mapper.align()
-            end = time()
-            print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
+        super().fit()
+        # if not self.query_pdb_mapper.is_aligned():
+        #     start = time()
+        #     self.query_pdb_mapper.align()
+        #     end = time()
+        #     print('Mapping query sequence and pdb took {} min'.format((end - start) / 60.0))
         if (self.data is None) or (not self.data.columns.isin(
                 ['Seq Pos 1', 'Seq AA 1', 'Seq Pos 2', 'Seq AA 2', 'Seq Separation', 'Seq Separation Category',
                  'Struct Pos 1', 'Struct AA 1', 'Struct Pos 2', 'Struct AA 2']).all()):
