@@ -28,9 +28,8 @@ class SinglePositionScorer(Scorer):
         """
         __init__
 
-        This function initializes a new ContactScorer, it accepts paths to an alignment and if available a pdb file to
-        be used in the assessment of contact predictions for a given query. It also requires a cutoff which is used to
-        denote which residues are actually in contact, based on their distance to one another.
+        This function initializes a new SinglePositionScorer, it accepts paths to an alignment and if available a pdb
+        file to be used in the assessment of residue importance predictions for a given query.
 
         Args:
             query (str): The name of the query sequence/structure.
