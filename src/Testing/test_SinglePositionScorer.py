@@ -92,3 +92,304 @@ class TestScorerInit(TestCase):
     def test_init_failure_empty(self):
         with self.assertRaises(TypeError):
             SinglePositionScorer()
+
+
+class TestSinglePositionScorerFit(TestCase):
+
+    def setUp(self):
+        self.expected_mapping_A = {0: 0, 1: 1, 2: 2}
+        self.expected_mapping_B = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4}
+        self.expected_mapping_mismatch = {0: 0, 1: 3, 2: 4}
+        self.expected_pro_seq_2 = SeqRecord(id='seq2', seq=Seq('MTREE', alphabet=FullIUPACProtein()))
+        self.expected_pro_seq_3 = SeqRecord(id='seq3', seq=Seq('MFREE', alphabet=FullIUPACProtein()))
+
+    def evaluate_fit(self, scorer, expected_struct, expected_chain, expected_seq):
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.best_chain = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.query_pdb_mapping = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        scorer.query_pdb_mapper.pdb_query_mapping = None
+        self.assertFalse(scorer.query_pdb_mapper.is_aligned())
+        scorer.fit()
+        self.assertTrue(scorer.query_pdb_mapper.is_aligned())
+        self.assertIsNotNone(scorer.data)
+        if type(expected_struct) is str:
+            expected_struct = PDBReference(pdb_file=expected_struct)
+            expected_struct.import_pdb(structure_id='1TES')
+        for i in scorer.data.index:
+            self.assertEqual(scorer.data.loc[i, 'Seq AA'], expected_seq.seq[scorer.data.loc[i, 'Seq Pos']])
+            if scorer.data.loc[i, 'Struct Pos'] == '-':
+                self.assertFalse(scorer.data.loc[i, 'Seq AA'] in scorer.query_pdb_mapper.query_pdb_mapping)
+                self.assertEqual(scorer.data.loc[i, 'Struct AA'], '-')
+            else:
+                mapped_struct_pos = scorer.query_pdb_mapper.query_pdb_mapping[scorer.data.loc[i, 'Seq Pos']]
+                self.assertEqual(scorer.data.loc[i, 'Struct Pos'],
+                                 expected_struct.pdb_residue_list[expected_chain][mapped_struct_pos])
+                self.assertEqual(scorer.data.loc[i, 'Struct AA'],
+                                 expected_struct.seq[expected_chain][mapped_struct_pos])
+
+    def test_fit_aln_file_pdb_file_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain='A')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb1_scramble)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='A', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=aln_fn, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_1_mismatch(self):
+        protein_aln1.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=pdb_fn, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B', expected_seq=protein_seq1)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=aln_fn, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_2(self):
+        protein_aln2.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb2_scramble)
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=pdb_fn, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_2)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_file_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_file_pdb_obj_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=aln_fn, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, chain='B')
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_obj_chain_not_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full)
+        pdb = PDBReference(pdb_file=pdb_fn)
+        pdb.import_pdb(structure_id='1TES')
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb, chain=None)
+        self.evaluate_fit(scorer=scorer,  expected_struct=pdb, expected_chain='B', expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, chain='B')
+        self.evaluate_fit(scorer=scorer,  expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)
+
+    def test_fit_aln_obj_pdb_file_scrambled_chain_not_specified_3(self):
+        protein_aln3.write_out_alignment(aln_fn)
+        pdb_fn = write_out_temp_fn(suffix='pdb', out_str=pro_pdb_full_scramble)
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=pdb_fn, chain=None)
+        self.evaluate_fit(scorer=scorer, expected_struct=pdb_fn, expected_chain='B',
+                          expected_seq=self.expected_pro_seq_3)
+        os.remove(aln_fn)
+        os.remove(pdb_fn)

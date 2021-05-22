@@ -3,6 +3,8 @@ Created on May 22, 2021
 
 @author: dmkonecki
 """
+import pandas as pd
+from time import time
 from Evaluation.Scorer import Scorer
 
 
@@ -42,3 +44,30 @@ class SinglePositionScorer(Scorer):
             pdb_reference and the closest match will be selected.
         """
         super().__init__(query, seq_alignment, pdb_reference, chain)
+
+    def fit(self):
+        """
+        Fit
+
+        This function maps sequence positions between the query sequence from the alignment and residues in PDB file.
+        If there are multiple chains for the structure in the PDB, the one which matches the query sequence best
+        (highest global alignment score) is used and recorded in the seq_pdb_mapper attribute. This method updates the
+        query_pdb_mapper and data class attributes.
+        """
+        super().fit()
+        if (self.data is None) or (not self.data.columns.isin(['Seq Pos', 'Seq AA', 'Struct Pos', 'Struct AA']).all()):
+            start = time()
+            data_dict = {'Seq Pos': [], 'Seq AA': [], 'Struct Pos': [], 'Struct AA': []}
+            for pos in range(self.query_pdb_mapper.seq_aln.seq_length):
+                char = self.query_pdb_mapper.seq_aln.query_sequence[pos]
+                struct_pos, struct_char = self.query_pdb_mapper.map_seq_position_to_pdb_res(pos)
+                if struct_pos is None:
+                    struct_pos, struct_char = '-', '-'
+                data_dict['Seq Pos'].append(pos)
+                data_dict['Seq AA'].append(char)
+                data_dict['Struct Pos'].append(struct_pos)
+                data_dict['Struct AA'].append(struct_char)
+            data_df = pd.DataFrame(data_dict)
+            self.data = data_df
+            end = time()
+            print('Constructing internal representation took {} min'.format((end - start) / 60.0))
