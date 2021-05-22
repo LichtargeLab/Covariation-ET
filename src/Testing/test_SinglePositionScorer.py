@@ -1,5 +1,7 @@
 import os
 import sys
+import numpy as np
+import pandas as pd
 from unittest import TestCase
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -17,6 +19,7 @@ if source_code_path not in sys.path:
     sys.path.append(os.path.join(os.environ.get('PROJECT_PATH'), 'src'))
 #
 
+from SupportingClasses.utils import compute_rank_and_coverage
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
@@ -38,6 +41,7 @@ protein_aln3 = protein_aln3.remove_gaps()
 os.remove(aln_fn)
 pro_pdb1 = chain_a_pdb_partial2 + chain_a_pdb_partial
 pro_pdb1_scramble = chain_a_pdb_partial + chain_a_pdb_partial2
+pro_pdb_1_alt_locs = chain_a_pdb_partial2 + chain_a_pdb_partial
 pro_pdb2 = chain_b_pdb
 pro_pdb2_scramble = chain_b_pdb + chain_b_pdb_partial
 pro_pdb_full = pro_pdb1 + pro_pdb2
@@ -393,3 +397,63 @@ class TestSinglePositionScorerFit(TestCase):
                           expected_seq=self.expected_pro_seq_3)
         os.remove(aln_fn)
         os.remove(pdb_fn)
+
+
+class TestSinglePositionScorerMapPredictionsToPDB(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_map_prediction_to_pdb(self, scorer):
+        scorer.fit()
+        scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length)
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 1, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        self.assertIsNotNone(scorer.data)
+        self.assertTrue(pd.Series(['Rank', 'Score', 'Coverage', 'True Prediction']).isin(scorer.data.columns).all())
+        for i in scorer.data.index:
+            pos1 = scorer.data.loc[i, 'Seq Pos']
+            self.assertEqual(ranks[pos1], scorer.data.loc[i, 'Rank'])
+            self.assertEqual(scores[pos1], scorer.data.loc[i, 'Score'])
+            self.assertEqual(coverages[pos1], scorer.data.loc[i, 'Coverage'])
+            if coverages[pos1] <= 0.5:
+                self.assertEqual(scorer.data.loc[i, 'True Prediction'], 1)
+            else:
+                self.assertEqual(scorer.data.loc[i, 'True Prediction'], 0)
+
+    def test_map_prediction_to_pdb_seq1(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        self.evaluate_map_prediction_to_pdb(scorer=scorer)
+
+    def test_map_prediction_to_pdb_seq1_alt_loc_pdb(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                                      chain='A')
+        self.evaluate_map_prediction_to_pdb(scorer=scorer)
+
+    def test_map_prediction_to_pdb_seq2(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_map_prediction_to_pdb(scorer=scorer)
+
+    def test_map_prediction_to_pdb_seq3(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_map_prediction_to_pdb(scorer=scorer)

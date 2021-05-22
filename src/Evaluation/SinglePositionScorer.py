@@ -3,6 +3,7 @@ Created on May 22, 2021
 
 @author: dmkonecki
 """
+import numpy as np
 import pandas as pd
 from time import time
 from Evaluation.Scorer import Scorer
@@ -71,3 +72,28 @@ class SinglePositionScorer(Scorer):
             self.data = data_df
             end = time()
             print('Constructing internal representation took {} min'.format((end - start) / 60.0))
+
+    def map_predictions_to_pdb(self, ranks, predictions, coverages, threshold=0.5):
+        """
+        Map Predictions To PDB
+
+        This method accepts a set of predictions and uses the mapping between the query sequence and the best PDB chain
+        to extract the comparable predictions.
+
+        Args:
+            ranks (np.array): An array of ranks for predicted residue importance with size n where n is the length of
+            the query sequence used when initializing the SinglePositionScorer.
+            predictions (np.array): An array of prediction scores for residue importance with size n where n is the
+            length of the query sequence used when initializing the SinglePositionScorer.
+            coverages (np.array): An array of coverage scores for predicted residue importance with size n where n is
+            the length of the query sequence used when initializing the SinglePositionScorer.
+            threshold (float): The cutoff for coverage scores up to which scores (inclusive) are considered true.
+        """
+        # Add predictions to the internal data representation, simultaneously mapping them to the structural data.
+        if self.data is None:
+            self.fit()
+        assert len(ranks) == len(self.data) and len(ranks) == len(predictions) and len(ranks) == len(coverages)
+        self.data['Rank'] = ranks
+        self.data['Score'] = predictions
+        self.data['Coverage'] = coverages
+        self.data['True Prediction'] = self.data['Coverage'].apply(lambda x: x <= threshold)
