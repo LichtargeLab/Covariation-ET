@@ -1025,6 +1025,8 @@ class ContactScorer(Scorer):
         significance of their overlap with a set of residues on the structure provided to this ContactScorer instance.
         Significance is measured using the hypergoemteric test, the implementation here is adapted from:
         https://alexlenail.medium.com/understanding-and-implementing-the-hypergeometric-test-in-python-a7db688a7458
+        This implementation evaluates the likelihood of choosing the number of given successes or more given the
+        specified sample size (i.e. P(X>=1)).
 
         Args:
             pdb_residues (list): A list of the residues from the PDB structure used as reference for this scorer whose
