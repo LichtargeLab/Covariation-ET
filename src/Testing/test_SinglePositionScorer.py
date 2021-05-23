@@ -646,3 +646,129 @@ class TestSinglePositionScorerIdentifyRelevantData(TestCase):
         scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
                                       chain='B')
         self.evaluate_identify_relevant_data(scorer=scorer)
+
+
+class TestContactScorerScorePDBResidueIdentification(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_score_pdb_residue_identification(self, scorer, scores, n, k, cov_cutoff, res_list, expected_X,
+                                                  expected_n, expected_N, expected_M, expected_p_val):
+        scorer.fit()
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 1, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        X, M, n, N, p_val = scorer.score_pdb_residue_identification(pdb_residues=res_list, n=n, k=k,
+                                                                    coverage_cutoff=cov_cutoff)
+        self.assertEqual(X, expected_X)
+        self.assertEqual(M, expected_M)
+        self.assertEqual(n, expected_n)
+        self.assertEqual(N, expected_N)
+        self.assertLess(abs(p_val - expected_p_val), 1E-6)
+
+    def test_seq1_n(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=1, k=None, cov_cutoff=None, res_list=[1],
+                                                       expected_X=1, expected_n=1, expected_N=1, expected_M=3,
+                                                       expected_p_val=0.3333333, scores=np.array([0.1, 0.5, 0.9]))
+
+    def test_seq1_k(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=3, cov_cutoff=None, res_list=[1],
+                                                       expected_X=1, expected_n=1, expected_N=1, expected_M=3,
+                                                       expected_p_val=0.3333333, scores=np.array([0.1, 0.5, 0.9]))
+
+    def test_seq1_cov(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=None, cov_cutoff=0.67, res_list=[1],
+                                                       expected_X=1, expected_n=1, expected_N=2, expected_M=3,
+                                                       expected_p_val=0.6666666, scores=np.array([0.1, 0.5, 0.9]))
+
+    def test_seq2_n(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=1, k=None, cov_cutoff=None, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=1, expected_M=5,
+                                                       expected_p_val=0.4, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_seq2_k(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=5, cov_cutoff=None, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=1, expected_M=5,
+                                                       expected_p_val=0.4, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_seq2_cov(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=None, cov_cutoff=0.4, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=2, expected_M=5,
+                                                       expected_p_val=0.7, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_seq3_n(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=None, cov_cutoff=None, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=2, expected_M=5,
+                                                       expected_p_val=0.7, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_seq3_k(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=2, cov_cutoff=None, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=2, expected_M=5,
+                                                       expected_p_val=0.7, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_seq3_cov(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=None, cov_cutoff=0.8, res_list=[1, 2],
+                                                       expected_X=1, expected_n=2, expected_N=4, expected_M=5,
+                                                       expected_p_val=1.0, scores=np.array([0.1, 0.5, 0.3, 0.4, 0.2]))
+
+    def test_fail_n_and_k(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=2, cov_cutoff=None, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([0.1, 0.5, 0.9]))
+
+    def test_fail_n_and_cov_cutoff(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=2, k=None, cov_cutoff=0.3, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([0.1, 0.5, 0.9]))
+
+    def test_fail_k_and_cov_cutoff(self):
+        scorer = SinglePositionScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                                      chain='A')
+        with self.assertRaises(ValueError):
+            self.evaluate_score_pdb_residue_identification(scorer=scorer, n=None, k=2, cov_cutoff=0.3, res_list=None,
+                                                           expected_X=None, expected_n=None, expected_N=None,
+                                                           expected_M=None, expected_p_val=None,
+                                                           scores=np.array([0.1, 0.5, 0.9]))

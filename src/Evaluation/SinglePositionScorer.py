@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from time import time
 from math import floor
+from scipy.stats import hypergeom
 from SupportingClasses.utils import compute_rank_and_coverage
 from Evaluation.Scorer import Scorer
 
@@ -169,3 +170,50 @@ class SinglePositionScorer(Scorer):
         ind = final_df['Top Predictions'] <= n
         final_df = final_df.loc[ind, :]
         return final_df
+
+    def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
+        """
+        Score PDB Residue Identification
+
+        This function takes the top n or L/k residues or the residues up to a specified coverage cutoff and determines
+        the significance of their overlap with a set of residues on the structure provided to this SinglePositionScorer
+        instance. Significance is measured using the hypergoemteric test, the implementation here is adapted from:
+        https://alexlenail.medium.com/understanding-and-implementing-the-hypergeometric-test-in-python-a7db688a7458
+        This implementation evaluates the likelihood of choosing the number of given successes or more given the
+        specified sample size (i.e. P(X>=1)).
+
+        Args:
+            pdb_residues (list): A list of the residues from the PDB structure used as reference for this scorer whose
+            overlap with the scores should be tested.
+            n (int): Specify n if you would like to evaluate the overlap of the top n pairs with the provided
+            pdb_residues list.
+            k (int): Specify k if you would like to evaluate the overlap of the top L/k (where L is the length of the
+            query sequence) pairs with the provided pdb_residues list.
+            coverage_cutoff (float): Specify coverage cutoff if you would like to evaluate pairs up to that percentage
+            of the residues in the query sequence. For example if 0.3 is specified pairs will be added until 30% of the
+            residues in the sequence are covered. If pairs are tied for rank the residues from those pairs are added at
+            the same time. If adding pairs at a given rank would go over the specified coverage, those pairs are not
+            added. The coverage is measured over all residues, not just those mappable to the structure.
+        Return:
+            int: The number of residues overlapping the provided residue list (the number of successes in the sample).
+            int: The number of residues in the PDB chain (the population size).
+            int: The number of residues in the provided residues list (the number of successes in the population).
+            int: The number of residues passing the n, L/k, or coverage_cutoff threshold (the size of the sample).
+            float: The hypergeometric p-value testing the likelihood of picking the number of residues which overlap the
+            provided list of residues.
+        """
+        sub_df = self._identify_relevant_data(n=n, k=k, coverage_cutoff=coverage_cutoff)
+        top_pdb_residues = set(sub_df['Struct Pos'])
+        overlap = len(top_pdb_residues.intersection(set(pdb_residues)))
+        # Perform hypergeometric test for correctly selecting the specified residue from the chain of interest.
+        # X is still the number of drawn “successes” - The number of residues which overlap from the top pairs
+        # M is the population size (previously N) - Size of PDB chain
+        # n is the number of successes in the population (previously K) - Size of the list of pdb_residues passed in
+        # N is the sample size (previously n) - The number of residues returned from the top n or L/k pairs,
+        # or single residue coverage <= coverage cutoff.
+        pvalue = hypergeom.sf(overlap - 1,
+                              len(self.query_pdb_mapper.query_pdb_mapping),
+                              len(pdb_residues),
+                              len(top_pdb_residues))
+        return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
+                len(top_pdb_residues), pvalue)
