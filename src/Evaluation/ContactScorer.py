@@ -4,7 +4,6 @@ Created on Sep 1, 2018
 @author: dmkonecki
 """
 import os
-import math
 import numpy as np
 import pandas as pd
 from pymol import cmd
@@ -13,18 +12,15 @@ from math import floor
 from datetime import datetime
 from multiprocessing import Pool
 from scipy.stats import hypergeom
-from Bio.PDB.Polypeptide import one_to_three
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
-from mpl_toolkits.mplot3d import Axes3D
 from seaborn import heatmap, scatterplot
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.utils import compute_rank_and_coverage
 from Evaluation.Scorer import Scorer
-from Evaluation.SequencePDBMap import SequencePDBMap
 from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 
 
@@ -1060,7 +1056,8 @@ class ContactScorer(Scorer):
         # N is the sample size (previously n) - The number of residues returned from the top n or L/k pairs,
         # or single residue coverage <= coverage cutoff.
         pvalue = hypergeom.sf(overlap - 1,
-                              self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain],
+                              # self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain],
+                              len(self.query_pdb_mapper.query_pdb_mapping),
                               len(pdb_residues),
                               len(top_pdb_residues))
         return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
