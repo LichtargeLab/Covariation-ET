@@ -6,6 +6,8 @@ Created on May 22, 2021
 import numpy as np
 import pandas as pd
 from time import time
+from math import floor
+from SupportingClasses.utils import compute_rank_and_coverage
 from Evaluation.Scorer import Scorer
 
 
@@ -97,3 +99,73 @@ class SinglePositionScorer(Scorer):
         self.data['Score'] = predictions
         self.data['Coverage'] = coverages
         self.data['True Prediction'] = self.data['Coverage'].apply(lambda x: x <= threshold)
+
+    def _identify_relevant_data(self, n=None, k=None, coverage_cutoff=None):
+        """
+        Identify Relevant Data
+
+        This method accepts parameters describing a subset of the data stored in the SinglePositionScorer instance and
+        subsets it. The order of operations is:
+            2. Filter to only predicted residues which map to the best_chain of the provided PDB structure.
+            3. Filter to the top predictions as specified by n, k, or coverage_cutoff
+
+        Args:
+            k (int): This value should only be specified if n and coverage_cutoff are not specified. This is the number
+            that L, the length of the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k and coverage_cutoff are not specified. This is the number
+            of predictions to test.
+            coverage_cutoff (float): This value should only be specified if n and k are not specified. This number
+            determines how many predictions will be tested by considering predictions up to the point that the specified
+            percentage of residues in best_chain are covered. If predictions are tied their residues are added to this
+            calculation together, so if many residues are added by considering the next group of predictions, and the
+            number of unique residues exceeds the specified percentage, none of the predictions in that group will be
+            added.
+        Returns:
+            pd.DataFrame: A set of predictions which can be scored because they map successfully to the PDB and meet the
+            criteria set by n, k, or coverage cutoff for top predictions.
+        """
+        # Defining for which of the pairs of residues there are both cET-MIp  scores and distance measurements from
+        # the PDB Structure.
+        if self.data is None:
+            self.fit()
+        if not pd.Series(['Rank', 'Score', 'Coverage']).isin(self.data.columns).all():
+            raise ValueError('Ranks, Scores, and Coverage values must be provided through map_predictions_to_pdb,'
+                             'before a specific evaluation can be made.')
+        parameter_count = (k is not None) + (n is not None) + (coverage_cutoff is not None)
+        if parameter_count > 1:
+            raise ValueError('Only one parameter should be set, either: n, k, or coverage_cutoff.')
+        unmappable_index = self.data.index[(self.data['Struct Pos'] == '-')]
+        final_subset = self.data.drop(unmappable_index)
+        final_df = final_subset.sort_values(by='Coverage')
+        final_df['Top Predictions'] = final_df['Coverage'].rank(method='dense')
+        if coverage_cutoff:
+            assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
+            mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
+            top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
+            residues_visited = set()
+            groups = final_df.groupby('Top Predictions')
+            for curr_rank in sorted(groups.groups.keys()):
+                curr_group = groups.get_group(curr_rank)
+                curr_residues = set(curr_group['Seq Pos'])
+                new_positions = curr_residues - residues_visited
+                top_sequence_ranks[list(new_positions)] = curr_rank
+                residues_visited |= new_positions
+            top_residue_ranks = top_sequence_ranks[mappable_res]
+            assert len(top_residue_ranks) <= len(mappable_res)
+            _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
+                                                        scores=top_residue_ranks)
+            final_df['Pos Coverage'] = final_df['Seq Pos'].apply(lambda x: top_coverage[x])
+            n = final_df.loc[(final_df['Pos Coverage'] > coverage_cutoff), 'Top Predictions'].min() - 1
+            if np.isnan(n):
+                n = final_df['Top Predictions'].max()
+                if np.isnan(n):
+                    n = 0
+        elif k:
+            n = int(floor(self.query_pdb_mapper.seq_aln.seq_length / float(k)))
+        elif n is None:
+            n = self.data.shape[0]
+        else:
+            pass
+        ind = final_df['Top Predictions'] <= n
+        final_df = final_df.loc[ind, :]
+        return final_df
