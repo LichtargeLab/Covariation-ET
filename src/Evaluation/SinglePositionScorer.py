@@ -217,3 +217,53 @@ class SinglePositionScorer(Scorer):
                               len(top_pdb_residues))
         return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
                 len(top_pdb_residues), pvalue)
+
+    def select_and_color_residues(self, out_dir, n=None, k=None, residue_coverage=None, fn=None):
+        """
+        Select and Color Residues
+
+        This method selects the correct subset of data and uses the PDBReference to create a pse file and text file of
+        commands coloring the residues by their coverage score.
+
+        Args:
+            out_dir: The directory in which to save the pse file generated and the text file with the commands used to
+            generate it.
+            k (int): This value should only be specified if n and coverage_cutoff are not specified. This is the number
+            that L, the length of the query sequence, will be divided by to give the number of predictions to test.
+            n (int): This value should only be specified if k and coverage_cutoff are not specified. This is the number
+            of predictions to test.
+            residue_coverage (float): This value should only be specified if n and k are not specified. This number
+            determines how many predictions will be tested by considering predictions up to the point that the specified
+            percentage of residues in best_chain are covered. If predictions are tied their residues are added to this
+            calculation together, so if many residues are added by considering the next group of predictions, and the
+            number of unique residues exceeds the specified percentage, none of the predictions in that group will be
+            added.
+            fn (str):  A string specifying the filename for the pse and commands files being written out which will have
+            the format:
+                f{fn}.pse
+                f{fn}_all_pymol_commands.txt
+            If None a default will be used as specified in PDBReference color_structure().
+        """
+        relevant_data = self._identify_relevant_data(n=n, k=k, coverage_cutoff=residue_coverage)
+        if residue_coverage is None:
+            mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
+            top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
+            residues_visited = set()
+            groups = relevant_data.groupby('Top Predictions')
+            for curr_rank in sorted(groups.groups.keys()):
+                curr_group = groups.get_group(curr_rank)
+                curr_residues = set(curr_group['Seq Pos'])
+                new_positions = curr_residues - residues_visited
+                top_sequence_ranks[list(new_positions)] = curr_rank
+                residues_visited |= new_positions
+            top_residue_ranks = top_sequence_ranks[mappable_res]
+            assert len(top_residue_ranks) <= len(mappable_res)
+            _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
+                                                        scores=top_residue_ranks)
+            relevant_data['Pos Coverage'] = relevant_data['Seq Pos'].apply(lambda x: top_coverage[x])
+        coloring_data = relevant_data[['Struct Pos', 'Pos Coverage']].rename(
+            columns={'Struct Pos': 'RESIDUE_Index', 'Pos Coverage': 'Coverage'})
+        coloring_data = coloring_data.drop_duplicates()
+        self.query_pdb_mapper.pdb_ref.color_structure(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
+                                                      data_type='Coverage', data_direction='min', color_map='ET',
+                                                      out_dir=out_dir, fn=fn)
