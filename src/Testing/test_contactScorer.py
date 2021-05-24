@@ -10,7 +10,6 @@ from math import floor
 from shutil import rmtree
 from unittest import TestCase
 from scipy.stats import rankdata
-from itertools import combinations
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from sklearn.metrics import auc, roc_curve, precision_score, recall_score, f1_score, precision_recall_curve
@@ -33,12 +32,12 @@ from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.utils import compute_rank_and_coverage
 from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
-from Evaluation.ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores,
-                                      init_scw_z_score_selection, scw_z_score_selection)
+from Evaluation.ContactScorer import (ContactScorer, surface_plot, heatmap_plot, plot_z_scores)
 from Evaluation.SequencePDBMap import SequencePDBMap
 from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, dna_seq1, dna_seq2, dna_seq3,
                                write_out_temp_fn, protein_aln)
+from Testing.test_Scorer import et_calcDist
 from Testing.test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
 
 
@@ -85,23 +84,23 @@ pro_pdb_1_alt_locs = chain_a_pdb_partial2 + chain_a_pdb_partial
 CONTACT_DISTANCE2 = 16
 
 
-def et_calcDist(atoms1, atoms2):
-    """return smallest distance (squared) between two groups of atoms"""
-    # (not distant by more than ~100 A)
-    # mind2=CONTACT_DISTANCE2+100
-    c1 = atoms1[0]  # atoms must not be empty
-    c2 = atoms2[0]
-    mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
-            (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
-            (c1[2] - c2[2]) * (c1[2] - c2[2])
-    for c1 in atoms1:
-        for c2 in atoms2:
-            d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
-                 (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
-                 (c1[2] - c2[2]) * (c1[2] - c2[2])
-            if d2 < mind2:
-                mind2 = d2
-    return mind2  # Square of distance between most proximate atoms
+# def et_calcDist(atoms1, atoms2):
+#     """return smallest distance (squared) between two groups of atoms"""
+#     # (not distant by more than ~100 A)
+#     # mind2=CONTACT_DISTANCE2+100
+#     c1 = atoms1[0]  # atoms must not be empty
+#     c2 = atoms2[0]
+#     mind2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+#             (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+#             (c1[2] - c2[2]) * (c1[2] - c2[2])
+#     for c1 in atoms1:
+#         for c2 in atoms2:
+#             d2 = (c1[0] - c2[0]) * (c1[0] - c2[0]) + \
+#                  (c1[1] - c2[1]) * (c1[1] - c2[1]) + \
+#                  (c1[2] - c2[2]) * (c1[2] - c2[2])
+#             if d2 < mind2:
+#                 mind2 = d2
+#     return mind2  # Square of distance between most proximate atoms
 
 
 def et_computeAdjacency(chain, mapping):
@@ -843,302 +842,6 @@ class TestContactScorerFit(TestCase):
                           expected_seq=self.expected_pro_seq_3)
         os.remove(aln_fn)
         os.remove(pdb_fn)
-
-
-class TestContactScorerGetCoords(TestCase):  # get_all, get_c_alpha, get_c_beta, get_coords
-
-    @classmethod
-    def tearDownClass(cls):
-        os.remove(cls.pdb_fn1)
-        os.remove(cls.pdb_fn1b)
-        os.remove(cls.pdb_fn2)
-        os.remove(aln_fn)
-
-    @classmethod
-    def setUpClass(cls):
-        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
-        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
-        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
-        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
-        cls.pdb_chain_a.import_pdb(structure_id='1TES')
-        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
-        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
-        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
-        cls.pdb_chain_b.import_pdb(structure_id='1TES')
-        protein_aln1.write_out_alignment(aln_fn)
-        cls.expected_chain_a_coords = {1: {'all': [np.array([152.897, 26.590, 66.235], dtype=np.float32),
-                                                   np.array([153.488, 26.592, 67.584], dtype=np.float32),
-                                                   np.array([153.657, 28.043, 68.066], dtype=np.float32),
-                                                   np.array([153.977, 28.924, 67.266], dtype=np.float32),
-                                                   np.array([154.843, 25.881, 67.544], dtype=np.float32),
-                                                   np.array([155.689, 25.983, 68.820], dtype=np.float32),
-                                                   np.array([157.418, 25.517, 68.551], dtype=np.float32),
-                                                   np.array([158.062, 26.956, 67.686], dtype=np.float32)],
-                                           'alpha': [np.array([153.488, 26.592, 67.584], dtype=np.float32)],
-                                           'beta': [np.array([154.843, 25.881, 67.544], dtype=np.float32)]},
-                                       2: {'all': [np.array([153.913, 21.571, 52.586], dtype=np.float32),
-                                                   np.array([153.617, 20.553, 53.599], dtype=np.float32),
-                                                   np.array([153.850, 21.067, 55.018], dtype=np.float32),
-                                                   np.array([153.177, 20.639, 55.960], dtype=np.float32),
-                                                   np.array([154.431, 19.277, 53.350], dtype=np.float32),
-                                                   np.array([153.767, 18.286, 52.392], dtype=np.float32),
-                                                   np.array([153.675, 18.807, 50.965], dtype=np.float32),
-                                                   np.array([152.542, 19.056, 50.495], dtype=np.float32),
-                                                   np.array([154.735, 18.978, 50.321], dtype=np.float32)],
-                                           'alpha': [np.array([153.617, 20.553, 53.599], dtype=np.float32)],
-                                           'beta': [np.array([154.431, 19.277, 53.350], dtype=np.float32)]},
-                                       3: {'all': [np.array([24.499, 13.739, 37.648], dtype=np.float32),
-                                                   np.array([24.278, 13.068, 38.914], dtype=np.float32),
-                                                   np.array([22.973, 13.448, 39.580], dtype=np.float32),
-                                                   np.array([22.188, 12.566, 39.933], dtype=np.float32),
-                                                   np.array([25.405, 13.382, 39.929], dtype=np.float32),
-                                                   np.array([25.336, 12.578, 41.212], dtype=np.float32),
-                                                   np.array([26.603, 13.084, 39.227], dtype=np.float32)],
-                                           'alpha': [np.array([24.278, 13.068, 38.914], dtype=np.float32)],
-                                           'beta': [np.array([25.405, 13.382, 39.929], dtype=np.float32)]}}
-        cls.expected_chain_a_alt_coords = {1: {'all': [np.array([152.897, 26.590, 66.235], dtype=np.float32),
-                                                       np.array([150.123, 25.456, 70.789], dtype=np.float32),
-                                                       np.array([153.488, 26.592, 67.584], dtype=np.float32),
-                                                       np.array([155.123, 30.456, 65.789], dtype=np.float32),
-                                                       np.array([153.657, 28.043, 68.066], dtype=np.float32),
-                                                       np.array([155.123, 25.456, 70.789], dtype=np.float32),
-                                                       np.array([153.977, 28.924, 67.266], dtype=np.float32),
-                                                       np.array([150.123, 30.456, 70.789], dtype=np.float32),
-                                                       np.array([154.843, 25.881, 67.544], dtype=np.float32),
-                                                       np.array([155.123, 25.456, 65.789], dtype=np.float32),
-                                                       np.array([155.689, 25.983, 68.820], dtype=np.float32),
-                                                       np.array([160.123, 20.456, 75.789], dtype=np.float32),
-                                                       np.array([157.418, 25.517, 68.551], dtype=np.float32),
-                                                       np.array([165.123, 35.456, 55.789], dtype=np.float32),
-                                                       np.array([158.062, 26.956, 67.686], dtype=np.float32),
-                                                       np.array([175.123, 50.456, 75.789], dtype=np.float32)],
-                                               'alpha': [np.array([153.488, 26.592, 67.584], dtype=np.float32),
-                                                         np.array([155.123, 30.456, 65.789], dtype=np.float32)],
-                                               'beta': [np.array([154.843, 25.881, 67.544], dtype=np.float32),
-                                                        np.array([155.123, 25.456, 65.789], dtype=np.float32)]},
-                                           2: {'all': [np.array([153.913, 21.571, 52.586], dtype=np.float32),
-                                                       np.array([153.617, 20.553, 53.599], dtype=np.float32),
-                                                       np.array([153.850, 21.067, 55.018], dtype=np.float32),
-                                                       np.array([153.177, 20.639, 55.960], dtype=np.float32),
-                                                       np.array([154.431, 19.277, 53.350], dtype=np.float32),
-                                                       np.array([153.767, 18.286, 52.392], dtype=np.float32),
-                                                       np.array([153.675, 18.807, 50.965], dtype=np.float32),
-                                                       np.array([152.542, 19.056, 50.495], dtype=np.float32),
-                                                       np.array([154.735, 18.978, 50.321], dtype=np.float32)],
-                                               'alpha': [np.array([153.617, 20.553, 53.599], dtype=np.float32)],
-                                               'beta': [np.array([154.431, 19.277, 53.350], dtype=np.float32)]},
-                                           3: {'all': [np.array([24.499, 13.739, 37.648], dtype=np.float32),
-                                                       np.array([24.278, 13.068, 38.914], dtype=np.float32),
-                                                       np.array([22.973, 13.448, 39.580], dtype=np.float32),
-                                                       np.array([22.188, 12.566, 39.933], dtype=np.float32),
-                                                       np.array([25.405, 13.382, 39.929], dtype=np.float32),
-                                                       np.array([25.336, 12.578, 41.212], dtype=np.float32),
-                                                       np.array([26.603, 13.084, 39.227], dtype=np.float32)],
-                                               'alpha': [np.array([24.278, 13.068, 38.914], dtype=np.float32)],
-                                               'beta': [np.array([25.405, 13.382, 39.929], dtype=np.float32)]}}
-        cls.expected_chain_b_coords = {1: {'all': [np.array([152.897, 26.590, 66.235], dtype=np.float32),
-                                                   np.array([153.488, 26.592, 67.584], dtype=np.float32),
-                                                   np.array([153.657, 28.043, 68.066], dtype=np.float32),
-                                                   np.array([153.977, 28.924, 67.266], dtype=np.float32),
-                                                   np.array([154.843, 25.881, 67.544], dtype=np.float32),
-                                                   np.array([155.689, 25.983, 68.820], dtype=np.float32),
-                                                   np.array([157.418, 25.517, 68.551], dtype=np.float32),
-                                                   np.array([158.062, 26.956, 67.686], dtype=np.float32)],
-                                           'alpha': [np.array([153.488, 26.592, 67.584], dtype=np.float32)],
-                                           'beta': [np.array([154.843, 25.881, 67.544], dtype=np.float32)]},
-                                       2: {'all': [np.array([24.499, 13.739, 37.648], dtype=np.float32),
-                                                   np.array([24.278, 13.068, 38.914], dtype=np.float32),
-                                                   np.array([22.973, 13.448, 39.580], dtype=np.float32),
-                                                   np.array([22.188, 12.566, 39.933], dtype=np.float32),
-                                                   np.array([25.405, 13.382, 39.929], dtype=np.float32),
-                                                   np.array([25.336, 12.578, 41.212], dtype=np.float32),
-                                                   np.array([26.603, 13.084, 39.227], dtype=np.float32)],
-                                           'alpha': [np.array([24.278, 13.068, 38.914], dtype=np.float32)],
-                                           'beta': [np.array([25.405, 13.382, 39.929], dtype=np.float32)]},
-                                       3: {'all': [np.array([24.805, 9.537, 22.454], dtype=np.float32),
-                                                   np.array([24.052, 8.386, 22.974], dtype=np.float32),
-                                                   np.array([24.897, 7.502, 23.849], dtype=np.float32),
-                                                   np.array([24.504, 7.220, 24.972], dtype=np.float32),
-                                                   np.array([23.506, 7.549, 21.793], dtype=np.float32),
-                                                   np.array([22.741, 6.293, 22.182], dtype=np.float32),
-                                                   np.array([22.242, 5.559, 20.931], dtype=np.float32),
-                                                   np.array([23.319, 5.176, 20.037], dtype=np.float32),
-                                                   np.array([23.931, 3.984, 20.083], dtype=np.float32),
-                                                   np.array([23.622, 3.034, 20.961], dtype=np.float32),
-                                                   np.array([24.895, 3.751, 19.199], dtype=np.float32)],
-                                           'alpha': [np.array([24.052, 8.386, 22.974], dtype=np.float32)],
-                                           'beta': [np.array([23.506, 7.549, 21.793], dtype=np.float32)]},
-                                       4: {'all': [np.array([163.913, 21.571, 52.586], dtype=np.float32),
-                                                   np.array([163.617, 20.553, 53.599], dtype=np.float32),
-                                                   np.array([163.850, 21.067, 55.018], dtype=np.float32),
-                                                   np.array([163.177, 20.639, 55.960], dtype=np.float32),
-                                                   np.array([164.431, 19.277, 53.350], dtype=np.float32),
-                                                   np.array([163.767, 18.286, 52.392], dtype=np.float32),
-                                                   np.array([163.675, 18.807, 50.965], dtype=np.float32),
-                                                   np.array([162.542, 19.056, 50.495], dtype=np.float32),
-                                                   np.array([164.735, 18.978, 50.321], dtype=np.float32)],
-                                           'alpha': [np.array([163.617, 20.553, 53.599], dtype=np.float32)],
-                                           'beta': [np.array([164.431, 19.277, 53.350], dtype=np.float32)]},
-                                       5: {'all': [np.array([153.913, 31.571, 52.586], dtype=np.float32),
-                                                   np.array([153.617, 30.553, 53.599], dtype=np.float32),
-                                                   np.array([153.850, 31.067, 55.018], dtype=np.float32),
-                                                   np.array([153.177, 30.639, 55.960], dtype=np.float32),
-                                                   np.array([154.431, 29.277, 53.350], dtype=np.float32),
-                                                   np.array([153.767, 28.286, 52.392], dtype=np.float32),
-                                                   np.array([153.675, 28.807, 50.965], dtype=np.float32),
-                                                   np.array([152.542, 29.056, 50.495], dtype=np.float32),
-                                                   np.array([154.735, 28.978, 50.321], dtype=np.float32)],
-                                           'alpha': [np.array([153.617, 30.553, 53.599], dtype=np.float32)],
-                                           'beta': [np.array([154.431, 29.277, 53.350], dtype=np.float32)]}}
-
-    def evaluate_get_coords(self, query, pdb, chain, method_name, method, expected_coords, opt_param=None):
-        cmd.load(pdb.file_name, query)
-        cmd.select('best_chain', f'{query} and chain {chain}')
-        for res_num in pdb.pdb_residue_list[chain]:
-            residue = pdb.structure[0][chain][res_num]
-            if opt_param is None:
-                returned_coords = method(residue)
-            else:
-                returned_coords = method(residue, method=opt_param)
-            self.assertEqual(len(returned_coords), len(expected_coords[res_num][method_name]))
-            for i in range(len(returned_coords)):
-                self.assertFalse((returned_coords[i] - expected_coords[res_num][method_name][i]).any())
-        cmd.delete(query)
-
-    def test_get_all_coords_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='all',
-                                 method=scorer._get_all_coords, expected_coords=self.expected_chain_a_coords)
-
-    def test_get_alpha_coords_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='alpha',
-                                 method=scorer._get_c_alpha_coords, expected_coords=self.expected_chain_a_coords)
-
-    def test_get_beta_coords_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='beta',
-                                 method=scorer._get_c_beta_coords, expected_coords=self.expected_chain_a_coords)
-
-    def test_get_coords_all_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='all',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_coords,
-                                 opt_param='Any')
-
-    def test_get_coords_alpha_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='alpha',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_coords,
-                                 opt_param='CA')
-
-    def test_get_coords_beta_chain_A(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a, chain='A', method_name='beta',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_coords,
-                                 opt_param='CB')
-
-    def test_get_all_coords_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='all',
-                                 method=scorer._get_all_coords, expected_coords=self.expected_chain_a_alt_coords)
-
-    def test_get_alpha_coords_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='alpha',
-                                 method=scorer._get_c_alpha_coords, expected_coords=self.expected_chain_a_alt_coords)
-
-    def test_get_beta_coords_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='beta',
-                                 method=scorer._get_c_beta_coords, expected_coords=self.expected_chain_a_alt_coords)
-
-    def test_get_coords_all_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='all',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_alt_coords,
-                                 opt_param='Any')
-
-    def test_get_coords_alpha_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='alpha',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_alt_coords,
-                                 opt_param='CA')
-
-    def test_get_coords_beta_chain_A_altLoc(self):
-        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
-                               cutoff=8.0, chain='A')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq1', pdb=self.pdb_chain_a_alt, chain='A', method_name='beta',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_a_alt_coords,
-                                 opt_param='CB')
-
-    def test_get_all_coords_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='all',
-                                 method=scorer._get_all_coords, expected_coords=self.expected_chain_b_coords)
-
-    def test_get_alpha_coords_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='alpha',
-                                 method=scorer._get_c_alpha_coords, expected_coords=self.expected_chain_b_coords)
-
-    def test_get_beta_coords_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='beta',
-                                 method=scorer._get_c_beta_coords, expected_coords=self.expected_chain_b_coords)
-
-    def test_get_coords_all_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='all',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_b_coords,
-                                 opt_param='Any')
-
-    def test_get_coords_alpha_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='alpha',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_b_coords,
-                                 opt_param='CA')
-
-    def test_get_coords_beta_chain_B(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=8.0, chain='B')
-        scorer.fit()
-        self.evaluate_get_coords(query='seq2', pdb=self.pdb_chain_b, chain='B', method_name='beta',
-                                 method=scorer._get_coords, expected_coords=self.expected_chain_b_coords,
-                                 opt_param='CB')
 
 
 class TestContactScorerMeasureDistance(TestCase):
@@ -3020,7 +2723,7 @@ class TestContactScorerEvaluatePredictions(TestCase):
                 self.assertTrue('Max Biased Z-Score' in curr_stats)
                 self.assertTrue('AUC Biased Z-Score' in curr_stats)
                 biased_df, biased_reusable, biased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
-                    bias=True, file_path='test.tsv')
+                    biased=True, file_path='test.tsv', scw_scorer=curr_b_w2_ave)
                 os.remove('test.tsv')
                 self.assertEqual(curr_stats['AUC Biased Z-Score'].unique()[0], biased_auc_scw_z_curve)
                 if biased_df['Z-Score'].max() == 'NA':
@@ -3031,7 +2734,7 @@ class TestContactScorerEvaluatePredictions(TestCase):
                 self.assertTrue('Max Unbiased Z-Score' in curr_stats)
                 self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
                 unbiased_df, unbiased_reusable, unbiased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
-                    bias=False, file_path='test.tsv')
+                    biased=False, file_path='test.tsv', scw_scorer=curr_u_w2_ave)
                 os.remove('test.tsv')
                 self.assertEqual(curr_stats['AUC Unbiased Z-Score'].unique()[0], unbiased_auc_scw_z_curve)
                 if unbiased_df['Z-Score'].max() == 'NA':
@@ -3242,7 +2945,7 @@ class TestContactScorerEvaluatePredictor(TestCase):
                 self.assertTrue('Max Biased Z-Score' in curr_stats)
                 self.assertTrue('AUC Biased Z-Score' in curr_stats)
                 biased_df, biased_reusable, biased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
-                    bias=True, file_path='test.tsv')
+                    biased=True, file_path='test.tsv', scw_scorer=curr_b_w2_ave)
                 os.remove('test.tsv')
                 self.assertEqual(curr_stats['AUC Biased Z-Score'].unique()[0], biased_auc_scw_z_curve)
                 if biased_df['Z-Score'].max() == 'NA':
@@ -3253,7 +2956,7 @@ class TestContactScorerEvaluatePredictor(TestCase):
                 self.assertTrue('Max Unbiased Z-Score' in curr_stats)
                 self.assertTrue('AUC Unbiased Z-Score' in curr_stats)
                 unbiased_df, unbiased_reusable, unbiased_auc_scw_z_curve = scorer.score_clustering_of_contact_predictions(
-                    bias=False, file_path='test.tsv')
+                    biased=False, file_path='test.tsv', scw_scorer=curr_u_w2_ave)
                 os.remove('test.tsv')
                 self.assertEqual(curr_stats['AUC Unbiased Z-Score'].unique()[0], unbiased_auc_scw_z_curve)
                 if unbiased_df['Z-Score'].max() == 'NA':
@@ -3329,98 +3032,6 @@ class TestContactScorerEvaluatePredictor(TestCase):
         rmtree(new_dir)
 
 
-class TestSCWZScoreSelection(TestCase):
-
-    @classmethod
-    def tearDownClass(cls):
-        os.remove(cls.pdb_fn1)
-        os.remove(cls.pdb_fn1b)
-        os.remove(cls.pdb_fn2)
-        os.remove(aln_fn)
-
-    @classmethod
-    def setUpClass(cls):
-        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
-        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
-        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
-        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
-        cls.pdb_chain_a.import_pdb(structure_id='1TES')
-        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
-        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
-        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
-        cls.pdb_chain_b.import_pdb(structure_id='1TES')
-        protein_aln1.write_out_alignment(aln_fn)
-
-    def evaluate_scw_z_score_selection(self, scw_scorer):
-        scw_scorer.compute_background_w_and_w2_ave(processes=2)
-        chain_length = scw_scorer.query_pdb_mapper.pdb_ref.size[scw_scorer.query_pdb_mapper.best_chain]
-        for i in range(chain_length):
-            for comb in combinations(list(range(scw_scorer.query_pdb_mapper.seq_aln.seq_length)), i):
-                expected_scw_z_score = scw_scorer.clustering_z_score(res_list=list(comb))
-                init_scw_z_score_selection(scw_scorer)
-                scw_z_score = scw_z_score_selection(res_list=list(comb))
-                mappable = all([x in scw_scorer.query_pdb_mapper.query_pdb_mapping for x in comb])
-                if mappable:
-                    self.assertEqual(scw_z_score[1], expected_scw_z_score[1])
-                    self.assertEqual(scw_z_score[2], expected_scw_z_score[2])
-                    self.assertEqual(scw_z_score[3], expected_scw_z_score[3])
-                    self.assertEqual(scw_z_score[4], expected_scw_z_score[4])
-                    self.assertEqual(scw_z_score[5], expected_scw_z_score[5])
-                    self.assertEqual(scw_z_score[6], expected_scw_z_score[6])
-                    self.assertEqual(scw_z_score[7], expected_scw_z_score[7])
-                    self.assertEqual(scw_z_score[8], expected_scw_z_score[8])
-                    self.assertEqual(scw_z_score[9], expected_scw_z_score[9])
-                    self.assertEqual(scw_z_score[10], expected_scw_z_score[10])
-                else:
-                    self.assertIsNone(scw_z_score[1])
-                    self.assertIsNone(scw_z_score[2])
-                    self.assertIsNone(scw_z_score[3])
-                    self.assertIsNone(scw_z_score[4])
-                    self.assertIsNone(scw_z_score[5])
-                    self.assertEqual(scw_z_score[6], '-')
-                    self.assertIsNone(scw_z_score[7])
-                    self.assertIsNone(scw_z_score[8])
-                    self.assertIsNone(scw_z_score[9])
-                    self.assertIsNone(scw_z_score[10])
-                    self.assertEqual(scw_z_score[11], len(comb))
-
-    def test_seq2_no_bias(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=20.0, chain='B')
-        scorer.fit()
-        scorer.measure_distance('Any')
-        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
-                                               biased=False)
-        self.evaluate_scw_z_score_selection(scw_scorer=scw_scorer)
-
-    def test_seq2_bias(self):
-        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
-                               cutoff=20.0, chain='B')
-        scorer.fit()
-        scorer.measure_distance('Any')
-        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
-                                               biased=True)
-        self.evaluate_scw_z_score_selection(scw_scorer=scw_scorer)
-
-    def test_seq3_no_bias(self):
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
-                               cutoff=20.0, chain='B')
-        scorer.fit()
-        scorer.measure_distance('Any')
-        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
-                                               biased=False)
-        self.evaluate_scw_z_score_selection(scw_scorer=scw_scorer)
-
-    def test_seq3_bias(self):
-        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
-                               cutoff=20.0, chain='B')
-        scorer.fit()
-        scorer.measure_distance('Any')
-        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
-                                               biased=True)
-        self.evaluate_scw_z_score_selection(scw_scorer=scw_scorer)
-
-
 class TestPlotZScores(TestCase):
 
     def test_fail_no_data_no_path(self):
@@ -3483,34 +3094,6 @@ class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
         cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
         cls.pdb_chain_b.import_pdb(structure_id='1TES')
         protein_aln1.write_out_alignment(aln_fn)
-
-    # def evaluate_score_clustering_of_contact_predictions(self, scorer, biased, expected_path, scw_scorer, processes):
-    #     scorer.fit()
-    #     scorer.measure_distance(method='CB')
-    #     scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
-    #     scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
-    #     scores += scores.T
-    #     ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
-    #     scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-    #
-    #     df, new_scw_scorer, auc = scorer.score_clustering_of_contact_predictions(
-    #         biased=True, file_path=expected_path, scw_scorer=scw_scorer, processes=processes)
-    #
-    #     scw_scorer.compute_background_w_and_w2_ave(processes=processes)
-    #     best_chain = None
-    #     for model in scw_scorer.query_pdb_mapper.pdb_ref.structure:
-    #         for chain in model:
-    #             if chain.id == scw_scorer.query_pdb_mapper.best_chain:
-    #                 best_chain = chain
-    #                 break
-    #     if best_chain is None:
-    #         raise ValueError('Best Chain Never Initialized')
-    #     adj, res_atoms = et_computeAdjacency(chain=best_chain,
-    #                                          mapping={res: i for i, res in
-    #                                                   enumerate(scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[
-    #                                                                 scorer.query_pdb_mapper.best_chain])})
-    #     expected_df = all_z_scores(A=adj, L=scorer.query_pdb_mapper.pdb_ref.size[scorer.query_pdb_mapper.best_chain],
-    #                                bias=1 if biased else 0, res_i=, res_j=, scores=)
 
     def evaluate_score_clustering_of_contact_predictions(self, scorer, bias, processes, scw_scorer):
         # Initialize scorer and scores

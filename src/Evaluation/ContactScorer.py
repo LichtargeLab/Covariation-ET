@@ -6,12 +6,13 @@ Created on Sep 1, 2018
 import os
 import numpy as np
 import pandas as pd
-from pymol import cmd
 from time import time
 from math import floor
 from datetime import datetime
 from multiprocessing import Pool
 from scipy.stats import hypergeom
+# This is used implicitly not explicitly to enable surface plotting
+from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import (auc, roc_curve, precision_recall_curve, precision_score, recall_score, f1_score)
 import matplotlib
 matplotlib.use('Agg')
@@ -20,7 +21,7 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from seaborn import heatmap, scatterplot
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.utils import compute_rank_and_coverage
-from Evaluation.Scorer import Scorer
+from Evaluation.Scorer import Scorer, init_scw_z_score_selection, scw_z_score_selection
 from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 
 
@@ -154,98 +155,6 @@ class ContactScorer(Scorer):
             end = time()
             print('Constructing internal representation took {} min'.format((end - start) / 60.0))
 
-    def _get_all_coords(self, residue):
-        """
-        Get All Coords
-
-        This method retrieves the 3D coordinates for all atoms in a residue.
-
-        Args:
-            residue (Bio.PDB.Residue): The residue for which to return coordinates.
-        Returns:
-            list: A list of lists where each sub lists contains the x, y, and z coordinates of a given atom in a
-            residue.
-        """
-        all_coords = []
-        cmd.select('curr_res', f'best_chain and resi {residue.get_id()[1]}')
-        model = cmd.get_model('curr_res')
-        if len(model.atom) > 0:
-            for atm in model.atom:
-                all_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
-        else:
-            raise ValueError(f'No atoms found for Structure: {self.query_pdb_mapper.query} Chain: '
-                             f'{self.query_pdb_mapper.best_chain} Residue: {residue.get_id()[1]}')
-        return all_coords
-
-    def _get_c_alpha_coords(self, residue):
-        """
-        Get C Alpha Coords
-
-        This method retrieves the 3D coordinates for the C alpha atom of a residue. If the C alpha atom is not specified
-        for the given residue _get_all_coords is called instead.
-
-        Args:
-            residue (Bio.PDB.Residue): The residue for which to return coordinates.
-        Returns:
-            list: A list of lists where the only sub list contains the x, y, and z coordinates of the C alpha atom.
-        """
-        c_alpha_coords = []
-        cmd.select('curr_res_ca', f'best_chain and resi {residue.get_id()[1]} and name CA')
-        model = cmd.get_model('curr_res_ca')
-        if len(model.atom) > 0:
-            for atm in model.atom:
-                c_alpha_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
-        else:
-            c_alpha_coords = self._get_all_coords(residue)
-        return c_alpha_coords
-
-    def _get_c_beta_coords(self, residue):
-        """
-        Get C Beta Coords
-
-        This method retrieves the 3D coordinates for the C beta atom of a residue. If the C beta atom is not specified
-        for the given residue _get_c_alpha_coords is called instead.
-
-        Args:
-            residue (Bio.PDB.Residue): The residue for which to return coordinates.
-        Returns:
-            list: A list of lists where the only sub list contains the x, y, and z coordinates of the C beta atom.
-        """
-        c_beta_coords = []
-        cmd.select('curr_res_cb', f'best_chain and resi {residue.get_id()[1]} and name CB')
-        model = cmd.get_model('curr_res_cb')
-        if len(model.atom) > 0:
-            for atm in model.atom:
-                c_beta_coords.append(np.array([atm.coord[0], atm.coord[1], atm.coord[2]], dtype=np.float32))
-        else:
-            c_beta_coords = self._get_c_alpha_coords(residue)
-        return c_beta_coords
-
-    def _get_coords(self, residue, method='Any'):
-        """
-        Get Coords
-
-        This method serves as a switch statement, its only purpose is to reduce code duplication when calling one of
-        the three specific get (all, alpha, or beta) coord functions.
-
-        Args:
-            residue (Bio.PDB.Residue): The residue for which to extract the specified atom or atoms' coordinates.
-            method (str): Which method of coordinate extraction to use, expected values are 'Any', 'CA' for alpha
-            carbon, or 'CB' for beta carbon.
-        Returns:
-            list: A list of lists where each list is a single set of x, y, and z coordinates for an atom in the
-            specified residue.
-        """
-
-        if method == 'Any':
-            return self._get_all_coords(residue)
-        elif method == 'CA':
-            return self._get_c_alpha_coords(residue)
-        elif method == 'CB':
-            return self._get_c_beta_coords(residue)
-        else:
-            raise ValueError("method variable must be either 'Any', 'CA', or 'CB' but {} was provided".format(method))
-
     def measure_distance(self, method='Any', save_file=None):
         """
         Measure Distance
@@ -267,58 +176,13 @@ class ContactScorer(Scorer):
             save_file (str or os.path): The path to a file where the computed distances can be stored, or may have been
             stored on a previous run (optional).
     """
-        start = time()
-        if self.query_pdb_mapper.pdb_ref is None:
-            raise ValueError('Distance cannot be measured, because no PDB was provided.')
-        elif ((self.distances is not None) and (self.dist_type == method) and
-              (pd.Series(['Distance', 'Contact (within {}A cutoff)'.format(self.cutoff)]).isin(self.data.columns).all())):
-            return
-        elif (save_file is not None) and os.path.exists(save_file):
-            dists = np.load(save_file + '.npz')['dists']
-        else:
-            if not self.query_pdb_mapper.is_aligned():
-                self.query_pdb_mapper.align()
-            self.data['Distance'] = '-'
-            # Open and load PDB structure in pymol, needed for get_coord methods
-            cmd.load(self.query_pdb_mapper.pdb_ref.file_name, self.query_pdb_mapper.query)
-            cmd.select('best_chain', f'{self.query_pdb_mapper.query} and chain {self.query_pdb_mapper.best_chain}')
-            chain_size = self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain]
-            dists = np.zeros((chain_size, chain_size))
-            coords = {}
-            counter = 0
-            pos = {}
-            key = {}
-            # Loop over all residues in the pdb
-            for res_num1 in self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain]:
-                residue = self.query_pdb_mapper.pdb_ref.structure[0][self.query_pdb_mapper.best_chain][res_num1]
-                # Loop over residues to calculate distance between all residues i and j
-                if res_num1 not in coords:
-                    pos[res_num1] = counter
-                    key[counter] = res_num1
-                    counter += 1
-                    coords[res_num1] = np.vstack(self._get_coords(residue, method))
-                for j in range(pos[res_num1]):
-                    res_num2 = key[j]
-                    if res_num2 not in pos:
-                        continue
-                    # Getting the 3d coordinates for every atom in each residue.
-                    # iterating over all pairs to find all distances
-                    res1 = (coords[res_num1] - coords[res_num2][:, np.newaxis])
-                    norms = np.linalg.norm(res1, axis=2)
-                    dists[pos[res_num1], pos[res_num2]] = dists[pos[res_num2], pos[res_num1]] = np.min(norms)
-            # Delete loaded structure from pymol session
-            cmd.delete(self.query_pdb_mapper.query)
-            if save_file is not None:
-                np.savez(save_file, dists=dists)
+        super().measure_distance(method=method, save_file=save_file)
         indices = self.data.loc[(self.data['Struct Pos 1'] != '-') & (self.data['Struct Pos 2'] != '-')].index
         self.data.loc[indices, 'Distance'] = self.data.loc[indices].apply(
-            lambda x: dists[pos[x['Struct Pos 1']], pos[x['Struct Pos 2']]], axis=1)
+            lambda x: self.distances[self.query_pdb_mapper.query_pdb_mapping[x['Seq Pos 1']],
+                                     self.query_pdb_mapper.query_pdb_mapping[x['Seq Pos 2']]], axis=1)
         self.data['Contact (within {}A cutoff)'.format(self.cutoff)] = self.data['Distance'].apply(
             lambda x: '-' if x == '-' else x <= self.cutoff)
-        end = time()
-        print('Computing the distance matrix based on the PDB file took {} min'.format((end - start) / 60.0))
-        self.distances = dists
-        self.dist_type = method
 
     def find_pairs_by_separation(self, category='Any', mappable_only=False):
         """
@@ -1157,14 +1021,14 @@ class ContactScorer(Scorer):
             z_score_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.tsv')
             z_score_plot_fn = os.path.join(out_dir, file_prefix + 'Dist-{}_{}_ZScores.png')
             z_score_biased, b_w2_ave, b_scw_z_auc = self.score_clustering_of_contact_predictions(
-                bias=True, file_path=z_score_fn.format(dist, 'Biased'), w_and_w2_ave_sub=biased_w2_ave,
+                biased=True, file_path=z_score_fn.format(dist, 'Biased'), scw_scorer=biased_w2_ave,
                 processes=processes)
             if (biased_w2_ave is None) and (b_w2_ave is not None):
                 biased_w2_ave = b_w2_ave
             stats['Max Biased Z-Score'] = [np.max(pd.to_numeric(z_score_biased['Z-Score'], errors='coerce'))] * duplicate
             stats['AUC Biased Z-Score'] = [b_scw_z_auc] * duplicate
             z_score_unbiased, u_w2_ave, u_scw_z_auc = self.score_clustering_of_contact_predictions(
-                bias=False, file_path=z_score_fn.format(dist, 'Unbiased'), w_and_w2_ave_sub=unbiased_w2_ave,
+                biased=False, file_path=z_score_fn.format(dist, 'Unbiased'), scw_scorer=unbiased_w2_ave,
                 processes=processes)
             if (unbiased_w2_ave is None) and (u_w2_ave is not None):
                 unbiased_w2_ave = u_w2_ave
@@ -1337,42 +1201,3 @@ def plot_z_scores(df, file_path=None):
     scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
     plt.savefig(file_path)
     plt.close()
-
-
-def init_scw_z_score_selection(scw_scorer):
-    """
-    Init SCW Z-Score Selection
-
-    This method initializes a set of processes in a multiprocessing pool so that they can compute the clustering Z-Score
-    with minimal data duplication.
-
-    Args:
-        scw_scorer (SelectionClusterWeighting): An instance of the SelectionClusterWeighting scorer which has already
-        had the precomputable parts of the score computed.
-    """
-    global selection_cluster_weighting_scorer
-    selection_cluster_weighting_scorer = scw_scorer
-
-
-def scw_z_score_selection(res_list):
-    """
-    SCW Z-Score Selection
-
-    Use a pre-initialized SelectionCLusterWeighting instance to compute the SCW Z-Score for a given selection.
-
-    Args:
-        res_list (list): A list of of sequence positions to score for clustering on the protein structure.
-    Returns:
-        float: The z-score calculated for the residues of interest for the PDB provided with this ContactScorer.
-        float: The w (clustering) score calculated for the residues of interest for the PDB provided with this
-        ContactScorer.
-        float: The E[w] (clustering expectation) score calculated over all residues of the PDB provided with this
-        ContactScorer.
-        float: The E[w^2] score calculated over all pairs of pairs of residues for the PDB provided with this
-        ContactScorer.
-        float: The sigma score calculated over all pairs of pairs of residues for the PDB provided with his
-        ContactScorer.
-        int: The number of residues in the list of interest.
-    """
-    res_list = sorted(res_list)
-    return selection_cluster_weighting_scorer.clustering_z_score(res_list=res_list)
