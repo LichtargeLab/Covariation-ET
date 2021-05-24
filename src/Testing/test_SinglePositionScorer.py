@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import numpy as np
 import pandas as pd
 from math import floor
@@ -26,8 +27,10 @@ from SupportingClasses.utils import compute_rank_and_coverage
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.SeqAlignment import SeqAlignment
 from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
+from Evaluation.SelectionClusterWeighting import SelectionClusterWeighting
 from Evaluation.SinglePositionScorer import SinglePositionScorer
 from Evaluation.SequencePDBMap import SequencePDBMap
+from Testing.test_Scorer import et_calcDist, et_computeAdjacency, et_calcZScore
 from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, protein_aln, write_out_temp_fn)
 from Testing.test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
 
@@ -892,3 +895,221 @@ class TestSinglePositionScorerSelectAndColorResidues(TestCase):
             self.evaluate_select_and_color_residues(scorer=scorer, n=None, k=2, cov_cutoff=0.3,
                                                     scores=np.array([0.1, 0.5, 0.9]))
         rmtree('Testing_Dir')
+
+
+class TestSinglePositionScorerScoreClusteringOfImportantResidues(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        protein_aln1.write_out_alignment(aln_fn)
+
+    def evaluate_score_clustering_of_important_residues(self, scorer, bias, processes, scw_scorer):
+        # Initialize scorer and scores
+        scorer.fit()
+        scorer.measure_distance(method='Any')
+        scores = np.random.RandomState(1234567890).rand(scorer.query_pdb_mapper.seq_aln.seq_length)
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 1, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        # Calculate Z-scores for the structure
+        expected_fn = os.path.join('TEST_z_score.tsv')
+        zscore_df, _, _ = scorer.score_clustering_of_important_residues(biased=bias, file_path=expected_fn,
+                                                                        scw_scorer=scw_scorer, processes=processes)
+        print(zscore_df[['Res', 'Coverage', 'Z-Score']])
+        # Check that the scoring file was written out to the expected file.
+        self.assertTrue(os.path.isfile(expected_fn))
+        os.remove(expected_fn)
+        # Generate data for calculating expected values
+        recip_map = {v: k for k, v in scorer.query_pdb_mapper.query_pdb_mapping.items()}
+        struc_seq_map = {k: i for i, k in
+                         enumerate(scorer.query_pdb_mapper.pdb_ref.pdb_residue_list[scorer.query_pdb_mapper.best_chain])}
+        final_map = {k: recip_map[v] for k, v in struc_seq_map.items()}
+        A, res_atoms = et_computeAdjacency(scorer.query_pdb_mapper.pdb_ref.structure[0][scorer.query_pdb_mapper.best_chain],
+                                           mapping=final_map)
+        # Iterate over the returned data frame row by row and test whether the results are correct
+        visited_scorable_residues = set()
+        prev_len = 0
+        prev_stats = None
+        prev_composed_w2_ave = None
+        prev_composed_sigma = None
+        prev_composed_z_score = None
+        zscore_df[['Res']] = zscore_df[['Res']].astype(dtype=np.int64)
+        zscore_df[['Importance_Score', 'Coverage', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace(
+            [None, '-', 'NA'], np.nan, inplace=True)
+        zscore_df[['Importance_Score', 'Coverage', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = zscore_df[
+            ['Importance_Score', 'Coverage', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(dtype=np.float64)
+        curr_res = set()
+        prev_coverage = None
+        for ind in zscore_df.index:
+            res = zscore_df.loc[ind, 'Res']
+            cov = zscore_df.loc[ind, 'Coverage']
+            # Check for ties
+            if (prev_coverage is None) or (prev_coverage == cov):
+                curr_res.add(res)
+            else:
+                sub_df = zscore_df.loc[zscore_df['Res'].isin(curr_res), :]
+                curr_covs = sub_df['Coverage'].unique()
+                self.assertTrue(len(curr_covs), 1)
+                if curr_covs[0] != '-':
+                    visited_scorable_residues |= curr_res
+                    if len(visited_scorable_residues) > prev_len:
+                        curr_stats = et_calcZScore(reslist=sorted(visited_scorable_residues),
+                                                   L=len(scorer.query_pdb_mapper.pdb_ref.seq[scorer.query_pdb_mapper.best_chain]),
+                                                   A=A, bias=1 if bias else 0)
+                        expected_composed_w2_ave = ((curr_stats[2] * curr_stats[10]['Case1']) +
+                                                    (curr_stats[3] * curr_stats[10]['Case2']) +
+                                                    (curr_stats[4] * curr_stats[10]['Case3']))
+                        expected_composed_sigma = math.sqrt(expected_composed_w2_ave - curr_stats[7] * curr_stats[7])
+                        if expected_composed_sigma == 0.0:
+                            expected_composed_z_score = 'NA'
+                        else:
+                            expected_composed_z_score = (curr_stats[6] - curr_stats[7]) / expected_composed_sigma
+                        prev_len = len(visited_scorable_residues)
+                        prev_stats = curr_stats
+                        prev_composed_w2_ave = expected_composed_w2_ave
+                        prev_composed_sigma = expected_composed_sigma
+                        prev_composed_z_score = expected_composed_z_score
+                    else:
+                        curr_stats = prev_stats
+                        expected_composed_w2_ave = prev_composed_w2_ave
+                        expected_composed_sigma = prev_composed_sigma
+                        expected_composed_z_score = prev_composed_z_score
+                    error_message = f'\nW: {zscore_df.loc[ind, "W"]}\nExpected W: {curr_stats[6]}\n' \
+                                    f'W Ave: {zscore_df.loc[ind, "W_Ave"]}\nExpected W Ave: {curr_stats[7]}\n' \
+                                    f'W2 Ave: {zscore_df.loc[ind, "W2_Ave"]}\nExpected W2 Ave: {curr_stats[8]}\n' \
+                                    f'Composed Expected W2 Ave: {expected_composed_w2_ave}\n' \
+                                    f'Sigma: {zscore_df.loc[ind, "Sigma"]}\nExpected Sigma: {curr_stats[9]}\n' \
+                                    f'Composed Expected Sigma: {expected_composed_sigma}\n' \
+                                    f'Z-Score: {zscore_df.loc[ind, "Z-Score"]}\nExpected Z-Score: {curr_stats[5]}\n' \
+                                    f'Composed Expected Z-Score: {expected_composed_z_score}'
+                    self.assertEqual(zscore_df.loc[ind, 'Num_Residues'], len(visited_scorable_residues))
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W'] - curr_stats[6]), 1E-16, error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W_Ave'] - curr_stats[7]), 1E-16, error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - expected_composed_w2_ave), 1E-16,
+                                         error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'W2_Ave'] - curr_stats[8]), 1E-2, error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - expected_composed_sigma), 1E-16,
+                                         error_message)
+                    self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Sigma'] - curr_stats[9]), 1E-5, error_message)
+                    if expected_composed_sigma == 0.0:
+                        self.assertEqual(zscore_df.loc[ind, 'Z-Score'], expected_composed_z_score)
+                        self.assertEqual(zscore_df.loc[ind, 'Z-Score'], curr_stats[5])
+                    else:
+                        self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - expected_composed_z_score), 1E-16,
+                                             error_message)
+                        self.assertLessEqual(np.abs(zscore_df.loc[ind, 'Z-Score'] - curr_stats[5]), 1E-5, error_message)
+                else:
+                    self.assertEqual(zscore_df.loc[ind, 'Z-Score'], '-')
+                    self.assertTrue(np.isnan(zscore_df.loc[ind, 'W']))
+                    self.assertTrue(np.isnan(zscore_df.loc[ind, 'W_Ave']))
+                    self.assertTrue(np.isnan(zscore_df.loc[ind, 'W2_Ave']))
+                    self.assertTrue(np.isnan(zscore_df.loc[ind, 'Sigma']))
+                    self.assertIsNone(zscore_df.loc[ind, 'Num_Residues'])
+            self.assertEqual(zscore_df.loc[ind, 'Importance_Score'], scores[res])
+
+    def test_seq2_no_bias_single_process_no_scw(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=False, processes=1, scw_scorer=None)
+
+    def test_seq2_no_bias_single_process(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=False, processes=1,
+                                                             scw_scorer=scw_scorer)
+
+    def test_seq2_no_bias_multi_process(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=False, processes=2,
+                                                             scw_scorer=scw_scorer)
+
+    def test_seq2_bias_single_process_no_scw(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=True, processes=1, scw_scorer=None)
+
+    def test_seq2_bias_single_process(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=True, processes=1,
+                                                             scw_scorer=scw_scorer)
+
+    def test_seq2_bias_multi_process(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=True, processes=2,
+                                                             scw_scorer=scw_scorer)
+
+    def test_seq3_no_bias(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=False)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=False, processes=2,
+                                                             scw_scorer=scw_scorer)
+
+    def test_seq3_bias(self):
+        scorer = SinglePositionScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=True, processes=2,
+                                                             scw_scorer=scw_scorer)
+
+    def test_fail_bias_and_scw_mismatched(self):
+        scorer = SinglePositionScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                                      chain='B')
+        scorer.fit()
+        scorer.measure_distance('Any')
+        scw_scorer = SelectionClusterWeighting(seq_pdb_map=scorer.query_pdb_mapper, pdb_dists=scorer.distances,
+                                               biased=True)
+        scw_scorer.compute_background_w_and_w2_ave(processes=2)
+        with self.assertRaises(AssertionError):
+            self.evaluate_score_clustering_of_important_residues(scorer=scorer, bias=False, processes=2,
+                                                                 scw_scorer=scw_scorer)
