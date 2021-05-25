@@ -146,6 +146,7 @@ class SinglePositionScorer(Scorer):
         if coverage_cutoff:
             assert isinstance(coverage_cutoff, float), 'coverage_cutoff must be a float!'
             mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
+            position_remapping = {res: i for i, res in enumerate(mappable_res)}
             top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
             residues_visited = set()
             groups = final_df.groupby('Top Predictions')
@@ -159,7 +160,7 @@ class SinglePositionScorer(Scorer):
             assert len(top_residue_ranks) <= len(mappable_res)
             _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
                                                         scores=top_residue_ranks)
-            final_df['Pos Coverage'] = final_df['Seq Pos'].apply(lambda x: top_coverage[x])
+            final_df['Pos Coverage'] = final_df['Seq Pos'].apply(lambda x: top_coverage[position_remapping[x]])
             n = final_df.loc[(final_df['Pos Coverage'] > coverage_cutoff), 'Top Predictions'].min() - 1
             if np.isnan(n):
                 n = final_df['Top Predictions'].max()
