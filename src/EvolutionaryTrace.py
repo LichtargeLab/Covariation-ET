@@ -510,7 +510,7 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
     This function accepts the file name for a pair residue result, reads it in, and converts it to a single residue
     result. This means the first occurrence of each residue by pair rank is recorded and new coverage scores and ranks
     are computed based on the single residue data. The coverage and ranks are computed based on the original ranks since
-    these are not impacted by the precision used when writing out the oriignal file, however the original score is
+    these are not impacted by the precision used when writing out the original file, however the original score is
     preserved in the 'Score' column. If many pairs (and therefore residues) were tied in their rank, this is preserved
     in the conversion. The residue variability is parsed from the pair of positions data, by keeping only the first or
     second character from the list of unique characters observed for a pair of positions.
