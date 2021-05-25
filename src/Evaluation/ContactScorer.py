@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
-from seaborn import heatmap, scatterplot
+from seaborn import scatterplot, lineplot, heatmap, scatterplot
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.utils import compute_rank_and_coverage
 from Evaluation.Scorer import Scorer, init_scw_z_score_selection, scw_z_score_selection
@@ -339,6 +339,86 @@ class ContactScorer(Scorer):
         ind = final_df['Top Predictions'] <= n
         final_df = final_df.loc[ind, :]
         return final_df
+
+    def characterize_pair_residue_coverage(self, out_dir, fn=None):
+        """
+        Characterize Pair Residue Coverage
+
+        This method iterates over pairs and characterizes how many unique residues have been observed at each pair
+        ranking. This means that if many pairs are tied in ranking many residues may be added at once.
+
+        Returns:
+            pandas.DataFrame: A dataframe including the ranks and coverages of pairs, as well as the corresponding
+            number of pairs and residues added at each rank and their cumulative sum at each rank, the coverage of
+            residues added at each rank and the maximum residues coverage observed up to that rank.
+            str: The path where the dataframe has been writen to file.
+            str: The path to a figure plotting pair coverage along the x-axis against the maximum residue coverage
+            observed up to that point along the y-axis.
+        """
+        if not pd.Series(['Rank', 'Score', 'Coverage']).isin(self.data.columns).all():
+            raise ValueError('Ranks, Scores, and Coverage values must be provided through map_predictions_to_pdb,'
+                             'before a specific evaluation can be made.')
+        if fn is None:
+            fn = 'Pair_vs_Residue_Coverage'
+        tsv_path = os.path.join(out_dir, fn + '.tsv')
+        plot_path = os.path.join(out_dir, fn + '.png')
+        top_sequence_ranks = np.zeros(self.query_pdb_mapper.seq_aln.seq_length)
+        rank_res = {}
+        residues_visited = set()
+        groups = self.data.groupby('Rank')
+        for curr_rank in sorted(groups.groups.keys()):
+            curr_group = groups.get_group(curr_rank)
+            curr_residues = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
+            new_positions = curr_residues - residues_visited
+            rank_res[curr_rank] = sorted(new_positions)
+            top_sequence_ranks[list(new_positions)] = curr_rank
+            residues_visited |= new_positions
+        _, sequence_coverage = compute_rank_and_coverage(seq_length=self.query_pdb_mapper.seq_aln.seq_length,
+                                                         pos_size=1, rank_type='min', scores=top_sequence_ranks)
+        comparison_df = self.data[['Rank', 'Coverage']].drop_duplicates().sort_values(by='Rank')
+        comparison_df.rename(columns={'Rank': 'Pair Rank', 'Coverage': 'Pair Coverage'}, inplace=True)
+        comparison_df['Residues Added'] = comparison_df['Pair Rank'].apply(
+            lambda x: ','.join([str(y) for y in rank_res[x]]))
+        comparison_df['Num Residues Added'] = comparison_df['Pair Rank'].apply(lambda x: len(rank_res[x]))
+        comparison_df['Num Pairs Added'] = comparison_df['Pair Rank'].apply(lambda x: (self.data['Rank'] == x).sum())
+        comparison_df['Residue Coverage'] = '-'
+        for ind in comparison_df.index:
+            rank = comparison_df.loc[ind, 'Pair Rank']
+            residues = rank_res[rank]
+            ranks = np.unique(top_sequence_ranks[residues])
+            assert len(ranks) <= 1
+            coverages = np.unique(sequence_coverage[residues])
+            assert len(coverages) <= 1
+            try:
+                comparison_df.loc[ind, 'Residue Coverage'] = coverages[0]
+            except IndexError:
+                comparison_df.loc[ind, 'Residue Coverage'] = np.nan
+        comparison_df['Total Pairs Added'] = comparison_df['Num Pairs Added'].cumsum()
+        comparison_df['Total Residues Added'] = comparison_df['Num Residues Added'].cumsum()
+        comparison_df['Max Residue Coverage'] = comparison_df['Residue Coverage'].cummax()
+        comparison_df['Max Residue Coverage'].fillna(method='ffill', inplace=True)
+        comparison_df = comparison_df.astype({'Pair Rank': 'int32', 'Pair Coverage': 'float64',
+                                              'Num Residues Added': 'float64', 'Num Pairs Added': 'float64',
+                                              'Residue Coverage': 'float64', 'Total Pairs Added': 'float64',
+                                              'Total Residues Added': 'float64', 'Max Residue Coverage': 'float64'})
+        comparison_df.to_csv(tsv_path, sep=',', header=True, index=False)
+        plotting_df = pd.DataFrame({'Pair Coverage': [0], 'Max Residue Coverage': [0]}).append(
+                                   comparison_df[['Pair Coverage', 'Max Residue Coverage']]).append(
+            pd.DataFrame({'Pair Coverage': [1], 'Max Residue Coverage': [1]}))
+        cov_comp_ax = scatterplot(x='Pair Coverage', y='Max Residue Coverage', color='k', markers='.', edgecolor="none",
+                                  data=plotting_df)
+        lineplot(x='Pair Coverage', y='Max Residue Coverage', color='k', markers=True, dashes=False, data=plotting_df,
+                 ax=cov_comp_ax)
+        cov_comp_ax.set_xlim(0.0, 1.0)
+        ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        cov_comp_ax.set_xticks(ticks)
+        cov_comp_ax.set_xticklabels(ticks)
+        cov_comp_ax.set_ylim(0.0, 1.0)
+        cov_comp_ax.set_yticks(ticks)
+        cov_comp_ax.set_yticklabels(ticks)
+        cov_comp_ax.get_figure().savefig(plot_path, bbox_inches='tight', transparent=True, dpi=500)
+        plt.close()
+        return comparison_df, tsv_path, plot_path
 
     def score_auc(self, category='Any'):
         """
@@ -1199,6 +1279,6 @@ def plot_z_scores(df, file_path=None):
     if os.path.isfile(file_path):
         return
     plotting_data = df.loc[~df['Z-Score'].isin(['-', 'NA']), ['Num_Residues', 'Z-Score']]
-    scatterplot(x='Num_Residues', y='Z-Score', data= plotting_data)
+    scatterplot(x='Num_Residues', y='Z-Score', data=plotting_data)
     plt.savefig(file_path)
     plt.close()

@@ -1329,6 +1329,105 @@ class TestContactScorerIdentifyRelevantData(TestCase):
         self.evaluate_identify_relevant_data_lists(scorer=scorer)
 
 
+class TestContactScorerCharacterizePairResidueCoverage(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_characterize_pair_residue_coverage(self, scorer):
+        from numpy.random import Generator, PCG64
+        rg = Generator(PCG64(12345))
+        scores = np.zeros((scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length))
+        triu_ind = np.triu_indices(n=scorer.query_pdb_mapper.seq_aln.seq_length, k=1)
+        scores[triu_ind] = rg.random(size=len(triu_ind[0]))
+        ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        new_dir = './Testing'
+        os.makedirs(new_dir)
+        comp_df, df_path, plot_path = scorer.characterize_pair_residue_coverage(out_dir=new_dir, fn='Test')
+        self.assertEqual(df_path, os.path.join(new_dir, 'Test.tsv'))
+        self.assertTrue(os.path.isfile(df_path))
+        self.assertEqual(plot_path, os.path.join(new_dir, 'Test.png'))
+        self.assertTrue(os.path.isfile(plot_path))
+        comp_df2, df_path2, plot_path2 = scorer.characterize_pair_residue_coverage(out_dir=new_dir, fn=None)
+        self.assertEqual(df_path2, os.path.join(new_dir, 'Pair_vs_Residue_Coverage.tsv'))
+        self.assertTrue(os.path.isfile(df_path2))
+        self.assertEqual(plot_path2, os.path.join(new_dir, 'Pair_vs_Residue_Coverage.png'))
+        self.assertTrue(os.path.isfile(plot_path2))
+        self.assertTrue(comp_df.equals(comp_df2))
+        self.assertEqual(set(comp_df['Pair Rank'].unique()), set(scorer.data['Rank'].unique()))
+        self.assertEqual(set(comp_df['Pair Coverage'].unique()), set(scorer.data['Coverage'].unique()))
+        pairs_added = comp_df['Pair Rank'].value_counts()
+        for ind in pairs_added.index:
+            self.assertTrue(comp_df.loc[comp_df['Pair Rank'] == ind, 'Num Pairs Added'].values[0] == pairs_added[ind])
+            self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Total Pairs Added'].values[0],
+                             np.sum(pairs_added[pairs_added.index <= ind]))
+            residues_added = set(scorer.data.loc[scorer.data['Rank'] == ind, 'Seq Pos 1']).union(
+                set(scorer.data.loc[scorer.data['Rank'] == ind, 'Seq Pos 2']))
+            prev_res_added = set(scorer.data.loc[scorer.data['Rank'] < ind, 'Seq Pos 1']).union(
+                set(scorer.data.loc[scorer.data['Rank'] < ind, 'Seq Pos 2']))
+            new_res = residues_added - prev_res_added
+            self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Residues Added'].values[0],
+                             ','.join([str(x) for x in sorted(new_res)]))
+            self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Num Residues Added'].values[0], len(new_res))
+            self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Total Residues Added'].values[0],
+                             len(new_res.union(prev_res_added)))
+            if len(new_res) > 0:
+                self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Residue Coverage'].values[0],
+                                 len(new_res.union(prev_res_added)) / float(len(scorer.query_pdb_mapper.query_pdb_mapping)))
+            else:
+                self.assertTrue(np.isnan(comp_df.loc[comp_df['Pair Rank'] == ind, 'Residue Coverage'].values[0]))
+            self.assertEqual(comp_df.loc[comp_df['Pair Rank'] == ind, 'Max Residue Coverage'].values[0],
+                             len(new_res.union(prev_res_added)) / float(len(scorer.query_pdb_mapper.query_pdb_mapping)))
+        rmtree(new_dir)
+
+    def test_score_auc_seq1(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
+                               cutoff=16.0, chain='A')
+        self.evaluate_characterize_pair_residue_coverage(scorer=scorer)
+
+    def test_score_auc_seq1_alt_loc_pdb(self):
+        scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a_alt,
+                               cutoff=14.0, chain='A')
+        self.evaluate_characterize_pair_residue_coverage(scorer=scorer)
+
+    def test_score_auc_seq2(self):
+        scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_characterize_pair_residue_coverage(scorer=scorer)
+
+    def test_score_auc_seq3(self):
+        scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
+                               cutoff=20.0, chain='B')
+        self.evaluate_characterize_pair_residue_coverage(scorer=scorer)
+
+
 class TestContactScorerScoreAUC(TestCase):
 
     @classmethod
