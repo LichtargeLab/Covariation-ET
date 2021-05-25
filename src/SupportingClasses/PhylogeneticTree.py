@@ -10,6 +10,10 @@ from Bio.Phylo import BaseTree
 from sklearn.cluster import AgglomerativeClustering
 from Bio.Phylo import read, write
 from Bio.Phylo.TreeConstruction import DistanceMatrix
+from matplotlib import cm
+from matplotlib.colors import to_hex
+from matplotlib.colors import LinearSegmentedColormap
+from ete3 import Tree, faces, AttrFace, TreeStyle, NodeStyle
 
 
 class PhylogeneticTree(object):
@@ -435,6 +439,104 @@ class PhylogeneticTree(object):
             raise ValueError('Attempting to write tree before construction!')
         with open(filename, 'w') as tree_handle:
             write(self.tree, file=tree_handle, format='newick')
+
+    def visualize_tree(self, query, out_dir, id_categories, filename=None):
+        """
+        Visualize Tree
+
+        Args:
+            query (str): The name of the query sequence in the tree.
+            out_dir (str): The directory where the result should be written.
+            id_categories (dict): A dictionary mapping all of the sequence IDs in the tree to the corresponding label
+            to be used.
+            filename (str): The name the file should be given, if None the file will be named 'Tree_Viz.png'.
+        Return:
+            str: The filepath where the tree figure has been written.
+            dict: A dictionary mapping label to the color assigned to that label when coloring the tree.
+        """
+        number_of_labels = len(set(id_categories.values()))
+        if number_of_labels <= 8:
+            cmap = cm.Dark2
+        elif number_of_labels <= 9:
+            cmap = cm.Set1
+        elif number_of_labels <= 10:
+            cmap = cm.tab10
+        elif number_of_labels <= 12:
+            cmap = cm.paired
+        elif number_of_labels <= 20:
+            cmap = cm.tab20
+        else:
+            original_cmap = cm.get_cmap('turbo')
+            points = np.linspace(0, 1, number_of_labels)
+            cmap = LinearSegmentedColormap.from_list('Tree_Map', [original_cmap(x) for x in points], N=number_of_labels)
+
+        coloring_dict = {label: to_hex(cmap(i)) for i, label in enumerate(sorted(set(id_categories.values())))}
+
+        def reset_node_style(tree, query):
+            def_style = NodeStyle()
+            for node in tree.traverse():
+                if node.name == query:
+                    continue
+                node.set_style(def_style)
+
+        if filename is None:
+            tree_viz_path = os.path.join(out_dir, 'Tree_Viz.png')
+        else:
+            tree_viz_path = os.path.join(out_dir, filename)
+        if os.path.isfile(tree_viz_path):
+            return tree_viz_path, coloring_dict
+        temp_fn = os.path.join(out_dir, 'Temp.nhx')
+        self.write_out_tree(filename=temp_fn)
+        with open(temp_fn, 'r') as handle:
+            tree_str = handle.read()
+        os.remove(temp_fn)
+        if not tree_str.endswith(';'):
+            tree_str += ';'
+        tree = Tree(tree_str, format=1)
+        color_leaf_text = False
+        color_leaf_branch = True
+
+        node_coloring = {}
+        for node in tree.get_leaves():
+            curr_color = coloring_dict[id_categories[node.name]]
+            curr_st = NodeStyle()
+            if node.name == query:
+                curr_st['shape'] = 'sphere'
+                curr_st['size'] = 200
+                curr_st['fgcolor'] = 'Black'
+                node_coloring['Query'] = curr_color
+            else:
+                curr_st['shape'] = 'circle'
+                curr_st['size'] = 1
+                curr_st['fgcolor'] = 'Black'
+                node_coloring[node.name] = curr_color
+            curr_st['hz_line_type'] = 1
+            curr_st['hz_line_width'] = 20
+            if color_leaf_branch:
+                curr_st['bgcolor'] = curr_color
+            if color_leaf_text:
+                curr_st['fgcolor'] = curr_color
+                curr_st['hz_line_color'] = curr_color
+            node.set_style(curr_st)
+        query_node = tree.get_leaves_by_name(query)[0]
+        query_node.name = 'Query'
+
+        def layout(node):
+            if node.is_leaf():
+                if color_leaf_text:
+                    N = AttrFace("name", fsize=200, fgcolor=node_coloring[node.name])
+                else:
+                    N = AttrFace("name", fsize=200)
+                faces.add_face_to_node(N, node, 0, position='aligned')
+
+        ts = TreeStyle()
+        ts.layout_fn = layout
+        ts.show_leaf_name = False
+        ts.mode = "c"
+        ts.root_opening_factor = 1
+        tree.render(tree_viz_path, w=1000, tree_style=ts)
+        reset_node_style(tree, query)
+        return tree_viz_path, coloring_dict
 
     def traverse_top_down(self):
         """

@@ -2,6 +2,8 @@ import os
 import sys
 import unittest
 from shutil import rmtree
+from matplotlib import cm
+from matplotlib.colors import to_hex
 from unittest import TestCase
 
 #
@@ -341,6 +343,131 @@ class TestPhylogeneticTreeWriteOutTree(TestCase):
         self.assertFalse(os.path.isfile(tree_path))
         with self.assertRaises(ValueError):
             phylo_tree.write_out_tree(filename=tree_path)
+
+
+class TestPhylogeneticTreeVizualizeTree(TestCase):
+
+    def evaluate_visualize_tree(self, p_tree, id_cat, cmap):
+        new_dir = './Testing'
+        os.makedirs(new_dir)
+        expected_path = os.path.join(new_dir, 'Tree_Viz.png')
+        self.assertFalse(os.path.isfile(expected_path))
+        actual_path, coloring_dict = p_tree.visualize_tree(query='seq1', id_categories=id_cat, out_dir=new_dir)
+        self.assertTrue(os.path.isfile(expected_path))
+        self.assertEqual(actual_path, expected_path)
+        expected_path2 = os.path.join(new_dir, 'Test.png')
+        self.assertFalse(os.path.isfile(expected_path2))
+        actual_path2, coloring_dict2 = p_tree.visualize_tree(query='seq1', id_categories=id_cat, out_dir=new_dir,
+                                                             filename='Test.png')
+        self.assertTrue(os.path.isfile(expected_path2))
+        self.assertEqual(actual_path2, expected_path2)
+        self.assertEqual(coloring_dict, coloring_dict2)
+        self.assertEqual(len(coloring_dict), len(set(id_cat.values())))
+        for i, cat in enumerate(sorted(set(id_cat.values()))):
+            self.assertEqual(coloring_dict[cat], to_hex(cmap(i)))
+        rmtree(new_dir)
+
+    def test_visualize_upgma_tree_one_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+
+    def test_visualize_upgma_tree_two_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'B'}, cmap=cm.Dark2)
+
+    def test_visualize_upgma_tree_three_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+
+    def test_visualize_et_tree_one_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+
+    def test_visualize_et_tree_two_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'B'}, cmap=cm.Dark2)
+
+    def test_visualize_et_tree_three_label(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+
+    def test_visualize_agglomerative_tree_one_label(self):
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': cache_dir_path,
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        rmtree(cache_dir_path)
+
+    def test_visualize_agglomerative_tree_two_label(self):
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': cache_dir_path,
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'B', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        rmtree(cache_dir_path)
+
+    def test_visualize_agglomerative_tree_three_label(self):
+        cache_dir_path = os.path.join(os.getcwd(), 'test')
+        phylo_tree = PhylogeneticTree(tree_building_method='agglomerative',
+                                      tree_building_args={'cache_dir': cache_dir_path,
+                                                          'affinity': 'euclidean',
+                                                          'linkage': 'ward'})
+        phylo_tree.construct_tree(dm=dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'C', 'seq2': 'B', 'seq3': 'A'}, cmap=cm.Dark2)
+        rmtree(cache_dir_path)
+
+    def test_write_out_custom_tree_one_label(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree.construct_tree(dm=min_dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        os.remove(test_tree_path)
+
+    def test_write_out_custom_tree_two_label(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree.construct_tree(dm=min_dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'A'}, cmap=cm.Dark2)
+        os.remove(test_tree_path)
+
+    def test_write_out_custom_tree_three_label(self):
+        test_tree_path = os.path.join(os.getcwd(), 'test.nhx')
+        with open(os.path.join(os.getcwd(), 'test.nhx'), 'w') as handle:
+            handle.write('(seq1:0.1,(seq2:0.05,seq3:0.05)Inner2:0.29167)Inner1:0.00000;')
+        phylo_tree = PhylogeneticTree(tree_building_method='custom',
+                                      tree_building_args={'tree_path': test_tree_path})
+        phylo_tree.construct_tree(dm=min_dm)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+        os.remove(test_tree_path)
+
+    def test_visualize_tree_failure_no_tree(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        with self.assertRaises(ValueError):
+            phylo_tree.visualize_tree(query='seq1', out_dir='./', id_categories={'seq1': 'Query', 'seq2': 'A',
+                                                                                 'seq3': 'B'})
+
+    def test_visualize_tree_failure_no_id_categories(self):
+        phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
+        phylo_tree.construct_tree(dm=dm)
+        with self.assertRaises(AttributeError):
+            self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat=None, cmap=cm.Dark2)
 
 
 class TestPhylogeneticTreeTraversal(TestCase):
