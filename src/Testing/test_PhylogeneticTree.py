@@ -468,6 +468,7 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
         phylo_tree.construct_tree(dm=dm)
         with self.assertRaises(AttributeError):
             self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat=None, cmap=cm.Dark2)
+        rmtree('./Testing')
 
 
 class TestPhylogeneticTreeTraversal(TestCase):
