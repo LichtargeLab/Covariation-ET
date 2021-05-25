@@ -401,7 +401,7 @@ class ContactScorer(Scorer):
                                               'Num Residues Added': 'float64', 'Num Pairs Added': 'float64',
                                               'Residue Coverage': 'float64', 'Total Pairs Added': 'float64',
                                               'Total Residues Added': 'float64', 'Max Residue Coverage': 'float64'})
-        comparison_df.to_csv(tsv_path, sep=',', header=True, index=False)
+        comparison_df.to_csv(tsv_path, sep='\t', header=True, index=False)
         plotting_df = pd.DataFrame({'Pair Coverage': [0], 'Max Residue Coverage': [0]}).append(
                                    comparison_df[['Pair Coverage', 'Max Residue Coverage']]).append(
             pd.DataFrame({'Pair Coverage': [1], 'Max Residue Coverage': [1]}))
