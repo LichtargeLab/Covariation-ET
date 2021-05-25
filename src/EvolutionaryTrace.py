@@ -575,7 +575,7 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
     return full_path
 
 
-def convert_file_to_legacy_format(res_fn):
+def convert_file_to_legacy_format(res_fn, reverse_score=False):
     """
     Convert File To Legacy Format
 
@@ -584,6 +584,11 @@ def convert_file_to_legacy_format(res_fn):
 
     Args:
         res_fn (str): The path the the single residue ranks file to be converted.
+        reverse_score (bool): If this flag is set to true, recompute scores so that each score is:
+        score_new = 1 + |score_i - score_max|
+        This is used to correct for metrics (like ET-MIp) where a higher score is better, but which does not interact
+        correctly with PyETViewer, which imports rho or the score for residue selection and coloring and recomputes
+        coverage on the fly.
     Return:
         str: The path to the converted output file.
     """
@@ -592,6 +597,11 @@ def convert_file_to_legacy_format(res_fn):
     scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
     assert {'Position', 'Query'}.issubset(scoring_df.columns), "Provided file does not include expected columns, make"\
                                                                " sure this is a single position analysis result!"
+    if reverse_score:
+        max_score = scoring_df['Score'].max()
+        scoring_df['Reversed_Score'] = scoring_df['Score'].apply(lambda x: 1 + abs(x - max_score))
+        scoring_df.rename(columns={'Score': 'Original Score'}, inplace=True)
+        scoring_df.rename(columns={'Reversed_Score': 'Score'}, inplace=True)
     full_path = os.path.join(res_dir, f'{res_base_name}.legacy.ranks')
     with open(full_path, 'w') as handle:
         handle.write('% Note: in this file % is a comment sign.\n')
