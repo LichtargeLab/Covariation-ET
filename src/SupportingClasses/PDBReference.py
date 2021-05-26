@@ -471,7 +471,7 @@ class PDBReference(object):
             pse_path = os.path.join(out_dir, fn + '.pse')
             commands_path = os.path.join(out_dir, fn + '_all_pymol_commands.txt')
         cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
-        all_commands.append(f"save {pse_path}, " ' or '.join(full_selection_list) + ' , -1, pse')
+        all_commands.append(f"save {pse_path}, " + ' or '.join(full_selection_list) + ' , -1, pse')
         cmd.delete('all')
         all_commands.append('delete all')
         with open(commands_path, 'w') as handle:
@@ -623,7 +623,7 @@ class PDBReference(object):
             pse_path = os.path.join(out_dir, fn + '.pse')
             commands_path = os.path.join(out_dir, fn + '_all_pymol_commands.txt')
         cmd.save(pse_path, ' or '.join(full_selection_list), -1, 'pse')
-        all_commands.append(f"save {pse_path}, " ' or '.join(full_selection_list) + ' , -1, pse')
+        all_commands.append(f"save {pse_path}, " + ' or '.join(full_selection_list) + ' , -1, pse')
         cmd.delete('all')
         all_commands.append('delete all')
         with open(commands_path, 'w') as handle:
