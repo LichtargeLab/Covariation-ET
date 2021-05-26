@@ -38,11 +38,15 @@ python EvolutionaryTrace.py --preset intET --query <Sequence identifier for the 
 ```
 python EvolutionaryTrace.py --preset rvET --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
 ```
-3. The final preset 'ET-MIp' will run the original Evolutionary Trace covariation algorithm developed by the lab on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
+3. Preset three 'ET-MIp' will run the original Evolutionary Trace covariation algorithm developed by the lab on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
 ```
 python EvolutionaryTrace.py --preset ET-MIp --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
 ```
-4. Commandline calls to EvolutionaryTrace.py that do not use an existing preset have many more possible options, though most have default values and do not need to be specified unless you want the code to perform a specific type of analysis. To see all the options for running EvolutionaryTrace.py please run ```python EvolutionaryTrace.py --help``` for more details on each parameter):
+4. The final preset 'CovET' will run the new best performing Evolutionary Trace covariation algorithm developed by the lab on the specified alignment, any options other than those specified below will be overwritten by choosing this preset:
+```
+python EvolutionaryTrace.py --preset CovET --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
+```
+5. Commandline calls to EvolutionaryTrace.py that do not use an existing preset have many more possible options, though most have default values and do not need to be specified unless you want the code to perform a specific type of analysis. To see all the options for running EvolutionaryTrace.py please run ```python EvolutionaryTrace.py --help``` for more details on each parameter):
 ```
 python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --polymer_type <DNA or Protein> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
 ```
