@@ -12,6 +12,7 @@ from unittest import TestCase
 from scipy.stats import rankdata
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from numpy.random import Generator, PCG64
 from sklearn.metrics import auc, roc_curve, precision_score, recall_score, f1_score, precision_recall_curve
 
 #
@@ -1361,7 +1362,6 @@ class TestContactScorerCharacterizePairResidueCoverage(TestCase):
         cls.aln3 = cls.aln3.remove_gaps()
 
     def evaluate_characterize_pair_residue_coverage(self, scorer):
-        from numpy.random import Generator, PCG64
         rg = Generator(PCG64(12345))
         scores = np.zeros((scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length))
         triu_ind = np.triu_indices(n=scorer.query_pdb_mapper.seq_aln.seq_length, k=1)
@@ -3196,12 +3196,11 @@ class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
 
     def evaluate_score_clustering_of_contact_predictions(self, scorer, bias, processes, scw_scorer):
         # Initialize scorer and scores
-        scorer.fit()
-        scorer.measure_distance(method='Any')
-        scores = np.random.RandomState(1234567890).rand(scorer.query_pdb_mapper.seq_aln.seq_length,
-                                                        scorer.query_pdb_mapper.seq_aln.seq_length)
-        scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
-        scores += scores.T
+        rg = Generator(PCG64(12345))
+        scores = np.zeros((scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length))
+        triu_ind = np.triu_indices(n=scorer.query_pdb_mapper.seq_aln.seq_length, k=1)
+        scores[triu_ind] = rg.random(size=len(triu_ind[0]))
+
         ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
         # Calculate Z-scores for the structure
@@ -3226,10 +3225,11 @@ class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
         prev_composed_sigma = None
         prev_composed_z_score = None
         zscore_df[['Res_i', 'Res_j']] = zscore_df[['Res_i', 'Res_j']].astype(dtype=np.int64)
-        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace([None, '-', 'NA'],
+        zscore_df[['Covariance Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma', 'Num_Residues']].replace([None, '-', 'NA'],
                                                                                                  np.nan, inplace=True)
-        zscore_df[['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = zscore_df[
-            ['Covariance_Score', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(dtype=np.float64)
+        zscore_df[['Covariance Score', 'Pair Coverage', 'Residue Coverage', 'W', 'W_Ave', 'W2_Ave', 'Sigma']] = zscore_df[
+            ['Covariance Score', 'Pair Coverage', 'Residue Coverage', 'W', 'W_Ave', 'W2_Ave', 'Sigma']].astype(
+            dtype=np.float64)
         for ind in zscore_df.index:
             res_i = zscore_df.loc[ind, 'Res_i']
             res_j = zscore_df.loc[ind, 'Res_j']
@@ -3290,7 +3290,10 @@ class TestContactScorerScoreClusteringOfContactPredictions(TestCase):
                 self.assertTrue(np.isnan(zscore_df.loc[ind, 'W2_Ave']))
                 self.assertTrue(np.isnan(zscore_df.loc[ind, 'Sigma']))
                 self.assertIsNone(zscore_df.loc[ind, 'Num_Residues'])
-            self.assertEqual(zscore_df.loc[ind, 'Covariance_Score'], coverages[res_i, res_j])
+            self.assertEqual(zscore_df.loc[ind, 'Covariance Score'], scores[res_i, res_j])
+            self.assertEqual(zscore_df.loc[ind, 'Pair Coverage'], coverages[res_i, res_j])
+            self.assertEqual(zscore_df.loc[ind, 'Residue Coverage'],
+                             zscore_df.loc[ind, 'Num_Residues'] / float(len(scorer.query_pdb_mapper.query_pdb_mapping)))
 
     def test_seq2_no_bias_single_process_no_scw(self):
         scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,

@@ -714,7 +714,6 @@ class ContactScorer(Scorer):
             df_sub = df.replace([None, '-', 'NA'], np.nan)
             df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
-            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_pdb_mapper.seq_aln.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
@@ -730,28 +729,31 @@ class ContactScorer(Scorer):
             scw_scorer.compute_background_w_and_w2_ave(processes=processes)
         else:
             assert scw_scorer.biased == biased, 'SelectionClusterWeighting scorer does not match the biased parameter.'
-        data_df = self._identify_relevant_data(category='Any').loc[:, ['Seq Pos 1', 'Seq Pos 2', 'Coverage']]
-        data_df.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
-                       inplace=True)
-        sorted_residues = list(zip(data_df['Res_i'], data_df['Res_j']))
+        data_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0).loc[
+                  :, ['Seq Pos 1', 'Seq Pos 2', 'Score', 'Coverage', 'Pos 1 Coverage', 'Pos 2 Coverage']]
+        data_df['Max Pos Coverage'] = data_df[['Pos 1 Coverage', 'Pos 2 Coverage']].max(axis=1)
+        data_df['Cumulative Coverage'] = data_df['Max Pos Coverage'].cummax()
+        data_df.drop(columns=['Pos 1 Coverage', 'Pos 2 Coverage', 'Max Pos Coverage'], inplace=True)
+        data_df.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Score': 'Covariance Score',
+                                'Coverage': 'Pair Coverage', 'Cumulative Coverage': 'Residue Coverage'}, inplace=True)
         data = {'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
         # Set up structures to track unique sets of residues
+        residues_visited = set()
+        # unique_sets = []
         unique_sets = {}
         to_score = []
-        residues_of_interest = set([])
-        counter = -1
-        prev_size = 0
         # Identify unique sets of residues to score
-        for pair in sorted_residues:
-            residues_of_interest.update(pair)
-            curr_size = len(residues_of_interest)
-            if curr_size > prev_size:
-                counter += 1
-                unique_sets[counter] = [pair]
-                to_score.append(list(residues_of_interest))
-                prev_size = curr_size
-            else:
-                unique_sets[counter].append(pair)
+        groups = data_df.groupby('Pair Coverage')
+        counter = 0
+        for curr_cov in sorted(groups.groups.keys()):
+            curr_group = groups.get_group(curr_cov)
+            curr_residues = set(curr_group['Res_i']).union(set(curr_group['Res_j']))
+            new_positions = curr_residues - residues_visited
+            # unique_sets.append(sorted(new_positions))
+            unique_sets[counter] = curr_group[['Res_i', 'Res_j']].apply(tuple, axis=1).tolist()
+            counter += 1
+            residues_visited |= new_positions
+            to_score.append(sorted(residues_visited))
         # Compute all other Z-scores
         pool2 = Pool(processes=processes, initializer=init_scw_z_score_selection,
                      initargs=(scw_scorer, ))
@@ -761,6 +763,7 @@ class ContactScorer(Scorer):
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
+        span_start = 0
         for counter, curr_res in enumerate(res):
             curr_len = len(unique_sets[counter])
             data['Z-Score'] += [curr_res[6]] * curr_len
@@ -771,7 +774,9 @@ class ContactScorer(Scorer):
             data['Num_Residues'] += [curr_res[11]] * curr_len
             if curr_res[6] not in {None, '-', 'NA'}:
                 y_z_score.append(curr_res[6])
-                x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.seq_aln.seq_length)
+                # x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.seq_aln.seq_length)
+                x_coverage.append(data_df['Residue Coverage'].iloc[span_start: span_start+curr_len].max())
+            span_start += curr_len
         data_df['Z-Score'] = data['Z-Score']
         data_df['W'] = data['W']
         data_df['W_Ave'] = data['W_Ave']
@@ -784,9 +789,10 @@ class ContactScorer(Scorer):
             au_scw_z_score_curve = auc(x_coverage, y_z_score)
         # Identify all of the pairs which include unmappable positions and set their Z-scores to the appropriate value.
         data_df_unmapped = self.data.loc[self.data['Distance'] == '-',
-                                         ['Seq Pos 1', 'Seq Pos 2', 'Coverage']].sort_values(by='Coverage')
-        data_df_unmapped.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Coverage': 'Covariance_Score'},
-                                inplace=True)
+                                         ['Seq Pos 1', 'Seq Pos 2', 'Score', 'Coverage']].sort_values(by='Coverage')
+        data_df_unmapped.rename(columns={'Seq Pos 1': 'Res_i', 'Seq Pos 2': 'Res_j', 'Score': 'Covariance Score',
+                                         'Coverage': 'Pair Coverage'}, inplace=True)
+        data_df_unmapped['Residue Coverage'] = '-'
         data_df_unmapped['Z-Score'] = '-'
         data_df_unmapped['W'] = None
         data_df_unmapped['W_Ave'] = None
@@ -796,7 +802,8 @@ class ContactScorer(Scorer):
         # Combine the mappable and unmappable index dataframes.
         df = data_df.append(data_df_unmapped)
         # Write out DataFrame
-        df[['Res_i', 'Res_j', 'Covariance_Score', 'Z-Score', 'W', 'W_Ave', 'Sigma', 'Num_Residues']].to_csv(
+        df[['Res_i', 'Res_j', 'Covariance Score', 'Pair Coverage', 'Residue Coverage', 'Z-Score', 'W', 'W_Ave', 'Sigma',
+            'Num_Residues']].to_csv(
             path_or_buf=file_path, sep='\t', header=True, index=False)
         end = time()
         print('Compute SCW Z-Score took {} min'.format((end - start) / 60.0))
