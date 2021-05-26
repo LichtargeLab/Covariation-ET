@@ -329,12 +329,9 @@ class SinglePositionScorer(Scorer):
             scw_scorer.compute_background_w_and_w2_ave(processes=processes)
         else:
             assert scw_scorer.biased == biased, 'SelectionClusterWeighting scorer does not match the biased parameter.'
-        data_df = self._identify_relevant_data().loc[:, ['Seq Pos', 'Score', 'Coverage']]
-        data_df.rename(columns={'Seq Pos': 'Res', 'Score': 'Importance_Score', 'Coverage': 'Temp'}, inplace=True)
-        _, data_df['Coverage'] = compute_rank_and_coverage(seq_length=len(self.query_pdb_mapper.query_pdb_mapping),
-                                                           pos_size=1, rank_type='min',
-                                                           scores=data_df['Temp'])
-        data_df.drop(columns=['Temp'], inplace=True)
+        data_df = self._identify_relevant_data(coverage_cutoff=1.0).loc[:, ['Seq Pos', 'Score', 'Pos Coverage']]
+        data_df.rename(columns={'Seq Pos': 'Res', 'Score': 'Importance_Score', 'Pos Coverage': 'Coverage'},
+                       inplace=True)
         data_df.sort_values(by='Coverage', inplace=True, ignore_index=True)
         # Set up structures to track unique sets of residues
         residues_visited = set()
