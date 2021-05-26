@@ -314,7 +314,6 @@ class SinglePositionScorer(Scorer):
             df_sub = df.replace([None, '-', 'NA'], np.nan)
             df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
-            df_sub['Coverage'] = df_sub['Num_Residues'] / float(self.query_pdb_mapper.seq_aln.seq_length)
             df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
             if len(df_sub['Coverage']) == 0:
                 au_scw_z_score_curve = None
