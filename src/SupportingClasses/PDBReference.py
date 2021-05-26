@@ -517,6 +517,7 @@ class PDBReference(object):
             str: The path to the created pse file.
             str: The path to the text file containing all commands used to generate the pse file.
             list: The residues in the structure which have been colored by this method using the provided data.
+            list: The pairs of residues in the structure which have been colored by this method using the provided data.
         """
         if color_map == 'ET':
             color_list = ["ff0000", "ff0c00", "ff1800", "ff2400", "ff3000", "ff3d00", "ff4900", "ff5500", "ff6100",
