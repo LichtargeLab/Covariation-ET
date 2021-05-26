@@ -641,7 +641,7 @@ def parse_args():
     parser.add_argument('--output_dir', metavar='O', type=str, nargs='?',
                         default=os.getcwd(), help='File path to a directory where the results can be generated.')
     # Check if a preset has been selected.
-    parser.add_argument('--preset', metavar='P', type=str, nargs='?', choices=['intET', 'rvET', 'ET-MIp'],
+    parser.add_argument('--preset', metavar='P', type=str, nargs='?', choices=['intET', 'rvET', 'ET-MIp', 'CovET'],
                         help='Specifying a preset will run a previously published Evolutionary Trace algorithm. '
                              'The current options are: "intET", "rvET", or "ET-MIp". Specifying any of these will '
                              'overwrite other options except "query", "alignment", "output_dir", "processes", and '
@@ -738,10 +738,13 @@ def parse_args():
         arguments['tree_building_options'] = {}
         arguments['ranks'] = None
         arguments['output_files'] = 'default'
-        if arguments['preset'] == 'ET-MIp':
+        if arguments['preset'] in ['ET-MIp', 'CovET']:
             arguments['position_type'] = 'pair'
-            arguments['scoring_metric'] = 'filtered_average_product_corrected_mutual_information'
             arguments['gap_correction'] = None
+            if arguments['preset'] == 'ET-MIp':
+                arguments['scoring_metric'] = 'filtered_average_product_corrected_mutual_information'
+            else:
+                arguments['scoring_metric'] = 'mismatch_diversity'
         else:
             arguments['position_type'] = 'single'
             if arguments['preset'] == 'intET':
@@ -777,8 +780,6 @@ if __name__ == "__main__":
                            gap_correction=args['gap_correction'], out_dir=args['output_dir'],
                            output_files=args['output_files'], processors=args['processors'],
                            low_memory=args['low_memory'])
-    # Compute distance matrix, construct tree, and perform sequence assignments
-    et.compute_distance_matrix_tree_and_assignments()
-    # Perform the trace and write out final scores
-    et.perform_trace()
+    # Compute distance matrix, construct tree, perform sequence assignments, trace, and write out final scores
+    et.calculate_scores()
 
