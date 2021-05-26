@@ -714,11 +714,11 @@ class ContactScorer(Scorer):
             df_sub = df.replace([None, '-', 'NA'], np.nan)
             df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
             df_sub.drop_duplicates(inplace=True)
-            df_sub.sort_values(by='Coverage', ascending=True, inplace=True)
-            if len(df_sub['Coverage']) == 0:
+            df_sub.sort_values(by='Pair Coverage', ascending=True, inplace=True)
+            if len(df_sub['Residue Coverage']) == 0:
                 au_scw_z_score_curve = None
             else:
-                au_scw_z_score_curve = auc(df_sub['Coverage'].astype(float).values,
+                au_scw_z_score_curve = auc(df_sub['Residue Coverage'].astype(float).values,
                                            df_sub['Z-Score'].astype(float).values)
             return df, None, au_scw_z_score_curve
         # Set up dataframe for storing results.
