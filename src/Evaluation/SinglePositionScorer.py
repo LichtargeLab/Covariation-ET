@@ -248,6 +248,10 @@ class SinglePositionScorer(Scorer):
                 f{fn}.pse
                 f{fn}_all_pymol_commands.txt
             If None a default will be used as specified in PDBReference color_structure().
+        Returns:
+            str: The path to the created pse file.
+            str: The path to the text file containing all commands used to generate the pse file.
+            list: The residues in the structure which have been colored by this method using the provided data.
         """
         relevant_data = self._identify_relevant_data(n=n, k=k, coverage_cutoff=residue_coverage)
         if residue_coverage is None:
@@ -269,9 +273,9 @@ class SinglePositionScorer(Scorer):
         coloring_data = relevant_data[['Struct Pos', 'Pos Coverage']].rename(
             columns={'Struct Pos': 'RESIDUE_Index', 'Pos Coverage': 'Coverage'})
         coloring_data = coloring_data.drop_duplicates()
-        self.query_pdb_mapper.pdb_ref.color_structure(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
-                                                      data_type='Coverage', data_direction='min', color_map='ET',
-                                                      out_dir=out_dir, fn=fn)
+        return self.query_pdb_mapper.pdb_ref.color_structure(
+            chain_id=self.query_pdb_mapper.best_chain, data=coloring_data, data_type='Coverage', data_direction='min',
+            color_map='ET', out_dir=out_dir, fn=fn)
 
     def score_clustering_of_important_residues(self, biased=True, file_path='./z_score.tsv', scw_scorer=None,
                                                processes=1):

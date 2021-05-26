@@ -873,6 +873,10 @@ class ContactScorer(Scorer):
                 f{fn}.pse
                 f{fn}_all_pymol_commands.txt
             If None a default will be used as specified in PDBReference color_structure().
+        Returns:
+            str: The path to the created pse file.
+            str: The path to the text file containing all commands used to generate the pse file.
+            list: The residues in the structure which have been colored by this method using the provided data.
         """
         relevant_data = self._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=residue_coverage)
         if residue_coverage is None:
@@ -897,9 +901,9 @@ class ContactScorer(Scorer):
             relevant_data[['Struct Pos 2', 'Pos 2 Coverage']].rename(
                 columns={'Struct Pos 2': 'RESIDUE_Index', 'Pos 2 Coverage': 'Coverage'})], ignore_index=True)
         coloring_data = coloring_data.drop_duplicates()
-        self.query_pdb_mapper.pdb_ref.color_structure(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
-                                                      data_type='Coverage', data_direction='min', color_map='ET',
-                                                      out_dir=out_dir, fn=fn)
+        return self.query_pdb_mapper.pdb_ref.color_structure(
+            chain_id=self.query_pdb_mapper.best_chain, data=coloring_data, data_type='Coverage', data_direction='min',
+            color_map='ET', out_dir=out_dir, fn=fn)
 
     def select_and_display_pairs(self, out_dir, category='Any', n=None, k=None, residue_coverage=None, fn=None):
         """
@@ -936,6 +940,11 @@ class ContactScorer(Scorer):
                 f{fn}.pse
                 f{fn}_all_pymol_commands.txt
             If None a default will be used as specified in PDBReference display_pairs().
+        Returns:
+            str: The path to the created pse file.
+            str: The path to the text file containing all commands used to generate the pse file.
+            list: The residues in the structure which have been colored by this method using the provided data.
+            list: The pairs of residues in the structure which have been colored by this method using the provided data.
         """
         relevant_data = self._identify_relevant_data(category=category, n=n, k=k, coverage_cutoff=residue_coverage)
         if residue_coverage is None:
@@ -958,10 +967,9 @@ class ContactScorer(Scorer):
         coloring_data = relevant_data[['Struct Pos 1', 'Struct Pos 2', 'Pos 1 Coverage', 'Pos 2 Coverage', 'Rank']]
         coloring_data.rename(columns={'Struct Pos 1': 'RESIDUE_Index_1', 'Struct Pos 2': 'RESIDUE_Index_2'},
                              inplace=True)
-        self.query_pdb_mapper.pdb_ref.display_pairs(chain_id=self.query_pdb_mapper.best_chain, data=coloring_data,
-                                                    pair_col='Rank', res_col1='Pos 1 Coverage',
-                                                    res_col2='Pos 2 Coverage', data_direction='min', color_map='ET',
-                                                    out_dir=out_dir, fn=fn)
+        return self.query_pdb_mapper.pdb_ref.display_pairs(
+            chain_id=self.query_pdb_mapper.best_chain, data=coloring_data, pair_col='Rank', res_col1='Pos 1 Coverage',
+            res_col2='Pos 2 Coverage', data_direction='min', color_map='ET', out_dir=out_dir, fn=fn)
 
     def score_pdb_residue_identification(self, pdb_residues, n=None, k=None, coverage_cutoff=None):
         """
