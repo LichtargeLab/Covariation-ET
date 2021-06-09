@@ -26,6 +26,11 @@ There is one main pre-requisites for using this code: Anaconda
     ```
     conda activate PyET
     ```
+3. (Optional) If using the DCAWrapper.py module Julia is needed as well. This has caused issues when included in the base environment, it can be installed by running the command:
+    ```
+    conda install -c conda-forge julia=1.0.3
+    ```
+   with the PyET environment activated.
 ### Usage
 To use the code in this package please navigate to the 'src' directory.
 
