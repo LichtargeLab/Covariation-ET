@@ -13,7 +13,6 @@ dependencies:
   - hdf5=1.10.5
   - ipython=7.13.0
   - json5=0.9.4
-  - julia=1.0.3
   - jupyterlab=1.2.6
   - lxml=4.5.1
   - matplotlib=3.1.3
