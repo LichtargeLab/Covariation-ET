@@ -7,6 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 from time import time
+from tqdm import tqdm
 from math import floor
 from sklearn.metrics import auc
 from multiprocessing import Pool
@@ -348,24 +349,46 @@ class SinglePositionScorer(Scorer):
             to_score.append(sorted(residues_visited))
         data = {'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
         # Compute all other Z-scores
+        unique_res = []
+        sel_pbar = tqdm(total=len(to_score), unit='selection')
+
+        def retrieve_scw_z_score_res(return_tuple):
+            """
+            Retrieve SCW Z-Score Result
+
+            This function serves to update the progress bar for each selection scored by the SCW Z-Score. It also
+            stores only the portion of the returned result needed for the output of this method.
+
+            Args:
+                return_tuple (tuple): A tuple consisting of all of the returns from
+                SelectionClusterWeighting.scw_z_score_selection.
+            """
+            unique_res.append((return_tuple[11], return_tuple[6], return_tuple[7], return_tuple[8], return_tuple[9],
+                               return_tuple[10]))
+            sel_pbar.update(1)
+            sel_pbar.refresh()
+
         pool2 = Pool(processes=processes, initializer=init_scw_z_score_selection,
-                     initargs=(scw_scorer, ))
-        res = pool2.map(scw_z_score_selection, to_score)
+                     initargs=(scw_scorer,))
+        for selection in to_score:
+            pool2.apply_async(scw_z_score_selection, (selection,), callback=retrieve_scw_z_score_res)
         pool2.close()
         pool2.join()
+        # Ensure the ordering of results is correct by sorting by the number of residues in each analysis.
+        unique_res = sorted(unique_res)
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
-        for counter, curr_res in enumerate(res):
+        for counter, curr_res in enumerate(unique_res):
             curr_len = len(unique_sets[counter])
-            data['Z-Score'] += [curr_res[6]] * curr_len
-            data['W'] += [curr_res[7]] * curr_len
-            data['W_Ave'] += [curr_res[8]] * curr_len
-            data['W2_Ave'] += [curr_res[9]] * curr_len
-            data['Sigma'] += [curr_res[10]] * curr_len
-            data['Num_Residues'] += [curr_res[11]] * curr_len
-            if curr_res[6] not in {None, '-', 'NA'}:
-                y_z_score.append(curr_res[6])
+            data['Num_Residues'] += [curr_res[0]] * curr_len
+            data['Z-Score'] += [curr_res[1]] * curr_len
+            data['W'] += [curr_res[2]] * curr_len
+            data['W_Ave'] += [curr_res[3]] * curr_len
+            data['W2_Ave'] += [curr_res[4]] * curr_len
+            data['Sigma'] += [curr_res[5]] * curr_len
+            if curr_res[1] not in {None, '-', 'NA'}:
+                y_z_score.append(curr_res[1])
                 curr_cov = data_df.loc[data_df['Res'].isin(unique_sets[counter]), 'Coverage'].unique()
                 assert len(curr_cov) == 1
                 x_coverage.append(curr_cov[0])

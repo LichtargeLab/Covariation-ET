@@ -444,6 +444,9 @@ class PhylogeneticTree(object):
         """
         Visualize Tree
 
+        This function visualizes the phylogenetic tree by rendering a radial view of the tree and coloring each leaf
+        node according to the provided labels in id_categories and their placement along the 'rainbow' color map.
+
         Args:
             query (str): The name of the query sequence in the tree.
             out_dir (str): The directory where the result should be written.
@@ -455,21 +458,11 @@ class PhylogeneticTree(object):
             dict: A dictionary mapping label to the color assigned to that label when coloring the tree.
         """
         number_of_labels = len(set(id_categories.values()))
-        if number_of_labels <= 8:
-            cmap = cm.Dark2
-        elif number_of_labels <= 9:
-            cmap = cm.Set1
-        elif number_of_labels <= 10:
-            cmap = cm.tab10
-        elif number_of_labels <= 12:
-            cmap = cm.paired
-        elif number_of_labels <= 20:
-            cmap = cm.tab20
-        else:
-            original_cmap = cm.get_cmap('turbo')
-            points = np.linspace(0, 1, number_of_labels)
-            cmap = LinearSegmentedColormap.from_list('Tree_Map', [original_cmap(x) for x in points], N=number_of_labels)
-
+        if number_of_labels == 1:
+            number_of_labels = 2
+        original_cmap = cm.get_cmap('rainbow')
+        points = np.linspace(0, 1, number_of_labels)
+        cmap = LinearSegmentedColormap.from_list('Tree_Map', [original_cmap(x) for x in points], N=number_of_labels)
         coloring_dict = {label: to_hex(cmap(i)) for i, label in enumerate(sorted(set(id_categories.values())))}
 
         def reset_node_style(tree, query):

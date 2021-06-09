@@ -7,6 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 from time import time
+from tqdm import tqdm
 from math import floor
 from datetime import datetime
 from multiprocessing import Pool
@@ -712,9 +713,9 @@ class ContactScorer(Scorer):
         if os.path.isfile(file_path):
             df = pd.read_csv(file_path, sep='\t', header=0, index_col=False)
             df_sub = df.replace([None, '-', 'NA'], np.nan)
-            df_sub = df_sub.dropna()[['Num_Residues', 'Z-Score']]
-            df_sub.drop_duplicates(inplace=True)
             df_sub.sort_values(by='Pair Coverage', ascending=True, inplace=True)
+            df_sub = df_sub.dropna()
+            df_sub.drop_duplicates(subset='Pair Coverage', keep='last', inplace=True)
             if len(df_sub['Residue Coverage']) == 0:
                 au_scw_z_score_curve = None
             else:
@@ -739,7 +740,6 @@ class ContactScorer(Scorer):
         data = {'Z-Score': [], 'W': [], 'W_Ave': [], 'W2_Ave': [], 'Sigma': [], 'Num_Residues': []}
         # Set up structures to track unique sets of residues
         residues_visited = set()
-        # unique_sets = []
         unique_sets = {}
         to_score = []
         # Identify unique sets of residues to score
@@ -749,32 +749,52 @@ class ContactScorer(Scorer):
             curr_group = groups.get_group(curr_cov)
             curr_residues = set(curr_group['Res_i']).union(set(curr_group['Res_j']))
             new_positions = curr_residues - residues_visited
-            # unique_sets.append(sorted(new_positions))
             unique_sets[counter] = curr_group[['Res_i', 'Res_j']].apply(tuple, axis=1).tolist()
             counter += 1
             residues_visited |= new_positions
             to_score.append(sorted(residues_visited))
         # Compute all other Z-scores
+        unique_res = []
+        sel_pbar = tqdm(total=len(to_score), unit='selection')
+
+        def retrieve_scw_z_score_res(return_tuple):
+            """
+            Retrieve SCW Z-Score Result
+
+            This function serves to update the progress bar for each selection scored by the SCW Z-Score. It also
+            stores only the portion of the returned result needed for the output of this method.
+
+            Args:
+                return_tuple (tuple): A tuple consisting of all of the returns from
+                SelectionClusterWeighting.scw_z_score_selection.
+            """
+            unique_res.append((return_tuple[11], return_tuple[6], return_tuple[7], return_tuple[8], return_tuple[9],
+                               return_tuple[10]))
+            sel_pbar.update(1)
+            sel_pbar.refresh()
+
         pool2 = Pool(processes=processes, initializer=init_scw_z_score_selection,
                      initargs=(scw_scorer, ))
-        res = pool2.map(scw_z_score_selection, to_score)
+        for selection in to_score:
+            pool2.apply_async(scw_z_score_selection, (selection, ), callback=retrieve_scw_z_score_res)
         pool2.close()
         pool2.join()
+        # Ensure the ordering of results is correct by sorting by the number of residues in each analysis.
+        unique_res = sorted(unique_res)
         # Variables to track for computing the Area Under the SCW Z-Score curve
         x_coverage = []
         y_z_score = []
         span_start = 0
-        for counter, curr_res in enumerate(res):
+        for counter, curr_res in enumerate(unique_res):
             curr_len = len(unique_sets[counter])
-            data['Z-Score'] += [curr_res[6]] * curr_len
-            data['W'] += [curr_res[7]] * curr_len
-            data['W_Ave'] += [curr_res[8]] * curr_len
-            data['W2_Ave'] += [curr_res[9]] * curr_len
-            data['Sigma'] += [curr_res[10]] * curr_len
-            data['Num_Residues'] += [curr_res[11]] * curr_len
-            if curr_res[6] not in {None, '-', 'NA'}:
-                y_z_score.append(curr_res[6])
-                # x_coverage.append(float(curr_res[11]) / self.query_pdb_mapper.seq_aln.seq_length)
+            data['Num_Residues'] += [curr_res[0]] * curr_len
+            data['Z-Score'] += [curr_res[1]] * curr_len
+            data['W'] += [curr_res[2]] * curr_len
+            data['W_Ave'] += [curr_res[3]] * curr_len
+            data['W2_Ave'] += [curr_res[4]] * curr_len
+            data['Sigma'] += [curr_res[5]] * curr_len
+            if curr_res[1] not in {None, '-', 'NA'}:
+                y_z_score.append(curr_res[1])
                 x_coverage.append(data_df['Residue Coverage'].iloc[span_start: span_start+curr_len].max())
             span_start += curr_len
         data_df['Z-Score'] = data['Z-Score']
