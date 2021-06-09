@@ -1,9 +1,11 @@
 import os
 import sys
 import unittest
+import numpy as np
 from shutil import rmtree
 from matplotlib import cm
 from matplotlib.colors import to_hex
+from matplotlib.colors import LinearSegmentedColormap
 from unittest import TestCase
 
 #
@@ -347,6 +349,14 @@ class TestPhylogeneticTreeWriteOutTree(TestCase):
 
 class TestPhylogeneticTreeVizualizeTree(TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        original_cmap = cm.get_cmap('rainbow')
+        cls.cmap_2labels = LinearSegmentedColormap.from_list('Tree_Map',
+                                                             [original_cmap(x) for x in np.linspace(0, 1, 2)], N=2)
+        cls.cmap_3labels = LinearSegmentedColormap.from_list('Tree_Map',
+                                                             [original_cmap(x) for x in np.linspace(0, 1, 3)], N=3)
+
     def evaluate_visualize_tree(self, p_tree, id_cat, cmap):
         new_dir = './Testing'
         os.makedirs(new_dir)
@@ -370,32 +380,38 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
     def test_visualize_upgma_tree_one_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
 
     def test_visualize_upgma_tree_two_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'B'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'B'},
+                                     cmap=self.cmap_2labels)
 
     def test_visualize_upgma_tree_three_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'},
+                                     cmap=self.cmap_3labels)
 
     def test_visualize_et_tree_one_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
 
     def test_visualize_et_tree_two_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'B'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'B'},
+                                     cmap=self.cmap_2labels)
 
     def test_visualize_et_tree_three_label(self):
         phylo_tree = PhylogeneticTree(tree_building_method='et', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'},
+                                     cmap=self.cmap_3labels)
 
     def test_visualize_agglomerative_tree_one_label(self):
         cache_dir_path = os.path.join(os.getcwd(), 'test')
@@ -404,7 +420,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
                                                           'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
         rmtree(cache_dir_path)
 
     def test_visualize_agglomerative_tree_two_label(self):
@@ -414,7 +431,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
                                                           'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'B', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'B', 'seq2': 'A', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
         rmtree(cache_dir_path)
 
     def test_visualize_agglomerative_tree_three_label(self):
@@ -424,7 +442,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
                                                           'affinity': 'euclidean',
                                                           'linkage': 'ward'})
         phylo_tree.construct_tree(dm=dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'C', 'seq2': 'B', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'C', 'seq2': 'B', 'seq3': 'A'},
+                                     cmap=self.cmap_3labels)
         rmtree(cache_dir_path)
 
     def test_write_out_custom_tree_one_label(self):
@@ -434,7 +453,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='custom',
                                       tree_building_args={'tree_path': test_tree_path})
         phylo_tree.construct_tree(dm=min_dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'A', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
         os.remove(test_tree_path)
 
     def test_write_out_custom_tree_two_label(self):
@@ -444,7 +464,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='custom',
                                       tree_building_args={'tree_path': test_tree_path})
         phylo_tree.construct_tree(dm=min_dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'A'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'A'},
+                                     cmap=self.cmap_2labels)
         os.remove(test_tree_path)
 
     def test_write_out_custom_tree_three_label(self):
@@ -454,7 +475,8 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='custom',
                                       tree_building_args={'tree_path': test_tree_path})
         phylo_tree.construct_tree(dm=min_dm)
-        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'}, cmap=cm.Dark2)
+        self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat={'seq1': 'A', 'seq2': 'B', 'seq3': 'C'},
+                                     cmap=self.cmap_3labels)
         os.remove(test_tree_path)
 
     def test_visualize_tree_failure_no_tree(self):
@@ -467,7 +489,7 @@ class TestPhylogeneticTreeVizualizeTree(TestCase):
         phylo_tree = PhylogeneticTree(tree_building_method='upgma', tree_building_args={})
         phylo_tree.construct_tree(dm=dm)
         with self.assertRaises(AttributeError):
-            self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat=None, cmap=cm.Dark2)
+            self.evaluate_visualize_tree(p_tree=phylo_tree, id_cat=None, cmap=self.cmap_2labels)
         rmtree('./Testing')
 
 
