@@ -253,8 +253,8 @@ class TestEvolutionaryTraceInit(TestCase):
                            ranks=None, position_type='single', scoring_metric='identity', gap_correction=None,
                            out_dir=test_dir,
                            output_files=['original_aln', 'non-gap_aln', 'tree', 'sub-alignment', 'frequency_tables',
-                                         'scores'], processors=1, low_memory=False, expected_length=3,
-                           expected_sequence='MET')
+                                         'scores', 'single_pos_scores', 'legacy'], processors=1, low_memory=False,
+                           expected_length=3, expected_sequence='MET')
         rmtree(test_dir)
 
     def test_evolutionary_trace_init_common_output_files(self):
@@ -1281,6 +1281,24 @@ class TestEvolutionaryTracePerformTraceAndWriteOutETScores(TestCase):
             query_id, ('ET_' if et_distance else ''), distance_model, tree_building_method,
             ('All_Ranks' if ranks is None else 'Custom_Ranks'), scoring_metric))
         self.evaluate_write_out_et_scores(et=et, fn=expected_final_fn)
+        if 'single_pos_scores' in output_files:
+            expected_converted_final_fn = expected_final_fn[:-6] + '_Converted_To_Single_Pos.ranks'
+            if position_type == 'single':
+                self.assertFalse(os.path.isfile(expected_converted_final_fn))
+                if 'legacy' in output_files:
+                    expected_final_legacy_fn = expected_final_fn[:-6] + '.legacy.ranks'
+                    self.assertTrue(os.path.isfile(expected_final_legacy_fn))
+            elif position_type == 'pair':
+                self.assertTrue(os.path.isfile(expected_converted_final_fn))
+                if 'legacy' in output_files:
+                    expected_final_legacy_fn = expected_converted_final_fn[:-6] + '.legacy.ranks'
+                    self.assertTrue(os.path.isfile(expected_final_legacy_fn))
+            else:
+                raise ValueError('Bad position type!')
+        else:
+            if 'legacy' in output_files:
+                expected_final_legacy_fn = expected_final_fn[:-6] + '.legacy.ranks'
+                self.assertTrue(os.path.isfile(expected_final_legacy_fn))
         self.assertTrue(os.path.isfile(serial_fn))
 
     def test_evolutionary_trace_perform_trace(self):
@@ -1439,8 +1457,8 @@ class TestEvolutionaryTracePerformTraceAndWriteOutETScores(TestCase):
             query_id='seq1', polymer_type='Protein', aln_fn=aln_fn, et_distance=False, distance_model='identity',
             tree_building_method='upgma', tree_building_options={}, ranks=None, position_type='single',
             scoring_metric='identity', gap_correction=None, out_dir=test_dir,
-            output_files=['original_aln', 'non-gap_aln', 'tree', 'sub-alignment', 'frequency_tables', 'scores'],
-            processors=1, low_memory=False)
+            output_files=['original_aln', 'non-gap_aln', 'tree', 'sub-alignment', 'frequency_tables', 'scores',
+                          'single_pos_scores', 'legacy'], processors=1, low_memory=False)
         rmtree(test_dir)
 
     def test_evolutionary_trace_perform_trace_common_output_files(self):
@@ -1659,6 +1677,19 @@ class TestEvolutionaryTracePerformTraceAndWriteOutETScores(TestCase):
             processors=1, low_memory=False)
         rmtree(test_dir)
 
+    def test_evolutionary_trace_perform_trace_m_md_default_outputs(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.mkdir(test_dir)
+        aln_fn = os.path.join(test_dir, 'test_protein_aln.fasta')
+        protein_aln.write_out_alignment(aln_fn)
+        self.evaluate_perform_trace(
+            query_id='seq1', polymer_type='Protein', aln_fn=aln_fn, et_distance=False, distance_model='identity',
+            tree_building_method='upgma', tree_building_options={}, ranks=None, position_type='pair',
+            scoring_metric='mismatch_diversity', gap_correction=None, out_dir=test_dir,
+            output_files=['original_aln', 'non-gap_aln', 'tree', 'scores', 'single_pos_scores', 'legacy'], processors=1,
+            low_memory=False)
+        rmtree(test_dir)
+
     def test_evolutionary_trace_perform_trace_mdmdr(self):
         test_dir = os.path.join(os.getcwd(), 'test_case')
         os.mkdir(test_dir)
@@ -1778,6 +1809,24 @@ class TestEvolutionaryTraceCalculateScores(TestCase):
             query_id, ('ET_' if et_distance else ''), distance_model, tree_building_method,
             ('All_Ranks' if ranks is None else 'Custom_Ranks'), scoring_metric))
         self.assertTrue(os.path.isfile(expected_final_fn))
+        if 'single_pos_scores' in output_files:
+            expected_converted_final_fn = expected_final_fn[:-6] + '_Converted_To_Single_Pos.ranks'
+            if position_type == 'single':
+                self.assertFalse(os.path.isfile(expected_converted_final_fn))
+                if 'legacy' in output_files:
+                    expected_final_legacy_fn = expected_final_fn[:-6] + '.legacy.ranks'
+                    self.assertTrue(os.path.isfile(expected_final_legacy_fn))
+            elif position_type == 'pair':
+                self.assertTrue(os.path.isfile(expected_converted_final_fn))
+                if 'legacy' in output_files:
+                    expected_final_legacy_fn = expected_converted_final_fn[:-6] + '.legacy.ranks'
+                    self.assertTrue(os.path.isfile(expected_final_legacy_fn))
+            else:
+                raise ValueError('Bad position type!')
+        else:
+            if 'legacy' in output_files:
+                expected_final_legacy_fn = expected_final_fn[:-6] + '.legacy.ranks'
+                self.assertTrue(os.path.isfile(expected_final_legacy_fn))
         self.assertTrue(os.path.isfile(serial_fn2))
         self.assertIsNotNone(et.time)
 
@@ -1937,7 +1986,8 @@ class TestEvolutionaryTraceCalculateScores(TestCase):
             query_id='seq1', polymer_type='Protein', aln_fn=aln_fn, et_distance=False, distance_model='identity',
             tree_building_method='upgma', tree_building_options={}, ranks=None, position_type='single',
             scoring_metric='identity', gap_correction=None, out_dir=test_dir,
-            output_files=['original_aln', 'non-gap_aln', 'tree', 'sub-alignment', 'frequency_tables', 'scores'],
+            output_files=['original_aln', 'non-gap_aln', 'tree', 'sub-alignment', 'frequency_tables', 'scores',
+                          'single_pos_scores', 'legacy'],
             processors=1, low_memory=False)
         rmtree(test_dir)
 
@@ -2153,8 +2203,21 @@ class TestEvolutionaryTraceCalculateScores(TestCase):
         self.evaluate_calculate_scores(
             query_id='seq1', polymer_type='Protein', aln_fn=aln_fn, et_distance=False, distance_model='identity',
             tree_building_method='upgma', tree_building_options={}, ranks=None, position_type='pair',
-            scoring_metric='mismatch_diversity', gap_correction=None, out_dir=test_dir, output_files=[],
-            processors=1, low_memory=False)
+            scoring_metric='mismatch_diversity', gap_correction=None, out_dir=test_dir,
+            output_files=[], processors=1, low_memory=False)
+        rmtree(test_dir)
+
+    def test_evolutionary_trace_calculate_scores_m_md_default_outputs(self):
+        test_dir = os.path.join(os.getcwd(), 'test_case')
+        os.mkdir(test_dir)
+        aln_fn = os.path.join(test_dir, 'test_protein_aln.fasta')
+        protein_aln.write_out_alignment(aln_fn)
+        self.evaluate_calculate_scores(
+            query_id='seq1', polymer_type='Protein', aln_fn=aln_fn, et_distance=False, distance_model='identity',
+            tree_building_method='upgma', tree_building_options={}, ranks=None, position_type='pair',
+            scoring_metric='mismatch_diversity', gap_correction=None, out_dir=test_dir,
+            output_files=['original_aln', 'non-gap_aln', 'tree', 'scores', 'single_pos_scores', 'legacy'], processors=1,
+            low_memory=False)
         rmtree(test_dir)
 
     def test_evolutionary_trace_calculate_scores_mdmdr(self):

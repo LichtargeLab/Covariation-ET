@@ -175,7 +175,7 @@ class EvolutionaryTrace(Predictor):
                                                tree_building_args=self.tree_building_options)
             self.phylo_tree.construct_tree(dm=self.distance_matrix)
             self.phylo_tree_fn = f'{self.query}_{("ET_" if self.et_distance else "")}{self.distance_model}_dist_'\
-                                 f'{self.tree_building_method}_tree.nhx '
+                                 f'{self.tree_building_method}_tree.nhx'
             end_tree = time()
             print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
             self.assignments = self.phylo_tree.assign_group_rank(ranks=self.ranks)
@@ -238,6 +238,14 @@ class EvolutionaryTrace(Predictor):
             write_out_et_scores(file_name=rank_fn, out_dir=self.out_dir, aln=reordered_aln,
                                 pos_size=self.trace.pos_size, match_mismatch=False, ranks=self.rankings,
                                 scores=self.scores, coverages=self.coverages, precision=3, processors=self.processors)
+            if (self.position_type == 'pair') and ('single_pos_scores' in self.output_files):
+                rank_fn = convert_pair_to_single_residue_output(res_fn=os.path.join(self.out_dir, rank_fn), precision=3)
+                if 'legacy' in self.output_files:
+                    convert_file_to_legacy_format(res_fn=rank_fn, reverse_score=(self.scorer.rank_type == 'max'))
+            else:
+                if 'legacy' in self.output_files:
+                    convert_file_to_legacy_format(res_fn=os.path.join(self.out_dir, rank_fn),
+                                                  reverse_score=(self.scorer.rank_type == 'max'))
 
     def calculate_scores(self):
         """
@@ -714,11 +722,11 @@ def parse_args():
                              "positions.")
     parser.add_argument('--output_files', metavar='o', type=str, nargs='+', default='default',
                         choices=['original_aln', 'non-gap_aln', 'tree', 'sub-alignments', 'frequency_tables', 'scores',
-                                 'default'],
+                                 'single_pos_ranks', 'legacy', 'default'],
                         help="Which files to write to the provided output_dir. These can be specified one by one (e.g. "
                              "--output_files original_aln tree scores), or the option 'default' can be specified which "
-                             "will result in 'original_aln', 'non-gap_aln', 'tree', and 'scores' being written to "
-                             "file.")
+                             "will result in 'original_aln', 'non-gap_aln', 'tree', 'scores', 'single_pos_scores' (for"
+                             "position_type pair analyses), and 'legacy' being written to file.")
     parser.add_argument('--low_memory_off', default=True, action='store_false', dest='low_memory',
                         help="If this flag is specified the low memory option, which serializes intermediate data "
                              "(sub-alignment frequency tables, group scores, and rank scores) to file instead of "
@@ -762,7 +770,9 @@ def parse_args():
         arguments['tree_building_options'] = {}
     # Process output files:
     if arguments['output_files'] == 'default':
-        arguments['output_files'] = {'original_aln', 'non_gap_aln', 'tree', 'scores'}
+        arguments['output_files'] = {'original_aln', 'non_gap_aln', 'tree', 'scores', 'legacy'}
+        if arguments['position_type'] == 'pair':
+            arguments['output_files'] |= {'single_pos_scores'}
     else:
         arguments['output_files'] = set(arguments['output_files'])
     return arguments
