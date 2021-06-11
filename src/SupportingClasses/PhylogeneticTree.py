@@ -6,6 +6,7 @@ Created on June 3, 2019
 import os
 import heapq
 import numpy as np
+import pandas as pd
 from Bio.Phylo import BaseTree
 from sklearn.cluster import AgglomerativeClustering
 from Bio.Phylo import read, write
@@ -439,6 +440,60 @@ class PhylogeneticTree(object):
             raise ValueError('Attempting to write tree before construction!')
         with open(filename, 'w') as tree_handle:
             write(self.tree, file=tree_handle, format='newick')
+
+    def annotate_incomplete_tree(self, annotations):
+        """
+        Annotate Incomplete Tree
+
+        This function takes an incomplete tree annotation (labeling of the leaves of teh tree) and completes the
+        labeling of the leaves. This is achieved by starting at each unannotated leaf and moving up the path from the
+        leaf to the root. At each ancestor node the leaves are checked to see if any are annotated in the provided
+        input. If so the annotation(s) of the leaves at this level are passed to the current unannotated node. If there
+        is only one annotation at this level the leaf node gets a specific annotation, if there are multiple conflicting
+        annotations the annotation of the leaf node follows the format 'AMBIGUOUS:{annotation1},{annotation2},{etc.}'.
+        The ancestor node which was used to reach the new annotation, the terminal node(s) the annotation(s) came from,
+        and the annotation(s) are returned as a pandas.DataFrame
+
+        Args:
+            annotations (dict): A dictionary mapping leaf node names (sequence IDs) to an annotations.
+        Return:
+            pd.DataFrame: A dataframe with columns 'Leaf (Sequence ID)', 'Annotating Ancestor',
+            'Annotating Neighbor(s)', and 'Annotation(s)'. The 'Leaf (Sequence ID)' column will list the names of the
+            leaves not annotated in the provided dictionary. The 'Annotating Ancestor' ancestor will list the node which
+            was used to find nearest annotated leaf nodes. The 'Annotating Neighbor(s)' column will list the leaf node
+            names (sequence IDs) used to annotate the current unannotated node, there may be multiple. Finally, the
+            'Annotation(s)' column will list the annotation for the unannotated node, if multiple annotations are found
+            the ambiguity label described above will be used.
+        """
+        terminals = self.tree.root.get_terminals()
+        terminal_names = set([node.name for node in terminals])
+        annotated_terminals = terminal_names.intersection(set(annotations.keys()))
+        if len(annotated_terminals) == 0:
+            raise ValueError('No leaves in the tree are annotated!')
+        unannotated_terminals = terminal_names - annotated_terminals
+        new_annotations = {'Leaf (Sequence ID)': [], 'Annotating Ancestor': [], 'Annotating Neighbor(s)': [],
+                           'Annotation(s)': []}
+        final_annotations = {}
+        for node in terminals:
+            if node.name in unannotated_terminals:
+                root_to_leaf_path = self.tree.get_path(node)[:-1]
+                for ancestor in root_to_leaf_path[::-1]:
+                    neighbors = set([node.name for node in ancestor.get_terminals()])
+                    annotated_neighbors = neighbors.intersection(annotated_terminals)
+                    if len(annotated_neighbors) == 0:
+                        continue
+                    else:
+                        new_annotations['Leaf (Sequence ID)'].append(node.name)
+                        new_annotations['Annotating Ancestor'].append(ancestor.name)
+                        new_annotations['Annotating Neighbor(s)'].append(','.join(annotated_neighbors))
+                        neighbor_annotations = sorted(set([annotations[neighbor] for neighbor in annotated_neighbors]))
+                        if len(neighbor_annotations) == 1:
+                            new_annotation = neighbor_annotations[0]
+                        else:
+                            new_annotation = 'AMBIGUOUS:' + ','.join(neighbor_annotations)
+                        new_annotations['Annotation(s)'].append(new_annotation)
+                        final_annotations[node.name] = new_annotation
+        return pd.DataFrame(new_annotations)
 
     def visualize_tree(self, query, out_dir, id_categories, filename=None):
         """
