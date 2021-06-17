@@ -1120,9 +1120,17 @@ def determine_identity_bin(identity_count, length, interval, abs_max_identity, a
     similarity_bin = similarity_int - (similarity_int % (interval * 100))
     similarity_bin /= 100
     final_bin = None
+    # If the similarity_bin is within the specified range of identities.
     if abs_max_identity >= similarity_bin >= abs_min_identity:
-        if similarity_bin not in identity_bins and similarity_bin >= abs_min_identity:
+        # If there is no identity bin for the computed similarity_bin and it is higher than the max identity bin
+        if similarity_bin not in identity_bins and similarity_bin >= max(identity_bins):
+            # Assign the highest identity bin
+            final_bin = max(identity_bins)
+        # If there is still no identity bin for the computed similarity_bin, the similarity bin must be on the low end
+        elif similarity_bin not in identity_bins:
+            # Assign the lowest identity bin (which should be the abs_min_identity provided)
             final_bin = abs_min_identity
+        # Otherwise the similarity_bin should match an available identity bin
         else:
             final_bin = similarity_bin
     return final_bin
@@ -1229,7 +1237,7 @@ def characterize_alignment(file_name, query_id, abs_min_fraction=0.7, abs_max_id
     max_fraction = 0.0
     min_fraction = 1.0
     identity_bins = [float(x / 100) for x in
-                     range(int(100 * abs_min_identity), int(100 * abs_max_identity), int(100 * interval))]
+                     range(int(100 * abs_min_identity), int(100 * abs_max_identity) + 1, int(100 * interval))]
     print(identity_bins)
     sequences = {x: [] for x in identity_bins}
     out_of_range = {}
