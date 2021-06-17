@@ -2537,7 +2537,7 @@ class TestContactScorerScorePDBResidueIdentification(TestCase):
                                                                             [0.0, 0.0, 0.0]]))
 
 
-class TestContactScorerAUROCPDBResidueIdentification(TestCase):
+class TestContactScorerRecoveryOfPDBResidues(TestCase):
 
     @classmethod
     def tearDownClass(cls):
@@ -2559,77 +2559,94 @@ class TestContactScorerAUROCPDBResidueIdentification(TestCase):
         cls.pdb_chain_b.import_pdb(structure_id='1TES')
         protein_aln1.write_out_alignment(aln_fn)
 
-    def evaluate_auroc_pdb_residue_identification(self, scorer, scores, res_list, expected_tpr, expected_fpr,
-                                                  expected_auroc):
+    def evaluate_recovery_of_pdb_residues(self, scorer, scores, res_list, expected_tpr, expected_fpr, expected_auroc,
+                                          expected_precision, expected_recall, expected_auprc):
         scorer.fit()
         scorer.measure_distance(method='CB')
         ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
         scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
-        tpr, fpr, auroc = scorer.auroc_pdb_residue_identification(pdb_residues=res_list)
+        tpr, fpr, auroc, precision, recall, auprc = scorer.recovery_of_pdb_residues(pdb_residues=res_list)
+        print(tpr)
+        print(fpr)
+        print(auroc)
+        print(precision)
+        print(recall)
+        print(auprc)
         np.testing.assert_equal(tpr, expected_tpr)
         np.testing.assert_equal(fpr, expected_fpr)
+        np.testing.assert_equal(precision, expected_precision)
+        np.testing.assert_equal(recall, expected_recall)
         if np.isnan(expected_auroc):
             self.assertTrue(np.isnan(auroc))
         else:
             self.assertEqual(auroc, expected_auroc)
+        if np.isnan(expected_auprc):
+            self.assertTrue(np.isnan(auprc))
+        else:
+            self.assertEqual(auprc, expected_auprc)
         print('FINAL AUROC: ', auroc)
+        print('FINAL AUPRC: ', auprc)
 
     def test_seq1(self):
         scorer = ContactScorer(query='seq1', seq_alignment=protein_aln1, pdb_reference=self.pdb_chain_a,
                                cutoff=16.0, chain='A')
-        self.evaluate_auroc_pdb_residue_identification(scorer=scorer, res_list=[1],
-                                                       expected_tpr=[0.0, 1.0, 1.0], expected_fpr=[0.0, 0.5, 1.0],
-                                                       expected_auroc=0.75, scores=np.array([[0.0, 0.1, 0.5],
-                                                                                             [0.0, 0.0, 0.9],
-                                                                                             [0.0, 0.0, 0.0]]))
+        self.evaluate_recovery_of_pdb_residues(scorer=scorer, res_list=[1], expected_tpr=[0.0, 1.0, 1.0],
+                                               expected_fpr=[0.0, 0.5, 1.0], expected_auroc=0.75,
+                                               expected_precision=[1.0, 0.5], expected_recall=[0.0, 1.0],
+                                               expected_auprc=0.75, scores=np.array([[0.0, 0.1, 0.5],
+                                                                                     [0.0, 0.0, 0.9],
+                                                                                     [0.0, 0.0, 0.0]]))
 
     def test_seq2(self):
         scorer = ContactScorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b,
                                cutoff=20.0, chain='B')
-        self.evaluate_auroc_pdb_residue_identification(scorer=scorer, res_list=[1, 2], expected_tpr=[0.0, 1.0, 1.0],
-                                                       expected_fpr=[0.0, 0.0, 1.0], expected_auroc=1.0,
-                                                       scores=np.array([[0.0, 0.1, 0.2, 0.3, 0.4],
-                                                                        [0.0, 0.0, 0.5, 0.6, 0.7],
-                                                                        [0.0, 0.0, 0.0, 0.8, 0.9],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.8],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.0]]))
+        self.evaluate_recovery_of_pdb_residues(scorer=scorer, res_list=[1, 2], expected_tpr=[0.0, 1.0, 1.0],
+                                               expected_fpr=[0.0, 0.0, 1.0], expected_auroc=1.0,
+                                               expected_precision=[1.0, 1.0], expected_recall=[0.0, 1.0],
+                                               expected_auprc=1.0, scores=np.array([[0.0, 0.1, 0.2, 0.3, 0.4],
+                                                                                    [0.0, 0.0, 0.5, 0.6, 0.7],
+                                                                                    [0.0, 0.0, 0.0, 0.8, 0.9],
+                                                                                    [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                                    [0.0, 0.0, 0.0, 0.0, 0.0]]))
 
     def test_seq3(self):
         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
                                cutoff=20.0, chain='B')
-        self.evaluate_auroc_pdb_residue_identification(scorer=scorer, res_list=[1, 2],
-                                                       expected_tpr=[0.0, 1.0, 1.0, 1.0],
-                                                       expected_fpr=[0.0, 0.0, 2 / 3.0, 1.0], expected_auroc=1.0,
-                                                       scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
-                                                                        [0.0, 0.0, 0.6, 0.8, 0.7],
-                                                                        [0.0, 0.0, 0.0, 0.2, 0.9],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.8],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.0]]))
+        self.evaluate_recovery_of_pdb_residues(scorer=scorer, res_list=[1, 2], expected_tpr=[0.0, 1.0, 1.0, 1.0],
+                                               expected_fpr=[0.0, 0.0, 2 / 3.0, 1.0], expected_auroc=1.0,
+                                               expected_precision=[1.0, 1.0], expected_recall=[0.0, 1.0],
+                                               expected_auprc=1.0, scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
+                                                                                    [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                                    [0.0, 0.0, 0.0, 0.2, 0.9],
+                                                                                    [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                                    [0.0, 0.0, 0.0, 0.0, 0.0]]))
 
     def test_no_residues(self):
         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
                                cutoff=20.0, chain='B')
-        self.evaluate_auroc_pdb_residue_identification(scorer=scorer, res_list=[],
-                                                       expected_tpr=[np.nan, np.nan, np.nan, np.nan],
-                                                       expected_fpr=[0.0, 0.4, 0.8, 1.0], expected_auroc=np.nan,
-                                                       scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
-                                                                        [0.0, 0.0, 0.6, 0.8, 0.7],
-                                                                        [0.0, 0.0, 0.0, 0.2, 0.9],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.8],
-                                                                        [0.0, 0.0, 0.0, 0.0, 0.0]]))
+        self.evaluate_recovery_of_pdb_residues(scorer=scorer, res_list=[],
+                                               expected_tpr=[np.nan, np.nan, np.nan, np.nan],
+                                               expected_fpr=[0.0, 0.4, 0.8, 1.0], expected_auroc=np.nan,
+                                               expected_precision=[0.0, 1.0], expected_recall=[np.nan, 0.0],
+                                               expected_auprc=np.nan, scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
+                                                                                       [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                                       [0.0, 0.0, 0.0, 0.2, 0.9],
+                                                                                       [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                                       [0.0, 0.0, 0.0, 0.0, 0.0]]))
 
     def test_fail_bad_residues(self):
         scorer = ContactScorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b,
                                cutoff=20.0, chain='B')
         with self.assertRaises(TypeError):
-            self.evaluate_auroc_pdb_residue_identification(scorer=scorer, res_list=None,
-                                                           expected_tpr=[0.0, 1.0, 1.0, 1.0],
-                                                           expected_fpr=[0.0, 0.0, 2 / 3.0, 1.0], expected_auroc=1.0,
-                                                           scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
-                                                                            [0.0, 0.0, 0.6, 0.8, 0.7],
-                                                                            [0.0, 0.0, 0.0, 0.2, 0.9],
-                                                                            [0.0, 0.0, 0.0, 0.0, 0.8],
-                                                                            [0.0, 0.0, 0.0, 0.0, 0.0]]))
+            self.evaluate_recovery_of_pdb_residues(scorer=scorer, res_list=None,
+                                                   expected_tpr=[np.nan, np.nan, np.nan, np.nan],
+                                                   expected_fpr=[0.0, 0.4, 0.8, 1.0], expected_auroc=np.nan,
+                                                   expected_precision=[0.0, 1.0], expected_recall=[np.nan, 0.0],
+                                                   expected_auprc=np.nan, scores=np.array([[0.0, 0.1, 0.5, 0.3, 0.4],
+                                                                                           [0.0, 0.0, 0.6, 0.8, 0.7],
+                                                                                           [0.0, 0.0, 0.0, 0.2, 0.9],
+                                                                                           [0.0, 0.0, 0.0, 0.0, 0.8],
+                                                                                           [0.0, 0.0, 0.0, 0.0, 0.0]]))
 
 
 class TestContactScorerEvaluatePredictions(TestCase):

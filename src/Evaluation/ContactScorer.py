@@ -1046,12 +1046,12 @@ class ContactScorer(Scorer):
         return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
                 len(top_pdb_residues), pvalue)
 
-    def auroc_pdb_residue_identification(self, pdb_residues):
+    def recovery_of_pdb_residues(self, pdb_residues):
         """
-        AUROC PDB Residue Identification
+        Recovery of PDB Residues
 
-        This function takes the top n or L/k pairs or the residues up to a specified coverage cutoff and determines the
-        AUROC of their recovery of a set of residues on the structure provided to this ContactScorer instance.
+        This function takes the predictions for all residues and determines the AUROC and AUPRC of their recovery of a
+        set of residues on the structure provided to this ContactScorer instance.
 
         Args:
             pdb_residues (list): A list of the residues from the PDB structure used as reference for this scorer whose
@@ -1060,6 +1060,9 @@ class ContactScorer(Scorer):
             list: The True Positive Rate (tpr) scores measured while scoring the AUROC.
             list: The False Positive Rate (fpr) scores measured while scoring the AUROC.
             float: The AUROC score for the set of predictions mapped to this ContactScorer.
+            list: The precision scores measured while scoring the AUPRC.
+            list: The recall scores measured while scoring the AUPRC.
+            float: The AUPRC score for the set of predictions mapped to this ContactScorer.
         """
         sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0)
         single_pos1_df = sub_df[['Struct Pos 1', 'Pos 1 Coverage']].rename(
@@ -1070,12 +1073,16 @@ class ContactScorer(Scorer):
         single_pos_df.drop_duplicates(inplace=True)
         single_pos_df.sort_values(by='Single Pos Coverage', inplace=True)
         single_pos_df['Is Key Residue'] = single_pos_df['Struct Pos'].isin(pdb_residues)
-
-        print(single_pos_df)
         fpr, tpr, _thresholds = roc_curve(single_pos_df['Is Key Residue'].values.astype(bool),
                                           1.0 - single_pos_df['Single Pos Coverage'].values, pos_label=True)
         auroc = auc(fpr, tpr)
-        return tpr, fpr, auroc
+        precision, recall, _thresholds = precision_recall_curve(single_pos_df['Is Key Residue'].values.astype(bool),
+                                                                1.0 - single_pos_df['Single Pos Coverage'].values,
+                                                                pos_label=True)
+        recall, precision = zip(*sorted(zip(recall, precision)))
+        recall, precision = np.array(recall), np.array(precision)
+        auprc = auc(recall, precision)
+        return tpr, fpr, auroc, precision, recall, auprc
 
     def evaluate_predictions(self, verbosity, out_dir, scores, coverages, ranks, dist='Any', file_prefix='',
                              biased_w2_ave=None, unbiased_w2_ave=None, processes=1, threshold=0.5, plots=True):
