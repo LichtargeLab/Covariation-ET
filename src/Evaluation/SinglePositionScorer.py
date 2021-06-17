@@ -9,7 +9,7 @@ import pandas as pd
 from time import time
 from tqdm import tqdm
 from math import floor
-from sklearn.metrics import auc
+from sklearn.metrics import auc, roc_curve, precision_recall_curve
 from multiprocessing import Pool
 from scipy.stats import hypergeom
 from SupportingClasses.utils import compute_rank_and_coverage
@@ -223,6 +223,37 @@ class SinglePositionScorer(Scorer):
                               len(top_pdb_residues))
         return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
                 len(top_pdb_residues), pvalue)
+
+    def recovery_of_pdb_residues(self, pdb_residues):
+        """
+        Recovery of PDB Residues
+
+        This function takes the predictions for all residues and determines the AUROC and AUPRC of their recovery of a
+        set of residues on the structure provided to this ContactScorer instance.
+
+        Args:
+            pdb_residues (list): A list of the residues from the PDB structure used as reference for this scorer whose
+            overlap with the scores should be tested.
+        Return:
+            list: The True Positive Rate (tpr) scores measured while scoring the AUROC.
+            list: The False Positive Rate (fpr) scores measured while scoring the AUROC.
+            float: The AUROC score for the set of predictions mapped to this ContactScorer.
+            list: The precision scores measured while scoring the AUPRC.
+            list: The recall scores measured while scoring the AUPRC.
+            float: The AUPRC score for the set of predictions mapped to this ContactScorer.
+        """
+        sub_df = self._identify_relevant_data(coverage_cutoff=1.0)[['Struct Pos', 'Coverage']]
+        sub_df.sort_values(by='Coverage', inplace=True)
+        sub_df['Is Key Residue'] = sub_df['Struct Pos'].isin(pdb_residues)
+        fpr, tpr, _thresholds = roc_curve(sub_df['Is Key Residue'].values.astype(bool),
+                                          1.0 - sub_df['Coverage'].values, pos_label=True)
+        auroc = auc(fpr, tpr)
+        precision, recall, _thresholds = precision_recall_curve(sub_df['Is Key Residue'].values.astype(bool),
+                                                                1.0 - sub_df['Coverage'].values, pos_label=True)
+        recall, precision = zip(*sorted(zip(recall, precision)))
+        recall, precision = np.array(recall), np.array(precision)
+        auprc = auc(recall, precision)
+        return tpr, fpr, auroc, precision, recall, auprc
 
     def select_and_color_residues(self, out_dir, n=None, k=None, residue_coverage=None, fn=None):
         """
