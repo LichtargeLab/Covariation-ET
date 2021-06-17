@@ -3,6 +3,7 @@ import sys
 import math
 import numpy as np
 from pymol import cmd
+from shutil import rmtree
 import unittest
 from unittest import TestCase
 from itertools import combinations
@@ -24,6 +25,7 @@ if source_code_path not in sys.path:
 
 from SupportingClasses.PDBReference import PDBReference
 from SupportingClasses.SeqAlignment import SeqAlignment
+from SupportingClasses.utils import compute_rank_and_coverage
 from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein
 from Evaluation.Scorer import Scorer, init_scw_z_score_selection, scw_z_score_selection
 from Evaluation.SequencePDBMap import SequencePDBMap
@@ -32,6 +34,7 @@ from Testing.test_Base import (protein_seq1, protein_seq2, protein_seq3, protein
 from Testing.test_PDBReference import chain_a_pdb_partial2, chain_a_pdb_partial, chain_b_pdb, chain_b_pdb_partial
 
 pro_str = f'>{protein_seq1.id}\n{protein_seq1.seq}\n>{protein_seq2.id}\n{protein_seq2.seq}\n>{protein_seq3.id}\n{protein_seq3.seq}'
+pro_str_long = f'>{protein_seq1.id}\n{protein_seq1.seq*10}\n>{protein_seq2.id}\n{protein_seq2.seq*10}\n>{protein_seq3.id}\n{protein_seq3.seq*10}'
 aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str)
 protein_aln1 = protein_aln.remove_gaps()
 protein_aln1.file_name = aln_fn
@@ -951,6 +954,189 @@ class TestScorerMeasureDistance(TestCase):
     def test_measure_distance_method_CB_chain_B(self):
         scorer = Scorer(query='seq2', seq_alignment=protein_aln2, pdb_reference=self.pdb_chain_b, chain='B')
         self.evaluate_measure_distance(scorer=scorer, method='CB')
+
+
+class TestScorerPlotAUC(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_plot_auc(self, scorer, file_name, expected_file_name, output_dir):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        # These are fake values just to generate a plot in each case.
+        tpr = [0.0, 0.3, 0.5, 0.7, 0.9, 1.0]
+        fpr = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        auroc = 0.7
+        scorer.plot_auc(auc_data=(tpr, fpr, auroc), title=None, file_name=file_name, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_file_name))
+
+    def test_no_fn_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auroc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name=None, expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_png_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name='seq3_Cutoff20.0A_roc', expected_file_name=expected_file_name,
+                               output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auroc.png'
+        self.evaluate_plot_auc(scorer=scorer, file_name=expected_file_name, expected_file_name=expected_file_name,
+                               output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_no_fn_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auroc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name=None, output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_no_png_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_roc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name='seq3_Cutoff20.0A_roc', output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auroc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auc(scorer=scorer, file_name=expected_file_name, output_dir=new_dir,
+                               expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+
+class TestScorerPlotAUPRC(TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(cls.pdb_fn1)
+        os.remove(cls.pdb_fn1b)
+        os.remove(cls.pdb_fn2)
+        os.remove(cls.aln_fn)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pdb_fn1 = write_out_temp_fn(out_str=pro_pdb1, suffix='1.pdb')
+        cls.pdb_fn1b = write_out_temp_fn(out_str=pro_pdb_1_alt_locs, suffix='1b.pdb')
+        cls.pdb_fn2 = write_out_temp_fn(out_str=pro_pdb2, suffix='2.pdb')
+        cls.pdb_chain_a = PDBReference(pdb_file=cls.pdb_fn1)
+        cls.pdb_chain_a.import_pdb(structure_id='1TES')
+        cls.pdb_chain_a_alt = PDBReference(pdb_file=cls.pdb_fn1b)
+        cls.pdb_chain_a_alt.import_pdb(structure_id='1TES')
+        cls.pdb_chain_b = PDBReference(pdb_file=cls.pdb_fn2)
+        cls.pdb_chain_b.import_pdb(structure_id='1TES')
+        cls.aln_fn = write_out_temp_fn(suffix='fasta', out_str=pro_str_long)
+        cls.aln1 = SeqAlignment(query_id='seq1', file_name=cls.aln_fn)
+        cls.aln1.import_alignment()
+        cls.aln1 = cls.aln1.remove_gaps()
+        cls.aln2 = SeqAlignment(query_id='seq2', file_name=cls.aln_fn)
+        cls.aln2.import_alignment()
+        cls.aln2 = cls.aln2.remove_gaps()
+        cls.aln3 = SeqAlignment(query_id='seq3', file_name=cls.aln_fn)
+        cls.aln3.import_alignment()
+        cls.aln3 = cls.aln3.remove_gaps()
+
+    def evaluate_plot_auprc(self, scorer, file_name, expected_file_name, output_dir):
+        scorer.fit()
+        scorer.measure_distance(method='CB')
+        # scores = np.random.rand(scorer.query_pdb_mapper.seq_aln.seq_length, scorer.query_pdb_mapper.seq_aln.seq_length)
+        # scores[np.tril_indices(scorer.query_pdb_mapper.seq_aln.seq_length, 1)] = 0
+        # scores += scores.T
+        # ranks, coverages = compute_rank_and_coverage(scorer.query_pdb_mapper.seq_aln.seq_length, scores, 2, 'min')
+        # scorer.map_predictions_to_pdb(ranks=ranks, predictions=scores, coverages=coverages, threshold=0.5)
+        # precision, recall, auprc = scorer.score_precision_recall(category='Any')
+        precision = [1.0, 0.5, 0.4, 0.3, 0.2, 0.1]
+        recall = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        auprc = 0.25
+        scorer.plot_auprc(auprc_data=(precision, recall, auprc), title=None, file_name=file_name, output_dir=output_dir)
+        self.assertTrue(os.path.isfile(expected_file_name))
+
+    def test_no_fn_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name=None, expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_png_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name='seq3_Cutoff20.0A_auprc',
+                                 expected_file_name=expected_file_name, output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_fn_no_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auprc.png'
+        self.evaluate_plot_auprc(scorer=scorer, file_name=expected_file_name, expected_file_name=expected_file_name,
+                                 output_dir=None)
+        os.remove(expected_file_name)
+
+    def test_no_fn_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name=None, output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_no_png_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_Cutoff20.0A_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name='seq3_Cutoff20.0A_auprc', output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
+
+    def test_fn_dir(self):
+        scorer = Scorer(query='seq3', seq_alignment=protein_aln3, pdb_reference=self.pdb_chain_b, chain='B')
+        expected_file_name = 'seq3_auprc.png'
+        new_dir = './Plots/'
+        os.makedirs(new_dir)
+        self.evaluate_plot_auprc(scorer=scorer, file_name=expected_file_name, output_dir=new_dir,
+                                 expected_file_name=os.path.join(new_dir, expected_file_name))
+        rmtree(new_dir)
 
 
 class TestSCWZScoreSelection(TestCase):
