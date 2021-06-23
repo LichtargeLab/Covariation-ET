@@ -199,6 +199,7 @@ class EvolutionaryTrace(Predictor):
             self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         serial_fn = os.path.join(self.out_dir, serial_fn)
+        print(serial_fn)
         self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
                                        pos_size=(1 if self.position_type == 'single' else 2),
                                        metric=self.scoring_metric)
@@ -511,7 +512,7 @@ def write_out_et_scores(file_name, out_dir, aln, pos_size, match_mismatch, ranks
     print('Results written to file in {} min'.format((end - start) / 60.0))
 
 
-def convert_pair_to_single_residue_output(res_fn, precision=3):
+def convert_pair_to_single_residue_output(res_fn, precision=3, rank_method='Top'):
     """
     Convert Pair To Single Residue Output
 
@@ -529,20 +530,21 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
         if a real valued scoring metric was used). If a precision greater than that used to write out the original file
         is provided, no additional value will be added to the 'Score' column since this is preserved from the original
         file, however the 'Rank' and 'Coverage' columns will reflect this change.
+        rank_method(str): Which pair rank to take for the single residue rank. Options: "Top" take the ranking from the top
+        pair the residue is in, 'Median' take the median of all pair ranks for a residue.
     Return:
         str: The path to the converted output file.
     """
     res_dir = os.path.dirname(res_fn)
     res_base_name, res_base_extension = os.path.splitext(os.path.basename(res_fn))
     scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
-    assert {'Position_i', 'Position_j', 'Query_i', 'Query_j'}.issubset(scoring_df.columns), "Provided file does not "\
-                                                                                            "include expected columns,"\
-                                                                                            " make sure this is a pair"\
+    assert {'Position_i', 'Position_j', 'Query_i', 'Query_j'}.issubset(scoring_df.columns), "Provided file does not " \
+                                                                                            "include expected columns," \
+                                                                                            " make sure this is a pair" \
                                                                                             " analysis result!"
-
+    allranks = {}
     columns = ['Position', 'Query', 'Variability_Count', 'Variability_Characters', 'Rank', 'Score', 'Coverage']
     converted_scoring_data = {x: [] for x in columns + ['Original_Rank']}
-
     all_res = len(set(scoring_df['Position_i']).union(set(scoring_df['Position_j'])))
     counter = 0
     completed = set()
@@ -550,9 +552,17 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
     for rank in sorted(rank_groups.groups.keys()):
         if counter == all_res:
             break
-
         curr_group = rank_groups.get_group(rank)
         for i in curr_group.index:
+            # convert every residue to a key in allranks with an empty list value
+            if curr_group.loc[i, 'Position_i'] not in allranks:
+                allranks[curr_group.loc[i, 'Position_i']] = []
+            if curr_group.loc[i, 'Position_j'] not in allranks:
+                allranks[curr_group.loc[i, 'Position_j']] = []
+            # fill the values of a residue (residue # = curr_group.loc[i, 'Position_i']) with all ranks
+            allranks[curr_group.loc[i, 'Position_i']].append(rank)
+            allranks[curr_group.loc[i, 'Position_j']].append(rank)
+
             if curr_group.loc[i, 'Position_i'] not in completed:
                 converted_scoring_data['Position'].append(curr_group.loc[i, 'Position_i'])
                 converted_scoring_data['Query'].append(curr_group.loc[i, 'Query_i'])
@@ -571,17 +581,21 @@ def convert_pair_to_single_residue_output(res_fn, precision=3):
                 converted_scoring_data['Variability_Count'].append(len(var_chars))
                 converted_scoring_data['Variability_Characters'].append(','.join(sorted(var_chars)))
                 completed.add(curr_group.loc[i, 'Position_j'])
+
+    if rank_method == 'Median':
+        for i, position in enumerate(converted_scoring_data['Position']):
+            converted_scoring_data['Original_Rank'][i] = np.median(allranks[position])
     new_ranks, new_coverage = compute_rank_and_coverage(seq_length=all_res, pos_size=1, rank_type='min',
                                                         scores=np.array(converted_scoring_data['Original_Rank']))
     converted_scoring_data['Rank'] = new_ranks
     converted_scoring_data['Coverage'] = new_coverage
     converted_scoring_df = pd.DataFrame(converted_scoring_data)
     converted_scoring_df.sort_values(by='Position', inplace=True)
-    full_path = os.path.join(res_dir, f'{res_base_name}_Converted_To_Single_Pos{res_base_extension}')
+
+    full_path = os.path.join(res_dir, f'{res_base_name}_Converted_To_Single_Pos_{rank_method}Scoring{res_base_extension}')
     converted_scoring_df.to_csv(full_path, sep='\t', header=True, index=False, float_format='%.{}f'.format(precision),
                                 columns=columns)
     return full_path
-
 
 def convert_file_to_legacy_format(res_fn, reverse_score=False):
     """

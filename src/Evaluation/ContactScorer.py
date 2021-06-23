@@ -34,7 +34,7 @@ class ContactScorer(Scorer):
     (previously it was included in the prediction class).  This is being done for two main reasons. First, contact
     predictions are being made with several different methods and so their scoring should be performed consistently by
     another object or function. Second, this class will support several scoring methods such as the Precision at L/K
-    found commonly in the literature as well as methods internal to the lab like the clustering Z-score derived from
+  fit  found commonly in the literature as well as methods internal to the lab like the clustering Z-score derived from
     prior ET work.
 
     Attributes:
@@ -248,7 +248,7 @@ class ContactScorer(Scorer):
         self.data['Coverage'] = coverages[indices]
         self.data['True Prediction'] = self.data['Coverage'].apply(lambda x: x <= threshold)
 
-    def _identify_relevant_data(self, category='Any', n=None, k=None, coverage_cutoff=None):
+    def _identify_relevant_data(self, category='Any', n=None, k=None, coverage_cutoff=None, rank_method = 'Top'):
         """
         Identify Relevant Data
 
@@ -278,6 +278,8 @@ class ContactScorer(Scorer):
             calculation together, so if many residues are added by considering the next group of predictions, and the
             number of unique residues exceeds the specified percentage, none of the predictions in that group will be
             added.
+            rank_method(str): Which pair rank to take for the single residue rank. Options: "Top" take the ranking from the top
+            pair the residue is in, 'Median' take the median of all pair ranks for a residue.
         Returns:
             pd.DataFrame: A set of predictions which can be scored because they are in the specified sequence separation
             category, map successfully to the PDB, and meet the criteria set by n, k, or coverage cutoff for top
@@ -312,15 +314,19 @@ class ContactScorer(Scorer):
             mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
             position_remapping = {res: i for i, res in enumerate(mappable_res)}
             top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
-            residues_visited = set()
-            groups = final_df.groupby('Top Predictions')
-            for curr_rank in sorted(groups.groups.keys()):
-                curr_group = groups.get_group(curr_rank)
-                curr_residues = set(curr_group['Seq Pos 1']).union(set(curr_group['Seq Pos 2']))
-                new_positions = curr_residues - residues_visited
-                top_sequence_ranks[list(new_positions)] = curr_rank
-                residues_visited |= new_positions
-            top_residue_ranks = top_sequence_ranks[mappable_res]
+            median_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
+            for position in mappable_res:
+                curr_ind = final_df.index[(final_df['Seq Pos 1'] == position) |
+                                          (final_df['Seq Pos 2'] == position)]
+                curr_res = final_df[final_df.index.isin(curr_ind)]
+                top_sequence_ranks[position] = curr_res['Top Predictions'].min()
+                median_sequence_ranks[position] = curr_res['Top Predictions'].median()
+            if rank_method == 'Top':
+                top_residue_ranks = top_sequence_ranks[mappable_res]
+            elif rank_method == 'Median':
+                top_residue_ranks = median_sequence_ranks[mappable_res]
+            else:
+                print(rank_method, ' is not a valid method. Valid methods are "top" and "median"')
             assert len(top_residue_ranks) <= len(mappable_res)
             _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
                                                         scores=top_residue_ranks)
@@ -968,7 +974,7 @@ class ContactScorer(Scorer):
         return (overlap, self.query_pdb_mapper.pdb_ref.size[self.query_pdb_mapper.best_chain], len(pdb_residues),
                 len(top_pdb_residues), pvalue)
 
-    def recovery_of_pdb_residues(self, pdb_residues):
+    def recovery_of_pdb_residues(self, pdb_residues, rank_method = 'Top'):
         """
         Recovery of PDB Residues
 
@@ -986,7 +992,11 @@ class ContactScorer(Scorer):
             list: The recall scores measured while scoring the AUPRC.
             float: The AUPRC score for the set of predictions mapped to this ContactScorer.
         """
-        sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0)
+        if rank_method == 'Top':
+            sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0)
+        elif rank_method == 'Median':
+            sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0, rank_method='Median')
+        else: print(rank_method, ' is not a valid rank_method. Options are "Top" and "Median"')
         single_pos1_df = sub_df[['Struct Pos 1', 'Pos 1 Coverage']].rename(
             columns={'Struct Pos 1': 'Struct Pos', 'Pos 1 Coverage': 'Single Pos Coverage'})
         single_pos2_df = sub_df[['Struct Pos 2', 'Pos 2 Coverage']].rename(
