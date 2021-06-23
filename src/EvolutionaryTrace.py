@@ -199,7 +199,6 @@ class EvolutionaryTrace(Predictor):
             self.query, ('ET_' if self.et_distance else ''), self.distance_model, self.tree_building_method,
             ('All_Ranks' if self.ranks is None else 'Custom_Ranks'), self.scoring_metric)
         serial_fn = os.path.join(self.out_dir, serial_fn)
-        print(serial_fn)
         self.scorer = PositionalScorer(seq_length=self.non_gapped_aln.seq_length,
                                        pos_size=(1 if self.position_type == 'single' else 2),
                                        metric=self.scoring_metric)
