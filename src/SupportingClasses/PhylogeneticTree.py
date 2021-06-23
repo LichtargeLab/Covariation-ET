@@ -500,7 +500,7 @@ class PhylogeneticTree(object):
         final_annotations.update(annotations)
         return final_annotations, pd.DataFrame(new_annotations)
 
-    def visualize_tree(self, query, out_dir, id_categories, filename=None):
+    def visualize_tree(self, query, out_dir, id_categories, filename=None, grey_ambiguous=False):
         """
         Visualize Tree
 
@@ -511,12 +511,19 @@ class PhylogeneticTree(object):
             query (str): The name of the query sequence in the tree.
             out_dir (str): The directory where the result should be written.
             id_categories (dict): A dictionary mapping all of the sequence IDs in the tree to the corresponding label
-            to be used.
+            to be used. If grey_ambiguous = True, any term containing the word "Ambiguous" will be collapsed into a
+            single "ambiguous" term.
             filename (str): The name the file should be given, if None the file will be named 'Tree_Viz.png'.
+            grey_ambiguous (bool): Whether to color ambiguous categories grey.
         Return:
             str: The filepath where the tree figure has been written.
             dict: A dictionary mapping label to the color assigned to that label when coloring the tree.
         """
+        if grey_ambiguous == True:
+            for key, value in id_categories.items():
+                if 'AMBIGUOUS' in value:
+                    id_categories[key] = 'Ambiguous'
+
         number_of_labels = len(set(id_categories.values()))
         if number_of_labels == 1:
             number_of_labels = 2
@@ -524,6 +531,12 @@ class PhylogeneticTree(object):
         points = np.linspace(0, 1, number_of_labels)
         cmap = LinearSegmentedColormap.from_list('Tree_Map', [original_cmap(x) for x in points], N=number_of_labels)
         coloring_dict = {label: to_hex(cmap(i)) for i, label in enumerate(sorted(set(id_categories.values())))}
+
+        if grey_ambiguous == True:
+
+            for key, value in coloring_dict.items():
+                if 'Ambiguous' in key:
+                    coloring_dict[key] = '#cbd1d0'
 
         def reset_node_style(tree, query):
             def_style = NodeStyle()
