@@ -290,7 +290,10 @@ class Scorer(object):
         if os.path.isfile(file_name):
             return
         plt.plot(auprc_data[1], auprc_data[0], label=f'(AUC = {auprc_data[2]:.2f})')
-        plt.plot([0, 1], [0, 1], 'k--')
+        if auprc_data[3]:
+            baseline = auprc_data[3]/len(self.query_pdb_mapper.query_pdb_mapping.keys())
+            plt.plot([0,1],[baseline,baseline], 'k--')
+        #plt.plot([0, 1], [0, 1], 'k--')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
         plt.xlabel('Recall')
