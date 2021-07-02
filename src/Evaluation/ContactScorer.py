@@ -318,12 +318,14 @@ class ContactScorer(Scorer):
                 curr_ind = final_df.index[(final_df['Seq Pos 1'] == position) |
                                           (final_df['Seq Pos 2'] == position)]
                 curr_res = final_df[final_df.index.isin(curr_ind)]
-                top_sequence_ranks[position] = curr_res['Top Predictions'].min()
-                median_sequence_ranks[position] = curr_res['Top Predictions'].median()
-            if rank_method == 'Top':
-                top_residue_ranks = top_sequence_ranks[mappable_res]
-            elif rank_method == 'Median':
-                top_residue_ranks = median_sequence_ranks[mappable_res]
+                if rank_method == 'Top':
+                    top_sequence_ranks[position] = curr_res['Top Predictions'].min()
+                if rank_method == 'Median':
+                    top_sequence_ranks[position] = curr_res['Top Predictions'].median()
+                if rank_method == 'Mean':
+                    top_sequence_ranks[position] = curr_res['Top Predictions'].mean()
+
+            top_residue_ranks = top_sequence_ranks[mappable_res]
             else:
                 print(rank_method, ' is not a valid method. Valid methods are "top" and "median"')
             assert len(top_residue_ranks) <= len(mappable_res)
