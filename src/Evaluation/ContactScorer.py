@@ -314,7 +314,6 @@ class ContactScorer(Scorer):
             mappable_res = sorted(self.query_pdb_mapper.query_pdb_mapping.keys())
             position_remapping = {res: i for i, res in enumerate(mappable_res)}
             top_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
-            median_sequence_ranks = np.ones(self.query_pdb_mapper.seq_aln.seq_length) * np.inf
             for position in mappable_res:
                 curr_ind = final_df.index[(final_df['Seq Pos 1'] == position) |
                                           (final_df['Seq Pos 2'] == position)]
@@ -996,6 +995,8 @@ class ContactScorer(Scorer):
             sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0)
         elif rank_method == 'Median':
             sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0, rank_method='Median')
+        elif rank_method == 'Mean':
+            sub_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0, rank_method='Mean')
         else: print(rank_method, ' is not a valid rank_method. Options are "Top" and "Median"')
         single_pos1_df = sub_df[['Struct Pos 1', 'Pos 1 Coverage']].rename(
             columns={'Struct Pos 1': 'Struct Pos', 'Pos 1 Coverage': 'Single Pos Coverage'})
