@@ -326,8 +326,6 @@ class ContactScorer(Scorer):
                     top_sequence_ranks[position] = curr_res['Top Predictions'].mean()
 
             top_residue_ranks = top_sequence_ranks[mappable_res]
-            else:
-                print(rank_method, ' is not a valid method. Valid methods are "top" and "median"')
             assert len(top_residue_ranks) <= len(mappable_res)
             _, top_coverage = compute_rank_and_coverage(seq_length=len(mappable_res), pos_size=1, rank_type='min',
                                                         scores=top_residue_ranks)
