@@ -21,7 +21,7 @@ dependencies:
   - nss=3.47
   - numpy=1.18.5
   - openssl=1.1.1i
-  - pandas=1.0.3
+  - pandas=1.2.4
   - pip=20.0.2
   - pymol=2.4.0
   - pyopenssl=19.1.0
