@@ -536,7 +536,7 @@ def convert_pair_to_single_residue_output(res_fn, precision=3, rank_method='Top'
     """
     res_dir = os.path.dirname(res_fn)
     res_base_name, res_base_extension = os.path.splitext(os.path.basename(res_fn))
-    scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
+    scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None, na_filter=False)
     assert {'Position_i', 'Position_j', 'Query_i', 'Query_j'}.issubset(scoring_df.columns), "Provided file does not " \
                                                                                             "include expected columns," \
                                                                                             " make sure this is a pair" \
