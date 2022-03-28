@@ -5,6 +5,16 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - conda-forge::r-base
+  - conda-forge::r-dplyr
+  - conda-forge::r-readr
+  - conda-forge::r-tidyr
+  - conda-forge::r-stringr
+  - conda-forge::r-purrr
+  - conda-forge::r-ape
+  - conda-forge::r-rcpp
+  - conda-forge::r-pbmcapply
+  - conda-forge::r-gdata
   - biopython=1.76
   - curl=7.69.1
   - ete3=3.1.1
