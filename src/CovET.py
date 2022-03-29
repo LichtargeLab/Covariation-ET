@@ -65,7 +65,7 @@ if __name__ == "__main__":
     single_output_fn = f'{query}_ET_blosum62_Dist_et_Tree_All_Ranks_mismatch_diversity_Scoring_Converted_To_Single_Pos_TopScoring.ranks'
     single_output_fn = os.path.join(out_dir, single_output_fn)
     
-    legacy_output_fn = f'{query}__ET_blosum62_Dist_et_Tree_All_Ranks_mismatch_diversity_Scoring_Converted_To_Single_Pos_TopScoring.legacy.ranks'
+    legacy_output_fn = f'{query}_ET_blosum62_Dist_et_Tree_All_Ranks_mismatch_diversity_Scoring_Converted_To_Single_Pos_TopScoring.legacy.ranks'
     legacy_output_fn = os.path.join(out_dir, legacy_output_fn)
     
     # Generate non-gapped alignments. Then write both alignments to output dir.
