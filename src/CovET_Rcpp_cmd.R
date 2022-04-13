@@ -42,6 +42,16 @@ options(dplyr.summarise.inform = FALSE)
 ############################################################################
 et.tree <- ape::read.tree(tree.path)
 
+# The tree file produced by PyET sometimes have extra quote (') on the entry
+# name. Need to remove the quotes before mapping.
+tip.label.temp <- et.tree$tip.label
+tip.label.temp[str_starts(tip.label.temp, "'")] <- str_sub(tip.label.temp[str_starts(tip.label.temp, "'")],
+                                                           2, -1)
+tip.label.temp[str_ends(tip.label.temp, "'")] <- str_sub(tip.label.temp[str_ends(tip.label.temp, "'")],
+                                                         1, -2)
+et.tree$tip.label <- tip.label.temp
+rm(tip.label.temp)
+
 tip.count <- length(et.tree$tip.label)
 # Get root node number. Nodes are numbered after the tips. Root is the first
 # node.
@@ -124,12 +134,18 @@ msa <- msa[et.tree$tip.label] %>%
   reduce(rbind)
 dimnames(msa) <- NULL
 
+if (nrow(msa) != length(et.tree$tip.label)) {
+  cat("Not all entries in the MSA are mapped to ET tree.\nCheck entry name.\n")
+  msa <- NULL
+}
+
 # Convert AA to double digits
-num.to.AA <- 1:22 + 10
+num.to.AA <- 1:24 + 10
 names(num.to.AA) <- c("-","A","C","D","E",
                       "F","G","H","I","K",
                       "L","M","N","P","Q",
-                      "R","S","T","V","W","Y","X")
+                      "R","S","T","V","W","Y",
+                      "X","V","Z")
 
 # msa.num is the numerical representation of the MSA.
 msa.num <- num.to.AA[msa] %>%
@@ -271,3 +287,4 @@ write_tsv(single.output, single.output.path)
 single.output %>% 
   ReformatET() %>%
   write_ET(file = legacy.output.path)
+
