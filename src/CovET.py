@@ -39,6 +39,13 @@ def parse_args():
     parser.add_argument('--processors', metavar='C', type=int, nargs='?', default=1,
                         help="The number of CPU cores available to this process while running (will determine the "
                              "number of processes forked by steps which can be completed using multiprocessing pools).")
+    parser.add_argument('--filter_seqs', metavar='F', type=bool, nargs='?', default=False,
+                        help="Remove sequences in the input alignment that contain ambiguous characters"
+                            "Allowed Characters are ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V,'W','Y','-']")
+    parser.add_argument('--Add_Chars', metavar='AC', type=str, nargs='*', default=[],
+                        help="Add ambiguous characters to the alphabet, requires --filter_seqs = True."
+                            "Supported ambiguous characters are ['B', 'X', 'Z']")
+                        
     arguments = parser.parse_args()
     arguments = vars(arguments)
     return arguments
@@ -50,8 +57,19 @@ if __name__ == "__main__":
     aln_file=args['alignment']
     out_dir=args['output_dir']
     cores=args['processors']
+    filter_seqs=args['filter_seqs']
+    add_chars=args['Add_Chars']
+    if add_chars:
+        assert filter_seqs
+    
+                        
+        
     
     start_all = time()
+    #Filter Out Sequences with Ambiguous Characters
+    if filter_seqs:
+        remove_sequences_with_ambiguous_characters(aln_file, add_chars)
+        aln_file = '_filtered.'.join(aln_file.split('.'))
     
     # Generate file names
     phylo_tree_fn = f'{query}_ET_blosum62_dist_et_tree.nhx'
