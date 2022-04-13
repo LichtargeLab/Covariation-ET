@@ -69,8 +69,7 @@ if __name__ == "__main__":
     start_all = time()
     #Filter Out Sequences with Ambiguous Characters
     if filter_seqs:
-        remove_sequences_with_ambiguous_characters(aln_file, add_chars)
-        aln_file = '_filtered.'.join(aln_file.split('.'))
+        aln_file = remove_sequences_with_ambiguous_characters(aln_file, out_dir, additional_chars = add_chars)
     
     # Generate file names
     phylo_tree_fn = f'{query}_ET_blosum62_dist_et_tree.nhx'
