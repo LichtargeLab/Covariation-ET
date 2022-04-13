@@ -46,6 +46,7 @@ def remove_sequences_with_ambiguous_characters(fp, out_dir, additional_chars = [
             handle.write(value)
             handle.write('\n')
      print(f'{len(removed)} sequences removed for containing ambiguous characters')
+     return op
 
 
 def build_mapping(alphabet, skip_letters=None):
