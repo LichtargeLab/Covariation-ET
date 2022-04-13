@@ -14,6 +14,7 @@ from multiprocessing import Pool
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Predictor import Predictor
+from SupportingClasses.utils import remove_sequences_with_ambiguous_characters
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
 
