@@ -145,7 +145,7 @@ names(num.to.AA) <- c("-","A","C","D","E",
                       "F","G","H","I","K",
                       "L","M","N","P","Q",
                       "R","S","T","V","W","Y",
-                      "X","V","Z")
+                      "X","B","Z")
 
 # msa.num is the numerical representation of the MSA.
 msa.num <- num.to.AA[msa] %>%
