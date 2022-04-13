@@ -13,13 +13,14 @@ import shutil
 # Common gap characters
 gap_characters = {'-', '.', '*'}
 
-def remove_sequences_with_ambiguous_characters(fn, additional_chars):
+def remove_sequences_with_ambiguous_characters(fp, out_dir, additional_chars = []):
     alphabet = ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y','-']
     alphabet.extend(additional_chars)
-    aln = open(fn, 'r')
+    aln = open(fp, 'r')
     Lines = aln.readlines()
     aln.close()
     aln = {}
+    removed = []
     
     for line in Lines:
         if '>' in line:
@@ -31,13 +32,20 @@ def remove_sequences_with_ambiguous_characters(fn, additional_chars):
     for seqid in list(aln):
         if not all(c in alphabet for c in aln[seqid]):
             aln.pop(seqid)
+            removed.append(seqid)
+            
+    if '/' in fp:
+        fn = fp.split('/')[-1]
     on = '_filtered.'.join(fn.split('.'))
-    with open(fn, 'w') as handle:
+    op = f'{out_dir}/{on}'
+    
+    with open(op, 'w') as handle:
         for key, value in aln.items():
             handle.write(key)
             handle.write('\n')
             handle.write(value)
             handle.write('\n')
+     print(f'{len(removed)} sequences removed for containing ambiguous characters')
 
 
 def build_mapping(alphabet, skip_letters=None):
