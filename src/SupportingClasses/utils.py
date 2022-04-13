@@ -13,6 +13,32 @@ import shutil
 # Common gap characters
 gap_characters = {'-', '.', '*'}
 
+def remove_sequences_with_ambiguous_characters(fn, additional_chars):
+    alphabet = ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y','-']
+    alphabet.extend(additional_chars)
+    aln = open(fn, 'r')
+    Lines = aln.readlines()
+    aln.close()
+    aln = {}
+    
+    for line in Lines:
+        if '>' in line:
+            seqid = line.rstrip('\n') 
+            aln[seqid] = ''
+        else:
+            aln[seqid] = aln[seqid] + line.rstrip('\n') 
+            
+    for seqid in list(aln):
+        if not all(c in alphabet for c in aln[seqid]):
+            aln.pop(seqid)
+    on = '_filtered.'.join(fn.split('.'))
+    with open(fn, 'w') as handle:
+        for key, value in aln.items():
+            handle.write(key)
+            handle.write('\n')
+            handle.write(value)
+            handle.write('\n')
+
 
 def build_mapping(alphabet, skip_letters=None):
     """
