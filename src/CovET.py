@@ -67,6 +67,9 @@ if __name__ == "__main__":
         
     
     start_all = time()
+    out_dir = os.path.abspath(out_dir)
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
     #Filter Out Sequences with Ambiguous Characters
     if filter_seqs:
         aln_file = remove_sequences_with_ambiguous_characters(aln_file, out_dir, additional_chars = add_chars)
