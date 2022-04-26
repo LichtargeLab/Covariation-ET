@@ -21,6 +21,7 @@ from Bio.Phylo.TreeConstruction import DistanceCalculator
 from SupportingClasses.Trace import Trace
 from SupportingClasses.Predictor import Predictor
 from SupportingClasses.utils import compute_rank_and_coverage
+from SupportingClasses.utils import remove_sequences_with_ambiguous_characters
 from SupportingClasses.PhylogeneticTree import PhylogeneticTree
 from SupportingClasses.PositionalScorer import PositionalScorer
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
@@ -747,6 +748,13 @@ def parse_args():
     parser.add_argument('--processors', metavar='C', type=int, nargs='?', default=1,
                         help="The number of CPU cores available to this process while running (will determine the "
                              "number of processes forked by steps which can be completed using multiprocessing pools).")
+    parser.add_argument('--filter_seqs', metavar='F', type=bool, nargs='?', default=False,
+                        help="Remove sequences in the input alignment that contain ambiguous characters"
+                            "Allowed Characters are ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V,'W','Y','-']")
+    parser.add_argument('--Add_Chars', metavar='AC', type=str, nargs='*', default=[],
+                        help="Add ambiguous characters to the alphabet, requires --filter_seqs = True."
+                            "Supported ambiguous characters are ['B', 'X', 'Z']")
+    
     # Clean command line input
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -794,13 +802,28 @@ def parse_args():
 if __name__ == "__main__":
     # Read input from the command line
     args = parse_args()
+    
+    aln_file=args['alignment']
+    out_dir=args['output_dir']
+    filter_seqs=args['filter_seqs']
+    add_chars=args['Add_Chars']
+    if add_chars:
+        assert filter_seqs
+    
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+        
+    #Filter Out Sequences with Ambiguous Characters
+    if filter_seqs:
+        aln_file = remove_sequences_with_ambiguous_characters(aln_file, out_dir, additional_chars = add_chars)
+        
     # Initialize EvolutionaryTrace object
-    et = EvolutionaryTrace(query=args['query'], polymer_type=args['polymer_type'], aln_file=args['alignment'],
+    et = EvolutionaryTrace(query=args['query'], polymer_type=args['polymer_type'], aln_file=aln_file,
                            et_distance=args['et_distance'], distance_model=args['distance_model'],
                            tree_building_method=args['tree_building_method'],
                            tree_building_options=args['tree_building_options'], ranks=args['ranks'],
                            position_type=args['position_type'], scoring_metric=args['scoring_metric'],
-                           gap_correction=args['gap_correction'], out_dir=args['output_dir'],
+                           gap_correction=args['gap_correction'], out_dir=out_dir,
                            output_files=args['output_files'], processors=args['processors'],
                            low_memory=args['low_memory'])
     # Compute distance matrix, construct tree, perform sequence assignments, trace, and write out final scores
