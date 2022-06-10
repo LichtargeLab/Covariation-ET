@@ -6,3 +6,4 @@
 *.pyc
 Input/*
 Output/*
+.DS_Store

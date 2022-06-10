@@ -55,6 +55,7 @@ python EvolutionaryTrace.py --preset CovET --query <Sequence identifier for the 
 ```
 python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --polymer_type <DNA or Protein> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
 ```
+6. There is a faster implementation of CovET with R and C++. See faster branch for details.
 
 There are also several options for creating data sets or characterizing input when using DataSetGenerator.py, which can be accessed by navigating to src/SupportingClasses, for additional details about any options used when calling DataSetGenerator.py please run ```python DataSetGenerator.py --help```.
 1. To generate the custom Uniref data for building BLAST databases, please download and extract the fasta file for the Uniref database of interest then run:
@@ -67,6 +68,8 @@ Or incorporate the code in your own pipelines, using the active environment, for
 
 ## Authors
 * **Daniel Konecki** - *Python Libraries and adaptation of C code base. Further development of ET-MIp method. Optimization of algorithm implementation and evaluation. Development of new ET covariation method penalizing transitions in pairs of columns which do not represent concerted variation or conservation.* - [dkonecki](https://github.com/dkonecki)
+* **Spencer Hamrick** - *Further development of the CovET method. Current maintainer of the Covariation-ET repository.*
+* **Chen Wang** - *Optimization of the CovET work flow to speed up the calculation. Current maintainer of the Covariation-ET repository.*
 * **Benu Atri** - *Original work on ET-MIp continuation, identification of the fact that a limited traversal could achieve the same, and sometimes better covariation predictions*
 * **Jonathan Gallion** - *Assessment of covariation by structural clustering and enrichment methods and frequent discussion of important factors for the improvement of covariation prediction.*
 * **Angela Wilkins** - *Original developer of the ET-MIp method, who made original suggestion on how it might be possible to improve the method.*
@@ -80,7 +83,7 @@ Or incorporate the code in your own pipelines, using the active environment, for
 6. [Sequence and structure continuity of evolutionary importance improves protein functional site discovery and annotation](https://www.ncbi.nlm.nih.gov/pubmed/20506260)
 
 ## License
-WE HAVN'T DECIDED ON A LICENSE YET [LICENSE.md](LICENSE.md)
+MIT license
 
 ## Acknowledgments
 
