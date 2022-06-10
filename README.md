@@ -32,8 +32,9 @@ There is one main pre-requisites for using this code: Anaconda
     ```
    with the PyET environment activated.
 ### Usage
-To use the faster version of CovET, first clone this "faster" branch, then reinstall the PyET environment. The faster verson is only implemented for CovET.
-To use that code please navigate to the 'src' directory and use the following command:
+To use the faster version of CovET, first clone this "faster" branch, then reinstall the PyET environment. The faster version is only implemented for CovET. The faster version runs about 5 times faster and doesn't produce large intermediate files. But due to the usage of R and C++, there might be issues during the environment setup.
+
+To use this code please navigate to the 'src' directory and use the following command:
 ```
 python CovET.py --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --processors <How many processors are available to this tool while making predictions.>
 ```
