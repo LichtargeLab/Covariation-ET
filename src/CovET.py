@@ -34,7 +34,8 @@ def Calculate_Fixed_Penalty(phylo_tree_assignments):
 
 def Generate_Processed_Tree(phylo_tree, tree_index_mapping):
     """
-    This function takes a PhylogeneticTree Object and returns the processed version of the tree as a dataframe for ET Calculations.
+    This function takes a PhylogeneticTree Object and returns the processed version of the tree as a dataframe for ET
+    Calculations.
 
     phylo_tree: A phylogenetic tree object defined by SupportingClasses/PhylogeneticTree.py
     tree_index_mapping(dict): mapping of the sequenceIDs of the tree to the sequence index
@@ -61,21 +62,24 @@ def Generate_Processed_Tree(phylo_tree, tree_index_mapping):
     return processed_tree
 
 
-def Generate_Numeric_MSA(predictor, tree_index_mapping):
+def Alphabetical_to_Numeric_Mapping():
+    letters = ["-", "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y",
+               "X", "B", "Z"]
+    alphabetical_to_numeric = {char: i + 11 for i, char in enumerate(letters)}
+    numeric_to_alphabetical = {i + 11: char for i, char in enumerate(letters)}
+    return alphabetical_to_numeric, numeric_to_alphabetical
+
+
+def Generate_Numeric_MSA(predictor, alphabetical_to_numeric_map, tree_index_mapping):
     """
 
     :param predictor: A Predictor Object
     :return: msa_num(numpy.array): A numerical representation of the Multiple Sequence Alignment
     """
-    letters = ["-", "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y",
-               "X",
-               "B", "Z"]
-    alpha_map = {char: i + 11 for i, char in enumerate(letters)}
-
     numeric_reps = []
     for i in predictor.non_gapped_aln.seq_order:
         seq_record = predictor.non_gapped_aln.alignment[tree_index_mapping[i]]
-        numeric_reps.append(convert_seq_to_numeric(seq_record, alpha_map))
+        numeric_reps.append(convert_seq_to_numeric(seq_record, alphabetical_to_numeric_map))
     msa_num = np.stack(numeric_reps)
     return msa_num
 
@@ -109,6 +113,7 @@ def Generate_Position_Matrix(numeric_msa):
         pos_mat.append([mat_logi, mat_vari])
     return pos_mat
 
+
 def Non_Concerted_Matrix(position_matrix, pos_i, pos_j):
     """
     This function takes a position matrix and identifies all non-concerted variations between two positions in the
@@ -129,9 +134,6 @@ def Non_Concerted_Matrix(position_matrix, pos_i, pos_j):
     non_concerted_matrix = (position_matrix[pos_i][1] + 10000 * position_matrix[pos_j][1])
     non_concerted_matrix[non_concerted_rev_index] = 0
     return non_concerted_matrix
-
-
-from itertools import product
 
 
 def Variability_Count(pos_i, pos_j, numeric_msa):
@@ -227,39 +229,30 @@ def Convert_Pair_Mapping_to_DataFrame(results, pair_output_path, return_frame=Fa
     for pos_i in results:
         for pos_j in results[pos_i].keys():
             rows.append({"Position_i": pos_i,
-                         "Position_j": pos_j,
                          "Query_i": results[pos_i][pos_j]["Query_i"],
+                         "Position_j": pos_j,
                          "Query_j": results[pos_i][pos_j]["Query_j"],
-                         "Score": results[pos_i][pos_j]["score"],
-                         "Variability_Count": results[pos_i][pos_j]["variability_count"], })
+                         "Variability_Count": results[pos_i][pos_j]["variability_count"],
+                         "Rank": np.nan,
+                         "Score": results[pos_i][pos_j]["score"]
+                         })
 
     out_frame = pd.DataFrame(rows)
-    out_frame["Rank"] = out_frame["Score"].rank(method="dense")
+    out_frame["Rank"] = out_frame["Score"].rank(method="dense").astype(np.int64)
     out_frame["Coverage"] = out_frame["Score"].rank(method="max", pct=True)
+    out_frame["Score"] = out_frame["Score"].round(decimals=3)
+    out_frame["Coverage"] = out_frame["Coverage"].round(decimals=3)
     out_frame.to_csv(pair_output_path, header=True, index=False, sep='\t')
     if return_frame:
         return out_frame
 
 
-def Get_Single_Residue_Variability_Characters(pos_i, BioMSA):
-    """
-    This function identifies the different characters in an alignment position
-    :param int pos_i: position in the alignment
-    :param SeqAlignment BioMSA: SeqAlignment object of the non-gapped alignment
-    :return str var_chars: String of different amino acids found at a given position
-    """
-    var_chars = ''
-    for i in set(BioMSA[:, pos_i]):
-        var_chars += i
-    return var_chars
-
-
 def Convert_Paired_Results_To_Single_Residue_Rankings(out_frame, single_output_path, return_frame=False):
     """
-    This function takes a dataframe of the CovET results and converts it to single residue format
-    :param pd.DataFrame out_frame: dataframe of the paired CovET results
-    :param str single_output_path: output path for the single residue rankings
-    :return: pd.DataFrame top_single_residue_scores: (optional) the DataFrame object representing single residue rankings
+    This function takes a dataframe of the CovET results and converts it to single residue format :param pd.DataFrame
+    out_frame: dataframe of the paired CovET results :param str single_output_path: output path for the single
+    residue rankings :return: pd.DataFrame top_single_residue_scores: (optional) the DataFrame object representing
+    single residue rankings
     """
     j_frame = out_frame.loc[:, (out_frame.columns != "Position_i") &
                                (out_frame.columns != "Query_i")].rename(
@@ -274,42 +267,70 @@ def Convert_Paired_Results_To_Single_Residue_Rankings(out_frame, single_output_p
     top_scores_per_pos = []
     for group_name, group in groups:
         df = group[group["Rank"] == group["Rank"].min()]
+        var_chars = ''.join([x for x in set(predictor.non_gapped_aln.alignment[:, group_name])])
         top_scores_per_pos.append({"Position": group_name,
                                    "Query": df["Query"].values[0][0],
-                                   "Variability": Get_Single_Residue_Variability_Characters(group_name,
-                                                                                            predictor.non_gapped_aln.alignment),
+                                   "Variability_Characters": var_chars,
+                                   "Variability_Count": len(set(predictor.non_gapped_aln.alignment[:, group_name])),
                                    "Score": df["Score"].values[0]})
 
     top_single_residue_scores = pd.DataFrame(top_scores_per_pos)
-    top_single_residue_scores["Rank"] = top_single_residue_scores["Score"].rank(method="dense")
+    top_single_residue_scores["Rank"] = top_single_residue_scores["Score"].rank(method="dense").astype(np.int64)
     top_single_residue_scores["Coverage"] = top_single_residue_scores["Score"].rank(method="max", pct=True)
+    top_single_residue_scores["Score"] = top_single_residue_scores["Score"].round(decimals=3)
+    top_single_residue_scores["Coverage"] = top_single_residue_scores["Coverage"].round(decimals=3)
     top_single_residue_scores.to_csv(single_output_path, header=True, columns=['Position', 'Query', 'Rank',
-                                                                               'Variability', 'Score', 'Coverage'],
+                                                                               'Variability_Characters',
+                                                                               'Variability_Count', 'Score',
+                                                                               'Coverage'],
                                      index=False, sep='\t')
     if return_frame:
         return top_single_residue_scores
 
 
-def Convert_Single_Residue_Scores_To_Legacy_Format(top_single_residue_scores, legacy_output_path):
+def convert_file_to_legacy_format(res_fn, reverse_score=False):
     """
-    This function converts the single resiude scores to legacy format used by other applications like ETViewer
-    :param pd.DataFrame top_single_residue_scores: (optional) the DataFrame object representing single residue rankings
-    :param str legacy_output_path: path to output directory for the legacy ranks
-    :return: None
+    Convert File To Legacy Format
+    This function accepts a single residue analysis file (tab separated .ranks file) and convets it to the legacy ETC
+    ranks file format. This file format is needed to use previous tools like the PyETViewer.
+    Args:
+        res_fn (str): The path the the single residue ranks file to be converted.
+        reverse_score (bool): If this flag is set to true, recompute scores so that each score is:
+        score_new = 1 + |score_i - score_max|
+        This is used to correct for metrics (like ET-MIp) where a higher score is better, but which does not interact
+        correctly with PyETViewer, which imports rho or the score for residue selection and coloring and recomputes
+        coverage on the fly.
+    Return:
+        str: The path to the converted output file.
     """
-    top_single_residue_scores_legacy = top_single_residue_scores.copy(deep=True)
-    top_single_residue_scores_legacy["residue"] = top_single_residue_scores_legacy["Position"] + 1
-
-    top_single_residue_scores_legacy = top_single_residue_scores_legacy.rename(columns={'Position': 'alignment',
-                                                                                        'residue': 'residue',
-                                                                                        'Query': 'type',
-                                                                                        'Rank': 'rank',
-                                                                                        'Variability': 'variability',
-                                                                                        'Score': 'rho',
-                                                                                        'Coverage': 'coverage'})
-    top_single_residue_scores_legacy.to_csv(legacy_output_path, header=True,
-                                            columns=['alignment', 'residue', 'type', 'rank',
-                                                     'variability', 'rho', 'coverage'], index=False, sep='\t')
+    res_dir = os.path.dirname(res_fn)
+    res_base_name, res_base_extension = os.path.splitext(os.path.basename(res_fn))
+    scoring_df = pd.read_csv(res_fn, sep='\t', header=0, index_col=None)
+    assert {'Position', 'Query'}.issubset(scoring_df.columns), "Provided file does not include expected columns, make" \
+                                                               " sure this is a single position analysis result!"
+    if reverse_score:
+        max_score = scoring_df['Score'].max()
+        scoring_df['Reversed_Score'] = scoring_df['Score'].apply(lambda x: 1 + abs(x - max_score))
+        scoring_df.rename(columns={'Score': 'Original Score'}, inplace=True)
+        scoring_df.rename(columns={'Reversed_Score': 'Score'}, inplace=True)
+    full_path = os.path.join(res_dir, f'{res_base_name}.legacy.ranks')
+    with open(full_path, 'w') as handle:
+        handle.write('% Note: in this file % is a comment sign.\n')
+        handle.write(f'% This file converted from: {res_fn}\n')
+        handle.write('%	 RESIDUE RANKS: \n')
+        handle.write('% alignment#  residue#      type      rank              variability           rho     coverage\n')
+        for ind in scoring_df.index:
+            pos_str = str(scoring_df.loc[ind, 'Position'])
+            aln_str = pos_str.rjust(10, ' ')
+            res_str = aln_str
+            type_str = scoring_df.loc[ind, 'Query'].rjust(10, ' ')
+            rank_str = f'{scoring_df.loc[ind, "Rank"]}'.rjust(10, ' ')
+            var_char_str = scoring_df.loc[ind, 'Variability_Characters'].rjust(32, ' ')
+            rho_str = f'{scoring_df.loc[ind, "Score"]:.3f}'.rjust(10, ' ')
+            cov_str = f'{scoring_df.loc[ind, "Coverage"]:.3f}'.rjust(10, ' ')
+            handle.write(aln_str + res_str + type_str + rank_str + var_char_str + rho_str + cov_str +
+                         '\n')
+    return full_path
 
 
 def parse_args():
@@ -410,14 +431,18 @@ if __name__ == "__main__":
     start_calculation = time()
     fixed_penalty = Calculate_Fixed_Penalty(assignments)
     processed_tree = Generate_Processed_Tree(phylo_tree, tree_index_mapping)
-    msa_num = Generate_Numeric_MSA(predictor, tree_index_mapping)
+    alpha_to_num, num_to_alpha = Alphabetical_to_Numeric_Mapping()
+    msa_num = Generate_Numeric_MSA(predictor, alpha_to_num, tree_index_mapping)
     position_matrix = Generate_Position_Matrix(msa_num)
     pair_mapping = Generate_Pair_Mapping(msa_num)
     results_dictionary = CovET(processed_tree, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence)
     paired_results = Convert_Pair_Mapping_to_DataFrame(results_dictionary, pair_output_fn, return_frame=True)
+    # convert_file_to_legacy_format(single_output_fn)
+
     single_results = Convert_Paired_Results_To_Single_Residue_Rankings(paired_results,
                                                                        single_output_fn, return_frame=True)
-    Convert_Single_Residue_Scores_To_Legacy_Format(single_results, legacy_output_fn)
+    convert_file_to_legacy_format(single_output_fn)
+    # Convert_Single_Residue_Scores_To_Legacy_Format(single_results, legacy_output_fn)
     end_calculation = time()
     print('Performing CovET Calculations took: {} min'.format((end_calculation - start_calculation) / 60.0))
 
