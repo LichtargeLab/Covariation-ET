@@ -359,6 +359,9 @@ def parse_args():
     parser.add_argument('--Add_Chars', metavar='AC', type=str, nargs='*', default=[],
                         help="Add ambiguous characters to the alphabet, requires --filter_seqs = True."
                              "Supported ambiguous characters are ['B', 'X', 'Z']")
+    parser.add_argument('--Write_Summary', metavar='WS', type=bool, nargs='*', default=False,
+                        help="Return Summary Statistics from the run as a tsv file, including alignment size"
+                             " sequence size, protien name, and run time")
 
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -367,6 +370,7 @@ def parse_args():
 
 if __name__ == "__main__":
     # Read input from the command line
+    total_start = time()
     args = parse_args()
     query = args['query']
     aln_file = args['alignment']
@@ -374,6 +378,7 @@ if __name__ == "__main__":
     cores = args['processors']
     filter_seqs = args['filter_seqs']
     add_chars = args['Add_Chars']
+    write_summary = args["Write_Summary"]
     if add_chars:
         assert filter_seqs
 
@@ -445,6 +450,10 @@ if __name__ == "__main__":
     # Convert_Single_Residue_Scores_To_Legacy_Format(single_results, legacy_output_fn)
     end_calculation = time()
     print('Performing CovET Calculations took: {} min'.format((end_calculation - start_calculation) / 60.0))
+    total_time = ((time() - total_start) / 60.0)
 
-
-
+    if write_summary:
+        comparison_dict = {"Protein": [query], "Alignment_Size": [msa_num.shape[0]],
+                           "Sequence_Length": [msa_num.shape[1]], "Total_Time": [total_time]}
+        df = pd.DataFrame.from_dict(comparison_dict)
+        df.to_csv(f'{out_dir}/CovET_Run_Summary.tsv', sep='\t', index = False)
