@@ -12,17 +12,18 @@ from copy import deepcopy
 from scipy.stats import zscore
 from Bio import AlignIO
 from Bio.Seq import Seq
-from Bio.Alphabet import Gapped
+from Bio.Alphabet import Gapped, AlphabetEncoder
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from seaborn import heatmap
 from SupportingClasses.FrequencyTable import FrequencyTable
 from SupportingClasses.utils import build_mapping, convert_seq_to_numeric
 from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalculator
-from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet
+from SupportingClasses.EvolutionaryTraceAlphabet import FullIUPACProtein, FullIUPACDNA, MultiPositionAlphabet, PPI_FullIUPACProtein
 
 
 class SeqAlignment(object):
@@ -48,7 +49,7 @@ class SeqAlignment(object):
         calculating sequence distances).
     """
 
-    def __init__(self, file_name, query_id, polymer_type='Protein'):
+    def __init__(self, file_name, query_id, polymer_type='Protein', ppi=False):
         """
         __init__
 
@@ -69,13 +70,20 @@ class SeqAlignment(object):
         self.seq_length = None
         self.size = None
         self.marked = None
+        self.ppi = ppi
         if polymer_type not in {'Protein', 'DNA'}:
             raise ValueError("Expected values for polymer_type are 'Protein' and 'DNA'.")
         self.polymer_type = polymer_type
         if self.polymer_type == 'Protein':
-            self.alphabet = FullIUPACProtein()
+            if self.ppi:
+                print("Performing a ProteinProtein Interaction CovET")
+                self.alphabet = PPI_FullIUPACProtein()
+            else:
+                self.alphabet = FullIUPACProtein()
         else:
             self.alphabet = FullIUPACDNA()
+
+
 
     def import_alignment(self, save_file=None, verbose=False):
         """
@@ -152,7 +160,7 @@ class SeqAlignment(object):
             to the length of the new seq_order. The marked attribute for all sequences in the sub alignment will be
             transferred from the current alignment.
         """
-        new_alignment = SeqAlignment(self.file_name, self.query_id)
+        new_alignment = SeqAlignment(self.file_name, self.query_id, ppi=self.ppi)
         new_alignment.query_id = deepcopy(self.query_id)
         new_alignment.query_sequence = deepcopy(self.query_sequence)
         new_alignment.seq_length = deepcopy(self.seq_length)
@@ -168,7 +176,7 @@ class SeqAlignment(object):
                 sub_records.append(deepcopy(self.alignment[i]))
                 sub_seq_order.append(deepcopy(self.alignment[i].id))
                 sub_marked.append(self.marked[i])
-        new_alignment.alignment = MultipleSeqAlignment(sub_records)
+        new_alignment.alignment = MultipleSeqAlignment(sub_records, alphabet=self.alphabet)
         new_alignment.seq_order = sub_seq_order
         new_alignment.size = len(new_alignment.seq_order)
         new_alignment.marked = sub_marked
@@ -239,7 +247,7 @@ class SeqAlignment(object):
                 new_aln = self.alignment
             if save_file is not None:
                 pickle.dump(new_aln, open(save_file, 'w'), protocol=pickle.HIGHEST_PROTOCOL)
-        new_alignment = SeqAlignment(self.file_name, self.query_id)
+        new_alignment = SeqAlignment(self.file_name, self.query_id, ppi=self.ppi)
         new_alignment.query_id = deepcopy(self.query_id)
         new_alignment.alignment = new_aln
         new_alignment.seq_order = deepcopy(self.seq_order)
@@ -289,7 +297,7 @@ class SeqAlignment(object):
             SeqAlignment: A new sub-alignment containing all sequences from the current SeqAlignment object but with
             only the sequence positions (columns) specified.
         """
-        new_alignment = SeqAlignment(self.file_name, self.query_id)
+        new_alignment = SeqAlignment(self.file_name, self.query_id, ppi=self.ppi)
         new_alignment.query_id = deepcopy(self.query_id)
         new_alignment.query_sequence = Seq(''.join([self.query_sequence[i] for i in positions]))
         new_alignment.seq_length = len(positions)

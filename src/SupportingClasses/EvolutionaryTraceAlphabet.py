@@ -7,6 +7,14 @@ from itertools import product
 from Bio import Alphabet
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 
+class PPI_FullIUPACProtein(Alphabet.Alphabet):
+    """
+    This class represents the full set of characters represented in the protein substitution matrices. This is more than
+    the IUPAC Protein alphabet but less than the ExtendedIUPACProtein alphabet.
+    """
+    letters = ["-", "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y",
+               "X", "B", "Z", ":"]
+    size = 1
 
 class FullIUPACProtein(Alphabet.ProteinAlphabet):
     """

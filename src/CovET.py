@@ -67,6 +67,8 @@ def Alphabetical_to_Numeric_Mapping():
                "X", "B", "Z"]
     alphabetical_to_numeric = {char: i + 11 for i, char in enumerate(letters)}
     numeric_to_alphabetical = {i + 11: char for i, char in enumerate(letters)}
+    alphabetical_to_numeric[":"] = 0
+    numeric_to_alphabetical[0] = ":"
     return alphabetical_to_numeric, numeric_to_alphabetical
 
 
@@ -147,7 +149,7 @@ def Variability_Count(pos_i, pos_j, numeric_msa):
     return len(set(numeric_msa[:, pos_i] + 1000 * numeric_msa[:, pos_j]))
 
 
-def Generate_Pair_Mapping(msa_num):
+def Generate_Pair_Mapping(msa_num, ppi=False):
     """
     This function identifies the pairs of amino acids to be scored in the multiple sequence alignment and sets up a
     dataframe of the pair, as well holding spots for the score and other metrics for that position. :param
@@ -157,8 +159,20 @@ def Generate_Pair_Mapping(msa_num):
     dictionary contains position j's, the third contains holding values for the score and variability count of pair
     ij to be calculated and filled in later.
     """
-    pair_mapping = {x: {y: {'score': 0, 'variability_count': 0} for y in list(np.arange(0, msa_num.shape[1])) if x < y}
-                    for x in list(np.arange(0, msa_num.shape[1]))}
+    if not ppi:
+        pair_mapping = {
+            x: {y: {'score': 0, 'variability_count': 0} for y in list(np.arange(0, msa_num.shape[1])) if x < y}
+            for x in list(np.arange(0, msa_num.shape[1]))}
+    else:
+        concat_index = np.where(msa_num[0] == 0)[0][0]
+        for seq in np.arange(msa_num.shape[0]):
+            assert msa_num[seq][
+                       concat_index] == 0, "The concatenation point is not the same throughout the entire alignment"
+
+        pair_mapping = {
+            x: {y: {'score': 0, 'variability_count': 0} for y in list(np.arange(concat_index + 1, msa_num.shape[1]))}
+            for x in list(np.arange(0, concat_index))}
+
     return pair_mapping
 
 
@@ -362,6 +376,8 @@ def parse_args():
     parser.add_argument('--Write_Summary', metavar='WS', type=bool, nargs='*', default=False,
                         help="Return Summary Statistics from the run as a tsv file, including alignment size"
                              " sequence size, protien name, and run time")
+    parser.add_argument('--PPI', metavar='PI', type=bool, nargs='*', default=False,
+                        help="Whether or not this is a protein-protein interaction CovET run")
 
     arguments = parser.parse_args()
     arguments = vars(arguments)
@@ -379,6 +395,7 @@ if __name__ == "__main__":
     filter_seqs = args['filter_seqs']
     add_chars = args['Add_Chars']
     write_summary = args["Write_Summary"]
+    ppi = args["PPI"]
     if add_chars:
         assert filter_seqs
 
@@ -410,7 +427,7 @@ if __name__ == "__main__":
 
     # Generate non-gapped alignments. Then write both alignments to output dir.
     print('Step 1/4: Removing gaps in query')
-    predictor = Predictor(query=query, aln_file=aln_file, out_dir=out_dir)
+    predictor = Predictor(query=query, aln_file=aln_file, out_dir=out_dir, ppi=ppi)
 
     # Calculate distances between sequence pairs in MSA
     print('Step 2/4: Calculating distances')
@@ -439,7 +456,7 @@ if __name__ == "__main__":
     alpha_to_num, num_to_alpha = Alphabetical_to_Numeric_Mapping()
     msa_num = Generate_Numeric_MSA(predictor, alpha_to_num, tree_index_mapping)
     position_matrix = Generate_Position_Matrix(msa_num)
-    pair_mapping = Generate_Pair_Mapping(msa_num)
+    pair_mapping = Generate_Pair_Mapping(msa_num, ppi=ppi)
     results_dictionary = CovET(processed_tree, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence)
     paired_results = Convert_Pair_Mapping_to_DataFrame(results_dictionary, pair_output_fn, return_frame=True)
     # convert_file_to_legacy_format(single_output_fn)

@@ -30,7 +30,7 @@ class Predictor(object):
         provided alignment as determined from the calculated scores.
         time (float): The time (in seconds) required to complete the computation of importance/covariance scores.
     """
-    def __init__(self, query, aln_file, polymer_type='Protein', out_dir='.'):
+    def __init__(self, query, aln_file, polymer_type='Protein', out_dir='.', ppi=False):
         """
         __init__
 
@@ -49,7 +49,8 @@ class Predictor(object):
         self.out_dir = out_dir
         self.query = query
         self.polymer_type = polymer_type
-        self.original_aln = SeqAlignment(query_id=query, file_name=aln_file, polymer_type=self.polymer_type)
+        self.ppi = ppi
+        self.original_aln = SeqAlignment(query_id=query, file_name=aln_file, polymer_type=self.polymer_type, ppi=self.ppi)
         self.original_aln.import_alignment()
         self.original_aln_fn = os.path.join(out_dir, 'Original_Alignment.fa')
         self.original_aln.write_out_alignment(self.original_aln_fn)
