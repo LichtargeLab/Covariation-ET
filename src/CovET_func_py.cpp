@@ -61,5 +61,5 @@ extern "C" void free_mem(const double* a)
 delete[] a;
 }
 
-// g++ -c -fPIC CovET_func_py.cpp -o CovET_func_py.o
+// g++ -c -fPIC CovET_func_py.cpp -o CovET_func_py.o -std=c++11
 // g++ -shared -Wl,-soname,CovET_func_py.so -o CovET_func_py.so CovET_func_py.o

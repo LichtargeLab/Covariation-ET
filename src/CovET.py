@@ -432,7 +432,8 @@ if __name__ == "__main__":
     # Calculate distances between sequence pairs in MSA
     print('Step 2/4: Calculating distances')
     start_dist = time()
-    calculator = AlignmentDistanceCalculator(protein=True, model="blosum62", skip_letters=None)
+    skip_letters = ":" if ppi else None
+    calculator = AlignmentDistanceCalculator(protein=True, model="blosum62", skip_letters=skip_letters)
     _, distance_matrix, _, _ = calculator.get_et_distance(predictor.original_aln.alignment, processes=cores)
     query_sequence = predictor.non_gapped_aln.query_sequence
     end_dist = time()
