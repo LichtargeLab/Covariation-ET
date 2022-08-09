@@ -474,4 +474,4 @@ if __name__ == "__main__":
         comparison_dict = {"Protein": [query], "Alignment_Size": [msa_num.shape[0]],
                            "Sequence_Length": [msa_num.shape[1]], "Total_Time": [total_time]}
         df = pd.DataFrame.from_dict(comparison_dict)
-        df.to_csv(f'{out_dir}/CovET_Run_Summary.tsv', sep='\t', index=False)
+        df.to_csv(f'{out_dir}/{query}_CovET_Run_Summary.tsv', sep='\t', index=False)
