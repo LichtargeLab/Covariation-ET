@@ -10,6 +10,7 @@ from SupportingClasses.AlignmentDistanceCalculator import AlignmentDistanceCalcu
 from SupportingClasses.utils import remove_sequences_with_ambiguous_characters
 from ctypes import CDLL, POINTER
 from ctypes import c_double, c_int32
+from multiprocessing import Pool, Manager
 
 
 def Calculate_Fixed_Penalty(phylo_tree_assignments):
@@ -176,7 +177,7 @@ def Generate_Pair_Mapping(msa_num, ppi=False):
     return pair_mapping
 
 
-def CovET(processed_tree, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence):
+def CovET(processed_tree, processes, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence):
     """
     This function calls a c++ shared library to perform the CovET calculation and fills in the pair mapping
     :param msa_num: Numeric Representation of the MSA
@@ -192,43 +193,47 @@ def CovET(processed_tree, msa_num, position_matrix, pair_mapping, fixed_penalty,
     :param Bio.Seq.Seq query_sequence: Query Sequence of Amino Acids
     :return: dict pair_mapping: Same pair mapping above, with filled in score, rank, coverage, etc..
     """
-    # load the library
-    cpp_function_path = os.path.join(os.getcwd(), 'CovET_func_py.so')
-    mylib = CDLL(cpp_function_path)
-
-    # C-type corresponding to matrix
-    _doublepp = np.ctypeslib.ndpointer(dtype=np.uintp, ndim=1, flags='C')
-
-    # C-type corresponding to numpy array
-    ND_POINTER_1 = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags="C")
-
-    # define prototypes, transform data types to be read by c++
-    mylib.TraceGroupC_vec.argtypes = (ND_POINTER_1, ND_POINTER_1, ND_POINTER_1, c_int32, _doublepp)
-    mylib.TraceGroupC_vec.restype = POINTER(c_double * processed_tree.shape[0])
-    mylib.free_mem.argtype = POINTER(c_double * processed_tree.shape[0])
 
     groupsize = processed_tree['groupsize'].to_numpy().astype(np.int32)
     start = processed_tree['start'].to_numpy().astype(np.int32)
     end = processed_tree['end'].to_numpy().astype(np.int32)
-
+    pool1 = Pool(processes=processes, initializer=init_CovET,
+                 initargs=(start, end, groupsize, processed_tree, fixed_penalty))
     for pos_i in pair_mapping:
         for pos_j in pair_mapping[pos_i].keys():
-            non_con_mat = Non_Concerted_Matrix(position_matrix, pos_i, pos_j).astype(np.int32)
-            xpp = (non_con_mat.__array_interface__['data'][0]
-                   + np.arange(non_con_mat.shape[0]) * non_con_mat.strides[0]).astype(np.uintp)
+            score = pool1.apply_async(calculate_paired_scores, (position_matrix, pos_i, pos_j,)).get()
 
-            c_return_scores = mylib.TraceGroupC_vec(start, end, groupsize, processed_tree.shape[0], xpp)
-
-            pair_mapping[pos_i][pos_j]['score'] = sum(
-                [processed_tree['scale'][i] * score for i, score in
-                 enumerate(c_return_scores.contents)]) + fixed_penalty + 1
-
-            mylib.free_mem(c_return_scores)
-
+            pair_mapping[pos_i][pos_j]['score'] = score
             pair_mapping[pos_i][pos_j]['variability_count'] = Variability_Count(pos_i, pos_j, msa_num)
             pair_mapping[pos_i][pos_j]['Query_i'] = query_sequence[pos_i]
             pair_mapping[pos_i][pos_j]['Query_j'] = query_sequence[pos_j]
+    pool1.close()
+    pool1.join()
     return pair_mapping
+
+
+def init_CovET(start, end, groupsize, processed_tree, fixed_penalty):
+    global pool_start, pool_end, pool_groupsize, pool_nseqs, pool_fixed_penalty
+    pool_start = start
+    pool_end = end
+    pool_groupsize = groupsize
+    pool_nseqs = processed_tree.shape[0]
+    pool_fixed_penalty = fixed_penalty
+
+
+def calculate_paired_scores(position_matrix, pos_i, pos_j):
+    non_con_mat = Non_Concerted_Matrix(position_matrix, pos_i, pos_j).astype(np.int32)
+    xpp = (non_con_mat.__array_interface__['data'][0]
+           + np.arange(non_con_mat.shape[0]) * non_con_mat.strides[0]).astype(np.uintp)
+
+    c_return_scores = mylib.TraceGroupC_vec(pool_start, pool_end, pool_groupsize, pool_nseqs, xpp)
+
+    score = sum(
+        [processed_tree['scale'][i] * score for i, score in
+         enumerate(c_return_scores.contents)]) + pool_fixed_penalty + 1
+
+    mylib.free_mem(c_return_scores)
+    return score
 
 
 def Convert_Pair_Mapping_to_DataFrame(results, pair_output_path, return_frame=False):
@@ -394,8 +399,10 @@ if __name__ == "__main__":
     cores = args['processors']
     filter_seqs = args['filter_seqs']
     add_chars = args['Add_Chars']
-    write_summary = args["Write_Summary"]
     ppi = args["PPI"]
+    write_summary = args["Write_Summary"]
+
+
     if add_chars:
         assert filter_seqs
 
@@ -458,7 +465,23 @@ if __name__ == "__main__":
     msa_num = Generate_Numeric_MSA(predictor, alpha_to_num, tree_index_mapping)
     position_matrix = Generate_Position_Matrix(msa_num)
     pair_mapping = Generate_Pair_Mapping(msa_num, ppi=ppi)
-    results_dictionary = CovET(processed_tree, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence)
+
+    # load the library
+    cpp_function_path = os.path.join(os.getcwd(), 'CovET_func_py.so')
+    mylib = CDLL(cpp_function_path)
+
+    # C-type corresponding to matrix
+    _doublepp = np.ctypeslib.ndpointer(dtype=np.uintp, ndim=1, flags='C')
+
+    # C-type corresponding to numpy array
+    ND_POINTER_1 = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags="C")
+
+    # define prototypes, transform data types to be read by c++
+    mylib.TraceGroupC_vec.argtypes = (ND_POINTER_1, ND_POINTER_1, ND_POINTER_1, c_int32, _doublepp)
+    mylib.TraceGroupC_vec.restype = POINTER(c_double * processed_tree.shape[0])
+    mylib.free_mem.argtype = POINTER(c_double * processed_tree.shape[0])
+
+    results_dictionary = CovET(processed_tree, cores, msa_num, position_matrix, pair_mapping, fixed_penalty, query_sequence)
     paired_results = Convert_Pair_Mapping_to_DataFrame(results_dictionary, pair_output_fn, return_frame=True)
     # convert_file_to_legacy_format(single_output_fn)
 
