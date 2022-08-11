@@ -414,7 +414,6 @@ if __name__ == "__main__":
     if filter_seqs:
         aln_file = remove_sequences_with_ambiguous_characters(aln_file, out_dir, additional_chars=add_chars)
 
-    cores = 1
     cpp_function_path = "~/Desktop/Covariation-ET-faster/src/CovET_func.cpp"
 
     # home = os.path.expanduser('~')
