@@ -3,9 +3,12 @@ Created on June 16, 2019
 
 @author: Daniel Konecki
 """
+import os
+
 import numpy as np
 from scipy.stats import rankdata
 from Bio.Alphabet import Alphabet, Gapped
+import shutil
 
 # Common gap characters
 gap_characters = {'-', '.', '*'}
@@ -123,3 +126,130 @@ def compute_rank_and_coverage(seq_length, scores, pos_size, rank_type):
     coverages[indices] = rankdata(to_rank, method='max')
     coverages /= normalization
     return ranks, coverages
+
+
+def write_slurm(query, aln_fn, project_dir, server_proj_dir, source, job=None, partition='short', mem='64328',
+                cores='24', metric='mismatch_diversity', pos_type='pair'):
+    """
+    Write Slurm
+
+    This Function is used to write a slurm file for submitting a CovET job to the taco server.
+
+    args:
+        query (str): The sequence identifier for the sequence being analyzed.
+        aln_fn (str): The path to the alignment to analyze on the server.
+        project_dir (str): The local project directory where all inputs and outputs will be stored
+        server_proj_dir (str): The server project directory where all inputs and outputs will be stored
+        source (str): The path to the CovET source files on the server
+        job (str): The job name of the run
+        partition (str): Server partition to run on
+        mem (str): Server memory to be used for the run
+        cores (str): The number of CPU cores which this analysis can use while running.
+        metric (str): Scoring metric to use when performing trace algorithm, method availability depends on
+                        the specified position_type: single: [identity, plain_entropy]; pair: [identity,
+                        plain_entropy, mutual_information, normalized_mutual_information,
+                        average_product_corrected_mutual_information,
+                        filtered_average_product_corrected_mutual_information, match_count, match_entropy,
+                        match_diversity, mismatch_count, mismatch_entropy, mismatch_diversity,
+                        match_mismatch_count_ratio, match_mismatch_entropy_ratio, match_mismatch_diversity_ratio
+                        match_mismatch_count_angle, match_mismatch_entropy_angle, match_mismatch_diversity_angle
+                        match_diversity_mismatch_entropy_ratio, match_diversity_mismatch_entropy_angle].
+        pos_type (str): Whether to score individual positions 'single' or pairs of positions 'pair'. This will
+                        affect which scoring metrics can be selected.
+    Returns: Slurm File in the project_directory/Input directory for submission to server
+    """
+    if not job:
+        job = query
+    os.makedirs(project_dir, exist_ok=True)
+    os.makedirs(f'{project_dir}/Input', exist_ok=True)
+    os.makedirs(f'{project_dir}/Output', exist_ok=True)
+    slurm_path = f'{project_dir}/Input/{job}.slurm'
+    server_out_dir = f'{server_proj_dir}/Output'
+    server_aln_path = f'{server_proj_dir}/Input/{aln_fn}'
+    lines = ['#!/usr/bin/bash' '\n',
+             f'#SBATCH --partition={partition}',
+             f'#SBATCH --output={server_out_dir}/{job}%j.out',
+             f'#SBATCH -e {server_out_dir}/{job}%j.err',
+             f'#SBATCH --mem={mem}',
+             f'#SBATCH -c {cores}',
+             '#SBATCH -n 1',
+             f'#SBATCH --job-name={job}',
+             '#SBATCH -N 1' '\n',
+             "echo 'Switching to file directory'" '\n',
+             f"cd {source}" '\n',
+             "echo 'Activating Python Environment'" '\n',
+             "source activate PyET" '\n',
+             "echo 'Starting Match Count Predictions'" '\n',
+             f"python EvolutionaryTrace.py --query {query} --alignment {server_aln_path} --output_dir {server_out_dir} "
+             f"--position_type {pos_type} --scoring_metric {metric} --processors {cores}" '\n',
+             "echo 'Predictions Completed'" '\n',
+             "source deactivate" '\n',
+             "echo 'Environment Deactivated'"]
+    with open(slurm_path, 'w') as f:
+        for line in lines:
+            f.write(line)
+            f.write('\n')
+
+
+def write_iterative_slurm(query, aln_fn, project_dir, server_proj_dir, source, job=None, partition='mhgcp', mem='64328',
+                          cores='24', metric='mismatch_diversity', pos_type='pair'):
+    """
+    Write Slurm
+
+    This Function is used to write an iterative slurm file for submitting a CovET job to the taco server. Every
+    subdirectory in the project-dir will be interpreted as a separate EvolutionaryTrace command.
+
+    args:
+        query (str): The sequence identifier for the sequence being analyzed.
+        aln_fn (str): The path to the alignment to analyze on the server.
+        project_dir (str): The local meta-project directory where all inputs and outputs will be stored.
+                         should contain sub-directories each with Input/Output folders with the input alignments.
+        server_proj_dir (str): The server meta-project directory where all inputs and outputs will be stored
+        source (str): The path to the CovET source files on the server
+        job (str): The job name of the run
+        partition (str): Server partition to run on
+        mem (str): Server memory to be used for the run
+        cores (str): The number of CPU cores which this analysis can use while running.
+        metric (str): Scoring metric to use when performing trace algorithm, method availability depends on
+                        the specified position_type: single: [identity, plain_entropy]; pair: [identity,
+                        plain_entropy, mutual_information, normalized_mutual_information,
+                        average_product_corrected_mutual_information,
+                        filtered_average_product_corrected_mutual_information, match_count, match_entropy,
+                        match_diversity, mismatch_count, mismatch_entropy, mismatch_diversity,
+                        match_mismatch_count_ratio, match_mismatch_entropy_ratio, match_mismatch_diversity_ratio
+                        match_mismatch_count_angle, match_mismatch_entropy_angle, match_mismatch_diversity_angle
+                        match_diversity_mismatch_entropy_ratio, match_diversity_mismatch_entropy_angle].
+        pos_type (str): Whether to score individual positions 'single' or pairs of positions 'pair'. This will
+                        affect which scoring metrics can be selected.
+    Returns: Iterative Slurm File in the project_dir/Input directory for submission to server
+    """
+    if not job:
+        job = query
+    iterations = os.listdir(project_dir)
+    slurm_path = f'{project_dir}/{job}.slurm'
+    lines = ['#!/usr/bin/bash' '\n',
+             f'#SBATCH --partition={partition}',
+             f'#SBATCH --output={server_proj_dir}/{job}%j.out',
+             f'#SBATCH -e {server_proj_dir}/{job}%j.err',
+             f'#SBATCH --mem={mem}',
+             f'#SBATCH -c {cores}',
+             '#SBATCH -n 1',
+             f'#SBATCH --job-name={job}',
+             '#SBATCH -N 1' '\n',
+             "echo 'Switching to file directory'" '\n',
+             f"cd {source}" '\n',
+             "echo 'Activating Python Environment'" '\n',
+             "source activate PyET" '\n',
+             "echo 'Starting Match Count Predictions'" '\n']
+    for iteration in iterations:
+        sub_dir = iteration.split('/')[-1]
+        server_out_dir = f'{server_proj_dir}/{sub_dir}/Output'
+        server_aln_path = f'{server_proj_dir}/{sub_dir}/Input/{aln_fn}'
+        lines.append(f"python EvolutionaryTrace.py --query {query} --alignment {server_aln_path} "
+                     f"--output_dir {server_out_dir} --position_type {pos_type} --scoring_metric {metric} "
+                     f"--processors {cores}" '\n')
+    lines.append("echo 'Predictions Completed' \nsource deactivate \necho 'Environment Deactivated'")
+    with open(slurm_path, 'w') as f:
+        for line in lines:
+            f.write(line)
+            f.write('\n')

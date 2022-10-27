@@ -654,9 +654,13 @@ class ContactScorer(Scorer):
             scw_scorer = SelectionClusterWeighting(seq_pdb_map=self.query_pdb_mapper, pdb_dists=self.distances,
                                                    biased=biased)
             # Compute the precomputable part (w_ave_pre, w2_ave_sub)
-            scw_scorer.compute_background_w_and_w2_ave(processes=processes)
+            start1 = time()
+            scw_scorer.compute_w_and_w2_ave_sub_2()
+            end1 = time()
+            print(f'Computing background took {str(end1 - start1)} Seconds')
         else:
             assert scw_scorer.biased == biased, 'SelectionClusterWeighting scorer does not match the biased parameter.'
+
         data_df = self._identify_relevant_data(category='Any', coverage_cutoff=1.0).loc[
                   :, ['Seq Pos 1', 'Seq Pos 2', 'Score', 'Coverage', 'Pos 1 Coverage', 'Pos 2 Coverage']]
         data_df['Max Pos Coverage'] = data_df[['Pos 1 Coverage', 'Pos 2 Coverage']].max(axis=1)

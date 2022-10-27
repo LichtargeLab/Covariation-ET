@@ -78,6 +78,74 @@ class SelectionClusterWeighting(object):
                 for key in cases:
                     self.w_and_w2_ave_sub[key] += cases[key]
 
+    def compute_w_and_w2_ave_sub_2(self):
+        """
+        Compute W and W^2 Average Sub-problems
+
+        This method replaces the multiprocessing workflow used in compute_background_w_and_w2_ave. A dataframe is
+        used instead of an iterative approach
+
+        Solves the cases of the w and w^2 average sub-problem for a specific position in the protein. These can be combined
+        across all positions to get the complete solution (after the pool of workers has finished).
+
+        Args:
+            res_i (int): The position in the protein for which to compute the parts of the w and w^2 average sub-problems.
+        Returns:
+            dict: The parts of E[w] (w_ave before multiplication with the pi1 coefficient, i.e. w_ave_pre) and E[w^2] (cases
+             1, 2, and 3) which can be pre-calculated and reused for later computations.
+        """
+        cases = {'w_ave_pre': 0, 'Case1': 0, 'Case2': 0, 'Case3': 0}
+        if self.biased:
+            biased = 'biased'
+        else:
+            biased = 'unbiased'
+
+        #create an array of structural neighbors to perform background calculation on
+        a = self.distances < self.cutoff
+        neighbors = np.array(np.where(a == True))
+
+        #create a dataframe to replace residue indeces in the distance matrix to pdb residue indeces
+        pos_to_pdb = {}
+        for i in range(self.distances.shape[0]):
+            pos_to_pdb[i] = self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain][i]
+        k = np.array(list(pos_to_pdb.keys()))
+        v = np.array(list(pos_to_pdb.values()))
+        out = np.zeros_like(neighbors)
+        for key, val in zip(k, v):
+            out[neighbors == key] = val
+
+        #filter the structural neighbors array so calculations are performed once per pair
+        neighbors = out.T[(np.where(out[0] < out[1]))]
+
+        #create dataframe of all ij xy pairs for background calculation
+        df = pd.DataFrame(data=neighbors)
+        background_frame = df.merge(df, how='cross')
+        background_frame.columns = ['i', 'j', 'x', 'y']
+        background_frame['biased_sij'] = np.abs(background_frame['j'] - background_frame['i'])
+        background_frame['unbiased_sij'] = 1
+        background_frame['biased_sxy'] = np.abs(background_frame['y'] - background_frame['x'])
+        background_frame['unbiased_sxy'] = 1
+        background_frame['biased'] = background_frame['biased_sij'] * background_frame['biased_sxy']
+        background_frame['unbiased'] = background_frame['unbiased_sij'] * background_frame['unbiased_sxy']
+
+        #assign different pairs to the different classes
+        background_frame['case'] = 'Case3'
+        background_frame.loc[(background_frame['i'] == background_frame['x'])
+                             | (background_frame['j'] == background_frame['y'])
+                             | (background_frame['i'] == background_frame['y'])
+                             | (background_frame['j'] == background_frame['x']), ['case']] = 'Case2'
+        background_frame.loc[(background_frame['i'] == background_frame['x'])
+                             & (background_frame['j'] == background_frame['y']), ['case']] = 'Case1'
+        background_frame.loc[(background_frame['i'] == background_frame['y'])
+                             & (background_frame['j'] == background_frame['x']), ['case']] = 'Case1'
+
+        cases['w_ave_pre'] = int(background_frame[f'{biased}_sij'].sum() / len(df))
+        cases['Case1'] = background_frame.loc[background_frame['case'] == 'Case1', biased].sum()
+        cases['Case2'] = background_frame.loc[background_frame['case'] == 'Case2', biased].sum()
+        cases['Case3'] = background_frame.loc[background_frame['case'] == 'Case3', biased].sum()
+        self.w_and_w2_ave_sub = cases
+        return cases
+
     def clustering_z_score(self, res_list):
         """
         Clustering Z Score
@@ -130,7 +198,8 @@ class SelectionClusterWeighting(object):
         s_ij = np.outer(s_i, s_i)
         s_ij[positions, positions] = 0
         if self.biased:
-            converted_positions = np.array(self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain])
+            converted_positions = np.array(
+                self.query_pdb_mapper.pdb_ref.pdb_residue_list[self.query_pdb_mapper.best_chain])
             bias_ij = np.subtract.outer(converted_positions, converted_positions)
             bias_ij = np.abs(bias_ij)
         else:
@@ -215,3 +284,5 @@ def compute_w_and_w2_ave_sub(res_i):
                     curr_case = 'Case3'
                 cases[curr_case] += s_ij * s_xy
     return cases
+
+
