@@ -94,24 +94,27 @@ if __name__ == "__main__":
     print('Step 1/4: Removing gaps in query')
     predictor = Predictor(query=query, aln_file=aln_file,
                           out_dir=out_dir)
+                          
+    if os.path.isfile(phylo_tree_fn) == True:
+        print('Using existing tree in the output directory')
+    else:        
+        # Calculate distances between sequence pairs in MSA
+        print('Step 2/4: Calculating distances')
+        start_dist = time()
+        calculator = AlignmentDistanceCalculator(protein=True, model="blosum62", skip_letters=None)
+        _, distance_matrix, _, _ = calculator.get_et_distance(predictor.original_aln.alignment, processes=cores)
+        end_dist = time()
+        print('Calculating distances took: {} min'.format((end_dist - start_dist) / 60.0))
 
-    # Calculate distances between sequence pairs in MSA
-    print('Step 2/4: Calculating distances')
-    start_dist = time()
-    calculator = AlignmentDistanceCalculator(protein=True, model="blosum62", skip_letters=None)
-    _, distance_matrix, _, _ = calculator.get_et_distance(predictor.original_aln.alignment, processes=cores)
-    end_dist = time()
-    print('Calculating distances took: {} min'.format((end_dist - start_dist) / 60.0))
-
-    # Build tree and write to file
-    print('Step 3/4: Building phylogenetic tree')
-    start_tree = time()
-    phylo_tree = PhylogeneticTree(tree_building_method="et",
+        # Build tree and write to file
+        print('Step 3/4: Building phylogenetic tree')
+        start_tree = time()
+        phylo_tree = PhylogeneticTree(tree_building_method="et",
                                   tree_building_args={})
-    phylo_tree.construct_tree(dm=distance_matrix)
-    phylo_tree.write_out_tree(filename=phylo_tree_fn)
-    end_tree = time()
-    print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
+        phylo_tree.construct_tree(dm=distance_matrix)
+        phylo_tree.write_out_tree(filename=phylo_tree_fn)
+        end_tree = time()
+        print('Constructing tree took: {} min'.format((end_tree - start_tree) / 60.0))
 
     # Call R script to calculate CovET scores
     print('Step 4/4: Computing CovET scores')
