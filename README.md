@@ -2,6 +2,12 @@
 
 This project re-implements in Python3 a large existing code base built for the Evolutionary Trace algorithm (see [citations](##References)) in C with a significant amount of documentation. This new project focuses on Evolutionary Trace in the context of covariation predictions and makes different distance matrice, tree construction method, and many more metrics of covariation prediction available. The project seeks to make this code base accessible in Python as well as increase hardware usage/throughput through the use of vectorization and multiprocessing.
 
+
+## Notes
+1. Due to package version conflicts, EVcouplings installation is removed from the environment.yml
+2. There is a faster implementation of CovET with R and C++. See [faster](https://github.com/LichtargeLab/Covariation-ET/tree/faster) branch for details. To use that version, the environment needs to be setup with the environment.yml in that brach.
+
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
@@ -55,7 +61,6 @@ python EvolutionaryTrace.py --preset CovET --query <Sequence identifier for the 
 ```
 python EvolutionarTrace.py --query <Sequence identifier for the target sequence.> --alignment <Path to a fasta alignment> --output_dir <Directory to which results will be written.> --polymer_type <DNA or Protein> --et_distance <Whether to use similarity when considering a distance model.> --distance_model <What distance model to use e.g. BLOSUM62.> --tree_building_method <Which type of tree to construct.> --tree_building_options <Options needed when constructing the specified tree.> --ranks <Whether to perform analysis over all levels of the tree or the subset of levels to use.> --position_type <Whether predictions are being made on a single position or pairs of positions.> --scoring_metric <Which metric to use to compute single or paired position importance.> --gap_correction <Whether to correct for columns with many gaps.> --output_files <Which files to produce for the output.> --processors <How many processors are available to this tool while making predictions.> --low_memory <Whether or not to write intermediate results to file to reduce the memory footprint of the method.>)
 ```
-6. There is a faster implementation of CovET with R and C++. See [faster](https://github.com/LichtargeLab/Covariation-ET/tree/faster) branch for details.
 
 There are also several options for creating data sets or characterizing input when using DataSetGenerator.py, which can be accessed by navigating to src/SupportingClasses, for additional details about any options used when calling DataSetGenerator.py please run ```python DataSetGenerator.py --help```.
 1. To generate the custom Uniref data for building BLAST databases, please download and extract the fasta file for the Uniref database of interest then run:
