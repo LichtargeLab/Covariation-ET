@@ -1,6 +1,5 @@
 name: PyET
 channels:
-  - schrodinger
   - etetoolkit
   - conda-forge
   - defaults
@@ -22,8 +21,7 @@ dependencies:
   - numpy=1.18.5
   - openssl=1.1.1i
   - pandas=1.2.4
-  - pip=20.0.2
-  - pymol=2.4.0
+  - pymol-open-source=2.4.0
   - pyopenssl=19.1.0
   - pyqt=5.12.3
   - python=3.8.2
@@ -40,22 +38,3 @@ dependencies:
   - wheel=0.34.2
   - xlrd=1.2.0
   - xlsxwriter=1.3.7
-  - pip:
-    - bokeh==2.1.1
-    - evcouplings==0.0.5
-    - filelock==3.0.12
-    - llvmlite==0.33.0
-    - mmtf-python==1.1.2
-    - msgpack==1.0.0
-    - numba==0.50.0
-    - psutil==5.7.0
-    - pyqt5-sip==4.19.18
-    - pyqtchart==5.12
-    - pyqtwebengine==5.12.1
-    - pyyaml==5.3.1
-    - ruamel-yaml==0.16.10
-    - ruamel-yaml-clib==0.2.0
-    - sqlalchemy==1.3.17
-    - typing-extensions==3.7.4.2
-prefix: /home/daniel/anaconda3/envs/PyETTest
-
